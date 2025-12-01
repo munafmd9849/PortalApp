@@ -108,6 +108,7 @@ model Student {
   // Profile
   bio          String?
   headline     String?
+  summary      String?  // Professional summary for resume
   city         String?
   stateRegion  String?
   jobFlexibility String?
@@ -145,6 +146,7 @@ model Student {
   skills       Skill[]
   education    Education[]
   projects     Project[]
+  experiences  Experience[]
   achievements Achievement[]
   certifications Certification[]
   jobTracking  JobTracking[]
@@ -191,19 +193,41 @@ model Education {
   @@map("education")
 }
 
+// Work Experience
+model Experience {
+  id          String   @id @default(uuid())
+  studentId   String
+  title       String
+  company     String
+  start       String   // Start date (e.g., "2023-01" or "Jan 2023")
+  end         String?  // End date (null for current position)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, start(sort: Desc)])
+  @@map("experiences")
+}
+
 // Projects
 model Project {
-  id           String   @id @default(uuid())
-  studentId    String
-  title        String
-  description  String?
-  technologies String // Array of technologies (stored as JSON string)
-  githubUrl    String?
-  liveUrl      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(uuid())
+  studentId       String
+  title           String
+  description     String?
+  technologies    String // Array of technologies (stored as JSON string)
+  githubUrl       String?
+  liveUrl         String?
+  // AI-generated fields
+  ai_summary      String?  // AI-generated professional summary
+  ai_bullets      String?  // AI-generated bullet points (stored as JSON array string)
+  skills_extracted String? // AI-extracted skills (stored as JSON array string)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   
   @@index([studentId, createdAt(sort: Desc)])
   @@map("projects")

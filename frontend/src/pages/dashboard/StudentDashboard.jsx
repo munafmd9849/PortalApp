@@ -44,15 +44,9 @@ import {
   X
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
-import ResumeManager from '../../components/resume/ResumeManager';
-import ResumeAnalyzer from '../../components/resume/ResumeAnalyzer';
-import CustomResumeBuilder from '../../components/resume/CustomResumeBuilder';
-import { upsertResume, getResume } from '../../services/resumes';
+import ResumeBuilder from '../../components/resume/ResumeBuilder';
 import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
-import { getResumeInfo } from '../../services/resumeStorage';
-import SelectDropdown from '../../components/common/SelectDropdown';
-import { CENTER_OPTIONS, SCHOOL_OPTIONS, BATCH_OPTIONS } from '../../constants/academics';
 
 const normalizeProfileSnapshot = (profile = {}) => ({
   fullName: profile.fullName || '',
@@ -215,14 +209,6 @@ export default function StudentDashboard() {
     setJobFlexibility(snapshot.jobFlexibility);
   }, []);
   
-  // Resume state
-  const [resumeInfo, setResumeInfo] = useState({
-    url: null,
-    fileName: null,
-    uploadedAt: null,
-    hasResume: false
-  });
-  const [activeResumeTab, setActiveResumeTab] = useState('builder');
   
   // Skills state
   const [skillsEntries, setSkillsEntries] = useState([]);
@@ -463,15 +449,6 @@ export default function StudentDashboard() {
         initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
         setIsFormDirty(false);
 
-        // Load resume info if present
-        if (profileData.resumeUrl) {
-          setResumeInfo({
-            url: profileData.resumeUrl,
-            fileName: profileData.resumeFileName || 'resume.pdf',
-            uploadedAt: profileData.resumeUploadedAt || null,
-            hasResume: true
-          });
-        }
       } else {
         if (process.env.NODE_ENV === 'development') {
           console.log('⚠️ No profile data found - new user?');
@@ -924,11 +901,6 @@ export default function StudentDashboard() {
     }
   };
 
-  // Handle resume update callback
-  const handleResumeUpdate = (info) => {
-    console.log('handleResumeUpdate called with:', info);
-    setResumeInfo(info);
-  };
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -1321,77 +1293,9 @@ export default function StudentDashboard() {
 
       case 'resume':
         return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <FileText className="h-6 w-6 text-blue-600" />
-                  Resume Management
-                </h2>
-              </div>
-              
-              <div className="mb-6">
-                <div className="space-y-4">
-                  <div className="flex border-b border-gray-200">
-                    <button
-                      onClick={() => setActiveResumeTab('builder')}
-                      className={`px-4 py-2 text-sm font-medium ${
-                        activeResumeTab === 'builder'
-                          ? 'border-b-2 border-blue-500 text-blue-600'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      Resume Builder
-                    </button>
-                    <button
-                      onClick={() => setActiveResumeTab('upload')}
-                      className={`px-4 py-2 text-sm font-medium ${
-                        activeResumeTab === 'upload'
-                          ? 'border-b-2 border-blue-500 text-blue-600'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      Upload & Manage
-                    </button>
-                    <button
-                      onClick={() => setActiveResumeTab('analysis')}
-                      className={`px-4 py-2 text-sm font-medium ${
-                        activeResumeTab === 'analysis'
-                          ? 'border-b-2 border-blue-500 text-blue-600'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      AI Analysis
-                    </button>
-                  </div>
-
-                  <div className="mt-6">
-                    {activeResumeTab === 'builder' && user?.id && (
-                      <ErrorBoundary>
-                        <CustomResumeBuilder userId={user.id} />
-                      </ErrorBoundary>
-                    )}
-                    {activeResumeTab === 'upload' && user?.id && (
-                      <ErrorBoundary>
-                        <ResumeManager 
-                          userId={user.id} 
-                          onResumeUpdate={handleResumeUpdate}
-                        />
-                      </ErrorBoundary>
-                    )}
-                    {activeResumeTab === 'analysis' && user?.id && (
-                      <ErrorBoundary>
-                        <ResumeAnalyzer 
-                          userId={user.id}
-                          resumeInfo={resumeInfo}
-                        />
-                      </ErrorBoundary>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ErrorBoundary>
+            <ResumeBuilder />
+          </ErrorBoundary>
         );
 
       case 'calendar':
@@ -1713,54 +1617,69 @@ export default function StudentDashboard() {
                       <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
                     )}
                   </div>
-                <div>
-                  <SelectDropdown
-                    label="Batch"
-                    required
-                    options={BATCH_OPTIONS}
-                    value={batch}
-                    onChange={(value) => {
-                      setBatch(value);
-                      validateField('batch', value);
-                    }}
-                    placeholder="Select Batch"
-                  />
-                  {validationErrors.batch && (
-                    <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
-                  )}
-                </div>
-                <div>
-                  <SelectDropdown
-                    label="School"
-                    required
-                    options={SCHOOL_OPTIONS}
-                    value={school}
-                    onChange={(value) => {
-                      setSchool(value);
-                      validateField('school', value);
-                    }}
-                    placeholder="Select School"
-                  />
-                  {validationErrors.school && (
-                    <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
-                  )}
-                </div>
-                <div>
-                  <SelectDropdown
-                    label="Center"
-                    required
-                    options={CENTER_OPTIONS}
-                    value={center}
-                    onChange={(value) => {
-                      setCenter(value);
-                      validateField('center', value);
-                    }}
-                    placeholder="Select Center"
-                  />
-                  {validationErrors.center && (
-                    <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
-                  )}
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Batch <span className="text-red-500">*</span></label>
+                    <select
+                      id="batch"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={batch}
+                      onChange={(e) => {
+                        setBatch(e.target.value);
+                        validateField('batch', e.target.value);
+                      }}
+                    >
+                      <option value="">Select Batch</option>
+                      <option value="25-29">25-29</option>
+                      <option value="24-28">24-28</option>
+                      <option value="23-27">23-27</option>
+                    </select>
+                    {validationErrors.batch && (
+                      <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">School <span className="text-red-500">*</span></label>
+                    <select
+                      id="school"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={school}
+                      onChange={(e) => {
+                        setSchool(e.target.value);
+                        validateField('school', e.target.value);
+                      }}
+                    >
+                      <option value="">Select School</option>
+                      <option value="SOT">School of Technology</option>
+                      <option value="SOM">School of Management</option>
+                      <option value="SOH">School of HealthCare</option>
+                    </select>
+                    {validationErrors.school && (
+                      <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Center <span className="text-red-500">*</span></label>
+                    <select
+                      id="center"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={center}
+                      onChange={(e) => {
+                        setCenter(e.target.value);
+                        validateField('center', e.target.value);
+                      }}
+                    >
+                      <option value="">Select Center</option>
+                      <option value="BANGALORE">Bangalore</option>
+                      <option value="NOIDA">Noida</option>
+                      <option value="LUCKNOW">Lucknow</option>
+                      <option value="PUNE">Pune</option>
+                      <option value="PATNA">Patna</option>
+                      <option value="INDORE">Indore</option>
+                    </select>
+                    {validationErrors.center && (
+                      <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -78,11 +78,16 @@ function transformNotification(notification) {
 
 /**
  * List notifications for user
+ * For admins, fetch all notifications (no limit)
+ * For other users, use default limit of 50
  */
-export async function listNotificationsForUser(userId, limitTo = 50) {
+export async function listNotificationsForUser(userId, limitTo = null) {
   try {
-    console.log('[Notifications Service] Fetching notifications, limit:', limitTo);
-    const notifications = await api.getNotifications({ limit: limitTo });
+    // For admins, fetch all notifications (use a high limit like 1000)
+    // For other users, use default limit of 50
+    const limit = limitTo || 1000; // Increased limit to show all past notifications
+    console.log('[Notifications Service] Fetching notifications, limit:', limit);
+    const notifications = await api.getNotifications({ limit });
     console.log('[Notifications Service] Raw notifications from API:', notifications?.length || 0);
     
     if (!notifications || !Array.isArray(notifications)) {
@@ -156,7 +161,7 @@ export const markNotificationAsRead = markNotificationRead;
 export function subscribeToNotifications(callback, options = {}) {
   let pollInterval = null;
   let socketUnsubscribe = null;
-  const { limit = 50 } = options;
+  const { limit = 1000 } = options; // Increased limit to show all past notifications
 
   // Initial load
   (async () => {

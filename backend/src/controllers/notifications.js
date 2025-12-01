@@ -60,7 +60,7 @@ export async function createNotification({ userId, title, body, data = {}, sendE
 export async function getUserNotifications(req, res) {
   try {
     const userId = req.userId;
-    const { isRead, limit = 50 } = req.query;
+    const { isRead, limit = 1000 } = req.query; // Increased default limit to show all past notifications
 
     console.log(`[Notifications Controller] Fetching notifications for user ${userId}, limit: ${limit}, isRead: ${isRead}`);
 
@@ -69,10 +69,13 @@ export async function getUserNotifications(req, res) {
       where.isRead = isRead === 'true';
     }
 
+    // Parse limit and set a maximum cap to prevent performance issues
+    const parsedLimit = Math.min(parseInt(limit) || 1000, 1000);
+
     const notifications = await prisma.notification.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit),
+      take: parsedLimit,
     });
 
     console.log(`[Notifications Controller] Found ${notifications.length} notifications for user ${userId}`);

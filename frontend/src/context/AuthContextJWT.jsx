@@ -83,7 +83,18 @@ export function AuthProvider({ children }) {
 
       return { user: data.user, role: data.user.role, status: data.user.status };
     } catch (error) {
-      throw error;
+      console.error('Login error in AuthContext:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.status,
+        isNetworkError: error.isNetworkError
+      });
+      // Re-throw with a more user-friendly message if needed
+      if (error.message) {
+        throw error;
+      }
+      throw new Error(error.message || 'Login failed. Please check your credentials and try again.');
     }
   };
 

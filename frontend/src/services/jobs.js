@@ -5,6 +5,9 @@
 
 import api from './api.js';
 
+// Set to true to force use of mock data (for testing/development)
+const USE_MOCK_DATA = false; // Change to true to see mock data
+
 /**
  * List jobs with filters
  */
@@ -411,6 +414,14 @@ export function subscribeJobs(callback, filters = {}) {
   // Load jobs once instead of real-time subscription
   (async () => {
     try {
+      // If USE_MOCK_DATA is true, skip API and use mock data directly
+      if (USE_MOCK_DATA) {
+        console.log('🎭 Using mock data (USE_MOCK_DATA flag is enabled)');
+        const mockJobs = getMockJobs();
+        callback(mockJobs);
+        return;
+      }
+      
       // Try real API first, fallback to mock data
       try {
         const transformedJobs = await fetchJobsFromAPI(filters);
@@ -418,16 +429,26 @@ export function subscribeJobs(callback, filters = {}) {
           callback(transformedJobs);
           return;
         }
+        // If API returns 0 jobs, use mock data as fallback
+        console.log('API returned 0 jobs, using mock data as fallback');
+        const mockJobs = getMockJobs();
+        callback(mockJobs);
       } catch (apiError) {
         console.log('API call failed, using mock data:', apiError.message);
+        // Use mock data as fallback
+        const mockJobs = getMockJobs();
+        callback(mockJobs);
       }
-      
-      // Use mock data as fallback
-      const mockJobs = getMockJobs();
-      callback(mockJobs);
     } catch (error) {
       console.error('subscribeJobs error:', error);
-      callback([]);
+      // Even on error, try to show mock data
+      try {
+        const mockJobs = getMockJobs();
+        callback(mockJobs);
+      } catch (mockError) {
+        console.error('Failed to load mock data:', mockError);
+        callback([]);
+      }
     }
   })();
   

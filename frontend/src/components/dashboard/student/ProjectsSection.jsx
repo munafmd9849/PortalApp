@@ -5,7 +5,8 @@ import {
   addProjectArray,
   deleteProjectArray,
   updateProjectArray,
-  getStudentProfile
+  getStudentProfile,
+  generateProjectContent
 } from '../../../services/students';
 
 const ProjectsSection = () => {
@@ -16,8 +17,12 @@ const ProjectsSection = () => {
   const [editedProject, setEditedProject] = useState({
     title: '',
     description: '',
-    liveUrl: ''
+    techStack: [],
+    liveUrl: '',
+    githubUrl: ''
   });
+  const [aiGenerated, setAiGenerated] = useState(null);
+  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -74,15 +79,60 @@ const ProjectsSection = () => {
   const startEditing = (index) => {
     setEditingIndex(index);
     const project = projects[index];
+    // Parse techStack from JSON string if it exists
+    let techStack = [];
+    if (project.technologies) {
+      try {
+        techStack = typeof project.technologies === 'string' 
+          ? JSON.parse(project.technologies) 
+          : project.technologies;
+      } catch (e) {
+        techStack = [];
+      }
+    }
     setEditedProject({
       title: project.title,
-      description: project.description,
-      liveUrl: project.liveUrl || ''
+      description: project.description || '',
+      techStack: techStack,
+      liveUrl: project.liveUrl || '',
+      githubUrl: project.githubUrl || ''
     });
+    // Load AI-generated content if available
+    if (project.ai_summary || project.ai_bullets) {
+      setAiGenerated({
+        summary: project.ai_summary,
+        bullets: project.ai_bullets ? (typeof project.ai_bullets === 'string' ? JSON.parse(project.ai_bullets) : project.ai_bullets) : [],
+        skills: project.skills_extracted ? (typeof project.skills_extracted === 'string' ? JSON.parse(project.skills_extracted) : project.skills_extracted) : []
+      });
+    } else {
+      setAiGenerated(null);
+    }
   };
 
   const handleChange = (field, value) => {
     setEditedProject((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Auto-generate AI content when project data changes
+  const triggerAIGeneration = async () => {
+    if (!editedProject.title.trim() || !editedProject.description.trim()) {
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      const generated = await generateProjectContent({
+        title: editedProject.title,
+        description: editedProject.description,
+        techStack: editedProject.techStack || []
+      });
+      setAiGenerated(generated);
+    } catch (error) {
+      console.error('AI generation error:', error);
+      // Don't show error to user, just log it
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const saveProject = async () => {
@@ -95,11 +145,21 @@ const ProjectsSection = () => {
       setLoading(true);
       setError('');
 
+      // Prepare project data with AI-generated content
       const projectData = {
         title: editedProject.title,
         description: editedProject.description,
-        liveUrl: editedProject.liveUrl ? normalizeUrl(editedProject.liveUrl) : ''
+        technologies: JSON.stringify(editedProject.techStack || []),
+        liveUrl: editedProject.liveUrl ? normalizeUrl(editedProject.liveUrl) : '',
+        githubUrl: editedProject.githubUrl ? normalizeUrl(editedProject.githubUrl) : ''
       };
+
+      // Include AI-generated fields if available
+      if (aiGenerated) {
+        projectData.ai_summary = aiGenerated.summary;
+        projectData.ai_bullets = JSON.stringify(aiGenerated.bullets || []);
+        projectData.skills_extracted = JSON.stringify(aiGenerated.skills || []);
+      }
 
       if (editingIndex !== null && editingIndex < projects.length) {
         // Update existing project
@@ -118,6 +178,7 @@ const ProjectsSection = () => {
 
       setEditingIndex(null);
       setIsAddButtonActive(false);
+      setAiGenerated(null);
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error saving project:', error);
@@ -163,10 +224,12 @@ const ProjectsSection = () => {
       // Cancel adding
       setEditingIndex(null);
       setIsAddButtonActive(false);
+      setAiGenerated(null);
     } else {
       // Start adding
       setEditingIndex(projects.length);
-      setEditedProject({ title: '', description: '', liveUrl: '' });
+      setEditedProject({ title: '', description: '', techStack: [], liveUrl: '', githubUrl: '' });
+      setAiGenerated(null);
       setIsAddButtonActive(true);
     }
   };
@@ -174,8 +237,19 @@ const ProjectsSection = () => {
   const cancelEditing = () => {
     setEditingIndex(null);
     setIsAddButtonActive(false);
+    setAiGenerated(null);
     setError('');
   };
+
+  // Auto-trigger AI generation when title or description changes
+  useEffect(() => {
+    if (editingIndex !== null && editedProject.title.trim() && editedProject.description.trim()) {
+      const timer = setTimeout(() => {
+        triggerAIGeneration();
+      }, 1000); // Debounce 1 second
+      return () => clearTimeout(timer);
+    }
+  }, [editedProject.title, editedProject.description, editedProject.techStack]);
 
   return (
     <div className="w-full relative">
@@ -257,17 +331,65 @@ const ProjectsSection = () => {
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                 />
                 <input
+                  type="text"
+                  value={editedProject.techStack?.join(', ') || ''}
+                  onChange={(e) => {
+                    const techStack = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+                    handleChange('techStack', techStack);
+                  }}
+                  placeholder="Tech Stack (comma-separated, e.g., React, Node.js, MongoDB)"
+                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                />
+                <input
+                  type="url"
+                  value={editedProject.githubUrl}
+                  onChange={(e) => handleChange('githubUrl', e.target.value)}
+                  placeholder="GitHub URL"
+                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                />
+                <input
                   type="url"
                   value={editedProject.liveUrl}
                   onChange={(e) => handleChange('liveUrl', e.target.value)}
-                  placeholder="Project URL"
+                  placeholder="Live Demo URL"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
+                
+                {/* AI Generated Content */}
+                {generating && (
+                  <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                    🤖 Generating AI content...
+                  </div>
+                )}
+                {aiGenerated && !generating && (
+                  <div className="mb-2 p-3 bg-green-50 border border-green-200 rounded">
+                    <div className="text-sm font-semibold text-green-800 mb-2">✨ AI-Generated Content:</div>
+                    <div className="text-sm text-gray-700 mb-2">
+                      <strong>Summary:</strong> {aiGenerated.summary}
+                    </div>
+                    {aiGenerated.bullets && aiGenerated.bullets.length > 0 && (
+                      <div className="text-sm text-gray-700 mb-2">
+                        <strong>Bullet Points:</strong>
+                        <ul className="list-disc list-inside ml-2">
+                          {aiGenerated.bullets.map((bullet, idx) => (
+                            <li key={idx}>{bullet}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aiGenerated.skills && aiGenerated.skills.length > 0 && (
+                      <div className="text-sm text-gray-700">
+                        <strong>Extracted Skills:</strong> {aiGenerated.skills.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <div className="flex space-x-2 justify-end">
                   <button
                     onClick={saveProject}
                     className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                    disabled={loading}
+                    disabled={loading || generating}
                   >
                     {loading ? 'Saving...' : 'Save'}
                   </button>
@@ -302,17 +424,65 @@ const ProjectsSection = () => {
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                   />
                   <input
+                    type="text"
+                    value={editedProject.techStack?.join(', ') || ''}
+                    onChange={(e) => {
+                      const techStack = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+                      handleChange('techStack', techStack);
+                    }}
+                    placeholder="Tech Stack (comma-separated)"
+                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  />
+                  <input
+                    type="url"
+                    value={editedProject.githubUrl}
+                    onChange={(e) => handleChange('githubUrl', e.target.value)}
+                    placeholder="GitHub URL"
+                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  />
+                  <input
                     type="url"
                     value={editedProject.liveUrl}
                     onChange={(e) => handleChange('liveUrl', e.target.value)}
-                    placeholder="Project URL"
+                    placeholder="Live Demo URL"
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                   />
+                  
+                  {/* AI Generated Content */}
+                  {generating && (
+                    <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                      🤖 Generating AI content...
+                    </div>
+                  )}
+                  {aiGenerated && !generating && (
+                    <div className="mb-2 p-3 bg-green-50 border border-green-200 rounded">
+                      <div className="text-sm font-semibold text-green-800 mb-2">✨ AI-Generated Content:</div>
+                      <div className="text-sm text-gray-700 mb-2">
+                        <strong>Summary:</strong> {aiGenerated.summary}
+                      </div>
+                      {aiGenerated.bullets && aiGenerated.bullets.length > 0 && (
+                        <div className="text-sm text-gray-700 mb-2">
+                          <strong>Bullet Points:</strong>
+                          <ul className="list-disc list-inside ml-2">
+                            {aiGenerated.bullets.map((bullet, idx) => (
+                              <li key={idx}>{bullet}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {aiGenerated.skills && aiGenerated.skills.length > 0 && (
+                        <div className="text-sm text-gray-700">
+                          <strong>Extracted Skills:</strong> {aiGenerated.skills.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="flex space-x-2 justify-end">
                     <button
                       onClick={saveProject}
                       className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                      disabled={loading}
+                      disabled={loading || generating}
                     >
                       {loading ? 'Saving...' : 'Save'}
                     </button>

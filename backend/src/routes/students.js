@@ -7,6 +7,7 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import * as studentController from '../controllers/students.js';
+import * as resumeController from '../controllers/resume.js';
 import multer from 'multer';
 
 const router = express.Router({ mergeParams: true });
@@ -47,10 +48,21 @@ router.post('/education', studentController.addEducation);
 router.put('/education/:educationId', studentController.updateEducation);
 router.delete('/education/:educationId', studentController.deleteEducation);
 
+// Experience CRUD
+router.post('/experience', studentController.addExperience);
+router.put('/experience/:experienceId', studentController.updateExperience);
+router.delete('/experience/:experienceId', studentController.deleteExperience);
+
 // Projects CRUD
 router.post('/projects', studentController.addProject);
 router.put('/projects/:projectId', studentController.updateProject);
 router.delete('/projects/:projectId', studentController.deleteProject);
+
+// AI Generation
+router.post('/generate-project-content', studentController.generateProjectContentEndpoint);
+
+// Resume PDF Export
+router.post('/generate-resume-pdf', resumeController.generateResumePDF);
 
 // Achievements CRUD
 router.post('/achievements', studentController.addAchievement);

@@ -6,6 +6,7 @@
 
 import prisma from '../config/database.js';
 import { uploadToS3, deleteFromS3 } from '../config/s3.js';
+import { generateProjectContent } from '../services/aiService.js';
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
   if (profilePhotoValue === undefined) {
@@ -44,6 +45,9 @@ export async function getStudentProfile(req, res) {
         skills: true,
         education: {
           orderBy: { endYear: 'desc' },
+        },
+        experiences: {
+          orderBy: { start: 'desc' },
         },
         projects: {
           orderBy: { createdAt: 'desc' },
@@ -838,6 +842,113 @@ export async function deleteEducation(req, res) {
 }
 
 /**
+ * Add experience (for Resume System)
+ */
+export async function addExperience(req, res) {
+  try {
+    const userId = req.userId;
+    const experienceData = req.body;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const experience = await prisma.experience.create({
+      data: {
+        studentId: student.id,
+        ...experienceData,
+      },
+    });
+
+    res.status(201).json(experience);
+  } catch (error) {
+    console.error('Add experience error:', error);
+    res.status(500).json({ error: 'Failed to add experience' });
+  }
+}
+
+/**
+ * Update experience (for Resume System)
+ */
+export async function updateExperience(req, res) {
+  try {
+    const { experienceId } = req.params;
+    const userId = req.userId;
+    const experienceData = req.body;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const experience = await prisma.experience.findUnique({
+      where: { id: experienceId },
+      select: { studentId: true },
+    });
+
+    if (!experience || experience.studentId !== student.id) {
+      return res.status(403).json({ error: 'Experience not found or access denied' });
+    }
+
+    const updated = await prisma.experience.update({
+      where: { id: experienceId },
+      data: experienceData,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update experience error:', error);
+    res.status(500).json({ error: 'Failed to update experience' });
+  }
+}
+
+/**
+ * Delete experience (for Resume System)
+ */
+export async function deleteExperience(req, res) {
+  try {
+    const { experienceId } = req.params;
+    const userId = req.userId;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const experience = await prisma.experience.findUnique({
+      where: { id: experienceId },
+      select: { studentId: true },
+    });
+
+    if (!experience || experience.studentId !== student.id) {
+      return res.status(403).json({ error: 'Experience not found or access denied' });
+    }
+
+    await prisma.experience.delete({
+      where: { id: experienceId },
+    });
+
+    res.json({ message: 'Experience deleted' });
+  } catch (error) {
+    console.error('Delete experience error:', error);
+    res.status(500).json({ error: 'Failed to delete experience' });
+  }
+}
+
+/**
  * Add project
  */
 export async function addProject(req, res) {
@@ -1052,6 +1163,68 @@ export async function deleteAchievement(req, res) {
   } catch (error) {
     console.error('Delete achievement error:', error);
     res.status(500).json({ error: 'Failed to delete achievement' });
+  }
+}
+
+/**
+ * Generate AI project content (for Resume System)
+ * POST /api/students/generate-project-content
+ */
+export async function generateProjectContentEndpoint(req, res) {
+  try {
+    const userId = req.userId;
+    const { title, description, techStack, projectId } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    // Generate AI content
+    const aiContent = await generateProjectContent({
+      title,
+      description,
+      techStack: techStack || [],
+    });
+
+    // If projectId is provided, update the project with AI content
+    if (projectId) {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      // Verify project belongs to student
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { studentId: true },
+      });
+
+      if (!project || project.studentId !== student.id) {
+        return res.status(403).json({ error: 'Project not found or access denied' });
+      }
+
+      // Update project with AI content
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          ai_summary: aiContent.summary,
+          ai_bullets: JSON.stringify(aiContent.bullets),
+          skills_extracted: JSON.stringify(aiContent.skills),
+        },
+      });
+    }
+
+    res.json(aiContent);
+  } catch (error) {
+    console.error('Generate project content error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate project content',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 

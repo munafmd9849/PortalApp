@@ -318,6 +318,19 @@ export const api = {
     method: 'DELETE',
   }),
   
+  // Experience (for Resume System)
+  addExperience: (experience) => apiRequest('/students/experience', {
+    method: 'POST',
+    body: JSON.stringify(experience),
+  }),
+  updateExperience: (experienceId, experience) => apiRequest(`/students/experience/${experienceId}`, {
+    method: 'PUT',
+    body: JSON.stringify(experience),
+  }),
+  deleteExperience: (experienceId) => apiRequest(`/students/experience/${experienceId}`, {
+    method: 'DELETE',
+  }),
+  
   // Projects (TODO: Backend needs to add these endpoints)
   addProject: (project) => apiRequest('/students/projects', {
     method: 'POST',
@@ -329,6 +342,10 @@ export const api = {
   }),
   deleteProject: (projectId) => apiRequest(`/students/projects/${projectId}`, {
     method: 'DELETE',
+  }),
+  generateProjectContent: (data) => apiRequest('/students/generate-project-content', {
+    method: 'POST',
+    body: JSON.stringify(data),
   }),
   
   // Achievements (TODO: Backend needs to add these endpoints)

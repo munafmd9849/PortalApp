@@ -10,7 +10,13 @@ import ProjectsSection from './ProjectsSection';
 import Achievements from './Achievements';
 import StudentFooter from './StudentFooter';
 import JobDescription from './JobDescription';
-import { Loader } from 'lucide-react';
+import { 
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Loader
+} from 'lucide-react';
 
 const DashboardHome = ({ 
   studentData, 
@@ -22,8 +28,7 @@ const DashboardHome = ({
   loadingSkills = false,
   handleApplyToJob,
   hasApplied,
-  applying = {},
-  hideFooter = false
+  applying = {}
 }) => {
   const { user } = useAuth();
   const [error, setError] = useState('');
@@ -66,11 +71,47 @@ const DashboardHome = ({
     window.location.href = 'mailto:placement@pwioi.edu.in';
   };
 
+  // whether a student meets eligibility criteria
+  const meetsEligibility = (eligibilityCriteria) => {
+    if (!formattedStudentData?.cgpa || !eligibilityCriteria) return true;
+    
+    // CGPA check 
+    const match = eligibilityCriteria.match(/CGPA\s*>=\s*(\d+\.?\d*)/i);
+    if (match) {
+      const requiredCGPA = parseFloat(match[1]);
+      return formattedStudentData.cgpa >= requiredCGPA;
+    }
+    
+    return true; // If we can't parse criteria, assume eligible
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'applied': return 'text-blue-600 bg-blue-100';
+      case 'shortlisted': return 'text-yellow-600 bg-yellow-100';
+      case 'selected': return 'text-green-600 bg-green-100';
+      case 'rejected': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'applied': return <Clock size={16} />;
+      case 'shortlisted': return <AlertCircle size={16} />;
+      case 'selected': return <CheckCircle size={16} />;
+      case 'rejected': return <XCircle size={16} />;
+      default: return <Clock size={16} />;
+    }
+  };
+
+
+
   return (
-    <div className="space-y-4 sm:space-y-4 px-2 sm:px-0">
+    <div className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-          <p className="text-red-800 text-xs sm:text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-800 text-sm">{error}</p>
         </div>
       )}
 
@@ -110,14 +151,12 @@ const DashboardHome = ({
       <Achievements />
 
       {/* Student Footer */}
-      {!hideFooter && (
-        <div>
-          <StudentFooter
-            onPlacementPolicy={openPlacementPolicy}
-            onContactTeam={contactAdmin}
-          />
-        </div>
-      )}
+      <div>
+        <StudentFooter
+          onPlacementPolicy={openPlacementPolicy}
+          onContactTeam={contactAdmin}
+        />
+      </div>
 
       {/* Job Description Modal */}
       <JobDescription 

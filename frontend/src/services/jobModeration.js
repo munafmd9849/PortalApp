@@ -4,6 +4,9 @@
  */
 import api from './api.js';
 
+// Set to true to force use of mock data (for testing/development)
+const USE_MOCK_DATA = false; // Change to true to see mock data
+
 const COMPANY_DIRECTORY = [
   { id: 'cmp_tcs', name: 'Tata Consultancy Services', location: 'Bangalore, KA' },
   { id: 'cmp_inf', name: 'Infosys', location: 'Hyderabad, TS' },
@@ -193,6 +196,19 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
   // For now, always use mock data to ensure the page displays properly
   // TODO: When backend is fully ready, switch to real API calls
   const fetchJobs = () => {
+    // If USE_MOCK_DATA is true, skip API and use mock data directly
+    if (USE_MOCK_DATA) {
+      console.log('🎭 Using mock data (USE_MOCK_DATA flag is enabled)');
+      const filtered = applyFilters(mockJobs, filters);
+      const snapshotMeta = {
+        total: mockJobs.length,
+        filtered: filtered.length,
+        lastUpdated: new Date().toISOString(),
+      };
+      onChange(filtered, snapshotMeta);
+      return;
+    }
+    
     try {
       // Try to fetch real jobs from API first
       const fetchRealJobs = async () => {
@@ -357,6 +373,13 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
 
 export function subscribeJobAnalytics(onChange) {
   const handler = async () => {
+    // If USE_MOCK_DATA is true, use mock data directly
+    if (USE_MOCK_DATA) {
+      console.log('🎭 Using mock data for analytics (USE_MOCK_DATA flag is enabled)');
+      onChange(buildAnalytics(mockJobs));
+      return;
+    }
+    
     try {
       // Try to fetch real jobs for analytics
       const response = await api.getJobs({ limit: 1000 });

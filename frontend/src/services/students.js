@@ -203,6 +203,19 @@ export const deleteProjectArray = async (studentId, projectId) => {
 };
 
 /**
+ * Generate AI project content (for Resume System)
+ */
+export const generateProjectContent = async (data) => {
+  try {
+    const result = await api.generateProjectContent(data);
+    return result;
+  } catch (error) {
+    console.error('generateProjectContent error:', error);
+    throw error;
+  }
+};
+
+/**
  * Add achievement
  */
 export const addAchievementArray = async (studentId, achievement) => {
