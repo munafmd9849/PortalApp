@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ImEye } from 'react-icons/im';
 import { MdBlock } from 'react-icons/md';
 import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUserEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard } from 'react-icons/fa';
@@ -6,9 +6,20 @@ import { Loader, Download, Upload } from 'lucide-react';
 import { getAllStudents, updateStudentStatus, updateStudentProfile, getEducationalBackground, getStudentSkills, updateEducationalBackground } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
+import DashboardHome from '../../../components/dashboard/student/DashboardHome';
+import { getStudentApplications } from '../../../services/applications';
+import { getTargetedJobsForStudent } from '../../../services/jobs';
+import SelectDropdown from '../../common/SelectDropdown';
+import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 // TODO: Replace Firebase operations with API calls
 
-// Student Details Modal
+const STATUS_OPTIONS = [
+  { id: 'Active', name: 'Active' },
+  { id: 'Inactive', name: 'Inactive' },
+  { id: 'Blocked', name: 'Blocked' },
+];
+
+
 const StudentDetailsModal = ({ isOpen, onClose, student }) => {
   const [detailedStudent, setDetailedStudent] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -299,8 +310,9 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
 // Edit Student Modal
 const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   const [formData, setFormData] = useState({
-    center: '',
-    school: '',
+    fullName: '',
+    email: '',
+    phone: '',
     cgpa: ''
   });
   const [loading, setLoading] = useState(false);
@@ -309,8 +321,9 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   useEffect(() => {
     if (student && isOpen) {
       setFormData({
-        center: student.center || '',
-        school: student.school || '',
+        fullName: student.fullName || '',
+        email: student.email || '',
+        phone: student.phone || '',
         cgpa: student.cgpa || ''
       });
       setErrors({});
@@ -320,21 +333,27 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.center.trim()) {
-      newErrors.center = 'Center is required';
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
     }
 
-    if (!formData.school.trim()) {
-      newErrors.school = 'School is required';
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Enter a valid email address';
     }
 
-    if (!formData.cgpa.trim()) {
-      newErrors.cgpa = 'CGPA is required';
-    } else {
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+
+    if (formData.cgpa.trim()) {
       const cgpaValue = parseFloat(formData.cgpa);
       if (isNaN(cgpaValue) || cgpaValue < 0 || cgpaValue > 10) {
         newErrors.cgpa = 'CGPA must be between 0 and 10';
       }
+    } else {
+      newErrors.cgpa = 'CGPA is required';
     }
 
     setErrors(newErrors);
@@ -390,55 +409,50 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Student Name
+                Full Name *
               </label>
               <input
                 type="text"
-                value={student.fullName || ''}
-                disabled
-                className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.fullName ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                placeholder="Enter student's full name"
               />
+              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Center *
+                Email Address *
               </label>
-              <select
-                name="center"
-                value={formData.center}
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.center ? 'border-red-500' : 'border-gray-300'
+                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
                   }`}
-              >
-                <option value="">Select Center</option>
-                <option value="Bangalore">BANGALORE</option>
-                <option value="Noida">NOIDA</option>
-                <option value="Pune">PUNE</option>
-                <option value="Lucknow">LUCKNOW</option>
-                <option value="Patna">PATNA</option>
-                <option value="Indore">INDORE</option>
-              </select>
-              {errors.center && <p className="text-red-500 text-sm mt-1">{errors.center}</p>}
+                placeholder="Enter student email"
+              />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                School *
+                Phone Number *
               </label>
-              <select
-                name="school"
-                value={formData.school}
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
                 onChange={handleChange}
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.school ? 'border-red-500' : 'border-gray-300'
+                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-              >
-                <option value="">Select School</option>
-                <option value="SOT">School of Technology</option>
-                <option value="SOM">School of Management</option>
-                <option value="SOH">School of HEALTHCARE</option>
-              </select>
-              {errors.school && <p className="text-red-500 text-sm mt-1">{errors.school}</p>}
+                placeholder="+91 12345 67890"
+              />
+              {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
             </div>
 
             <div>
@@ -486,71 +500,152 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   );
 };
 
-const exportFilteredData = () => {
-  try {
-    // Get current filtered students
-    const dataToExport = filteredStudents;
 
-    if (dataToExport.length === 0) {
-      alert('No data to export with current filters');
-      return;
+// Student Dashboard Panel Component
+const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
+  // Prevent body scroll when panel is open
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
-    // Define CSV headers
-    const headers = [
-      'Full Name',
-      'Email',
-      'Enrollment ID',
-      'Center',
-      'School',
-      'CGPA',
-      'Phone',
-      'Batch',
-      'Status',
-      'Highest Education',
-      'Institution',
-      'Top Skills'
-    ];
+  // Close on Escape key
+  React.useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
-    // Convert to CSV rows
-    const csvRows = dataToExport.map(student => [
-      student.fullName || '',
-      student.email || '',
-      student.enrollmentId || '',
-      student.center || '',
-      student.school || '',
-      student.cgpa || '',
-      student.phone || '',
-      student.batch || '',
-      student.status || '',
-      student.highestEducation || '',
-      student.institution || '',
-      student.topSkills?.join(', ') || ''
-    ]);
+  if (!isOpen || !student) return null;
 
-    // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...csvRows.map(row => row.map(field => `"${field}"`).join(','))
-    ].join('\n');
+  const handleApplyToJob = () => {
+    // Admin view - no job application allowed
+    console.log('Job application disabled in admin view');
+  };
 
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `students_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const hasApplied = () => false;
 
-    console.log(`Exported ${dataToExport.length} students`);
+  return (
+    <>
+      {/* Backdrop with blur and fade */}
+      <div
+        className={`fixed inset-0 bg-black transition-opacity duration-300 z-[9998] ${
+          isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ 
+          backdropFilter: isOpen ? 'blur(4px)' : 'none',
+          WebkitBackdropFilter: isOpen ? 'blur(4px)' : 'none'
+        }}
+        onClick={onClose}
+      />
 
-  } catch (error) {
-    console.error('Export error:', error);
-    alert('Failed to export data');
-  }
+      {/* Sliding Panel */}
+      <div
+        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-white shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Panel Header */}
+        <div className="flex flex-col p-4 lg:p-6 border-b bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10 shadow-sm space-y-3">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg lg:text-2xl font-bold text-gray-800 truncate">
+                Student Dashboard
+              </h2>
+              <p className="text-xs lg:text-sm text-gray-600 mt-1 truncate">
+                {student.fullName || student.email} {student.enrollmentId && `- ${student.enrollmentId}`}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="ml-4 p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white transition-colors flex-shrink-0"
+              aria-label="Close panel"
+            >
+              <FaTimes size={20} className="lg:w-6 lg:h-6" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 text-xs sm:text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-gray-700">CGPA:</span>
+              <span>{student.cgpa || 'N/A'}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-gray-700">School:</span>
+              <span>{student.school || 'N/A'}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-gray-700">Batch:</span>
+              <span>{student.batch || 'N/A'}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-gray-700">Center:</span>
+              <span>{student.center || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel Content - Scrollable */}
+        <div className="h-[calc(100%-73px)] lg:h-[calc(100%-89px)] overflow-y-auto">
+          <div className="p-4 lg:p-6">
+            {dashboardData.loading ? (
+              <div className="flex items-center justify-center h-full min-h-[400px]">
+                <div className="flex flex-col items-center">
+                  <Loader className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+                  <span className="text-gray-600 text-sm lg:text-base">Loading student dashboard...</span>
+                </div>
+              </div>
+            ) : dashboardData.error ? (
+              <div className="flex items-center justify-center h-full min-h-[400px]">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+                  <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Dashboard</h3>
+                  <p className="text-red-600 mb-4 text-sm">{dashboardData.error}</p>
+                  <div className="text-xs text-red-500 space-y-1">
+                    <p>• Check if backend server is running on port 3000</p>
+                    <p>• Verify you're logged in as admin</p>
+                    <p>• Check browser console for more details</p>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                  >
+                    Reload Page
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <DashboardHome
+                studentData={{
+                  ...student,
+                  id: student.id
+                }}
+                jobs={dashboardData.jobs}
+                applications={dashboardData.applications}
+                skillsEntries={dashboardData.skills}
+                loadingJobs={false}
+                loadingApplications={false}
+                loadingSkills={false}
+                handleApplyToJob={handleApplyToJob}
+                hasApplied={hasApplied}
+                applying={{}}
+              hideFooter
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
 };
 
 const BlockStudentModal = ({ isOpen, onClose, student, onConfirm }) => {
@@ -734,11 +829,18 @@ export default function StudentDirectory() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const studentsPerPage = 10;
-  const [importModalOpen, setImportModalOpen] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastErrorTime, setLastErrorTime] = useState(null);
   const loadAttemptsRef = useRef(0);
   const isLoadingRef = useRef(false); // Track if a load is in progress
+  const [showStudentView, setShowStudentView] = useState(false);
+  const [studentDashboardData, setStudentDashboardData] = useState({
+    applications: [],
+    jobs: [],
+    skills: [],
+    loading: false,
+    error: null
+  });
 
   const clearPollingInterval = () => {
     if (pollIntervalRef.current) {
@@ -919,6 +1021,66 @@ export default function StudentDirectory() {
     );
   });
 
+  const downloadFilteredStudents = useCallback((mode = 'export') => {
+    try {
+      if (filteredStudents.length === 0) {
+        alert('No data matches the current filter to export');
+        return;
+      }
+
+      const headers = [
+        'Full Name',
+        'Email',
+        'Enrollment ID',
+        'Center',
+        'School',
+        'CGPA',
+        'Phone',
+        'Batch',
+        'Status',
+        'Highest Education',
+        'Institution',
+        'Top Skills'
+      ];
+
+      const csvRows = filteredStudents.map(student => [
+        student.fullName || '',
+        student.email || '',
+        student.enrollmentId || '',
+        student.center || '',
+        student.school || '',
+        student.cgpa || '',
+        student.phone || '',
+        student.batch || '',
+        student.status || '',
+        student.highestEducation || '',
+        student.institution || '',
+        student.topSkills?.join(', ') || ''
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...csvRows.map(row => row.map(field => `"${field}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().split('T')[0];
+      link.setAttribute('href', url);
+      link.setAttribute('download', `students_${mode}_${timestamp}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      console.log(`Downloaded ${filteredStudents.length} students (${mode})`);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to prepare the CSV');
+    }
+  }, [filteredStudents]);
+
   const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
   const displayedStudents = filteredStudents.slice(
     (currentPage - 1) * studentsPerPage,
@@ -937,6 +1099,14 @@ export default function StudentDirectory() {
 
     setFilters((prev) => ({ ...prev, [name]: validatedValue }));
     setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handleFilterDropdownChange = (field, value) => {
+    setFilters((prev) => ({
+      ...prev,
+      [field]: value || ''
+    }));
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
@@ -972,6 +1142,81 @@ export default function StudentDirectory() {
     setDetailsModalOpen(true);
   };
 
+  const handleViewStudentDashboard = async (student) => {
+    setSelectedStudent(student);
+    setShowStudentView(true);
+    setStudentDashboardData(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      // Fetch student dashboard data in parallel
+      // Use admin endpoints to fetch data for the specific student
+      const [applicationsResponse, jobs, skills] = await Promise.all([
+        // Use admin getAllApplications endpoint with studentId filter
+        api.getAllApplications({ studentId: student.id }).catch((err) => {
+          console.error('Error fetching applications:', err);
+          return { applications: [] };
+        }),
+        // Get targeted jobs - this will fetch all jobs and we'll filter client-side if needed
+        getTargetedJobsForStudent(student.id).catch((err) => {
+          console.error('Error fetching jobs:', err);
+          return [];
+        }),
+        // Get student skills using admin access - note: this endpoint may need admin access
+        getStudentSkills(student.id).catch((err) => {
+          console.error('Error fetching skills:', err);
+          return [];
+        })
+      ]);
+
+      // Handle applications response format
+      const applications = Array.isArray(applicationsResponse) 
+        ? applicationsResponse 
+        : (applicationsResponse?.applications || []);
+
+      setStudentDashboardData({
+        applications: applications || [],
+        jobs: jobs || [],
+        skills: skills || [],
+        loading: false,
+        error: null
+      });
+    } catch (error) {
+      console.error('Error loading student dashboard data:', error);
+      
+      // Provide helpful error messages
+      let errorMessage = 'Failed to load student dashboard data.';
+      
+      if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+        errorMessage = 'Cannot connect to backend server. Please ensure the backend is running on port 3000.';
+      } else if (error?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error?.status === 403) {
+        errorMessage = 'Permission denied. Admin access required.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      setStudentDashboardData({
+        applications: [],
+        jobs: [],
+        skills: [],
+        loading: false,
+        error: errorMessage
+      });
+    }
+  };
+
+  const handleCloseStudentView = () => {
+    setShowStudentView(false);
+    setSelectedStudent(null);
+    setStudentDashboardData({
+      applications: [],
+      jobs: [],
+      skills: [],
+      loading: false
+    });
+  };
+
   const handleEditStudent = (student) => {
     setSelectedStudent(student);
     setEditModalOpen(true);
@@ -987,28 +1232,6 @@ export default function StudentDirectory() {
       setOperationLoading(true);
       // Update student profile
       await updateStudentProfile(studentId, updatedData);
-
-      // If educational background fields are being updated, handle them separately
-      if (updatedData.school || updatedData.cgpa || updatedData.center) {
-        try {
-          // Get existing education records
-          const existingEducation = await getEducationalBackground(studentId);
-
-          // Update or create current education record
-          if (existingEducation.length > 0) {
-            // Update the most recent education record
-            const latestEducation = existingEducation[0];
-            await updateEducationalBackground(latestEducation.id, {
-              institution: updatedData.school || latestEducation.institution,
-              gpa: updatedData.cgpa || latestEducation.gpa,
-              updatedAt: new Date()
-            });
-          }
-        } catch (educationError) {
-          console.warn('Failed to update educational background:', educationError);
-          // Don't fail the main update if education update fails
-        }
-      }
 
       console.log('Student updated successfully');
       alert('Student information updated successfully!');
@@ -1101,6 +1324,24 @@ export default function StudentDirectory() {
   // Get unique values for filter dropdowns
   const uniqueCenters = [...new Set(students.map(s => s.center).filter(c => c && c !== 'N/A'))];
   const uniqueSchools = [...new Set(students.map(s => s.school).filter(s => s && s !== 'N/A'))];
+  const filterCenterOptions = useMemo(() => {
+    const merged = [...CENTER_OPTIONS];
+    uniqueCenters.forEach((center) => {
+      if (!merged.some(option => option.id === center)) {
+        merged.push({ id: center, name: center });
+      }
+    });
+    return merged;
+  }, [uniqueCenters]);
+  const filterSchoolOptions = useMemo(() => {
+    const merged = [...SCHOOL_OPTIONS];
+    uniqueSchools.forEach((school) => {
+      if (!merged.some(option => option.id === school)) {
+        merged.push({ id: school, name: school });
+      }
+    });
+    return merged;
+  }, [uniqueSchools]);
 
   if (loading) {
     return (
@@ -1194,9 +1435,9 @@ export default function StudentDirectory() {
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4 md:mb-0">Student Directory</h1>
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Student Directory</h1>
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={refreshStudents}
               disabled={loading}
@@ -1204,31 +1445,24 @@ export default function StudentDirectory() {
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
+            <button
+              onClick={() => downloadFilteredStudents('import')}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
+            >
+              <Upload className="text-sm" />
+              Import CSV
+            </button>
+            <button
+              onClick={() => downloadFilteredStudents('export')}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+            >
+              <Download className="text-sm" />
+              Export CSV
+            </button>
             <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
               {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'} found
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setImportModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
-          >
-            <Upload className="text-sm" />
-            Import
-          </button>
-          <button
-            onClick={exportFilteredData}
-            className="flex items-center gap-2 px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
-          >
-            <Download className="text-sm" />
-            Export CSV
-          </button>
-
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'} found
-          </span>
         </div>
 
 
@@ -1268,48 +1502,33 @@ export default function StudentDirectory() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Center</label>
-                <select
-                  name="center"
+                <SelectDropdown
+                  label="Center"
+                  options={filterCenterOptions}
                   value={filters.center}
-                  onChange={handleFilterChange}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All Centers</option>
-                  {uniqueCenters.map(center => (
-                    <option key={center} value={center}>{center}</option>
-                  ))}
-                </select>
+                  onChange={(value) => handleFilterDropdownChange('center', value)}
+                  placeholder="All Centers"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-                <select
-                  name="school"
+                <SelectDropdown
+                  label="School"
+                  options={filterSchoolOptions}
                   value={filters.school}
-                  onChange={handleFilterChange}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All Schools</option>
-                  {uniqueSchools.map(school => (
-                    <option key={school} value={school}>{school}</option>
-                  ))}
-                </select>
+                  onChange={(value) => handleFilterDropdownChange('school', value)}
+                  placeholder="All Schools"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  name="status"
+                <SelectDropdown
+                  label="Status"
+                  options={STATUS_OPTIONS}
                   value={filters.status}
-                  onChange={handleFilterChange}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All Status(es)</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="Blocked">Blocked</option>
-                </select>
+                  onChange={(value) => handleFilterDropdownChange('status', value)}
+                  placeholder="All Status(es)"
+                />
               </div>
 
               <div>
@@ -1348,7 +1567,10 @@ export default function StudentDirectory() {
         {/* Student Table (horizontally scrollable with controls) */}
         <div className="relative rounded-lg shadow">
 
-          <div id="students-table-scroll" className="overflow-x-auto rounded-lg">
+          <div
+            id="students-table-scroll"
+            className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm"
+          >
             <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-gray-100">
                 <tr>
@@ -1381,13 +1603,13 @@ export default function StudentDirectory() {
                         <div className="flex items-center justify-center space-x-3">
                           <div className="relative group">
                             <button
-                              onClick={() => handleViewDetails(student)}
+                              onClick={() => handleViewStudentDashboard(student)}
                               className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                             >
                               <ImEye className="text-md" />
                             </button>
                             <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                              View Details
+                              View Dashboard
                             </span>
                           </div>
                           <div className="relative group">
@@ -1522,22 +1744,6 @@ export default function StudentDirectory() {
         student={selectedStudent}
       />
 
-      {importModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 text-center">
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">Import Students</h3>
-            <p className="text-gray-600 mb-4">
-              Bulk import support is coming soon. New student registrations automatically appear in the directory.
-            </p>
-            <button
-              onClick={() => setImportModalOpen(false)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       <EditStudentModal
         isOpen={editModalOpen}
@@ -1551,6 +1757,14 @@ export default function StudentDirectory() {
         onClose={() => setBlockModalOpen(false)}
         student={selectedStudent}
         onConfirm={handleBlockConfirm}
+      />
+
+      {/* Student Dashboard Panel */}
+      <StudentDashboardPanel
+        isOpen={showStudentView}
+        onClose={handleCloseStudentView}
+        student={selectedStudent}
+        dashboardData={studentDashboardData}
       />
     </div>
   );

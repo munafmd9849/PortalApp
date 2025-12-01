@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit3, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import api from '../../../services/api';
 import {
   addEducationArray,
   updateEducationArray,
@@ -218,9 +217,9 @@ const EducationSection = () => {
 
   return (
     <div className="w-full">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-6 transition-all duration-200 shadow-lg">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
 
-        <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
+        <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
           Education
         </legend>
 
@@ -265,20 +264,20 @@ const EducationSection = () => {
         {/* Education Table Format */}
         {educationEntries.length > 0 && (
           <div className="mb-3">
-            <div className="space-y-2">
-              {/* Column Headers */}
-              <div className="grid grid-cols-4 gap-4 mb-0 p-4">
-                <div className="text-black font-bold text-lg">Institute</div>
-                <div className="text-black font-bold text-lg">Qualification</div>
-                <div className="text-black font-bold text-lg">Year of Passing</div>
-                <div className="text-black font-bold text-lg">CGPA/Percentage</div>
+            <div className="space-y-3 sm:space-y-2">
+              {/* Column Headers - Hidden on mobile */}
+              <div className="hidden md:grid grid-cols-4 gap-4 mb-0 p-4">
+                <div className="text-black font-bold text-sm lg:text-lg">Institute</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Qualification</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Year of Passing</div>
+                <div className="text-black font-bold text-sm lg:text-lg">CGPA/Percentage</div>
               </div>
 
             {/* Education Rows */}
             {educationEntries.map((education, index) => (
               <div
                 key={education.id}
-                className={`grid grid-cols-4 gap-4 p-4 rounded-xl relative
+                className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl relative
                   bg-gradient-to-r 
                   ${index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'}
                   hover:shadow-md transition ${
@@ -286,32 +285,65 @@ const EducationSection = () => {
                   }`}
                 onClick={editMode ? () => handleEditClick(education) : undefined}
               >
-                {/* Institute with Location */}
-                <div className="flex flex-col">
-                  <span className="text-base font-semibold text-black mt-2">
-                    {education.institute}
-                  </span>
-                  <span className="text-sm italic text-gray-700">
-                    {[education.city, education.state].filter(Boolean).join(', ')}
-                  </span>
+                {/* Mobile Layout */}
+                <div className="md:hidden space-y-2">
+                  <div>
+                    <span className="text-base font-semibold text-black block">
+                      {education.institute}
+                    </span>
+                    {[education.city, education.state].filter(Boolean).length > 0 && (
+                      <span className="text-sm italic text-gray-600">
+                        {[education.city, education.state].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Qualification:</span>
+                      <span className="ml-1 text-black font-medium">{education.branch || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">YOP:</span>
+                      <span className="ml-1 text-black font-medium">{education.yop || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Score:</span>
+                    <span className="ml-1 text-black font-medium">
+                      {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="pl-6 text-base font-semibold text-black flex items-center -mt-2">
-                  {education.branch}
-                </div>
-                <div className="pl-6 text-md font-semibold text-black flex items-center -mt-2">
-                  {education.yop}
-                </div>
-                <div className="pl-6 text-md font-semibold text-black flex items-center -mt-2">
-                  {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
-                </div>
+                {/* Desktop Layout */}
+                <>
+                  <div className="hidden md:flex flex-col">
+                    <span className="text-sm lg:text-base font-semibold text-black">
+                      {education.institute}
+                    </span>
+                    {[education.city, education.state].filter(Boolean).length > 0 && (
+                      <span className="text-xs lg:text-sm italic text-gray-700">
+                        {[education.city, education.state].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                    {education.branch}
+                  </div>
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                    {education.yop}
+                  </div>
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                    {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
+                  </div>
+                </>
                 
                 {/* Edit and Delete buttons - only visible in edit mode */}
                 {editMode && (
                   <div className="absolute top-2 right-2 flex gap-1 z-10">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center p-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"
+                      className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 touch-manipulation"
                       title="Edit"
                       aria-label={`Edit education ${index + 1}`}
                       onClick={(e) => {
@@ -324,7 +356,7 @@ const EducationSection = () => {
                     </button>
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center p-2 rounded-md bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
+                      className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded-md bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 touch-manipulation"
                       title="Delete"
                       aria-label={`Delete education ${index + 1}`}
                       onClick={(e) => {

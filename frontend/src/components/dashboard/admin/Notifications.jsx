@@ -87,6 +87,19 @@ const Notifications = () => {
     setSearchQuery('');
   };
 
+  const loadNotifications = async () => {
+    try {
+      setLoadingNotifications(true);
+      const notificationsList = await listNotificationsForUser();
+      setNotifications(notificationsList || []);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      alert('Failed to load notifications: ' + error.message);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
   // Load notifications from backend API with real-time subscription
   useEffect(() => {
     console.log('🔄 Setting up notifications subscription...');
@@ -104,17 +117,17 @@ const Notifications = () => {
         })));
         setNotifications(notificationsList || []);
         setLoadingNotifications(false);
-      },
-      { limit: 100 }
+      }
     );
 
+    loadNotifications();
     return () => {
       console.log('🧹 Cleaning up notifications subscription');
       if (unsubscribe) unsubscribe();
     };
   }, [activeFilter]);
 
-  // Clear search when filter changes
+  // Clear search input when filter changes
   useEffect(() => {
     setSearchInput('');
     setSearchQuery('');

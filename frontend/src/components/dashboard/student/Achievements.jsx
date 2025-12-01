@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Award, Eye, Edit2, Plus, Trash2, Save, X } from 'lucide-react';
+import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import api from '../../../services/api';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
 
 const Achievements = () => {
@@ -287,27 +286,27 @@ const Achievements = () => {
     return (
       <div 
         key={achievement.id} 
-        className={`flex justify-between items-start p-4 rounded-lg transition-all duration-200 hover:shadow-md bg-gradient-to-r ${bgStyle}`}
+        className={`flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 p-3 sm:p-4 rounded-lg transition-all duration-200 hover:shadow-md bg-gradient-to-r ${bgStyle}`}
       >
-        <div className="flex items-start space-x-3">
+        <div className="flex items-start space-x-3 flex-1 min-w-0">
           <Award className="h-5 w-5 text-yellow-400 mt-1 flex-shrink-0" />
-          <div>
-            <h4 className="text-lg font-bold text-black mb-1">{achievement.title}</h4>
-            <p className="text-md text-gray-700 leading-relaxed">{achievement.description}</p>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-base sm:text-lg font-bold text-black mb-1 break-words">{achievement.title}</h4>
+            <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">{achievement.description}</p>
           </div>
         </div>
-        <div className="flex-shrink-0 flex space-x-2">
+        <div className="flex-shrink-0 flex space-x-2 self-end sm:self-auto">
           {achievement.hasCertificate && (
             <button
               onClick={() => handleViewCertificate(achievement)}
-              className="flex items-center px-2 py-1 rounded border border-[#3c80a7] bg-blue-300 text-black hover:bg-[#3c80a7] hover:text-white text-sm"
+              className="flex items-center px-2 py-1 rounded border border-[#3c80a7] bg-blue-300 text-black hover:bg-[#3c80a7] hover:text-white text-xs sm:text-sm touch-manipulation"
             >
               <Eye className="h-4 w-4 mr-0" />
             </button>
           )}
           <button
             onClick={() => startEditing(achievement)}
-            className="text-gray-600 hover:text-blue-600 transition"
+            className="text-gray-600 hover:text-blue-600 transition touch-manipulation p-1"
           >
             <Edit2 size={15} />
           </button>
@@ -360,8 +359,8 @@ const Achievements = () => {
           </div>
         )}
         {/* Awards & Achievements */}
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-5 px-6 transition-all duration-200 shadow-lg">
-          <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-5 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
             Awards & Achievements
           </legend>
 
@@ -425,8 +424,8 @@ const Achievements = () => {
         </fieldset>
 
         {/* Certifications */}
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-6 transition-all duration-200 shadow-lg">
-          <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
             Certifications
           </legend>
 

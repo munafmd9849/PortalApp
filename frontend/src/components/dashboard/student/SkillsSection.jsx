@@ -6,7 +6,6 @@ import {
 } from '@fortawesome/free-brands-svg-icons';
 import { faDatabase, faTrash, faPenToSquare } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../../hooks/useAuth';
-import api from '../../../services/api';
 import {
   addOrUpdateSkillArray,
   deleteSkillArray,
@@ -237,9 +236,9 @@ const SkillsSection = () => {
       `}</style>
       
       <div className="w-full">
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-6 transition-all duration-200 shadow-lg">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
 
-          <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
+          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
             Skills
           </legend>
 
@@ -317,11 +316,11 @@ const SkillsSection = () => {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-x-4 justify-center">
+          <div className="flex flex-wrap gap-4 sm:gap-x-4 justify-center">
             {skills.map((skill, index) => (
               <div
                 key={index}
-                className="skill-badge relative w-33 h-40 cursor-pointer transition-transform transform group"
+                className="skill-badge relative w-28 h-36 sm:w-33 sm:h-40 cursor-pointer transition-transform transform group touch-manipulation"
                 onClick={() => handleEditClick(index)}
                 title={`Click to edit ${skill.skillName}`}
               >

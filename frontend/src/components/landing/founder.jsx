@@ -218,7 +218,7 @@ export default function TestimonialSection() {
       </div>
 
       {/* CONTACT FORM */}
-      <div className="w-full lg:w-1/3">
+      <div id="contact-form" className="w-full lg:w-1/3">
         <div className="sticky top-[10%] bg-gray-100 p-6 rounded-xl shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-gray-700">
             Let's Collaborate and Build

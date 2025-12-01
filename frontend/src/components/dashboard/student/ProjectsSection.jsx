@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, Edit2, Plus, Github, Trash2 } from 'lucide-react';
+import { ExternalLink, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import api from '../../../services/api';
 import {
   addProjectArray,
   deleteProjectArray,
@@ -180,8 +179,8 @@ const ProjectsSection = () => {
 
   return (
     <div className="w-full relative">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-6 transition-all duration-200 shadow-lg">
-        <legend className="text-xl font-bold bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text px-2">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+        <legend className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text px-2">
           Projects
         </legend>
 
@@ -339,13 +338,13 @@ const ProjectsSection = () => {
                     index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="text-xl font-bold text-black">{project.title}</h4>
-                    <div className="flex gap-2">
+                  <div className="flex justify-between items-start mb-1 gap-2">
+                    <h4 className="text-base sm:text-xl font-bold text-black flex-1 min-w-0 break-words">{project.title}</h4>
+                    <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => startEditing(index)}
                         aria-label={`Edit project ${project.title}`}
-                        className="text-gray-600 hover:text-blue-600 transition disabled:opacity-50"
+                        className="text-gray-600 hover:text-blue-600 transition disabled:opacity-50 touch-manipulation p-1"
                         disabled={loading}
                       >
                         <Edit2 size={15} />
@@ -353,22 +352,22 @@ const ProjectsSection = () => {
                     </div>
                   </div>
                   
-                  <p className="text-md text-gray-700 pl-3">
-                    <span className="font-semibold text-black text-lg">Description: </span>
-                    {project.description}
+                  <p className="text-sm sm:text-base text-gray-700 pl-0 sm:pl-3">
+                    <span className="font-semibold text-black text-sm sm:text-base">Description: </span>
+                    <span className="break-words">{project.description}</span>
                   </p>
                   
                   {project.liveUrl && (
-                    <div className="mt-1 text-md text-gray-700 flex items-center pl-3">
-                      <span className="font-semibold mr-1 text-sm text-black">Project URL:</span>
+                    <div className="mt-2 text-sm sm:text-base text-gray-700 flex flex-wrap items-center gap-1 pl-0 sm:pl-3">
+                      <span className="font-semibold text-black text-xs sm:text-sm">Project URL:</span>
                       <a
                         href={project.liveUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 inline-flex items-center break-all"
+                        className="text-blue-600 hover:text-blue-800 inline-flex items-center break-all touch-manipulation"
                       >
-                        <ExternalLink size={16} className="mr-1" />
-                        View Project
+                        <ExternalLink size={14} className="mr-1 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm">View Project</span>
                       </a>
                     </div>
                   )}

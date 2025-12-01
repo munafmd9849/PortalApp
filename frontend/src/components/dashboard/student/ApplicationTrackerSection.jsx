@@ -63,9 +63,9 @@ const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
 
   return (
     <div className="w-full">
-      <fieldset className="bg-white rounded-lg border-2 border-[#65a1e1] py-4 px-6 transition-all duration-200 shadow-lg">
+      <fieldset className="bg-white rounded-lg border-2 border-[#65a1e1] py-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
         
-        <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
+        <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
           Live Application Tracker
         </legend>
 
@@ -75,53 +75,86 @@ const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
               <p className="text-gray-500">No applications found. Start applying to jobs!</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {/* Column Headers */}
-              <div className="grid grid-cols-4 gap-4 mb-2 p-4">
-                <div className="text-black font-bold text-lg">Company</div>
-                <div className="text-black font-bold text-lg">Job Title</div>
-                <div className="text-black font-bold text-lg">Date Applied</div>
-                <div className="text-black font-bold text-lg text-right">Status</div>
+            <div className="space-y-3 sm:space-y-2">
+              {/* Column Headers - Hidden on mobile */}
+              <div className="hidden md:grid grid-cols-4 gap-4 mb-2 p-4">
+                <div className="text-black font-bold text-sm lg:text-lg">Company</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Job Title</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Date Applied</div>
+                <div className="text-black font-bold text-sm lg:text-lg text-right">Status</div>
               </div>
 
               {/* Rows */}
               {applications.slice(0, 3).map((application) => (
                 <div
                   key={application.id}
-                  className={`grid grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-r ${getRowBgColor(application.status)} hover:shadow-md transition-all duration-200`}
+                  className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r ${getRowBgColor(application.status)} hover:shadow-md transition-all duration-200`}
                 >
-                  <div className="flex items-center">
-                    <div className={`${getCompanyColor(application.company?.name)} w-8 h-8 rounded-lg mr-3 flex items-center justify-center`}>
-                      <span className="text-white font-bold text-sm">
-                        {getCompanyInitial(application.company?.name)}
+                  {/* Mobile Layout */}
+                  <div className="md:hidden space-y-2">
+                    <div className="flex items-center space-x-3">
+                      <div className={`${getCompanyColor(application.company?.name)} w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <span className="text-white font-bold text-sm">
+                          {getCompanyInitial(application.company?.name)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-semibold text-black truncate">
+                          {application.company?.name || 'Unknown Company'}
+                        </div>
+                        <div className="text-sm font-medium text-gray-700">
+                          {application.job?.jobTitle || 'Unknown Position'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">
+                        {formatDate(application.appliedDate)}
+                      </span>
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                        {getStatusIcon(application.status)}
+                        {application.status
+                          ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                          : 'Unknown'}
                       </span>
                     </div>
-                    <div className="text-base font-semibold text-black">
-                      {application.company?.name || 'Unknown Company'}
+                  </div>
+
+                  {/* Desktop Layout */}
+                  <>
+                    <div className="hidden md:flex items-center">
+                      <div className={`${getCompanyColor(application.company?.name)} w-8 h-8 rounded-lg mr-3 flex items-center justify-center flex-shrink-0`}>
+                        <span className="text-white font-bold text-sm">
+                          {getCompanyInitial(application.company?.name)}
+                        </span>
+                      </div>
+                      <div className="text-sm lg:text-base font-semibold text-black truncate">
+                        {application.company?.name || 'Unknown Company'}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-sm font-medium text-gray-800 flex items-center">
-                    {application.job?.jobTitle || 'Unknown Position'}
-                  </div>
-                  <div className="text-sm text-gray-600 flex items-center">
-                    {formatDate(application.appliedDate)}
-                  </div>
-                  <div className="flex justify-end">
-                    <span className={`inline-flex items-center px-3 py-2 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
-                      {getStatusIcon(application.status)}
-                      {application.status
-                        ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
-                        : 'Unknown'}
-                    </span>
-                  </div>
+                    <div className="hidden md:block text-sm font-medium text-gray-800 flex items-center truncate">
+                      {application.job?.jobTitle || 'Unknown Position'}
+                    </div>
+                    <div className="hidden md:block text-sm text-gray-600 flex items-center">
+                      {formatDate(application.appliedDate)}
+                    </div>
+                    <div className="hidden md:flex justify-end">
+                      <span className={`inline-flex items-center px-3 py-2 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                        {getStatusIcon(application.status)}
+                        {application.status
+                          ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                          : 'Unknown'}
+                      </span>
+                    </div>
+                  </>
                 </div>
               ))}
 
               {applications.length > 3 && (
-                <div className="flex justify-end pt-1">
+                <div className="flex justify-end pt-2">
                   <button 
                     onClick={() => onTrackAll && onTrackAll()}
-                    className="px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-900 text-white font-medium rounded-sm hover:bg-[#3c80a7] hover:text-white transition-all duration-200 shadow-md transform hover:scale-105 text-sm"
+                    className="px-4 py-2.5 sm:px-3 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-900 text-white font-medium rounded-md sm:rounded-sm hover:bg-[#3c80a7] hover:text-white transition-all duration-200 shadow-md transform hover:scale-105 text-sm touch-manipulation"
                   >
                     Track All
                   </button>

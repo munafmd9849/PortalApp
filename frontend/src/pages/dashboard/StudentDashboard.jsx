@@ -51,6 +51,8 @@ import { upsertResume, getResume } from '../../services/resumes';
 import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
 import { getResumeInfo } from '../../services/resumeStorage';
+import SelectDropdown from '../../components/common/SelectDropdown';
+import { CENTER_OPTIONS, SCHOOL_OPTIONS, BATCH_OPTIONS } from '../../constants/academics';
 
 const normalizeProfileSnapshot = (profile = {}) => ({
   fullName: profile.fullName || '',
@@ -1711,69 +1713,54 @@ export default function StudentDashboard() {
                       <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
                     )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Batch <span className="text-red-500">*</span></label>
-                    <select
-                      id="batch"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={batch}
-                      onChange={(e) => {
-                        setBatch(e.target.value);
-                        validateField('batch', e.target.value);
-                      }}
-                    >
-                      <option value="">Select Batch</option>
-                      <option value="25-29">25-29</option>
-                      <option value="24-28">24-28</option>
-                      <option value="23-27">23-27</option>
-                    </select>
-                    {validationErrors.batch && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">School <span className="text-red-500">*</span></label>
-                    <select
-                      id="school"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={school}
-                      onChange={(e) => {
-                        setSchool(e.target.value);
-                        validateField('school', e.target.value);
-                      }}
-                    >
-                      <option value="">Select School</option>
-                      <option value="SOT">School of Technology</option>
-                      <option value="SOM">School of Management</option>
-                      <option value="SOH">School of HealthCare</option>
-                    </select>
-                    {validationErrors.school && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Center <span className="text-red-500">*</span></label>
-                    <select
-                      id="center"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={center}
-                      onChange={(e) => {
-                        setCenter(e.target.value);
-                        validateField('center', e.target.value);
-                      }}
-                    >
-                      <option value="">Select Center</option>
-                      <option value="BANGALORE">Bangalore</option>
-                      <option value="NOIDA">Noida</option>
-                      <option value="LUCKNOW">Lucknow</option>
-                      <option value="PUNE">Pune</option>
-                      <option value="PATNA">Patna</option>
-                      <option value="INDORE">Indore</option>
-                    </select>
-                    {validationErrors.center && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
-                    )}
-                  </div>
+                <div>
+                  <SelectDropdown
+                    label="Batch"
+                    required
+                    options={BATCH_OPTIONS}
+                    value={batch}
+                    onChange={(value) => {
+                      setBatch(value);
+                      validateField('batch', value);
+                    }}
+                    placeholder="Select Batch"
+                  />
+                  {validationErrors.batch && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
+                  )}
+                </div>
+                <div>
+                  <SelectDropdown
+                    label="School"
+                    required
+                    options={SCHOOL_OPTIONS}
+                    value={school}
+                    onChange={(value) => {
+                      setSchool(value);
+                      validateField('school', value);
+                    }}
+                    placeholder="Select School"
+                  />
+                  {validationErrors.school && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
+                  )}
+                </div>
+                <div>
+                  <SelectDropdown
+                    label="Center"
+                    required
+                    options={CENTER_OPTIONS}
+                    value={center}
+                    onChange={(value) => {
+                      setCenter(value);
+                      validateField('center', value);
+                    }}
+                    placeholder="Select Center"
+                  />
+                  {validationErrors.center && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
+                  )}
+                </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

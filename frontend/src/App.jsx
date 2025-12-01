@@ -105,7 +105,7 @@ function LandingPage() {
         <main className='w-full min-h-screen'>
           <NotificationModal />
 
-          <Header onLoginOpen={openModal} />
+          <Header onLoginOpen={openModal} onScrollToContact={scrollToContact} />
 
           {/* Banner - Odd component #F2F0EA */}
           <div className='bg-gradient-to-b from-gray-50 to-[#FFEECE]'>

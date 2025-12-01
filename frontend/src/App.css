@@ -25,6 +25,28 @@ html {
   background: linear-gradient(135deg, #A8D5E3, #F2F0EA);
 }
 
+#students-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 #e0e7ff;
+}
+
+#students-table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+#students-table-scroll::-webkit-scrollbar-track {
+  background: #e0e7ff;
+}
+
+#students-table-scroll::-webkit-scrollbar-thumb {
+  background: #6366f1;
+  border-radius: 9999px;
+}
+
+#students-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5;
+}
+
 /* Styles for sorting indicators */
 .sort-asc {
   color: #3b82f6;

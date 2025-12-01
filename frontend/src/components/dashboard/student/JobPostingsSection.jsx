@@ -120,8 +120,8 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
 
   return (
     <div className="w-full">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-4 px-6 transition-all duration-200 shadow-lg">
-        <legend className="text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+        <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
           Latest Job Postings
         </legend>
 
@@ -132,15 +132,15 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
               <p className="text-gray-400 text-sm mt-2">Complete your profile to see targeted job opportunities.</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {/* Column Headers */}
-              <div className="grid grid-cols-5 gap-6 mb-3 py-3 px-6">
-                <div className="text-black font-bold text-lg col-span-1 flex items-center space-x-3">
+            <div className="space-y-3 sm:space-y-2">
+              {/* Column Headers - Hidden on mobile */}
+              <div className="hidden md:grid grid-cols-5 gap-4 lg:gap-6 mb-3 py-3 px-4 lg:px-6">
+                <div className="text-black font-bold text-sm lg:text-lg col-span-1 flex items-center space-x-3">
                   Company
                 </div>
-                <div className="text-black font-bold text-lg">Job Title</div>
-                <div className="text-black font-bold text-lg">Drive Date</div>
-                <div className="text-black font-bold text-lg">Salary (CTC)</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Job Title</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Drive Date</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Salary (CTC)</div>
                 <div></div>
               </div>
 
@@ -151,69 +151,130 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                 return (
                   <div
                     key={job.id}
-                    className="grid grid-cols-5 gap-6 p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200"
+                    className="flex flex-col md:grid md:grid-cols-5 gap-3 md:gap-4 lg:gap-6 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200"
                   >
-                    <div className="flex items-center space-x-3">
-                      {renderCompanyLogo(companyName)}
-                      <span className="text-base font-semibold text-black truncate">
-                        {companyName}
-                      </span>
+                    {/* Mobile Layout */}
+                    <div className="md:hidden space-y-3">
+                      <div className="flex items-center space-x-3">
+                        {renderCompanyLogo(companyName)}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-base font-semibold text-black block truncate">
+                            {companyName}
+                          </span>
+                          <span className="text-sm font-medium text-gray-700">
+                            {job.jobTitle || job.title || 'Position Available'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Drive Date:</span>
+                          <span className="ml-2 text-gray-800">{formatDate(job.driveDate || job.applicationDeadline)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Salary:</span>
+                          <span className="ml-2 text-gray-800 font-medium">{formatSalary(job.salary || job.ctc)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onKnowMore && onKnowMore(job)}
+                          className="flex-1 px-3 py-2 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-md hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-sm"
+                        >
+                          Know More
+                        </button>
+                        <button
+                          onClick={() => onApply && onApply(job)}
+                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id]}
+                          className={`flex-1 px-3 py-2 font-medium rounded-md transition-all duration-200 shadow-sm text-sm ${
+                            hasApplied && hasApplied(job.id)
+                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              : applying && applying[job.id]
+                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
+                              : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
+                          }`}
+                        >
+                          {hasApplied && hasApplied(job.id) ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 inline mr-1" />
+                              Applied
+                            </>
+                          ) : applying && applying[job.id] ? (
+                            <>
+                              <Loader className="h-4 w-4 inline mr-1 animate-spin" />
+                              Applying...
+                            </>
+                          ) : (
+                            'Apply Now'
+                          )}
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="text-sm font-medium text-gray-800 flex items-center whitespace-nowrap overflow-hidden text-ellipsis">
-                      {job.jobTitle || job.title || 'Position Available'}
-                    </div>
+                    {/* Desktop Layout */}
+                    <>
+                      <div className="hidden md:flex items-center space-x-3">
+                        {renderCompanyLogo(companyName)}
+                        <span className="text-sm lg:text-base font-semibold text-black truncate">
+                          {companyName}
+                        </span>
+                      </div>
 
-                    <div className="text-sm text-gray-600 flex items-center whitespace-nowrap">
-                      {formatDate(job.driveDate || job.applicationDeadline)}
-                    </div>
+                      <div className="hidden md:block text-sm font-medium text-gray-800 flex items-center truncate">
+                        {job.jobTitle || job.title || 'Position Available'}
+                      </div>
 
-                    <div className="text-sm font-medium text-gray-800 flex items-center whitespace-nowrap">
-                      {formatSalary(job.salary || job.ctc)}
-                    </div>
+                      <div className="hidden md:block text-sm text-gray-600 flex items-center">
+                        {formatDate(job.driveDate || job.applicationDeadline)}
+                      </div>
 
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => onKnowMore && onKnowMore(job)}
-                        className="px-2 py-1 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-sm hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-xs whitespace-nowrap"
-                      >
-                        Know More
-                      </button>
-                      <button
-                        onClick={() => onApply && onApply(job)}
-                        disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id]}
-                        className={`px-2 py-1 font-medium rounded-sm transition-all duration-200 shadow-sm text-xs whitespace-nowrap ${
-                          hasApplied && hasApplied(job.id)
-                            ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
-                            : applying && applying[job.id]
-                            ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
-                            : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
-                        }`}
-                      >
-                        {hasApplied && hasApplied(job.id) ? (
-                          <>
-                            <CheckCircle className="h-3 w-3 inline mr-1" />
-                            Applied
-                          </>
-                        ) : applying && applying[job.id] ? (
-                          <>
-                            <Loader className="h-3 w-3 inline mr-1 animate-spin" />
-                            Applying...
-                          </>
-                        ) : (
-                          'Apply Now'
-                        )}
-                      </button>
-                    </div>
+                      <div className="hidden md:block text-sm font-medium text-gray-800 flex items-center">
+                        {formatSalary(job.salary || job.ctc)}
+                      </div>
+
+                      <div className="hidden md:flex justify-end space-x-2">
+                        <button
+                          onClick={() => onKnowMore && onKnowMore(job)}
+                          className="px-2 py-1 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-sm hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-xs whitespace-nowrap"
+                        >
+                          Know More
+                        </button>
+                        <button
+                          onClick={() => onApply && onApply(job)}
+                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id]}
+                          className={`px-2 py-1 font-medium rounded-sm transition-all duration-200 shadow-sm text-xs whitespace-nowrap ${
+                            hasApplied && hasApplied(job.id)
+                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              : applying && applying[job.id]
+                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
+                              : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
+                          }`}
+                        >
+                          {hasApplied && hasApplied(job.id) ? (
+                            <>
+                              <CheckCircle className="h-3 w-3 inline mr-1" />
+                              Applied
+                            </>
+                          ) : applying && applying[job.id] ? (
+                            <>
+                              <Loader className="h-3 w-3 inline mr-1 animate-spin" />
+                              Applying...
+                            </>
+                          ) : (
+                            'Apply Now'
+                          )}
+                        </button>
+                      </div>
+                    </>
                   </div>
                 );
               })}
 
               {displayJobs.length > 5 && (
-                <div className="flex justify-end pt-1">
+                <div className="flex justify-end pt-2">
                   <button 
                     onClick={() => onExploreMore && onExploreMore()}
-                    className="px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-900 text-white font-medium rounded-sm hover:bg-[#3c80a7] hover:text-white transition-all duration-200 shadow-md transform hover:scale-105 text-sm"
+                    className="px-4 py-2.5 sm:px-3 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-900 text-white font-medium rounded-md sm:rounded-sm hover:bg-[#3c80a7] hover:text-white transition-all duration-200 shadow-md transform hover:scale-105 text-sm touch-manipulation"
                   >
                     Explore More
                   </button>

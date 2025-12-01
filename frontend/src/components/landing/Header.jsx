@@ -4,10 +4,23 @@ import brandLogo from '../../assets/images/brand_logo.webp';
 import { TypeWriter } from './TextStyle';
 import { useNavigate } from 'react-router-dom';
 
-function Header({ onLoginOpen }) {
+function Header({ onLoginOpen, onScrollToContact }) {
   const navigate = useNavigate();
   const openLoginModal = () => {
     if (onLoginOpen) onLoginOpen();
+  };
+
+  const scrollToContact = (e) => {
+    e.preventDefault();
+    if (onScrollToContact) {
+      onScrollToContact();
+    } else {
+      // Fallback if function not provided
+      const contactSection = document.getElementById('contact-form');
+      if (contactSection) {
+        contactSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   };
 
   const scrollToPlacements = (e) => {
@@ -174,13 +187,6 @@ function Header({ onLoginOpen }) {
         
         <nav className="flex items-center space-x-3 sm:space-x-6 lg:space-x-12">
           <a
-            href="#calendar"
-            className="text-sm lg:text-base hidden md:flex font-medium transition-all duration-300 hover:scale-105 relative group text-black hover:text-gray-700"
-          >
-            Calendar
-            <div className="absolute hidden md:flex bottom-0 left-0 w-0 h-0.5 bg-current transition-all duration-300 ease-out group-hover:w-full"></div>
-          </a>
-          <a
             href="#placements"
             onClick={scrollToPlacements}
             className="text-sm lg:text-base hidden md:flex font-medium transition-all duration-300 hover:scale-105 relative group text-black hover:text-gray-700"
@@ -189,7 +195,8 @@ function Header({ onLoginOpen }) {
             <div className="absolute hidden md:flex bottom-0 left-0 w-0 h-0.5 bg-current transition-all duration-300 ease-out group-hover:w-full"></div>
           </a>
           <a
-            href="#contact"
+            href="#contact-form"
+            onClick={scrollToContact}
             className="text-sm lg:text-base hidden lg:flex text-nowrap font-medium transition-all duration-300 hover:scale-105 relative group text-black hover:text-gray-700"
           >
             Contact Us
