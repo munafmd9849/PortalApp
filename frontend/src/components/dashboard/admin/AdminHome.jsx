@@ -176,9 +176,6 @@ export default function AdminHome() {
     admins: []
   });
   const [loadingFilters, setLoadingFilters] = useState(true);
-  const chartContainerRef = useRef(null);
-  const [hoveredSegment, setHoveredSegment] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
@@ -331,25 +328,6 @@ export default function AdminHome() {
   const clearAllFilters = () => setFilters({ campus: [], school: [], batch: [] });
 
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
-  const handleSegmentMouseOver = (event, segmentIndex) => {
-    if (!chartContainerRef.current) return;
-    const entry = queryVolumeData[segmentIndex];
-    if (!entry) return;
-    const rect = chartContainerRef.current.getBoundingClientRect();
-    setTooltipPos({
-      x: event.clientX - rect.left + 10,
-      y: event.clientY - rect.top + 10,
-    });
-    setHoveredSegment({
-      title: entry.title,
-      value: entry.value,
-      color: entry.color || chartColors.purple,
-    });
-  };
-  const handleSegmentMouseOut = () => {
-    setHoveredSegment(null);
-  };
-  const queryVolumeTotal = queryVolumeData.reduce((sum, item) => sum + (item.value || 0), 0);
 
   // Stats with real-time data and consistent Chart.js colors
   const stats = dashboardData ? [
@@ -763,8 +741,7 @@ export default function AdminHome() {
 
       {/* Placement Trends and Analytics Charts */}
       {!isLoading && dashboardData && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Placement Trend Chart */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="p-6 border-b border-gray-200">
@@ -774,7 +751,7 @@ export default function AdminHome() {
               </h2>
             </div>
             <div className="p-6">
-              <div className="h-96">
+              <div className="h-80">
                 {dashboardData.chartData.placementTrend && dashboardData.chartData.placementTrend.labels ? (
                   <Line 
                     data={dashboardData.chartData.placementTrend}
@@ -830,65 +807,99 @@ export default function AdminHome() {
             </div>
           </div>
 
-          </div>
-          <div className="space-y-6 mt-6">
+          {/* Query Volume and Recruiter Activity */}
+          <div className="space-y-6">
+            {/* Query Volume Pie Chart */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" style={{ color: chartColors.purple }} />
-                  Query Volume Snapshot
+                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                  <MessageSquare className="w-4 h-4 mr-2" style={{ color: chartColors.purple }} />
+                  Query Volume by Type
                 </h2>
-                <p className="text-xs text-gray-500">Pie-only view with tooltip behavior consistent with other charts.</p>
               </div>
-              <div className="p-6">
-                <div
-                  ref={chartContainerRef}
-                  className="relative flex items-center justify-center min-h-[280px]"
-                >
-                  {queryVolumeData.length > 0 ? (
-                    <PieChart
-                      data={queryVolumeData}
-                      lineWidth={36}
-                      radius={56}
-                      label={() => ''}
-                      viewBoxSize={100}
-                      width={280}
-                      height={280}
-                      segmentsStyle={(segment) => ({
-                        cursor: 'pointer',
-                        stroke: hoveredSegment?.title === segment.title ? segment.color : '#fff',
-                        strokeWidth: hoveredSegment?.title === segment.title ? 6 : 3,
-                        opacity: hoveredSegment?.title === segment.title ? 1 : 0.95,
-                        transition: 'stroke-width 0.2s ease, opacity 0.2s ease',
-                      })}
-                      onMouseOver={(event, segmentIndex) => handleSegmentMouseOver(event, segmentIndex)}
-                      onMouseOut={handleSegmentMouseOut}
+              <div className="p-4">
+                <div className="h-48">
+                  {dashboardData.chartData.queryVolume && dashboardData.chartData.queryVolume.length > 0 ? (
+                    <PieChart 
+                      data={dashboardData.chartData.queryVolume}
+                      lineWidth={60}
+                      radius={40}
+                      label={({ dataEntry }) => dataEntry.title}
+                      labelStyle={{
+                        fontSize: '8px',
+                        fill: '#fff',
+                        fontWeight: 'bold'
+                      }}
+                      labelPosition={70}
                     />
                   ) : (
-                    <div className="flex items-center justify-center text-gray-500 text-sm">
-                      <MessageSquare className="w-10 h-10 mr-2 text-gray-300" />
-                      No query data yet.
-                    </div>
-                  )}
-
-                  {hoveredSegment && (
-                    <div
-                      className="pointer-events-none absolute z-20 bg-white rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-800 shadow-md"
-                      style={{
-                        left: tooltipPos.x,
-                        top: tooltipPos.y,
-                      }}
-                    >
-                      <p>{hoveredSegment.title}</p>
-                      <p className="text-right text-gray-500">{hoveredSegment.value} requests</p>
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <div className="text-center">
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No query data</p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
+            {/* Top Recruiters Bar Chart */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                  <Users className="w-4 h-4 mr-2" style={{ color: chartColors.green }} />
+                  Top Active Recruiters
+                </h2>
+              </div>
+              <div className="p-4">
+                <div className="h-48">
+                  {dashboardData.chartData.recruiterActivity && dashboardData.chartData.recruiterActivity.labels ? (
+                    <Bar 
+                      data={dashboardData.chartData.recruiterActivity}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            display: false
+                          }
+                        },
+                        scales: {
+                          y: {
+                            beginAtZero: true,
+                            ticks: {
+                              color: '#6b7280',
+                              stepSize: 1
+                            },
+                            grid: {
+                              color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                          },
+                          x: {
+                            ticks: {
+                              color: '#6b7280'
+                            },
+                            grid: {
+                              display: false
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <div className="text-center">
+                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No recruiter data</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* School Performance Radar Chart */}

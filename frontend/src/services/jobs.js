@@ -311,33 +311,111 @@ function getMockJobs() {
  * For real-time updates, use Socket.IO instead
  * This function now returns an empty unsubscribe for backward compatibility
  */
+// Shared fetch function for jobs
+const fetchJobsFromAPI = async (filters = {}) => {
+  try {
+    const params = {
+      limit: filters.limit || 1000, // Fetch all jobs to ensure IN_REVIEW jobs are included
+    };
+    if (filters.recruiterId) params.recruiterId = filters.recruiterId;
+    // Don't filter by status - we want all jobs including IN_REVIEW
+    
+    const response = await api.getJobs(params);
+    const jobs = response.jobs || response || [];
+    
+    if (jobs && jobs.length > 0) {
+      // Transform jobs to match expected format
+      const transformedJobs = jobs.map(job => {
+        // Normalize status: convert to lowercase and handle variations
+        const rawStatus = job.status || 'DRAFT';
+        let normalizedStatus = rawStatus.toLowerCase();
+        
+        // Handle status variations
+        if (normalizedStatus === 'accepted' || normalizedStatus === 'approved') {
+          normalizedStatus = 'accepted'; // Standardize to 'accepted'
+        }
+        
+        const status = normalizedStatus;
+        // ACCEPTED jobs are not posted yet (they're in review section)
+        const isPosted = (job.isPosted === true) || (status === 'posted' || status === 'active');
+        
+        // Debug: Log status transformation for ACCEPTED jobs
+        if (rawStatus === 'ACCEPTED' || rawStatus === 'APPROVED' || normalizedStatus === 'accepted') {
+          console.log(`🔄 Status transformation in jobs.js: "${job.jobTitle}" - ${rawStatus} → ${normalizedStatus} (isPosted: ${isPosted})`);
+        }
+        
+        return {
+          id: job.id,
+          jobTitle: job.jobTitle,
+          jobType: job.jobType,
+          salary: job.salary,
+          stipend: job.stipend,
+          company: job.companyName || job.company?.name,
+          companyName: job.companyName || job.company?.name,
+          companyLocation: job.companyLocation || job.company?.location,
+          companyDetails: job.company,
+          recruiter: job.recruiter ? {
+            id: job.recruiter.id,
+            name: job.recruiter.user?.displayName || job.recruiter.user?.email,
+            email: job.recruiter.user?.email
+          } : null,
+          recruiterId: job.recruiterId,
+          driveDate: job.driveDate,
+          applicationDeadline: job.applicationDeadline,
+          status: status, // Normalized lowercase status (ACCEPTED -> accepted, IN_REVIEW -> in_review)
+          isPosted: isPosted,
+          posted: isPosted,
+          responsibilities: job.description,
+          skills: typeof job.requiredSkills === 'string' 
+            ? JSON.parse(job.requiredSkills || '[]')
+            : (job.requiredSkills || []),
+          targetSchools: typeof job.targetSchools === 'string'
+            ? JSON.parse(job.targetSchools || '[]')
+            : (job.targetSchools || []),
+          targetCenters: typeof job.targetCenters === 'string'
+            ? JSON.parse(job.targetCenters || '[]')
+            : (job.targetCenters || []),
+          targetBatches: typeof job.targetBatches === 'string'
+            ? JSON.parse(job.targetBatches || '[]')
+            : (job.targetBatches || []),
+          createdAt: job.createdAt,
+          postedAt: job.postedAt,
+          submittedAt: job.submittedAt,
+          rejectionReason: job.rejectionReason
+        };
+      });
+      
+      // Debug: Log IN_REVIEW jobs
+      const inReviewJobs = transformedJobs.filter(j => j.status === 'in_review');
+      console.log(`📊 subscribeJobs: Fetched ${transformedJobs.length} real jobs from API`);
+      if (inReviewJobs.length > 0) {
+        console.log(`📋 IN_REVIEW jobs found: ${inReviewJobs.length}`, inReviewJobs.map(j => ({ 
+          id: j.id, 
+          title: j.jobTitle, 
+          status: j.status, 
+          isPosted: j.isPosted,
+          originalStatus: jobs.find(orig => orig.id === j.id)?.status 
+        })));
+      }
+      
+      return transformedJobs;
+    }
+    return [];
+  } catch (apiError) {
+    console.log('API call failed:', apiError.message);
+    throw apiError;
+  }
+};
+
 export function subscribeJobs(callback, filters = {}) {
   // Load jobs once instead of real-time subscription
   (async () => {
     try {
-      // For now, always use mock data to ensure the page displays properly
-      // TODO: Re-enable real API fetching once backend is fully robust
-      const mockJobs = getMockJobs();
-      
-      // Apply basic filtering if needed
-      let filteredJobs = mockJobs;
-      if (filters.status) {
-        if (filters.status === 'POSTED' || filters.status === 'posted') {
-          filteredJobs = mockJobs.filter(j => j.isPosted || j.status === 'posted');
-        } else if (filters.status === 'DRAFT' || filters.status === 'draft') {
-          filteredJobs = mockJobs.filter(j => !j.isPosted && j.status === 'draft');
-        }
-      }
-      
-      callback(filteredJobs);
-
-      // TODO: Uncomment when ready to use real data
-      /*
       // Try real API first, fallback to mock data
       try {
-        const jobs = await listJobs(filters);
-        if (jobs && jobs.length > 0) {
-          callback(jobs);
+        const transformedJobs = await fetchJobsFromAPI(filters);
+        if (transformedJobs.length > 0) {
+          callback(transformedJobs);
           return;
         }
       } catch (apiError) {
@@ -347,15 +425,42 @@ export function subscribeJobs(callback, filters = {}) {
       // Use mock data as fallback
       const mockJobs = getMockJobs();
       callback(mockJobs);
-      */
     } catch (error) {
       console.error('subscribeJobs error:', error);
       callback([]);
     }
   })();
   
-  // Return empty unsubscribe function for backward compatibility
-  return () => {};
+  // Shared fetch function that can be called manually
+  const fetchAndNotify = async () => {
+    try {
+      const transformedJobs = await fetchJobsFromAPI(filters);
+      if (transformedJobs.length > 0) {
+        // Debug: Log IN_REVIEW jobs in polling
+        const inReviewJobs = transformedJobs.filter(j => j.status === 'in_review');
+        if (inReviewJobs.length > 0) {
+          console.log(`🔄 Polling update: Found ${inReviewJobs.length} IN_REVIEW jobs`);
+        }
+        callback(transformedJobs);
+      }
+    } catch (error) {
+      console.error('subscribeJobs polling error:', error);
+    }
+  };
+
+  // Set up polling for updates every 5 seconds (faster updates)
+  const intervalId = setInterval(fetchAndNotify, 5000);
+  
+  // Return unsubscribe function and refresh function
+  return {
+    unsubscribe: () => {
+      clearInterval(intervalId);
+    },
+    refresh: () => {
+      console.log('🔄 Manual refresh triggered for subscribeJobs');
+      fetchAndNotify();
+    }
+  };
 }
 
 /**

@@ -17,13 +17,8 @@ export default function AdminDashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(15); // % width, 5-15 like student
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
-  const { logout, user, role } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
-
-  // Debug logging
-  useEffect(() => {
-    console.log('AdminDashboard mounted:', { user, role, activeTab });
-  }, [user, role, activeTab]);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -144,6 +139,7 @@ export default function AdminDashboard() {
 
             <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
               <button
+                type="button"
                 onClick={handleLogout}
                 className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
                   sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'

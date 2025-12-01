@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiHome, FiBriefcase, FiUsers, FiCalendar, FiMessageSquare, FiBarChart2, FiSettings, FiLogOut } from 'react-icons/fi';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
+import { useAuth } from '../../../hooks/useAuth';
 
 const RecruiterDashboardLayout = ({ children }) => {
   const [sidebarWidth, setSidebarWidth] = useState(15); // Sidebar width in percentage
   const [isDragging, setIsDragging] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },
@@ -55,8 +57,21 @@ const RecruiterDashboardLayout = ({ children }) => {
     };
   }, [isDragging]);
 
-  const handleLogout = () => {
-    navigate('/login');
+  const handleLogout = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log('Recruiter logout - starting...');
+    
+    // Call logout (this clears tokens and state immediately)
+    await logout();
+    
+    console.log('Recruiter logout - state cleared, navigating to home');
+    
+    // Navigate immediately - state is already cleared
+    navigate('/', { replace: true });
   };
 
   const recruiterTagline = 'Connecting Opportunities with Talent.';
@@ -130,6 +145,7 @@ const RecruiterDashboardLayout = ({ children }) => {
 
             <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
               <button
+                type="button"
                 onClick={handleLogout}
                 className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
                   sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'

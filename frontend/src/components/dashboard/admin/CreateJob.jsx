@@ -877,7 +877,8 @@ export default function CreateJob({ onCreated }) {
       
       // Handle network errors separately
       if (err?.isNetworkError || err?.message?.includes('Failed to connect') || err?.message?.includes('Failed to fetch')) {
-        alert(`Network Error:\n\n${err.message}\n\nPlease check:\n1. Backend server is running (http://localhost:3001)\n2. No firewall is blocking the connection\n3. Backend server logs for any errors`);
+        const backendPort = import.meta.env.VITE_API_URL?.match(/:(\d+)/)?.[1] || '3000';
+        alert(`Network Error:\n\n${err.message}\n\nPlease check:\n1. Backend server is running (http://localhost:${backendPort})\n2. No firewall is blocking the connection\n3. Backend server logs for any errors`);
         return;
       }
       

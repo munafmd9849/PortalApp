@@ -559,13 +559,11 @@ export async function approveJob(req, res) {
     const job = await prisma.job.update({
       where: { id: jobId },
       data: {
-        status: 'POSTED', // Set to POSTED so it appears in "Posted" section
-        isPosted: true,   // Mark as posted
-        isActive: true,   // Mark as active
+        status: 'ACCEPTED', // Set to ACCEPTED when approved (approved by admin, ready for posting)
+        isPosted: false,     // Not posted to students yet, but approved by admin
+        isActive: false,     // Not active yet
         approvedAt: new Date(),
         approvedBy: adminId,
-        postedAt: new Date(), // Set posted timestamp
-        postedBy: adminId,    // Set who posted it
       },
       include: {
         recruiter: {
@@ -577,8 +575,26 @@ export async function approveJob(req, res) {
       },
     });
 
-    // Send notification to recruiter (via queue)
-    // TODO: Add notification queue job
+    // Send notification to recruiter
+    if (job.recruiter?.user?.id) {
+      try {
+        await createNotification({
+          userId: job.recruiter.user.id,
+          title: 'Job Posting Approved',
+          body: `Your job posting "${job.jobTitle}" has been approved by the admin. It is now ready to be posted to students.`,
+          data: {
+            type: 'job_approved',
+            jobId: job.id,
+            jobTitle: job.jobTitle,
+          },
+          sendEmail: true,
+        });
+        logger.info(`Notification sent to recruiter ${job.recruiter.user.id} for job ${jobId} approval`);
+      } catch (notifError) {
+        logger.error(`Failed to send notification for job approval:`, notifError);
+        // Don't fail the approval if notification fails
+      }
+    }
 
     res.json({ success: true, job });
   } catch (error) {
@@ -661,9 +677,37 @@ export async function rejectJob(req, res) {
         rejectedBy: adminId,
         rejectionReason: rejectionReason || 'No reason provided',
       },
+      include: {
+        recruiter: {
+          include: {
+            user: true,
+          },
+        },
+        company: true,
+      },
     });
 
-    // TODO: Send notification to recruiter
+    // Send notification to recruiter
+    if (job.recruiter?.user?.id) {
+      try {
+        await createNotification({
+          userId: job.recruiter.user.id,
+          title: 'Job Posting Rejected',
+          body: `Your job posting "${job.jobTitle}" has been rejected. Reason: ${rejectionReason || 'No reason provided'}`,
+          data: {
+            type: 'job_rejected',
+            jobId: job.id,
+            jobTitle: job.jobTitle,
+            rejectionReason: rejectionReason || 'No reason provided',
+          },
+          sendEmail: true,
+        });
+        logger.info(`Notification sent to recruiter ${job.recruiter.user.id} for job ${jobId} rejection`);
+      } catch (notifError) {
+        logger.error(`Failed to send notification for job rejection:`, notifError);
+        // Don't fail the rejection if notification fails
+      }
+    }
 
     res.json({ success: true, job });
   } catch (error) {

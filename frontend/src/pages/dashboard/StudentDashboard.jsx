@@ -2066,6 +2066,7 @@ export default function StudentDashboard() {
 
               <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className={`w-full flex items-center rounded-lg text-xs font-medium text-red-500 hover:bg-red-100 transition-all duration-200 ${sidebarWidth < 9 ? 'justify-center px-2 py-2 mb-10' : 'px-2 py-3'
                     }`}

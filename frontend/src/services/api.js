@@ -4,7 +4,7 @@
  * Centralized API client for all backend requests
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { API_BASE_URL, getBackendPort } from '../config/api.js';
 
 /**
  * Get auth token from storage
@@ -109,7 +109,8 @@ async function apiRequest(endpoint, options = {}) {
       } else if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
         errorMessage += 'CORS error. Check if the backend server is running and CORS is configured correctly.';
       } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-        errorMessage += 'Cannot reach the server. Please check:\n1. Backend server is running on http://localhost:3001\n2. No firewall blocking the connection\n3. Backend server is accessible';
+        const port = getBackendPort();
+        errorMessage += `Cannot reach the server. Please check:\n1. Backend server is running on http://localhost:${port}\n2. No firewall blocking the connection\n3. Backend server is accessible`;
       } else {
         errorMessage += fetchError.message || 'Unknown network error.';
       }
@@ -246,13 +247,26 @@ export const api = {
     return response;
   },
 
-  logout: () => {
-    const response = apiRequest('/auth/logout', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: getRefreshToken() }),
-    });
-    clearAuthTokens();
-    return response;
+  logout: async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      // Try to call logout API, but don't fail if it errors
+      try {
+        await apiRequest('/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refreshToken }),
+        });
+      } catch (apiError) {
+        console.warn('Logout API call failed, but clearing tokens anyway:', apiError);
+      }
+      // Always clear tokens, even if API call fails
+      clearAuthTokens();
+      return { success: true };
+    } catch (error) {
+      // Even if everything fails, clear tokens
+      clearAuthTokens();
+      throw error;
+    }
   },
 
   getCurrentUser: () => apiRequest('/auth/me'),

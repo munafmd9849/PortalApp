@@ -89,7 +89,9 @@ export function subscribeRecruiterDirectory(onChange, options = {}) {
   const loadRecruiters = async () => {
     try {
       // Try to call the actual API endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/recruiters/directory`, {
+      const { API_BASE_URL } = await import('../config/api.js');
+      const apiBaseUrl = API_BASE_URL;
+      const response = await fetch(`${apiBaseUrl}/recruiters/directory`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
           'Content-Type': 'application/json',

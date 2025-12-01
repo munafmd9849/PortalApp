@@ -92,11 +92,13 @@ export default function ManageJobs() {
     return option ? option.display : storageCode;
   };
 
-  // Real-time jobs subscription using your existing service
+  // Real-time jobs subscription with refresh capability
+  const jobsSubscriptionRef = useRef(null);
+  
   useEffect(() => {
     setLoading(true);
 
-    const unsubscribe = subscribeJobs((jobsList) => {
+    const subscription = subscribeJobs((jobsList) => {
       if (process.env.NODE_ENV === 'development') {
         console.log('📡 Real-time update - Jobs received:', jobsList.length);
       }
@@ -133,8 +135,36 @@ export default function ManageJobs() {
       setLoading(false);
     });
 
+    // Store subscription for manual refresh
+    jobsSubscriptionRef.current = subscription;
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      } else if (typeof subscription === 'function') {
+        subscription(); // Backward compatibility
+      }
+      jobsSubscriptionRef.current = null;
+    };
+  }, []);
+
+  // Listen for custom events to trigger refresh (from JobPostingsManager)
+  useEffect(() => {
+    const handleJobsRefresh = (event) => {
+      const { action, jobId, jobTitle } = event.detail || {};
+      console.log(`📢 ManageJobs received jobsRefresh event: ${action} for job ${jobId} (${jobTitle})`);
+      
+      // Trigger immediate refresh
+      if (jobsSubscriptionRef.current?.refresh) {
+        console.log('🔄 Triggering ManageJobs refresh from event');
+        jobsSubscriptionRef.current.refresh();
+      }
+    };
+
+    window.addEventListener('jobsRefresh', handleJobsRefresh);
+    
+    return () => {
+      window.removeEventListener('jobsRefresh', handleJobsRefresh);
     };
   }, []);
 
@@ -167,13 +197,39 @@ export default function ManageJobs() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSchools, showBatches, showCenters]);
 
+  // Check if job should appear in Manage Jobs
+  // Only ACCEPTED, POSTED, and ACTIVE jobs should appear here
+  // IN_REVIEW, DRAFT, REJECTED jobs should NOT appear (they're in Job Moderation)
+  const shouldShowInManageJobs = (job) => {
+    const status = (job.status || '').toLowerCase();
+    
+    // Debug: Log status for troubleshooting
+    if (process.env.NODE_ENV === 'development' && job.jobTitle) {
+      console.log(`🔍 shouldShowInManageJobs: "${job.jobTitle}" - status: "${status}" (raw: "${job.status}")`);
+    }
+    
+    // Exclude jobs that are still pending admin review
+    if (status === 'in_review' || status === 'draft' || status === 'rejected') {
+      return false;
+    }
+    // Include accepted, posted, and active jobs
+    const shouldShow = status === 'accepted' || status === 'approved' || 
+                       status === 'posted' || status === 'active';
+    
+    if (process.env.NODE_ENV === 'development' && job.jobTitle) {
+      console.log(`  → Result: ${shouldShow ? 'SHOW' : 'HIDE'}`);
+    }
+    
+    return shouldShow;
+  };
+
   // Check if job is posted (compatible with your database structure)
   const isJobPosted = (job) => {
     const status = (job.status || '').toLowerCase();
-    return status === 'posted' || 
-           status === 'active' ||  // Approved jobs have ACTIVE status
-           job.isPosted === true || 
-           job.posted === true;
+    // Return true only for posted/active jobs
+    // ACCEPTED jobs are not posted yet (they're in review section)
+    return (status === 'posted' || status === 'active') && 
+           (job.isPosted === true || job.posted === true);
   };
 
   // Get intelligent job status based on interview date and admin status
@@ -304,16 +360,70 @@ export default function ManageJobs() {
 
   // Database-driven sorting and categorization
   const getSortedJobs = () => {
-    // Filter based on active filter
+    // Debug: Log all jobs and their statuses
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 All jobs in ManageJobs:', jobs.map(j => ({
+        id: j.id,
+        title: j.jobTitle,
+        status: j.status,
+        statusLower: (j.status || '').toLowerCase(),
+        isPosted: j.isPosted,
+        posted: j.posted
+      })));
+    }
+    
+    // First, filter out jobs that shouldn't appear in Manage Jobs at all
+    // Only show ACCEPTED, POSTED, and ACTIVE jobs (exclude IN_REVIEW, DRAFT, REJECTED)
+    const manageJobsOnly = jobs.filter(job => shouldShowInManageJobs(job));
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Jobs that should appear in Manage Jobs:', manageJobsOnly.map(j => ({
+        id: j.id,
+        title: j.jobTitle,
+        status: j.status,
+        statusLower: (j.status || '').toLowerCase()
+      })));
+    }
+    
+    // Then filter based on active filter (posted vs unposted)
     let filteredJobs;
     if (activeFilter === 'unposted') {
-      filteredJobs = jobs.filter(job => !isJobPosted(job));
+      // Unposted section: ACCEPTED jobs (not yet posted to students)
+      filteredJobs = manageJobsOnly.filter(job => !isJobPosted(job));
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📋 Unposted filter - isJobPosted check:', manageJobsOnly.map(j => ({
+          id: j.id,
+          title: j.jobTitle,
+          status: j.status,
+          isJobPosted: isJobPosted(j),
+          isPosted: j.isPosted,
+          posted: j.posted
+        })));
+      }
     } else {
-      filteredJobs = jobs.filter(job => isJobPosted(job));
+      // Posted section: POSTED and ACTIVE jobs
+      filteredJobs = manageJobsOnly.filter(job => isJobPosted(job));
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('🗂️ Filtered Jobs:', activeFilter, filteredJobs.length);
+      console.log('🗂️ Manage Jobs Filter:', {
+        totalJobs: jobs.length,
+        manageJobsOnly: manageJobsOnly.length,
+        activeFilter: activeFilter,
+        filteredCount: filteredJobs.length,
+        statusBreakdown: manageJobsOnly.reduce((acc, j) => {
+          const status = (j.status || '').toLowerCase();
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {}),
+        filteredJobs: filteredJobs.map(j => ({ id: j.id, title: j.jobTitle, status: j.status }))
+      });
+      // Debug: Log ACCEPTED jobs in unposted filter
+      if (activeFilter === 'unposted') {
+        const acceptedJobs = filteredJobs.filter(j => j.status === 'accepted' || j.status === 'approved');
+        console.log(`📋 ACCEPTED jobs in unposted filter: ${acceptedJobs.length}`, acceptedJobs.map(j => ({ id: j.id, title: j.jobTitle, status: j.status })));
+      }
     }
 
     if (activeFilter === 'unposted') {
@@ -595,8 +705,10 @@ export default function ManageJobs() {
   };
 
   // Get statistics
-  const unpostedCount = jobs.filter(job => !isJobPosted(job)).length;
-  const postedCount = jobs.filter(job => isJobPosted(job)).length;
+  // Count only jobs that should appear in Manage Jobs (exclude IN_REVIEW, DRAFT, REJECTED)
+  const manageJobsOnly = jobs.filter(job => shouldShowInManageJobs(job));
+  const unpostedCount = manageJobsOnly.filter(job => !isJobPosted(job)).length;
+  const postedCount = manageJobsOnly.filter(job => isJobPosted(job)).length;
 
   return (
     <div className="space-y-6">

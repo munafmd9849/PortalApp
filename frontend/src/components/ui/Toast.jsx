@@ -36,7 +36,9 @@ const Toast = ({ id, type, title, message, onClose, duration = 5000 }) => {
   if (!isVisible) return null;
 
   const getToastStyles = () => {
-    const baseStyles = "fixed top-4 right-4 max-w-sm w-full bg-white border-l-4 rounded-lg shadow-lg p-4 transition-all duration-300 transform z-50";
+    // Increased max width from max-w-sm (384px) to max-w-md (448px) for better readability
+    // Removed 'fixed' positioning - container handles positioning
+    const baseStyles = "max-w-md w-full bg-white border-l-4 rounded-lg shadow-lg p-4 transition-all duration-300 transform";
     
     if (isExiting) {
       return `${baseStyles} translate-x-full opacity-0`;
@@ -73,19 +75,27 @@ const Toast = ({ id, type, title, message, onClose, duration = 5000 }) => {
     }
   };
 
+  // Determine if message is very long (more than 150 characters)
+  const isLongMessage = message && message.length > 150;
+  const displayMessage = isLongMessage ? `${message.substring(0, 150)}...` : message;
+
   return (
     <div className={getToastStyles()}>
       <div className="flex items-start">
         {getIcon()}
         <div className="flex-1 min-w-0">
           {title && (
-            <h4 className="text-sm font-semibold text-gray-900 mb-1">
+            <h4 className="text-sm font-semibold text-gray-900 mb-1 break-words">
               {title}
             </h4>
           )}
           {message && (
-            <p className="text-sm text-gray-600">
-              {message}
+            <p 
+              className="text-sm text-gray-600 break-words"
+              style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
+              title={isLongMessage ? message : undefined}
+            >
+              {displayMessage}
             </p>
           )}
         </div>

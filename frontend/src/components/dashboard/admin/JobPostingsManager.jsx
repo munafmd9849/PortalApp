@@ -1,4 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   subscribeJobsWithDetails, 
   subscribeJobAnalytics,
@@ -14,9 +16,6 @@ import { useToast } from '../../ui/Toast';
 import { 
   FaSearch, 
   FaFilter, 
-  FaEye, 
-  FaCheck, 
-  FaTimes, 
   FaArchive, 
   FaSpinner,
   FaBuilding,
@@ -25,12 +24,21 @@ import {
   FaDollarSign,
   FaMapMarkerAlt,
   FaChevronDown,
-  FaChevronUp
+  FaChevronUp,
+  FaChevronLeft,
+  FaChevronRight,
+  FaFileAlt,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaInfoCircle
 } from 'react-icons/fa';
 
 export default function JobPostingsManager() {
   const { user } = useAuth();
   const toast = useToast();
+  
+  // Normalize role to lowercase for comparison (backend returns uppercase 'ADMIN')
+  const userRole = user?.role?.toLowerCase();
   
   // Core state
   const [jobs, setJobs] = useState([]);
@@ -87,48 +95,71 @@ export default function JobPostingsManager() {
         setCompanies(companiesData);
         setRecruiters(recruitersData);
       } catch (error) {
-        console.error('Error loading dropdown data:', error);
+        console.error('Error loading dropdown data:', {
+          error: error,
+          message: error?.message,
+          stack: error?.stack,
+        });
+        // Don't show toast for dropdown loading errors - they're not critical
       }
     };
 
     loadDropdownData();
   }, []);
 
-  // Real-time jobs subscription
+  // Real-time jobs subscription with refresh capability
+  const jobsSubscriptionRef = useRef(null);
   useEffect(() => {
     console.log('📡 Setting up real-time job subscription with filters:', filters);
     setLoading(true);
     
     const filterParams = {
       ...filters,
-      limit: 100 // Adjust as needed
+      limit: 1000 // Fetch all jobs, filter client-side
     };
     
-    const unsubscribe = subscribeJobsWithDetails((jobsData, snapshot) => {
+    const subscription = subscribeJobsWithDetails((jobsData, snapshot) => {
       console.log('📊 Received jobs update:', jobsData.length);
       setJobs(jobsData);
       setLastSnapshot(snapshot);
       setLoading(false);
     }, filterParams);
 
+    // Store subscription for manual refresh
+    jobsSubscriptionRef.current = subscription;
+
     return () => {
       console.log('📡 Cleaning up job subscription');
-      unsubscribe();
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      } else if (typeof subscription === 'function') {
+        subscription(); // Backward compatibility
+      }
+      jobsSubscriptionRef.current = null;
     };
   }, [filters]);
 
-  // Real-time analytics subscription
+  // Real-time analytics subscription with refresh capability
+  const analyticsSubscriptionRef = useRef(null);
   useEffect(() => {
     console.log('📈 Setting up analytics subscription');
     
-    const unsubscribe = subscribeJobAnalytics((analyticsData) => {
+    const subscription = subscribeJobAnalytics((analyticsData) => {
       console.log('📊 Received analytics update:', analyticsData);
       setAnalytics(analyticsData);
     });
 
+    // Store subscription for manual refresh
+    analyticsSubscriptionRef.current = subscription;
+
     return () => {
       console.log('📈 Cleaning up analytics subscription');
-      unsubscribe();
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      } else if (typeof subscription === 'function') {
+        subscription(); // Backward compatibility
+      }
+      analyticsSubscriptionRef.current = null;
     };
   }, []);
 
@@ -167,10 +198,40 @@ export default function JobPostingsManager() {
     }));
   }, [filteredJobs.length]);
 
+  // Helper function to extract meaningful error message
+  const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred') => {
+    // Log full error details for debugging
+    console.error('Full error details:', {
+      message: error?.message,
+      status: error?.status,
+      response: error?.response,
+      stack: error?.stack,
+      isNetworkError: error?.isNetworkError,
+      endpoint: error?.endpoint,
+      url: error?.url,
+    });
+
+    // Try to extract meaningful error message
+    if (error?.response?.error) {
+      return error.response.error;
+    }
+    if (error?.response?.message) {
+      return error.response.message;
+    }
+    if (error?.message) {
+      return error.message;
+    }
+    if (error?.status) {
+      return `Server error (${error.status}). Please try again.`;
+    }
+    return defaultMessage;
+  };
+
   // Handle job moderation actions
   const handleApprove = async (job) => {
-    if (!user || user.role !== 'admin') {
-      toast.showError('Only admin users can approve jobs');
+    if (!user || userRole !== 'admin') {
+      console.error('Role check failed:', { user: user, role: user?.role, userRole });
+      toast.error('Only admin users can approve jobs');
       return;
     }
 
@@ -181,21 +242,65 @@ export default function JobPostingsManager() {
       const result = await approveJob(job.id, user);
       
       if (result.success) {
-        toast.showSuccess(`Job "${job.jobTitle}" approved successfully!`);
+        // Check the status from API response
+        const updatedStatus = result.job?.status || result.status;
+        console.log(`📋 Approval result - Job ID: ${job.id}, New Status: ${updatedStatus}`);
+        
+        toast.success(`Job "${job.jobTitle}" approved successfully! Status changed to ACCEPTED. The recruiter has been notified.`);
+        
+        // Optimistic update: Remove job from current view immediately
+        // Since status changed from IN_REVIEW to ACCEPTED, it should disappear from in_review filter
+        setJobs(prev => {
+          const updated = prev.filter(j => j.id !== job.id);
+          console.log(`✅ Optimistic update: Removed job ${job.id} from view (status changed from IN_REVIEW to ACCEPTED). Jobs remaining: ${updated.length}`);
+          return updated;
+        });
+        
+        // Immediate refresh: Trigger jobs and analytics refresh after a short delay
+        // Delay ensures database transaction is committed before refresh
+        console.log('🔄 Triggering immediate refresh after job approval (1000ms delay to ensure DB commit)');
+        setTimeout(() => {
+          console.log('🔄 Executing refresh after delay...');
+          if (jobsSubscriptionRef.current?.refresh) {
+            jobsSubscriptionRef.current.refresh();
+          }
+          if (analyticsSubscriptionRef.current?.refresh) {
+            analyticsSubscriptionRef.current.refresh();
+          }
+        }, 1000); // 1000ms delay to ensure DB transaction is committed
+        
+        // Notify ManageJobs component to refresh via custom event
+        // This ensures ManageJobs page also updates immediately
+        const refreshEvent = new CustomEvent('jobsRefresh', {
+          detail: { 
+            action: 'approve',
+            jobId: job.id,
+            jobTitle: job.jobTitle 
+          }
+        });
+        window.dispatchEvent(refreshEvent);
+        console.log('📢 Dispatched jobsRefresh event to notify ManageJobs');
       } else {
-        throw new Error('Approval failed');
+        throw new Error('Approval failed: Server returned unsuccessful response');
       }
     } catch (error) {
-      console.error('Error approving job:', error);
-      toast.showError(`Failed to approve job: ${error.message}`);
+      const errorMessage = getErrorMessage(error, 'Failed to approve job. Please try again.');
+      console.error('Error approving job:', {
+        jobId: job.id,
+        jobTitle: job.jobTitle,
+        error: error,
+        errorMessage: errorMessage,
+      });
+      toast.error(`Failed to approve job "${job.jobTitle}": ${errorMessage}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
   };
 
   const handleReject = async (job, reason = '') => {
-    if (!user || user.role !== 'admin') {
-      toast.showError('Only admin users can reject jobs');
+    if (!user || userRole !== 'admin') {
+      console.error('Role check failed:', { user: user, role: user?.role, userRole });
+      toast.error('Only admin users can reject jobs');
       return;
     }
 
@@ -206,22 +311,62 @@ export default function JobPostingsManager() {
       const result = await rejectJob(job.id, reason, user);
       
       if (result.success) {
-        toast.showSuccess(`Job "${job.jobTitle}" rejected successfully!`);
+        toast.success(`Job "${job.jobTitle}" rejected successfully! The recruiter has been notified.`);
+        
+        // Optimistic update: Update job status to REJECTED and remove from current view
+        setJobs(prev => {
+          const updated = prev.map(j => 
+            j.id === job.id 
+              ? { ...j, status: 'rejected' } // Update status to rejected
+              : j
+          ).filter(j => j.id !== job.id || j.status !== 'in_review'); // Remove if it was in_review
+          console.log(`✅ Optimistic update: Updated job ${job.id} status to REJECTED. Jobs remaining: ${updated.length}`);
+          return updated;
+        });
+        
+        // Immediate refresh: Trigger jobs and analytics refresh right away
+        console.log('🔄 Triggering immediate refresh after job rejection');
+        if (jobsSubscriptionRef.current?.refresh) {
+          jobsSubscriptionRef.current.refresh();
+        }
+        if (analyticsSubscriptionRef.current?.refresh) {
+          analyticsSubscriptionRef.current.refresh();
+        }
+        
+        // Notify ManageJobs component to refresh via custom event
+        const refreshEvent = new CustomEvent('jobsRefresh', {
+          detail: { 
+            action: 'reject',
+            jobId: job.id,
+            jobTitle: job.jobTitle 
+          }
+        });
+        window.dispatchEvent(refreshEvent);
+        console.log('📢 Dispatched jobsRefresh event to notify ManageJobs');
+        
         setRejectModal({ isOpen: false, job: null, reason: '' });
       } else {
-        throw new Error('Rejection failed');
+        throw new Error('Rejection failed: Server returned unsuccessful response');
       }
     } catch (error) {
-      console.error('Error rejecting job:', error);
-      toast.showError(`Failed to reject job: ${error.message}`);
+      const errorMessage = getErrorMessage(error, 'Failed to reject job. Please try again.');
+      console.error('Error rejecting job:', {
+        jobId: job.id,
+        jobTitle: job.jobTitle,
+        reason: reason,
+        error: error,
+        errorMessage: errorMessage,
+      });
+      toast.error(`Failed to reject job "${job.jobTitle}": ${errorMessage}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
   };
 
   const handleArchive = async (job) => {
-    if (!user || user.role !== 'admin') {
-      toast.showError('Only admin users can archive jobs');
+    if (!user || userRole !== 'admin') {
+      console.error('Role check failed:', { user: user, role: user?.role, userRole });
+      toast.error('Only admin users can archive jobs');
       return;
     }
 
@@ -236,13 +381,19 @@ export default function JobPostingsManager() {
       const result = await archiveJob(job.id, user);
       
       if (result.success) {
-        toast.showSuccess(`Job "${job.jobTitle}" archived successfully!`);
+        toast.success(`Job "${job.jobTitle}" archived successfully!`);
       } else {
-        throw new Error('Archive failed');
+        throw new Error('Archive failed: Server returned unsuccessful response');
       }
     } catch (error) {
-      console.error('Error archiving job:', error);
-      toast.showError(`Failed to archive job: ${error.message}`);
+      const errorMessage = getErrorMessage(error, 'Failed to archive job. Please try again.');
+      console.error('Error archiving job:', {
+        jobId: job.id,
+        jobTitle: job.jobTitle,
+        error: error,
+        errorMessage: errorMessage,
+      });
+      toast.error(`Failed to archive job "${job.jobTitle}": ${errorMessage}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
@@ -250,36 +401,83 @@ export default function JobPostingsManager() {
 
   // Auto archive expired jobs
   const handleAutoArchive = async () => {
-    if (!user || user.role !== 'admin') {
-      toast.showError('Only admin users can perform this action');
+    if (!user || userRole !== 'admin') {
+      console.error('Role check failed:', { user: user, role: user?.role, userRole });
+      toast.error('Only admin users can perform this action');
       return;
     }
 
     try {
       const result = await autoArchiveExpiredJobs(user);
-      toast.showSuccess(`Auto-archived ${result.successful} expired jobs`);
+      toast.success(`Auto-archived ${result.successful} expired jobs`);
     } catch (error) {
-      console.error('Error auto-archiving jobs:', error);
-      toast.showError(`Failed to auto-archive jobs: ${error.message}`);
+      const errorMessage = getErrorMessage(error, 'Failed to auto-archive jobs. Please try again.');
+      console.error('Error auto-archiving jobs:', {
+        error: error,
+        errorMessage: errorMessage,
+      });
+      toast.error(`Failed to auto-archive jobs: ${errorMessage}`);
     }
   };
 
-  // Get status styling
+  // Get status styling - more user-friendly
   const getStatusChip = (status) => {
     const statusStyles = {
-      active: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓' },
-      posted: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '📝' },
-      draft: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: '⏳' },
-      rejected: { bg: 'bg-red-100', text: 'text-red-800', icon: '✗' },
-      archived: { bg: 'bg-gray-100', text: 'text-gray-800', icon: '📦' }
+      active: { 
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50', 
+        text: 'text-green-700', 
+        border: 'border-green-200',
+        label: 'Active'
+      },
+      posted: { 
+        bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
+        text: 'text-blue-700', 
+        border: 'border-blue-200',
+        label: 'Posted'
+      },
+      accepted: {
+        bg: 'bg-gradient-to-r from-green-50 to-teal-50',
+        text: 'text-green-700',
+        border: 'border-green-200',
+        label: 'Accepted'
+      },
+      approved: {
+        bg: 'bg-gradient-to-r from-green-50 to-teal-50',
+        text: 'text-green-700',
+        border: 'border-green-200',
+        label: 'Approved'
+      },
+      in_review: {
+        bg: 'bg-gradient-to-r from-amber-50 to-yellow-50',
+        text: 'text-amber-700',
+        border: 'border-amber-200',
+        label: 'IN REVIEW'
+      },
+      draft: { 
+        bg: 'bg-gradient-to-r from-yellow-50 to-orange-50', 
+        text: 'text-yellow-700', 
+        border: 'border-yellow-200',
+        label: 'Draft'
+      },
+      rejected: { 
+        bg: 'bg-gradient-to-r from-red-50 to-rose-50', 
+        text: 'text-red-700', 
+        border: 'border-red-200',
+        label: 'Rejected'
+      },
+      archived: { 
+        bg: 'bg-gradient-to-r from-gray-50 to-slate-50', 
+        text: 'text-gray-700', 
+        border: 'border-gray-200',
+        label: 'Archived'
+      }
     };
     
     const style = statusStyles[status?.toLowerCase()] || statusStyles.draft;
     
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text} flex items-center gap-1`}>
-        <span>{style.icon}</span>
-        {status || 'Draft'}
+      <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
+        {style.label}
       </span>
     );
   };
@@ -299,138 +497,227 @@ export default function JobPostingsManager() {
 
   return (
     <div className="space-y-6">
+      {/* Custom Calendar Styles */}
+      <style>{`
+        .react-datepicker {
+          font-family: inherit;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .react-datepicker__header {
+          background: linear-gradient(to right, #2563eb, #4f46e5);
+          border-bottom: none;
+          border-radius: 0.5rem 0.5rem 0 0;
+          padding-top: 0.75rem;
+        }
+        .react-datepicker__current-month {
+          color: white;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        .react-datepicker__day-name {
+          color: white;
+          font-weight: 500;
+        }
+        .react-datepicker__day--selected,
+        .react-datepicker__day--keyboard-selected {
+          background: linear-gradient(to right, #2563eb, #4f46e5);
+          border-radius: 0.375rem;
+        }
+        .react-datepicker__day:hover {
+          background-color: #dbeafe;
+          border-radius: 0.375rem;
+        }
+        .react-datepicker__day--today {
+          font-weight: 600;
+          color: #2563eb;
+        }
+        .react-datepicker__navigation-icon::before {
+          border-color: white;
+        }
+        .react-datepicker__triangle {
+          display: none;
+        }
+      `}</style>
       {/* Header and Analytics */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Job Postings Manager</h2>
-            <p className="text-gray-600">Moderate and manage all job postings</p>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Job Moderation</h2>
+            <p className="text-gray-600 text-lg">Review, approve, and manage job postings from recruiters</p>
           </div>
           
           <button
             onClick={handleAutoArchive}
-            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
           >
             <FaArchive className="w-4 h-4" />
             Auto Archive Expired
           </button>
         </div>
 
-        {/* Analytics Cards */}
+        {/* Analytics Cards - More User Friendly */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-blue-600">{analytics.total || 0}</div>
-            <div className="text-sm text-gray-600">Total Jobs</div>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaFileAlt className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-blue-700">{analytics.total || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-blue-600">Total Jobs</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-green-600">{analytics.active || 0}</div>
-            <div className="text-sm text-gray-600">Active</div>
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-green-700">{analytics.active || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-green-600">Active Jobs</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-blue-600">{analytics.posted || 0}</div>
-            <div className="text-sm text-gray-600">Posted</div>
+          <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-5 rounded-xl shadow-sm border border-cyan-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaFileAlt className="w-5 h-5 text-cyan-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-cyan-700">{analytics.posted || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-cyan-600">Posted</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-yellow-600">{analytics.pendingApproval || 0}</div>
-            <div className="text-sm text-gray-600">Pending</div>
+          <div className="bg-gradient-to-br from-amber-50 to-yellow-100 p-5 rounded-xl shadow-sm border border-amber-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaSpinner className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-amber-700">{analytics.pendingApproval || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-amber-600">Pending Review</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-red-600">{analytics.rejected || 0}</div>
-            <div className="text-sm text-gray-600">Rejected</div>
+          <div className="bg-gradient-to-br from-red-50 to-rose-100 p-5 rounded-xl shadow-sm border border-red-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaTimesCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-red-700">{analytics.rejected || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-red-600">Rejected</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="text-2xl font-bold text-gray-600">{analytics.archived || 0}</div>
-            <div className="text-sm text-gray-600">Archived</div>
+          <div className="bg-gradient-to-br from-gray-50 to-slate-100 p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaArchive className="w-5 h-5 text-gray-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-gray-700">{analytics.archived || 0}</div>
+            </div>
+            <div className="text-sm font-medium text-gray-600">Archived</div>
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-lg shadow border">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex items-center gap-2 mb-4">
+          <FaFilter className="w-5 h-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           {/* Search */}
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by job title, company..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Search Jobs</label>
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search by job title, company..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
           </div>
 
           {/* Status Filter */}
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="active">Active</option>
-            <option value="posted">Posted</option>
-            <option value="rejected">Rejected</option>
-            <option value="archived">Archived</option>
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="in_review">Under Review</option>
+              <option value="active">Active</option>
+              <option value="posted">Posted</option>
+              <option value="rejected">Rejected</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
 
           {/* Company Filter */}
-          <select
-            value={filters.companyId}
-            onChange={(e) => setFilters(prev => ({ ...prev, companyId: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Companies</option>
-            {companies.map(company => (
-              <option key={company.id} value={company.id}>{company.name}</option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
+            <select
+              value={filters.companyId}
+              onChange={(e) => setFilters(prev => ({ ...prev, companyId: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+            >
+              <option value="">All Companies</option>
+              {companies.map(company => (
+                <option key={company.id} value={company.id}>{company.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Recruiter Filter */}
-          <select
-            value={filters.recruiterId}
-            onChange={(e) => setFilters(prev => ({ ...prev, recruiterId: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Recruiters</option>
-            {recruiters.map(recruiter => (
-              <option key={recruiter.id} value={recruiter.id}>{recruiter.name}</option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Recruiter</label>
+            <select
+              value={filters.recruiterId}
+              onChange={(e) => setFilters(prev => ({ ...prev, recruiterId: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+            >
+              <option value="">All Recruiters</option>
+              {recruiters.map(recruiter => (
+                <option key={recruiter.id} value={recruiter.id}>{recruiter.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Date Range */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
+            <div className="relative">
+              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-4 h-4 pointer-events-none z-10" />
+              <DatePicker
+                selected={filters.startDate ? new Date(filters.startDate) : null}
+                onChange={(date) => setFilters(prev => ({ ...prev, startDate: date ? date.toISOString().split('T')[0] : '' }))}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Select start date"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium"
+                wrapperClassName="w-full"
+              />
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
+            <div className="relative">
+              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-4 h-4 pointer-events-none z-10" />
+              <DatePicker
+                selected={filters.endDate ? new Date(filters.endDate) : null}
+                onChange={(date) => setFilters(prev => ({ ...prev, endDate: date ? date.toISOString().split('T')[0] : '' }))}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Select end date"
+                minDate={filters.startDate ? new Date(filters.startDate) : null}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium"
+                wrapperClassName="w-full"
+              />
+            </div>
           </div>
           <div className="flex items-end">
             <button
               onClick={() => setFilters({
-                status: 'all',
+                status: 'in_review',
                 companyId: '',
                 recruiterId: '',
                 startDate: '',
                 endDate: ''
               })}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow"
             >
-              Clear Filters
+              Reset Filters
             </button>
           </div>
         </div>
@@ -467,70 +754,109 @@ export default function JobPostingsManager() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
+                <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
                       Job Details
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
                       Company
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
                       Recruiter
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
                       Drive Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-white">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedJobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{job.jobTitle || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">
-                            {job.jobType && <span className="mr-2">• {job.jobType}</span>}
+                    <tr key={job.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={job.jobTitle || 'N/A'}>
+                            {job.jobTitle ? job.jobTitle.charAt(0).toUpperCase() + job.jobTitle.slice(1).toLowerCase() : 'N/A'}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {job.jobType && (
+                              <span className="px-2.5 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 rounded-md text-xs font-semibold border border-blue-200">
+                                {job.jobType}
+                              </span>
+                            )}
                             {(job.salary || job.stipend) && (
-                              <span>• ₹{job.jobType === 'Internship' ? job.stipend : job.salary}</span>
+                              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 rounded-md text-xs font-semibold border border-green-200">
+                                <FaDollarSign className="w-3 h-3" />
+                                ₹{job.jobType === 'Internship' ? job.stipend : job.salary}
+                              </span>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <FaBuilding className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={job.companyDetails?.name || job.company || job.companyName || 'N/A'}>
+                              {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
+                            </div>
+                          </div>
+                          {job.companyLocation || job.companyDetails?.location ? (
+                            <div className="pl-6">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-md text-xs font-medium border border-gray-200 whitespace-nowrap overflow-hidden text-ellipsis max-w-full" title={job.companyLocation || job.companyDetails?.location}>
+                                <FaMapMarkerAlt className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                <span>{job.companyLocation || job.companyDetails?.location}</span>
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {job.companyLocation || job.companyDetails?.location || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="space-y-1.5">
+                          {job.recruiter?.name ? (
+                            <div className="flex items-center gap-2">
+                              <FaUser className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                              <div className="text-sm font-semibold text-gray-900">{job.recruiter.name}</div>
+                            </div>
+                          ) : null}
+                          {job.recruiter?.email ? (
+                            <div className="text-xs text-gray-600 pl-6 break-all">
+                              {job.recruiter.email}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-400 pl-6">N/A</div>
+                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{job.recruiter?.name || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{job.recruiter?.email || 'N/A'}</div>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-blue-50 rounded-lg">
+                            <FaCalendarAlt className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{formatDate(job.driveDate)}</div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(job.driveDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 border-r border-gray-100">
                         {getStatusChip(job.status)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          {/* View Button */}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center gap-2">
+                          {/* View Details Button */}
                           <button
                             onClick={() => setJobDetailModal({ isOpen: true, job })}
-                            className="text-blue-600 hover:text-blue-900 transition-colors"
-                            title="View Details"
+                            className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                            title="View Full Details"
                           >
-                            <FaEye className="w-4 h-4" />
+                            <FaInfoCircle className="w-4 h-4" />
                           </button>
 
                           {/* Approve Button - Show for draft and in_review status */}
@@ -538,13 +864,13 @@ export default function JobPostingsManager() {
                             <button
                               onClick={() => handleApprove(job)}
                               disabled={actionLoading[`approve_${job.id}`]}
-                              className="text-green-600 hover:text-green-900 transition-colors disabled:opacity-50"
-                              title="Approve Job"
+                              className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                              title="Approve this job posting"
                             >
                               {actionLoading[`approve_${job.id}`] ? (
                                 <FaSpinner className="w-4 h-4 animate-spin" />
                               ) : (
-                                <FaCheck className="w-4 h-4" />
+                                <FaCheckCircle className="w-4 h-4" />
                               )}
                             </button>
                           )}
@@ -554,10 +880,10 @@ export default function JobPostingsManager() {
                             <button
                               onClick={() => setRejectModal({ isOpen: true, job, reason: '' })}
                               disabled={actionLoading[`reject_${job.id}`]}
-                              className="text-red-600 hover:text-red-900 transition-colors disabled:opacity-50"
-                              title="Reject Job"
+                              className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                              title="Reject this job posting"
                             >
-                              <FaTimes className="w-4 h-4" />
+                              <FaTimesCircle className="w-4 h-4" />
                             </button>
                           )}
 
@@ -566,8 +892,8 @@ export default function JobPostingsManager() {
                             <button
                               onClick={() => handleArchive(job)}
                               disabled={actionLoading[`archive_${job.id}`]}
-                              className="text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50"
-                              title="Archive Job"
+                              className="p-2 bg-gradient-to-r from-gray-500 to-slate-600 hover:from-gray-600 hover:to-slate-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                              title="Archive this job posting"
                             >
                               {actionLoading[`archive_${job.id}`] ? (
                                 <FaSpinner className="w-4 h-4 animate-spin" />
@@ -586,30 +912,38 @@ export default function JobPostingsManager() {
 
             {/* Pagination */}
             {filteredJobs.length > pagination.itemsPerPage && (
-              <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-700">
-                    Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
-                    {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
-                    {pagination.totalItems} results
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-t-2 border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <span className="text-gray-500">Showing</span>
+                    <span className="font-semibold text-blue-700">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span>
+                    <span className="text-gray-500">to</span>
+                    <span className="font-semibold text-blue-700">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span>
+                    <span className="text-gray-500">of</span>
+                    <span className="font-semibold text-blue-700">{pagination.totalItems}</span>
+                    <span className="text-gray-500">results</span>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
                       disabled={pagination.currentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
                     >
-                      Previous
+                      <FaChevronLeft className="w-3.5 h-3.5" />
+                      <span>Previous</span>
                     </button>
-                    <span className="text-sm text-gray-700">
-                      Page {pagination.currentPage} of {totalPages}
-                    </span>
+                    <div className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 shadow-sm">
+                      <span className="text-blue-700">{pagination.currentPage}</span>
+                      <span className="text-gray-500 mx-1">/</span>
+                      <span>{totalPages}</span>
+                    </div>
                     <button
                       onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
                       disabled={pagination.currentPage === totalPages}
-                      className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
                     >
-                      Next
+                      <span>Next</span>
+                      <FaChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -670,15 +1004,18 @@ const JobDetailsModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Job Details</h2>
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+            <FaFileAlt className="w-5 h-5 text-blue-600" />
+            Job Details
+          </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-600 rounded-lg transition-all duration-200 border border-gray-200 hover:border-gray-300 font-medium text-sm"
           >
-            <FaTimes className="w-5 h-5 text-gray-600" />
+            Close
           </button>
         </div>
 
@@ -822,27 +1159,27 @@ const JobDetailsModal = ({
 
         {/* Footer with Actions */}
         {userRole === 'admin' && (
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
             {(job.status === 'draft' || job.status === 'in_review') && (
               <>
                 <button
                   onClick={() => onReject(job)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
+                  className="p-2.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                  title="Reject Job"
                 >
-                  <FaTimes className="w-4 h-4" />
-                  Reject
+                  <FaTimesCircle className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => onApprove(job)}
                   disabled={actionLoading[`approve_${job.id}`]}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="p-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                  title="Approve Job"
                 >
                   {actionLoading[`approve_${job.id}`] ? (
-                    <FaSpinner className="w-4 h-4 animate-spin" />
+                    <FaSpinner className="w-5 h-5 animate-spin" />
                   ) : (
-                    <FaCheck className="w-4 h-4" />
+                    <FaCheckCircle className="w-5 h-5" />
                   )}
-                  Approve
                 </button>
               </>
             )}
@@ -851,14 +1188,14 @@ const JobDetailsModal = ({
               <button
                 onClick={() => onArchive(job)}
                 disabled={actionLoading[`archive_${job.id}`]}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="p-2.5 bg-gradient-to-r from-gray-500 to-slate-600 hover:from-gray-600 hover:to-slate-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                title="Archive Job"
               >
                 {actionLoading[`archive_${job.id}`] ? (
-                  <FaSpinner className="w-4 h-4 animate-spin" />
+                  <FaSpinner className="w-5 h-5 animate-spin" />
                 ) : (
-                  <FaArchive className="w-4 h-4" />
+                  <FaArchive className="w-5 h-5" />
                 )}
-                Archive
               </button>
             )}
           </div>
@@ -892,10 +1229,14 @@ const RejectModal = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800">Reject Job</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Job: {job.jobTitle}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-rose-50">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+            <FaTimesCircle className="w-5 h-5 text-red-600" />
+            Reject Job Posting
+          </h2>
+          <p className="text-sm text-gray-600 mt-2 flex items-center gap-2">
+            <FaFileAlt className="w-4 h-4" />
+            <span className="font-medium">{job.jobTitle}</span>
           </p>
         </div>
 
@@ -938,24 +1279,29 @@ const RejectModal = ({
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+            className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={!reason || loading}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
           >
             {loading ? (
-              <FaSpinner className="w-4 h-4 animate-spin" />
+              <>
+                <FaSpinner className="w-4 h-4 animate-spin" />
+                <span>Rejecting...</span>
+              </>
             ) : (
-              <FaTimes className="w-4 h-4" />
+              <>
+                <FaTimesCircle className="w-4 h-4" />
+                <span>Confirm Rejection</span>
+              </>
             )}
-            Confirm Reject
           </button>
         </div>
       </div>

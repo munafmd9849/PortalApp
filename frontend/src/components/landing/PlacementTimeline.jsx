@@ -231,7 +231,7 @@ export default function TimelineWithSidebar() {
     <div className="relative w-full overflow-clip bg-[#FFEEC3]">
       <div className="flex">
         {/* Timeline Section  */}
-        <div className="w-full lg:w-[70%] font-inter md:px-10" ref={containerRef}>
+        <div className="relative w-full lg:w-[70%] font-inter md:px-10" ref={containerRef}>
           <div className="max-w-5xl mx-auto py-20 px-4 md:px-8 lg:px-10">
             <h2 className="text-lg font-semibold md:text-4xl mb-4 text-black max-w-4xl">
               <span style={{ fontFamily: "Inter, sans-serif" }}>Walk Through Of Placement Process</span>

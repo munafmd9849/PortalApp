@@ -52,6 +52,10 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error('Failed to load user:', error);
         api.clearAuthTokens();
+        setUser(null);
+        setRole(null);
+        setEmailVerified(false);
+        setUserStatus(null);
         userLoadedRef.current = false; // Allow retry on error
       } finally {
         setLoading(false);
@@ -85,16 +89,26 @@ export function AuthProvider({ children }) {
 
   // Logout (replaces signOut)
   const logout = async () => {
+    // Clear tokens FIRST to prevent any API calls
+    api.clearAuthTokens();
+    
+    // Clear user state IMMEDIATELY to prevent redirects
+    setUser(null);
+    setRole(null);
+    setEmailVerified(false);
+    setUserStatus(null);
+    userLoadedRef.current = false; // Reset user loaded flag
+    
+    // Disconnect socket
+    disconnectSocket();
+    socketInitializedRef.current = false;
+    
+    // Then try to call logout API (but don't wait for it or fail if it errors)
     try {
       await api.logout();
-      setUser(null);
-      setRole(null);
-      setEmailVerified(false);
-      setUserStatus(null);
-      disconnectSocket();
-      socketInitializedRef.current = false; // Reset socket flag on logout
     } catch (error) {
-      console.error('Logout error:', error);
+      console.warn('Logout API call failed, but tokens already cleared:', error);
+      // Tokens are already cleared above, so we're good
     }
   };
 

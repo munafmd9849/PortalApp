@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import PWIOILOGO from '../../assets/images/brand_logo.webp';
 import Dashboard from '../recruiter/dashboard';
 import JobPostings from '../recruiter/JobPostings';
+import { useAuth } from '../../hooks/useAuth';
 
 const RecruiterDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -11,6 +12,7 @@ const RecruiterDashboard = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },
@@ -57,8 +59,21 @@ const RecruiterDashboard = () => {
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  const handleLogout = () => {
-    navigate('/login');
+  const handleLogout = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log('Recruiter logout - starting...');
+    
+    // Call logout (this clears tokens and state immediately)
+    await logout();
+    
+    console.log('Recruiter logout - state cleared, navigating to home');
+    
+    // Navigate immediately - state is already cleared
+    navigate('/', { replace: true });
   };
 
   const renderContent = () => {
@@ -146,6 +161,7 @@ const RecruiterDashboard = () => {
 
             <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
               <button
+                type="button"
                 onClick={handleLogout}
                 className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
                   sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'

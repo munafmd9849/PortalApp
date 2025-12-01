@@ -4,6 +4,7 @@
  */
 
 import api from './api.js';
+import { API_BASE_URL } from '../config/api.js';
 
 /**
  * Transform backend notification to frontend format
@@ -107,7 +108,6 @@ export async function listNotificationsForUser(userId, limitTo = 50) {
 export async function createNotification({ userId, title, body, data = {}, sendEmail = false }) {
   try {
     // Backend endpoint: POST /api/notifications
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('accessToken');
     
     const response = await fetch(`${API_BASE_URL}/notifications`, {
@@ -230,7 +230,6 @@ export function subscribeToNotifications(callback, options = {}) {
  */
 export async function deleteNotification(notificationId) {
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('accessToken');
     
     const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
