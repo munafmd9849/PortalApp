@@ -45,15 +45,19 @@ const CustomDropdown = ({
 
   return (
     <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-        {Icon && <Icon className={`w-4 h-4 ${iconColor}`} />}
-        {label}
-      </label>
+      {label && (
+        <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+          {Icon && <Icon className={`w-4 h-4 ${iconColor}`} />}
+          {label}
+        </label>
+      )}
       <div className="relative" ref={dropdownRef}>
         <button
           type="button"
-          className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+          className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
           onClick={() => setIsOpen(prev => !prev)}
+          onMouseEnter={(e) => e.currentTarget.style.outline = 'none'}
+          onMouseLeave={(e) => e.currentTarget.style.outline = 'none'}
         >
           <span className="truncate flex-1 text-gray-900">
             {displayText}
@@ -69,8 +73,8 @@ const CustomDropdown = ({
                 <button
                   key={option.value}
                   type="button"
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-colors duration-150 ${
-                    isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-100 cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${
+                    isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:text-blue-700'
                   }`}
                   onClick={() => handleOptionClick(option.value)}
                 >

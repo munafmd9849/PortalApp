@@ -428,7 +428,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
         </div>
         {/* Login Form Right Side */}
         <div className="flex-1 flex flex-col justify-center h-full relative bg-transparent min-w-0">
-                <button onClick={handleClose} className="absolute top-4 right-4 bg-black/85 backdrop-blur-md border border-black/90 text-white hover:bg-black/90 hover:border-black/95 hover:scale-110 text-sm font-bold px-4 py-0.5 rounded-lg z-20 transition-all duration-200 shadow-md hover:shadow-lg">✕</button>
+                <button onClick={handleClose} className="absolute top-4 right-4 bg-black/85 backdrop-blur-md border border-black/90 text-white hover:bg-black/90 hover:border-black/95 hover:scale-110 text-sm font-bold px-4 py-0.5 rounded-lg z-20 transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer">✕</button>
           {/* Enhanced glow effect */}
           <div className="absolute inset-0 pointer-events-none rounded-lg" style={{ boxShadow: '0 0 12px 3px rgba(128,0,255,0.2)' }}></div>
           <div ref={formRef} className="relative z-10 px-6 py-4 w-full max-w-full overflow-hidden">
@@ -441,7 +441,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
               {['Student', 'Recruiter', 'Admin'].map(opt => (
                 <button
                   key={opt}
-                  className={`px-3 py-1 rounded-lg font-semibold text-sm uppercase border transition-all duration-300 transform hover:rotate-1 backdrop-blur-md
+                  className={`px-3 py-1 rounded-lg font-semibold text-sm uppercase border transition-all duration-300 transform hover:rotate-1 backdrop-blur-md cursor-pointer
                     ${role === opt ? 'bg-black/85 text-white scale-105 shadow-lg border-black/90 hover:bg-black/90' : 'bg-black/60 text-white border-black/70 hover:scale-105 hover:shadow-md hover:bg-black/70'}`}
                   onClick={() => {
                     setRole(opt);
@@ -691,7 +691,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                     type="email" 
                     placeholder="Email" 
                     disabled={mode === 'register' && otpStep !== 'email'}
-                    className="border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed" 
+                    className="border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 cursor-text disabled:opacity-60 disabled:cursor-not-allowed" 
                   />
                 )}
                 
@@ -814,7 +814,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                               otpInputRefs.current[nextIndex].focus();
                             }
                           }}
-                          className="w-10 h-10 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg bg-white bg-opacity-80 text-black focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200"
+                          className="w-10 h-10 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg bg-white bg-opacity-80 text-black focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 cursor-text"
                           placeholder="_"
                         />
                       ))}
@@ -844,7 +844,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         }
                       }}
                       disabled={busy || (timeRemaining !== null && timeRemaining > 280)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600 text-center shadow-sm hover:shadow-md"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600 text-center shadow-sm hover:shadow-md"
                     >
                       Resend OTP
                     </button>
@@ -861,7 +861,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       onBlur={() => setIsPasswordFocused(false)}
                       type={showPassword ? "text" : "password"} 
                       placeholder="Password" 
-                      className="border border-gray-300 rounded-lg px-3 py-2 pr-10 w-full bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200" 
+                      className="border border-gray-300 rounded-lg px-3 py-2 pr-10 w-full bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 cursor-text" 
                     />
                     {(isPasswordFocused || password.length > 0) && (
                       <button
@@ -873,7 +873,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         onClick={(e) => {
                           e.preventDefault(); // Prevent form submission if user double-clicks
                         }}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200 cursor-pointer"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? (
@@ -890,7 +890,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                 <button 
                     disabled={busy} 
                     type="submit" 
-                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
+                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg cursor-pointer"
                   >
                     {busy ? 'Please wait...' : (
                       mode === 'login' ? 'Sign in' : (
@@ -956,7 +956,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                   <button 
                     disabled={busy || !email} 
                     type="submit" 
-                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
+                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg cursor-pointer"
                   >
                     {busy ? 'Sending...' : 'Send Reset Code'}
                   </button>
@@ -1182,7 +1182,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       onFocus={() => setIsPasswordFocused(true)}
                       onBlur={() => setIsPasswordFocused(false)}
                       placeholder="New Password" 
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 pr-10" 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 pr-10 cursor-text" 
                       disabled={busy}
                     />
                     {(isPasswordFocused || password.length > 0) && (
@@ -1195,7 +1195,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         onClick={(e) => {
                           e.preventDefault(); // Prevent form submission if user double-clicks
                         }}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200 cursor-pointer"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? (
@@ -1214,7 +1214,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       onFocus={() => setIsConfirmPasswordFocused(true)}
                       onBlur={() => setIsConfirmPasswordFocused(false)}
                       placeholder="Confirm New Password" 
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 pr-10" 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white bg-opacity-80 text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 pr-10 cursor-text" 
                       disabled={busy}
                     />
                     {(isConfirmPasswordFocused || confirmPassword.length > 0) && (
@@ -1227,7 +1227,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         onClick={(e) => {
                           e.preventDefault(); // Prevent form submission if user double-clicks
                         }}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors duration-200 cursor-pointer"
                         aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                       >
                         {showConfirmPassword ? (
@@ -1241,7 +1241,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                   <button 
                     disabled={busy || !password || !confirmPassword} 
                     type="submit" 
-                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
+                    className="bg-black/80 backdrop-blur-md border border-black/85 text-white py-2 rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-black/85 hover:border-black/90 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg cursor-pointer"
                   >
                     {busy ? 'Updating...' : 'Update Password'}
                   </button>

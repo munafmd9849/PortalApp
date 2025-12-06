@@ -466,7 +466,7 @@ const StudentQuerySystem = () => {
                             <h3 className="font-medium text-gray-800">{query.subject}</h3>
                             <p className="text-sm text-gray-500">
                               Submitted on {new Date(query.date).toLocaleDateString()}
-                              {query.responseDate && ` • Responded on ${new Date(query.responseDate).toLocaleDateString()}`}
+                              {query.responseDate && ` • Responds on ${new Date(query.responseDate).toLocaleDateString()}`}
                             </p>
                           </div>
                         </div>
@@ -793,7 +793,7 @@ const StudentQuerySystem = () => {
               <div className="flex justify-between items-center mt-10 pt-6 border-t border-gray-100">
                 <div className="text-sm text-gray-500 flex items-center">
                   <FaInfoCircle className="mr-2 text-blue-400" />
-                  Typically responded within 24-48 hours
+                  Typically responds within 24-48 hours
                 </div>
                 <button
                   type="submit"
@@ -801,7 +801,7 @@ const StudentQuerySystem = () => {
                   className={`px-6 py-3 bg-gradient-to-r font-medium rounded-md transition-all duration-200 shadow-md hover:shadow-lg flex items-center ${
                     submitting 
                       ? 'from-gray-400 to-gray-500 text-gray-700 cursor-not-allowed' 
-                      : 'from-blue-600 to-blue-800 text-black hover:from-blue-700 hover:to-blue-900'
+                      : 'from-blue-600 to-blue-800 text-white hover:from-blue-700 hover:to-blue-900'
                   }`}
                 >
                   {submitting ? (

@@ -177,33 +177,232 @@ export async function sendNewJobNotification(student, job) {
       throw new Error('Student email not found');
     }
 
-    const subject = `New Job Opportunity: ${job.jobTitle} at ${job.company?.name || 'Company'}`;
+    const studentName = student.fullName || student.user?.displayName || 'Student';
+    const companyName = job.company?.name || 'Company';
+    const jobTitle = job.jobTitle || 'Position';
+    const location = job.location || job.companyLocation || 'Not specified';
+    const jobType = job.jobType || 'Full-time';
+    const salary = job.salary || job.ctc || job.salaryRange || 'Competitive';
+    const driveDate = job.driveDate ? new Date(job.driveDate).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : null;
+    const deadline = job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : null;
+    const postedDate = job.postedAt ? new Date(job.postedAt).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    // Clean description for email (remove HTML, limit length)
+    let description = job.description || '';
+    description = description.replace(/<[^>]*>/g, ''); // Remove HTML tags
+    description = description.length > 300 ? description.substring(0, 300) + '...' : description;
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const jobUrl = `${frontendUrl}/dashboard/student?tab=jobs&jobId=${job.id}`;
+
+    const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
+    
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">New Job Posted! 🎯</h2>
-        <p>Hello ${student.fullName || 'Student'},</p>
-        <p>A new job opportunity matching your profile has been posted!</p>
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-          <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-          <p><strong>Company:</strong> ${job.company?.name || 'N/A'}</p>
-          <p><strong>Location:</strong> ${job.location || 'N/A'}</p>
-          ${job.salary ? `<p><strong>Salary:</strong> ${job.salary}</p>` : ''}
-          ${job.type ? `<p><strong>Type:</strong> ${job.type}</p>` : ''}
-          ${job.description ? `<p><strong>Description:</strong> ${job.description.substring(0, 200)}${job.description.length > 200 ? '...' : ''}</p>` : ''}
-          <p><strong>Posted Date:</strong> ${new Date(job.postedAt).toLocaleDateString()}</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Job Opportunity</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f7fa; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
+                New Job Opportunity
+              </h1>
+              <p style="margin: 10px 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">
+                A position matching your profile has been posted
+              </p>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding: 30px 40px 20px;">
+              <p style="margin: 0; color: #2d3748; font-size: 16px; line-height: 1.6;">
+                Hello <strong style="color: #1a202c;">${studentName}</strong>,
+              </p>
+              <p style="margin: 15px 0 0; color: #4a5568; font-size: 15px; line-height: 1.6;">
+                We're excited to inform you that a new job opportunity matching your profile has been posted on the placement portal. This could be your next career step!
+              </p>
+            </td>
+          </tr>
+
+          <!-- Job Details Card -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 22px; font-weight: 600; line-height: 1.3;">
+                      ${jobTitle}
+                    </h2>
+                    
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; width: 140px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Company:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${companyName}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Location:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${location}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Job Type:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${jobType}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Compensation:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${salary}
+                        </td>
+                      </tr>
+                      ${driveDate ? `
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Drive Date:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${driveDate}
+                        </td>
+                      </tr>
+                      ` : ''}
+                      ${deadline ? `
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Application Deadline:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #dc2626; font-size: 14px; font-weight: 500;">
+                          ${deadline}
+                        </td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Description -->
+          ${description ? `
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #ffffff; border-left: 4px solid #667eea; padding: 20px; border-radius: 4px;">
+                <h3 style="margin: 0 0 12px; color: #1a202c; font-size: 16px; font-weight: 600;">
+                  Job Description
+                </h3>
+                <p style="margin: 0; color: #4a5568; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">
+                  ${description}
+                </p>
         </div>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/jobs/${job.id}" 
-             style="background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            View Job Details
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding: 10px 40px 30px; text-align: center;">
+              <a href="${jobUrl}" 
+                 style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                View Full Job Details & Apply
           </a>
-        </div>
-        <p>Don't miss this opportunity! Apply now through your dashboard.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
+            </td>
+          </tr>
+
+          <!-- Additional Info -->
+          <tr>
+            <td style="padding: 0 40px 25px;">
+              <p style="margin: 0; color: #718096; font-size: 13px; line-height: 1.6; text-align: center;">
+                Don't miss this opportunity! Log in to your dashboard to view complete details and submit your application.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f7fafc; border-top: 1px solid #e2e8f0; padding: 25px 40px; text-align: center;">
+              <p style="margin: 0 0 8px; color: #718096; font-size: 12px; line-height: 1.5;">
+                This is an automated notification from the <strong style="color: #4a5568;">PWIOI Placement Portal</strong>
+              </p>
+              <p style="margin: 0; color: #a0aec0; font-size: 11px;">
+                Posted on ${postedDate}
+              </p>
+              <p style="margin: 12px 0 0; color: #cbd5e0; font-size: 11px;">
+                If you believe this email was sent in error, please contact the placement office.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
     `;
-    const text = `New job posted: ${job.jobTitle} at ${job.company?.name || 'Company'}. Location: ${job.location || 'N/A'}. Apply now through your dashboard.`;
+    
+    const text = `
+New Job Opportunity: ${jobTitle} at ${companyName}
+
+Hello ${studentName},
+
+A new job opportunity matching your profile has been posted on the placement portal.
+
+Job Details:
+- Position: ${jobTitle}
+- Company: ${companyName}
+- Location: ${location}
+- Job Type: ${jobType}
+- Compensation: ${salary}
+${driveDate ? `- Drive Date: ${driveDate}` : ''}
+${deadline ? `- Application Deadline: ${deadline}` : ''}
+
+${description ? `\nDescription:\n${description}\n` : ''}
+
+View full job details and apply: ${jobUrl}
+
+Posted on ${postedDate}
+
+This is an automated notification from PWIOI Placement Portal.
+    `.trim();
 
     const result = await sendEmail({ to: studentEmail, subject, html, text });
     

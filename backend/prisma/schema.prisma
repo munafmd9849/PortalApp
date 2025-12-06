@@ -151,6 +151,7 @@ model Student {
   certifications Certification[]
   jobTracking  JobTracking[]
   codingProfiles CodingProfile[]
+  resumeFiles  StudentResumeFile[]
   
   @@index([center, batch])
   @@index([school, batch])
@@ -495,6 +496,27 @@ model Resume {
   @@unique([userId, resumeId])
   @@index([userId, resumeId])
   @@map("resumes")
+}
+
+// Student Resume Files - for storing multiple uploaded resume PDFs
+model StudentResumeFile {
+  id           String   @id @default(uuid())
+  studentId    String
+  userId       String   // For easier querying
+  
+  // File info
+  fileUrl      String   // S3 URL
+  fileName     String
+  fileSize     Int?     // Size in bytes
+  
+  uploadedAt   DateTime @default(now())
+  
+  // Relations
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, uploadedAt(sort: Desc)])
+  @@index([userId, uploadedAt(sort: Desc)])
+  @@map("student_resume_files")
 }
 
 // ============================================================================

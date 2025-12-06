@@ -53,7 +53,8 @@ import {
   Type,
   Linkedin,
   Image as ImageIcon,
-  Camera
+  Camera,
+  Globe
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -703,11 +704,29 @@ export default function StudentDashboard() {
       missingFields.push({ field: 'batch', section: 'academic' });
     }
 
+    // Required field validations - LinkedIn, City, State/Region
+    if (!linkedin.trim()) {
+      errors.push('LinkedIn URL is required');
+      missingFields.push({ field: 'linkedin', section: 'professional' });
+    } else if (!validateURL(linkedin.trim())) {
+      errors.push('Please enter a valid LinkedIn URL');
+      missingFields.push({ field: 'linkedin', section: 'professional' });
+    }
+
+    if (!city.trim()) {
+      errors.push('City is required');
+      missingFields.push({ field: 'city', section: 'location' });
+    }
+
+    if (!stateRegion.trim()) {
+      errors.push('State/Region is required');
+      missingFields.push({ field: 'stateRegion', section: 'location' });
+    }
+
     // Optional field validations
     if (cgpa && !validateCGPA(cgpa)) errors.push('CGPA must be between 0 and 10');
     
-    // URL validations for social profiles
-    if (linkedin && !validateURL(linkedin)) errors.push('Please enter a valid LinkedIn URL');
+    // URL validations for other social profiles (optional)
     if (githubUrl && !validateURL(githubUrl)) errors.push('Please enter a valid GitHub URL');
     if (youtubeUrl && !validateURL(youtubeUrl)) errors.push('Please enter a valid YouTube URL');
 
@@ -772,6 +791,29 @@ export default function StudentDashboard() {
           errors.batch = 'Batch selection is required';
         } else {
           delete errors.batch;
+        }
+        break;
+      case 'linkedin':
+        if (!value.trim()) {
+          errors.linkedin = 'LinkedIn URL is required';
+        } else if (!validateURL(value.trim())) {
+          errors.linkedin = 'Please enter a valid LinkedIn URL';
+        } else {
+          delete errors.linkedin;
+        }
+        break;
+      case 'city':
+        if (!value.trim()) {
+          errors.city = 'City is required';
+        } else {
+          delete errors.city;
+        }
+        break;
+      case 'stateRegion':
+        if (!value.trim()) {
+          errors.stateRegion = 'State/Region is required';
+        } else {
+          delete errors.stateRegion;
         }
         break;
       case 'cgpa':
@@ -998,12 +1040,13 @@ export default function StudentDashboard() {
     { id: 'github', label: 'GitHub', icon: Github, color: 'text-gray-700' },
     { id: 'instagram', label: 'Instagram', icon: FaInstagram, color: 'text-pink-500' },
     { id: 'youtube', label: 'YouTube', icon: FaYoutube, color: 'text-red-600' },
+    { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'text-blue-600' },
   ];
 
   const visibleSkillsCredentials = React.useMemo(() => {
     if (school === 'SOH') {
-      // School of HealthCare: No Skills & Credentials section
-      return [];
+      // School of HealthCare: YouTube, Instagram, and LinkedIn
+      return skillsCredentials.filter((skill) => ['youtube', 'instagram', 'linkedin'].includes(skill.id));
     } else if (school === 'SOM') {
       // School of Management: Only Instagram and YouTube
       return skillsCredentials.filter((skill) => ['instagram', 'youtube'].includes(skill.id));
@@ -1032,7 +1075,8 @@ export default function StudentDashboard() {
       hackerrank: 'https://hackerrank.com',
       github: 'https://github.com',
       instagram: 'https://instagram.com',
-      youtube: 'https://youtube.com'
+      youtube: 'https://youtube.com',
+      linkedin: 'https://linkedin.com'
     };
     window.open(urls[skillId], '_blank');
   };
@@ -1295,7 +1339,7 @@ export default function StudentDashboard() {
                   </div>
                   <button
                     onClick={() => setActiveTab('editProfile')}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium cursor-pointer"
                   >
                     Complete Profile Now
                   </button>
@@ -1367,7 +1411,7 @@ export default function StudentDashboard() {
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => handleKnowMore(job)}
-                          className="px-2 py-1 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-sm hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-xs whitespace-nowrap"
+                          className="px-2 py-1 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-sm hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-xs whitespace-nowrap cursor-pointer"
                         >
                           Know More
                         </button>
@@ -1379,7 +1423,7 @@ export default function StudentDashboard() {
                               ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
                               : applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
-                              : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
+                              : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600 cursor-pointer'
                           }`}
                         >
                           {hasApplied(job.id) ? (
@@ -1420,8 +1464,46 @@ export default function StudentDashboard() {
         );
 
       case 'applications':
+        // Calculate application statistics
+        const totalApplied = applications.length;
+        const shortlisted = applications.filter(app => {
+          const status = app.status?.toUpperCase();
+          return status === 'SHORTLISTED';
+        }).length;
+        const interviewed = applications.filter(app => {
+          const status = app.status?.toUpperCase();
+          return status === 'INTERVIEWED';
+        }).length;
+        const offers = applications.filter(app => {
+          const status = app.status?.toUpperCase();
+          return status === 'OFFERED' || status === 'SELECTED';
+        }).length;
+
         return (
           <div className="space-y-6">
+            {/* Application Summary - At Top */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6">
+              <h3 className="text-lg font-semibold text-blue-900 mb-4">Application Summary</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="text-2xl font-bold text-blue-600">{totalApplied}</div>
+                  <div className="text-sm text-blue-700 mt-1">Total Applied</div>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="text-2xl font-bold text-yellow-600">{shortlisted}</div>
+                  <div className="text-sm text-yellow-700 mt-1">Shortlisted</div>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="text-2xl font-bold text-purple-600">{interviewed}</div>
+                  <div className="text-sm text-purple-700 mt-1">Interviewed</div>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="text-2xl font-bold text-green-600">{offers}</div>
+                  <div className="text-sm text-green-700 mt-1">Offers</div>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Track Applications</h2>
               
@@ -1532,57 +1614,48 @@ export default function StudentDashboard() {
                       )}
 
                       {/* Skills Required */}
-                      {application.job?.requiredSkills && application.job.requiredSkills.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Required Skills</p>
-                          <div className="flex flex-wrap gap-2">
-                            {application.job.requiredSkills.slice(0, 6).map((skill, index) => (
-                              <span
-                                key={index}
-                                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                            {application.job.requiredSkills.length > 6 && (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                                +{application.job.requiredSkills.length - 6} more
-                              </span>
-                            )}
+                      {(() => {
+                        // Parse requiredSkills - it might be a JSON string or array
+                        let skills = [];
+                        if (application.job?.requiredSkills) {
+                          try {
+                            if (typeof application.job.requiredSkills === 'string') {
+                              skills = JSON.parse(application.job.requiredSkills);
+                            } else if (Array.isArray(application.job.requiredSkills)) {
+                              skills = application.job.requiredSkills;
+                            }
+                          } catch (e) {
+                            // If parsing fails, try to split by comma or treat as single skill
+                            if (typeof application.job.requiredSkills === 'string') {
+                              skills = application.job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
+                            }
+                          }
+                        }
+                        
+                        return skills.length > 0 ? (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Required Skills</p>
+                            <div className="flex flex-wrap gap-2">
+                              {skills.slice(0, 6).map((skill, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                              {skills.length > 6 && (
+                                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                                  +{skills.length - 6} more
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : null;
+                      })()}
                     </div>
                   ))}
 
-                  {/* Summary */}
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Application Summary</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">{applications.length}</div>
-                        <div className="text-sm text-blue-700">Total Applied</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-yellow-600">
-                          {applications.filter(app => app.status === 'shortlisted').length}
-                        </div>
-                        <div className="text-sm text-yellow-700">Shortlisted</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-purple-600">
-                          {applications.filter(app => app.status === 'interviewed').length}
-                        </div>
-                        <div className="text-sm text-purple-700">Interviewed</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">
-                          {applications.filter(app => app.status === 'offered').length}
-                        </div>
-                        <div className="text-sm text-green-700">Offers</div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -1596,447 +1669,541 @@ export default function StudentDashboard() {
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Profile</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
+                <div className="text-sm text-gray-500">
+                  Fields marked with <span className="text-red-500">*</span> are required
+                </div>
+              </div>
               
-              <form className="space-y-6" onSubmit={handleSaveProfile}>
+              <form className="space-y-8" onSubmit={handleSaveProfile}>
                 {/* Profile Photo Section */}
-                <div className="flex items-start gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <ImageIcon size={16} className="text-gray-500" />
-                      Profile Photo
-                    </label>
-                  </div>
-                  <div className="relative group flex-shrink-0">
-                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200 shadow-lg bg-gray-100 flex items-center justify-center">
-                      {profilePhoto ? (
-                        <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={48} className="text-gray-400" />
-                      )}
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-100">
+                  <div className="flex items-start gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <ImageIcon size={16} className="text-blue-600" />
+                        Profile Photo
+                      </label>
                     </div>
-                    <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                      <Camera size={24} className="text-white" />
+                    <div className="relative group flex-shrink-0">
+                      <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-200 shadow-lg bg-gray-100 flex items-center justify-center">
+                        {profilePhoto ? (
+                          <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={48} className="text-gray-400" />
+                        )}
+                      </div>
+                      <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                        <Camera size={24} className="text-white" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (e) => setProfilePhoto(e.target.result);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Personal Information Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <User size={20} className="text-blue-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <User size={16} className="text-gray-500" />
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
                       <input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        id="fullName"
+                        type="text"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter your full name"
+                        value={fullName}
                         onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (e) => setProfilePhoto(e.target.result);
-                            reader.readAsDataURL(file);
-                          }
+                          setFullName(e.target.value);
+                          validateField('fullName', e.target.value);
                         }}
                       />
-                    </label>
+                      {validationErrors.fullName && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.fullName}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Mail size={16} className="text-gray-500" />
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          validateField('email', e.target.value);
+                        }}
+                      />
+                      {validationErrors.email && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Phone size={16} className="text-gray-500" />
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="phone"
+                        type="tel"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter your phone number"
+                        value={phone}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          validateField('phone', e.target.value);
+                        }}
+                      />
+                      {validationErrors.phone && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Hash size={16} className="text-gray-500" />
+                        Enrollment ID <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="enrollmentId"
+                        type="text"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter your enrollment ID"
+                        value={enrollmentId}
+                        onChange={(e) => {
+                          setEnrollmentId(e.target.value);
+                          validateField('enrollmentId', e.target.value);
+                        }}
+                      />
+                      {validationErrors.enrollmentId && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.enrollmentId}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <User size={16} className="text-gray-500" />
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="fullName"
-                      type="text"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => {
-                        setFullName(e.target.value);
-                        validateField('fullName', e.target.value);
-                      }}
-                    />
-                    {validationErrors.fullName && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.fullName}</p>
-                    )}
+                {/* Academic Information Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <FaGraduationCap size={20} className="text-purple-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Academic Information</h3>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Mail size={16} className="text-gray-500" />
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        validateField('email', e.target.value);
-                      }}
-                    />
-                    {validationErrors.email && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
-                    )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Trophy size={16} className="text-yellow-500" />
+                        CGPA
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="10"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter your CGPA"
+                        value={cgpa}
+                        onChange={(e) => {
+                          setCgpa(e.target.value);
+                          validateField('cgpa', e.target.value);
+                        }}
+                      />
+                      {validationErrors.cgpa && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
+                      )}
+                    </div>
+                    <div>
+                      <CustomDropdown
+                        label={
+                          <>
+                            Batch <span className="text-red-500">*</span>
+                          </>
+                        }
+                        icon={FaUsers}
+                        iconColor="text-indigo-600"
+                        options={[
+                          { value: '', label: 'Select Batch' },
+                          { value: '25-29', label: '25-29' },
+                          { value: '24-28', label: '24-28' },
+                          { value: '23-27', label: '23-27' }
+                        ]}
+                        value={batch}
+                        onChange={(value) => {
+                          setBatch(value);
+                          validateField('batch', value);
+                        }}
+                        placeholder="Select Batch"
+                      />
+                      {validationErrors.batch && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
+                      )}
+                    </div>
+                    <div>
+                      <CustomDropdown
+                        label={
+                          <>
+                            School <span className="text-red-500">*</span>
+                          </>
+                        }
+                        icon={FaGraduationCap}
+                        iconColor="text-purple-600"
+                        options={[
+                          { value: '', label: 'Select School' },
+                          { value: 'SOT', label: 'School of Technology' },
+                          { value: 'SOM', label: 'School of Management' },
+                          { value: 'SOH', label: 'School of HealthCare' }
+                        ]}
+                        value={school}
+                        onChange={(value) => {
+                          setSchool(value);
+                          validateField('school', value);
+                        }}
+                        placeholder="Select School"
+                      />
+                      {validationErrors.school && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
+                      )}
+                    </div>
+                    <div>
+                      <CustomDropdown
+                        label={
+                          <>
+                            Center <span className="text-red-500">*</span>
+                          </>
+                        }
+                        icon={FaMapMarkerAlt}
+                        iconColor="text-blue-600"
+                        options={[
+                          { value: '', label: 'Select Center' },
+                          { value: 'BANGALORE', label: 'Bangalore' },
+                          { value: 'NOIDA', label: 'Noida' },
+                          { value: 'LUCKNOW', label: 'Lucknow' },
+                          { value: 'PUNE', label: 'Pune' },
+                          { value: 'PATNA', label: 'Patna' },
+                          { value: 'INDORE', label: 'Indore' }
+                        ]}
+                        value={center}
+                        onChange={(value) => {
+                          setCenter(value);
+                          validateField('center', value);
+                        }}
+                        placeholder="Select Center"
+                      />
+                      {validationErrors.center && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Phone size={16} className="text-gray-500" />
-                      Phone Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="phone"
-                      type="tel"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your phone number"
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value);
-                        validateField('phone', e.target.value);
-                      }}
-                    />
-                    {validationErrors.phone && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
-                    )}
+                {/* Location Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <MapPin size={20} className="text-green-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Location</h3>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Hash size={16} className="text-gray-500" />
-                      Enrollment ID <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="enrollmentId"
-                      type="text"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your enrollment ID"
-                      value={enrollmentId}
-                      onChange={(e) => {
-                        setEnrollmentId(e.target.value);
-                        validateField('enrollmentId', e.target.value);
-                      }}
-                    />
-                    {validationErrors.enrollmentId && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.enrollmentId}</p>
-                    )}
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Trophy size={16} className="text-yellow-500" />
-                      CGPA
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="10"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your CGPA"
-                      value={cgpa}
-                      onChange={(e) => {
-                        setCgpa(e.target.value);
-                        validateField('cgpa', e.target.value);
-                      }}
-                    />
-                    {validationErrors.cgpa && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
-                    )}
-                  </div>
-                  <div>
-                    <CustomDropdown
-                      label={
-                        <>
-                          Batch <span className="text-red-500">*</span>
-                        </>
-                      }
-                      icon={FaUsers}
-                      iconColor="text-indigo-600"
-                      options={[
-                        { value: '', label: 'Select Batch' },
-                        { value: '25-29', label: '25-29' },
-                        { value: '24-28', label: '24-28' },
-                        { value: '23-27', label: '23-27' }
-                      ]}
-                      value={batch}
-                      onChange={(value) => {
-                        setBatch(value);
-                        validateField('batch', value);
-                      }}
-                      placeholder="Select Batch"
-                    />
-                    {validationErrors.batch && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
-                    )}
-                  </div>
-                  <div>
-                    <CustomDropdown
-                      label={
-                        <>
-                          School <span className="text-red-500">*</span>
-                        </>
-                      }
-                      icon={FaGraduationCap}
-                      iconColor="text-purple-600"
-                      options={[
-                        { value: '', label: 'Select School' },
-                        { value: 'SOT', label: 'School of Technology' },
-                        { value: 'SOM', label: 'School of Management' },
-                        { value: 'SOH', label: 'School of HealthCare' }
-                      ]}
-                      value={school}
-                      onChange={(value) => {
-                        setSchool(value);
-                        validateField('school', value);
-                      }}
-                      placeholder="Select School"
-                    />
-                    {validationErrors.school && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
-                    )}
-                  </div>
-                  <div>
-                    <CustomDropdown
-                      label={
-                        <>
-                          Center <span className="text-red-500">*</span>
-                        </>
-                      }
-                      icon={FaMapMarkerAlt}
-                      iconColor="text-blue-600"
-                      options={[
-                        { value: '', label: 'Select Center' },
-                        { value: 'BANGALORE', label: 'Bangalore' },
-                        { value: 'NOIDA', label: 'Noida' },
-                        { value: 'LUCKNOW', label: 'Lucknow' },
-                        { value: 'PUNE', label: 'Pune' },
-                        { value: 'PATNA', label: 'Patna' },
-                        { value: 'INDORE', label: 'Indore' }
-                      ]}
-                      value={center}
-                      onChange={(value) => {
-                        setCenter(value);
-                        validateField('center', value);
-                      }}
-                      placeholder="Select Center"
-                    />
-                    {validationErrors.center && (
-                      <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <MapPin size={16} className="text-gray-500" />
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your city"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Building2 size={16} className="text-gray-500" />
-                      State/Region
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your state or region"
-                      value={stateRegion}
-                      onChange={(e) => setStateRegion(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Type size={16} className="text-gray-500" />
-                      Headline
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Your professional Headline"
-                      value={Headline}
-                      onChange={(e) => setHeadline(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Linkedin size={16} className="text-blue-600" />
-                      LinkedIn
-                    </label>
-                    <input
-                      type="url"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="https://linkedin.com/in/username"
-                      value={linkedin}
-                      onChange={(e) => setLinkedin(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Skills & Credentials Section - Only show for SOT and SOM, not SOH */}
-                {(school === 'SOT' || school === 'SOM') && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Youtube size={16} className="text-red-600" />
-                        YouTube
+                        <MapPin size={16} className="text-gray-500" />
+                        City <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          validationErrors.city ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Enter your city"
+                        value={city}
+                        onChange={(e) => {
+                          setCity(e.target.value);
+                          validateField('city', e.target.value);
+                        }}
+                      />
+                      {validationErrors.city && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.city}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Building2 size={16} className="text-gray-500" />
+                        State/Region <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          validationErrors.stateRegion ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Enter your state or region"
+                        value={stateRegion}
+                        onChange={(e) => {
+                          setStateRegion(e.target.value);
+                          validateField('stateRegion', e.target.value);
+                        }}
+                      />
+                      {validationErrors.stateRegion && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.stateRegion}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Professional Profile Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <Briefcase size={20} className="text-indigo-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Professional Profile</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Type size={16} className="text-gray-500" />
+                        Headline <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Your professional headline"
+                        value={Headline}
+                        onChange={(e) => setHeadline(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Linkedin size={16} className="text-blue-600" />
+                        LinkedIn <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="url"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://youtube.com/@channel"
-                        value={youtubeUrl}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          validationErrors.linkedin ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="https://linkedin.com/in/username"
+                        value={linkedin}
+                        onChange={(e) => {
+                          setLinkedin(e.target.value);
+                          validateField('linkedin', e.target.value);
+                        }}
                       />
+                      {validationErrors.linkedin && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.linkedin}</p>
+                      )}
                     </div>
-                    {school === 'SOT' && (
+                  </div>
+                </div>
+
+                {/* Social Media & Coding Profiles Section */}
+                {(school === 'SOT' || school === 'SOM' || school === 'SOH') && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                      <Globe size={20} className="text-blue-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">Social Media & Coding Profiles</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <Github size={16} className="text-gray-700" />
-                          GitHub
+                          <Youtube size={16} className="text-red-600" />
+                          YouTube
                         </label>
                         <input
                           type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="https://github.com/username"
-                          value={githubUrl}
-                          onChange={(e) => setGithubUrl(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                          placeholder="https://youtube.com/@channel"
+                          value={youtubeUrl}
+                          onChange={(e) => setYoutubeUrl(e.target.value)}
                         />
                       </div>
-                    )}
-                    {school === 'SOM' && (
+                      {school === 'SOT' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Github size={16} className="text-gray-700" />
+                            GitHub
+                          </label>
+                          <input
+                            type="url"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="https://github.com/username"
+                            value={githubUrl}
+                            onChange={(e) => setGithubUrl(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {(school === 'SOM' || school === 'SOH') && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <FaInstagram size={16} className="text-pink-500" />
+                            Instagram
+                          </label>
+                          <input
+                            type="url"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="https://instagram.com/username"
+                            value={instagramUrl}
+                            onChange={(e) => setInstagramUrl(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coding Platforms Section - Only for SOT */}
+                {school === 'SOT' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                      <Code2 size={20} className="text-orange-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">Coding Platforms</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <FaInstagram size={16} className="text-pink-500" />
-                          Instagram
+                          <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
+                          LeetCode
                         </label>
                         <input
                           type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="https://instagram.com/username"
-                          value={instagramUrl}
-                          onChange={(e) => setInstagramUrl(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                          placeholder="https://leetcode.com/u/username"
+                          value={leetcode}
+                          onChange={(e) => setLeetcode(e.target.value)}
                         />
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {school === 'SOT' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
-                        LeetCode
-                      </label>
-                      <input
-                        type="url"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://leetcode.com/u/username"
-                        value={leetcode}
-                        onChange={(e) => setLeetcode(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <SiCodeforces size={16} className="text-blue-600" />
-                        Codeforces
-                      </label>
-                      <input
-                        type="url"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://codeforces.com/profile/username"
-                        value={codeforces}
-                        onChange={(e) => setCodeforces(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {school === 'SOT' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <SiGeeksforgeeks size={16} className="text-green-600" />
-                        GeeksforGeeks
-                      </label>
-                      <input
-                        type="url"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://auth.geeksforgeeks.org/user/username"
-                        value={gfg}
-                        onChange={(e) => setGfg(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <FaHackerrank size={16} className="text-emerald-600" />
-                        HackerRank
-                      </label>
-                      <input
-                        type="url"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://www.hackerrank.com/profile/username"
-                        value={hackerrank}
-                        onChange={(e) => setHackerrank(e.target.value)}
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <SiCodeforces size={16} className="text-blue-600" />
+                          Codeforces
+                        </label>
+                        <input
+                          type="url"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                          placeholder="https://codeforces.com/profile/username"
+                          value={codeforces}
+                          onChange={(e) => setCodeforces(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <SiGeeksforgeeks size={16} className="text-green-600" />
+                          GeeksforGeeks
+                        </label>
+                        <input
+                          type="url"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                          placeholder="https://auth.geeksforgeeks.org/user/username"
+                          value={gfg}
+                          onChange={(e) => setGfg(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <FaHackerrank size={16} className="text-emerald-600" />
+                          HackerRank
+                        </label>
+                        <input
+                          type="url"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                          placeholder="https://www.hackerrank.com/profile/username"
+                          value={hackerrank}
+                          onChange={(e) => setHackerrank(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <FileText size={16} className="text-gray-500" />
-                    Bio
-                  </label>
-                  <textarea
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows="4"
-                    placeholder="Write a brief bio about yourself"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                  ></textarea>
+                {/* Bio Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <FileText size={20} className="text-gray-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">About Me</h3>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FileText size={16} className="text-gray-500" />
+                      Bio <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none cursor-text"
+                      rows="4"
+                      placeholder="Write a brief bio about yourself"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                    ></textarea>
+                  </div>
                 </div>
 
-                <div className="space-x-2 px-4 mb-2 text-xs">
-                  <input
-                    type="checkbox"
-                    id="editCheckbox"
-                    checked={isChecked}
-                    onChange={() => setIsChecked(!isChecked)}
-                  />
-                  <label htmlFor="editCheckbox">
-                    I acknowledge that the information provided on this dashboard is accurate to the best of the institution's knowledge. I understand that the institution shall not be held liable for any errors, omissions, or discrepancies.
-                  </label>
-                </div>
-
-                <div className="flex space-x-4 justify-center">
-                  <button
-                    type="submit"
-                    id='editSaveBtn'
-                    disabled={!isChecked || saving}
-                    className={`px-6 py-2 rounded-md text-white transition-colors ${(!isChecked || saving) ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
-                  >
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                  <button
-                    type="button"
-                    className="bg-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                {/* Terms & Actions Section */}
+                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="editCheckbox"
+                        checked={isChecked}
+                        onChange={() => setIsChecked(!isChecked)}
+                        className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                      />
+                      <label htmlFor="editCheckbox" className="text-sm text-gray-700 cursor-pointer">
+                        I acknowledge that the information provided on this dashboard is accurate to the best of the institution's knowledge. I understand that the institution shall not be held liable for any errors, omissions, or discrepancies.
+                      </label>
+                    </div>
+                    <div className="flex space-x-4 justify-end pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetProfileForm();
+                          setIsChecked(false);
+                          setValidationErrors({});
+                        }}
+                        className="px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-medium cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="submit"
+                        id='editSaveBtn'
+                        disabled={!isChecked || saving}
+                        className={`px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
+                          (!isChecked || saving) 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
+                        }`}
+                      >
+                        {saving ? (
+                          <span className="flex items-center gap-2">
+                            <Loader className="animate-spin" size={16} />
+                            Saving...
+                          </span>
+                        ) : (
+                          'Save Changes'
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </form>
             </div>
@@ -2104,7 +2271,7 @@ export default function StudentDashboard() {
                       <div key={tab.id} className="mb-1">
                         <button
                           onClick={() => handleTabClick(tab.id)}
-                          className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${activeTab === tab.id
+                          className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${activeTab === tab.id
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                             : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                             } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
@@ -2131,7 +2298,7 @@ export default function StudentDashboard() {
                         <div key={skill.id} className="mb-1">
                           <button
                             onClick={() => handleSkillClick(skill.id)}
-                            className={`w-full flex items-center rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 transition-all duration-200 group ${sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2'
+                            className={`w-full flex items-center rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 transition-all duration-200 group cursor-pointer ${sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2'
                               }`}
                             title={sidebarWidth < 9 ? skill.label : ''}
                           >
@@ -2154,7 +2321,7 @@ export default function StudentDashboard() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className={`w-full flex items-center rounded-lg text-xs font-medium text-red-500 hover:bg-red-100 transition-all duration-200 ${sidebarWidth < 9 ? 'justify-center px-2 py-2 mb-10' : 'px-2 py-3'
+                  className={`w-full flex items-center rounded-lg text-xs font-medium text-red-500 hover:bg-red-100 transition-all duration-200 cursor-pointer ${sidebarWidth < 9 ? 'justify-center px-2 py-2 mb-10' : 'px-2 py-3'
                     }`}
                   title={sidebarWidth < 9 ? 'Logout' : ''}
                 >

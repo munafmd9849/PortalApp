@@ -143,9 +143,9 @@ app.use((req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3000; // Default to 3000 as per project context
+const PORT = process.env.PORT || 3000 ; // Default to 3000 as per project context
 
-server.listen(PORT, () => {
+server.listen(PORT,'0.0.0.0',() => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.IO enabled`);
   console.log(`🗄️  Database: ${process.env.DATABASE_URL?.includes('postgresql') ? 'PostgreSQL' : 'SQLite'}`);

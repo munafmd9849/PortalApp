@@ -466,7 +466,7 @@ const AdminPanel = () => {
             <button
               onClick={handleExportReport}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-400/20 to-green-500/25 backdrop-blur-xl border border-green-300/30 text-green-700 rounded-lg hover:from-green-400/30 hover:to-green-500/35 hover:border-green-400/40 transition-all duration-200 shadow-lg shadow-green-200/20 hover:shadow-xl hover:shadow-green-300/30 disabled:opacity-50 font-medium"
             >
               <FaFileExcel className="w-4 h-4" />
               Export Report
@@ -475,13 +475,13 @@ const AdminPanel = () => {
             <button
               onClick={handleDownloadData}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-400/20 to-blue-500/25 backdrop-blur-xl border border-blue-300/30 text-blue-700 rounded-lg hover:from-blue-400/30 hover:to-blue-500/35 hover:border-blue-400/40 transition-all duration-200 shadow-lg shadow-blue-200/20 hover:shadow-xl hover:shadow-blue-300/30 disabled:opacity-50 font-medium"
             >
               <FaDownload className="w-4 h-4" />
               Download Data
             </button>
             
-            <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-lg hover:from-slate-700 hover:to-slate-800 transition-all duration-200 shadow-md hover:shadow-lg">
+            <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-400/20 to-slate-500/25 backdrop-blur-xl border border-slate-300/30 text-slate-700 rounded-lg hover:from-slate-400/30 hover:to-slate-500/35 hover:border-slate-400/40 transition-all duration-200 shadow-lg shadow-slate-200/20 hover:shadow-xl hover:shadow-slate-300/30 font-medium">
               <FaCog className="w-4 h-4" />
               Settings
             </button>
@@ -560,85 +560,85 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* Enhanced Statistics Cards */}
+        {/* Enhanced Statistics Cards - Ultra Glassmorphic Style */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-blue-400/20 to-blue-500/25 backdrop-blur-xl border border-blue-300/30 rounded-xl shadow-lg shadow-blue-200/20 p-6 hover:shadow-xl hover:shadow-blue-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium">Total Students</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.totalStudents || 0).toLocaleString()}</p>
+                <p className="text-blue-700 text-sm font-medium">Total Students</p>
+                <p className="text-3xl font-bold text-blue-800">{loading ? '...' : (statsData.totalStudents || 0).toLocaleString()}</p>
               </div>
-              <FaUserGraduate className="text-4xl text-blue-200" />
+              <FaUserGraduate className="text-4xl text-blue-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-green-400/20 to-green-500/25 backdrop-blur-xl border border-green-300/30 rounded-xl shadow-lg shadow-green-200/20 p-6 hover:shadow-xl hover:shadow-green-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm font-medium">Placed Students</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.placedStudents || 0).toLocaleString()}</p>
+                <p className="text-green-700 text-sm font-medium">Placed Students</p>
+                <p className="text-3xl font-bold text-green-800">{loading ? '...' : (statsData.placedStudents || 0).toLocaleString()}</p>
               </div>
-              <FaCheckCircle className="text-4xl text-green-200" />
+              <FaCheckCircle className="text-4xl text-green-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-purple-400/20 to-purple-500/25 backdrop-blur-xl border border-purple-300/30 rounded-xl shadow-lg shadow-purple-200/20 p-6 hover:shadow-xl hover:shadow-purple-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">Placement Rate</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.placementRate || 0).toFixed(1)}%</p>
+                <p className="text-purple-700 text-sm font-medium">Placement Rate</p>
+                <p className="text-3xl font-bold text-purple-800">{loading ? '...' : (statsData.placementRate || 0).toFixed(1)}%</p>
               </div>
-              <FaChartLine className="text-4xl text-purple-200" />
+              <FaChartLine className="text-4xl text-purple-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-orange-400/20 to-orange-500/25 backdrop-blur-xl border border-orange-300/30 rounded-xl shadow-lg shadow-orange-200/20 p-6 hover:shadow-xl hover:shadow-orange-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-100 text-sm font-medium">Total Jobs</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.totalJobs || 0).toLocaleString()}</p>
+                <p className="text-orange-700 text-sm font-medium">Total Jobs</p>
+                <p className="text-3xl font-bold text-orange-800">{loading ? '...' : (statsData.totalJobs || 0).toLocaleString()}</p>
               </div>
-              <FaBriefcase className="text-4xl text-orange-200" />
+              <FaBriefcase className="text-4xl text-orange-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-teal-400/20 to-teal-500/25 backdrop-blur-xl border border-teal-300/30 rounded-xl shadow-lg shadow-teal-200/20 p-6 hover:shadow-xl hover:shadow-teal-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-teal-100 text-sm font-medium">Active Recruiters</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.activeRecruiters || 0).toLocaleString()}</p>
+                <p className="text-teal-700 text-sm font-medium">Active Recruiters</p>
+                <p className="text-3xl font-bold text-teal-800">{loading ? '...' : (statsData.activeRecruiters || 0).toLocaleString()}</p>
               </div>
-              <FaUserTie className="text-4xl text-teal-200" />
+              <FaUserTie className="text-4xl text-teal-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-red-400/20 to-red-500/25 backdrop-blur-xl border border-red-300/30 rounded-xl shadow-lg shadow-red-200/20 p-6 hover:shadow-xl hover:shadow-red-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-red-100 text-sm font-medium">Pending Queries</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.pendingQueries || 0).toLocaleString()}</p>
+                <p className="text-red-700 text-sm font-medium">Pending Queries</p>
+                <p className="text-3xl font-bold text-red-800">{loading ? '...' : (statsData.pendingQueries || 0).toLocaleString()}</p>
               </div>
-              <FaBell className="text-4xl text-red-200" />
+              <FaBell className="text-4xl text-red-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-indigo-400/20 to-indigo-500/25 backdrop-blur-xl border border-indigo-300/30 rounded-xl shadow-lg shadow-indigo-200/20 p-6 hover:shadow-xl hover:shadow-indigo-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-indigo-100 text-sm font-medium">Total Applications</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.totalApplications || 0).toLocaleString()}</p>
+                <p className="text-indigo-700 text-sm font-medium">Total Applications</p>
+                <p className="text-3xl font-bold text-indigo-800">{loading ? '...' : (statsData.totalApplications || 0).toLocaleString()}</p>
               </div>
-              <FaHandshake className="text-4xl text-indigo-200" />
+              <FaHandshake className="text-4xl text-indigo-500/70" />
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-pink-500 to-pink-600 text-white rounded-xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-pink-400/20 to-pink-500/25 backdrop-blur-xl border border-pink-300/30 rounded-xl shadow-lg shadow-pink-200/20 p-6 hover:shadow-xl hover:shadow-pink-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-pink-100 text-sm font-medium">Avg Applications</p>
-                <p className="text-3xl font-bold">{loading ? '...' : (statsData.averageApplications || 0).toFixed(1)}</p>
+                <p className="text-pink-700 text-sm font-medium">Avg Applications</p>
+                <p className="text-3xl font-bold text-pink-800">{loading ? '...' : (statsData.averageApplications || 0).toFixed(1)}</p>
               </div>
-              <FaChartPie className="text-4xl text-pink-200" />
+              <FaChartPie className="text-4xl text-pink-500/70" />
             </div>
           </div>
         </div>

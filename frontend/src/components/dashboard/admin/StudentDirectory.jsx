@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ImEye } from 'react-icons/im';
 import { MdBlock } from 'react-icons/md';
-import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUserEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUserEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle } from 'react-icons/fa';
 import { Loader, Download, Upload } from 'lucide-react';
 import { getAllStudents, updateStudentStatus, updateStudentProfile, getEducationalBackground, getStudentSkills, updateEducationalBackground } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
@@ -9,7 +9,7 @@ import api from '../../../services/api';
 import DashboardHome from '../../../components/dashboard/student/DashboardHome';
 import { getStudentApplications } from '../../../services/applications';
 import { getTargetedJobsForStudent } from '../../../services/jobs';
-import SelectDropdown from '../../common/SelectDropdown';
+import CustomDropdown from '../../common/CustomDropdown';
 import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 // TODO: Replace Firebase operations with API calls
 
@@ -750,18 +750,21 @@ const BlockStudentModal = ({ isOpen, onClose, student, onConfirm }) => {
           </div>
         )}
         <div className="mb-4">
-          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">Reason for Blocking</label>
-          <select
+          <CustomDropdown
+            label="Reason for Blocking"
+            icon={FaInfoCircle}
+            iconColor="text-red-600"
+            options={[
+              { value: '', label: 'Select a reason' },
+              { value: 'Placed Already', label: 'Placed Already' },
+              { value: 'Academic Reasons', label: 'Academic Reasons' },
+              { value: 'Policy Violation', label: 'Policy Violation' },
+              { value: 'Other', label: 'Other' }
+            ]}
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Select a reason</option>
-            <option value="Placed Already">Placed Already</option>
-            <option value="Academic Reasons">Academic Reasons</option>
-            <option value="Policy Violation">Policy Violation</option>
-            <option value="Other">Other</option>
-          </select>
+            onChange={(value) => setReason(value)}
+            placeholder="Select a reason"
+          />
           {reason === 'Other' && (
             <input
               type="text"
@@ -1502,9 +1505,11 @@ export default function StudentDirectory() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <SelectDropdown
+                <CustomDropdown
                   label="Center"
-                  options={filterCenterOptions}
+                  icon={FaMapMarkerAlt}
+                  iconColor="text-indigo-600"
+                  options={filterCenterOptions.map(opt => ({ value: opt.id, label: opt.name }))}
                   value={filters.center}
                   onChange={(value) => handleFilterDropdownChange('center', value)}
                   placeholder="All Centers"
@@ -1512,9 +1517,11 @@ export default function StudentDirectory() {
               </div>
 
               <div>
-                <SelectDropdown
+                <CustomDropdown
                   label="School"
-                  options={filterSchoolOptions}
+                  icon={FaGraduationCap}
+                  iconColor="text-purple-600"
+                  options={filterSchoolOptions.map(opt => ({ value: opt.id, label: opt.name }))}
                   value={filters.school}
                   onChange={(value) => handleFilterDropdownChange('school', value)}
                   placeholder="All Schools"
@@ -1522,9 +1529,11 @@ export default function StudentDirectory() {
               </div>
 
               <div>
-                <SelectDropdown
+                <CustomDropdown
                   label="Status"
-                  options={STATUS_OPTIONS}
+                  icon={FaCheckCircle}
+                  iconColor="text-green-600"
+                  options={STATUS_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
                   value={filters.status}
                   onChange={(value) => handleFilterDropdownChange('status', value)}
                   placeholder="All Status(es)"

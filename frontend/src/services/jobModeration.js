@@ -136,13 +136,20 @@ function applyFilters(jobs, filters = {}) {
           return false;
         }
       }
+      // When filter is 'accepted', show jobs with status 'accepted' or 'approved'
+      if (filterStatus === 'accepted') {
+        if (jobStatus !== 'accepted' && jobStatus !== 'approved') {
+          return false;
+        }
+      }
       if (filterStatus === 'draft' && jobStatus !== 'draft') return false;
       if (filterStatus === 'posted' && jobStatus !== 'posted' && jobStatus !== 'active') return false;
       if (filterStatus === 'rejected' && jobStatus !== 'rejected') return false;
       if (filterStatus === 'archived' && jobStatus !== 'archived') return false;
       if (filterStatus !== 'in_review' && filterStatus !== 'draft' && 
-          filterStatus !== 'posted' && filterStatus !== 'rejected' && 
-          filterStatus !== 'archived' && jobStatus !== filterStatus) return false;
+          filterStatus !== 'accepted' && filterStatus !== 'posted' && 
+          filterStatus !== 'rejected' && filterStatus !== 'archived' && 
+          jobStatus !== filterStatus) return false;
     }
     
     if (filters.companyId && job.companyDetails?.id !== filters.companyId) return false;
@@ -167,10 +174,22 @@ function broadcastJobs() {
 }
 
 function buildAnalytics(jobs) {
-  return jobs.reduce(
+  if (!Array.isArray(jobs)) {
+    console.warn('⚠️ buildAnalytics received non-array:', jobs);
+    return {
+      total: 0,
+      active: 0,
+      posted: 0,
+      pendingApproval: 0,
+      rejected: 0,
+      archived: 0,
+    };
+  }
+  
+  const analytics = jobs.reduce(
     (acc, job) => {
       acc.total += 1;
-      const key = job.status?.toLowerCase();
+      const key = (job.status || '').toLowerCase();
       if (key === 'active') acc.active += 1;
       if (key === 'posted') acc.posted += 1;
       // Only count draft and in_review as pending approval (accepted jobs are no longer pending)
@@ -190,6 +209,9 @@ function buildAnalytics(jobs) {
       archived: 0,
     }
   );
+  
+  console.log(`📊 Built analytics from ${jobs.length} jobs:`, analytics);
+  return analytics;
 }
 
 export function subscribeJobsWithDetails(onChange, filters = {}) {
@@ -222,11 +244,42 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
           // Only add non-status filters to API params
           if (filters.recruiterId) params.recruiterId = filters.recruiterId;
           
+          console.log(`🔍 Calling API with params:`, params);
           const response = await api.getJobs(params);
-          const jobs = response.jobs || response || [];
+          console.log(`📥 Raw API Response:`, response);
+          
+          // Handle different response formats
+          let jobs = [];
+          if (Array.isArray(response)) {
+            jobs = response;
+          } else if (response?.jobs && Array.isArray(response.jobs)) {
+            jobs = response.jobs;
+          } else if (response?.data && Array.isArray(response.data)) {
+            jobs = response.data;
+          }
           
           // Transform real jobs (even if empty array - this is valid state)
           console.log(`📊 Fetched ${jobs.length} real jobs from API (unfiltered)`);
+          console.log(`📊 API Response Details:`, { 
+            hasResponse: !!response, 
+            responseType: typeof response,
+            isArray: Array.isArray(response),
+            hasJobs: !!response?.jobs, 
+            jobsLength: jobs.length,
+            responseKeys: response ? Object.keys(response) : [],
+            firstJob: jobs[0] || null,
+            pagination: response?.pagination || null
+          });
+          
+          // If API returns 0 jobs, log a warning but don't use mock data
+          // (0 jobs is a valid state - there might genuinely be no jobs)
+          if (jobs.length === 0) {
+            console.warn('⚠️ API returned 0 jobs. This could mean:');
+            console.warn('  1. There are no jobs in the database');
+            console.warn('  2. All jobs are filtered out by backend filters');
+            console.warn('  3. There is an issue with the API query');
+            console.warn('  Check backend logs and database to verify.');
+          }
           const transformedJobs = jobs.map(job => {
             // Normalize status: convert to lowercase and handle variations
             const rawStatus = job.status || 'DRAFT';
@@ -285,7 +338,7 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
               rejectionReason: job.rejectionReason
             };
           });
-          
+            
           // Debug: Log status distribution before filtering
           const statusCounts = transformedJobs.reduce((acc, j) => {
             const status = j.status || 'unknown';
@@ -307,18 +360,18 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
           const inReviewAfterFilter = filtered.filter(j => j.status === 'in_review');
           const acceptedAfterFilter = filtered.filter(j => j.status === 'accepted' || j.status === 'approved');
           console.log(`📋 After filtering: ${filtered.length} total jobs, ${inReviewAfterFilter.length} IN_REVIEW, ${acceptedAfterFilter.length} ACCEPTED`);
-          
-          const snapshotMeta = {
+            
+            const snapshotMeta = {
             total: transformedJobs.length,
-            filtered: filtered.length,
-            lastUpdated: new Date().toISOString(),
-          };
-          
-          onChange(filtered, snapshotMeta);
-          return;
+              filtered: filtered.length,
+              lastUpdated: new Date().toISOString(),
+            };
+            
+            onChange(filtered, snapshotMeta);
+            return;
         } catch (error) {
           // Log full error details for debugging
-          console.error('API fetch failed, using mock data as fallback:', {
+          console.error('❌ API fetch failed, using mock data as fallback:', {
             error: error,
             message: error?.message,
             status: error?.status,
@@ -330,13 +383,13 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
           });
           // Only use mock data when API call itself fails (network error, server error, etc.)
           // Not when API returns 0 jobs (that's a valid state)
-          const filtered = applyFilters(mockJobs, filters);
-          const snapshotMeta = {
-            total: mockJobs.length,
-            filtered: filtered.length,
-            lastUpdated: new Date().toISOString(),
-          };
-          onChange(filtered, snapshotMeta);
+        const filtered = applyFilters(mockJobs, filters);
+        const snapshotMeta = {
+          total: mockJobs.length,
+          filtered: filtered.length,
+          lastUpdated: new Date().toISOString(),
+        };
+        onChange(filtered, snapshotMeta);
         }
       };
       
@@ -362,7 +415,7 @@ export function subscribeJobsWithDetails(onChange, filters = {}) {
   // Return unsubscribe function and refresh function
   return {
     unsubscribe: () => {
-      clearInterval(intervalId);
+    clearInterval(intervalId);
     },
     refresh: () => {
       console.log('🔄 Manual refresh triggered for jobs');
@@ -382,17 +435,36 @@ export function subscribeJobAnalytics(onChange) {
     
     try {
       // Try to fetch real jobs for analytics
+      console.log('📊 Fetching jobs for analytics...');
       const response = await api.getJobs({ limit: 1000 });
-      const realJobs = response.jobs || response || [];
+      console.log('📊 Analytics API Response:', response);
+      
+      // Handle different response formats
+      let realJobs = [];
+      if (Array.isArray(response)) {
+        realJobs = response;
+      } else if (response?.jobs && Array.isArray(response.jobs)) {
+        realJobs = response.jobs;
+      } else if (response?.data && Array.isArray(response.data)) {
+        realJobs = response.data;
+      }
+      
+      console.log(`📊 Parsed ${realJobs.length} jobs from API response for analytics`);
       
       // Use only real jobs for analytics - no mock data merging
       // If API returns 0 jobs, that's a valid state (empty analytics)
       const analytics = buildAnalytics(realJobs);
-      console.log(`📊 Analytics built from ${realJobs.length} real jobs`);
+      console.log(`📊 Analytics result:`, analytics);
       onChange(analytics);
     } catch (error) {
-      console.warn('Failed to fetch jobs for analytics, using mock data as fallback:', error);
+      console.error('❌ Failed to fetch jobs for analytics:', {
+        error: error,
+        message: error?.message,
+        status: error?.status,
+        response: error?.response,
+      });
       // Only use mock data when API call fails (network error, server error, etc.)
+      // Not when API returns 0 jobs (that's a valid state)
       onChange(buildAnalytics(mockJobs));
     }
   };
@@ -406,8 +478,8 @@ export function subscribeJobAnalytics(onChange) {
   // Return unsubscribe function and refresh function
   return {
     unsubscribe: () => {
-      analyticsSubscribers.delete(handler);
-      clearInterval(intervalId);
+    analyticsSubscribers.delete(handler);
+    clearInterval(intervalId);
     },
     refresh: () => {
       console.log('🔄 Manual refresh triggered for analytics');
@@ -509,25 +581,50 @@ export async function getRecruitersForDropdown() {
   }));
 }
 
-export async function autoArchiveExpiredJobs() {
-  const now = new Date();
-  let archived = 0;
-
-  mockJobs.forEach((job) => {
-    if (
-      (job.status === 'active' || job.status === 'posted') &&
-      job.applicationDeadline &&
-      new Date(job.applicationDeadline) < now
-    ) {
-      job.status = 'archived';
-      job.isActive = false;
-      archived += 1;
+export async function autoArchiveExpiredJobs(user) {
+  try {
+    // Call the real API endpoint
+    const result = await api.autoArchiveExpiredJobs();
+    
+    // If API call succeeds, return the result
+    if (result.success) {
+      return {
+        success: true,
+        successful: result.successful || result.archived || 0,
+        archived: result.archived || result.successful || 0,
+      };
     }
-  });
+    
+    throw new Error('Auto-archive failed: Server returned unsuccessful response');
+  } catch (error) {
+    console.error('Auto-archive expired jobs error:', error);
+    
+    // Fallback to mock data only if USE_MOCK_DATA is enabled
+    if (USE_MOCK_DATA) {
+      console.warn('⚠️ Using mock data for auto-archive (USE_MOCK_DATA flag is enabled)');
+      const now = new Date();
+      let archived = 0;
 
-  if (archived > 0) {
-    broadcastJobs();
+      mockJobs.forEach((job) => {
+        if (
+          (job.status === 'active' || job.status === 'posted') &&
+          job.applicationDeadline &&
+          new Date(job.applicationDeadline) < now
+        ) {
+          job.status = 'archived';
+          job.isActive = false;
+          archived += 1;
+        }
+      });
+
+      if (archived > 0) {
+        broadcastJobs();
+      }
+
+      return { success: true, successful: archived, archived };
+    }
+    
+    // Re-throw the error if not using mock data
+    throw error;
   }
-
-  return { success: true, successful: archived, archived };
 }

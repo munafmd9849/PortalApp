@@ -225,9 +225,9 @@ export default function DashboardLayout({ children }) {
                 </div>
 
                 {/* Student Details */}
-                <div className="ml-4 space-y-0">
+                <div className="ml-4 space-y-1.5">
                   <div className="flex items-center">
-                    <h2 className="text-2xl font-bold text-black flex items-center">
+                    <h2 className="text-2xl font-bold text-black flex items-center gap-2">
                       {loading ? 'Loading...' : (studentProfile?.fullName || user?.displayName || user?.email || 'Student Name')}
 
                       <button
@@ -238,7 +238,7 @@ export default function DashboardLayout({ children }) {
                             window.dispatchEvent(new CustomEvent('editProfileClicked'));
                           }, 100);
                         }}
-                        className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50"
+                        className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50 cursor-pointer"
                         aria-label="Edit profile"
                       >
                         <SquarePen className="h-3 w-3 absolute start-0" />
@@ -247,7 +247,7 @@ export default function DashboardLayout({ children }) {
                       {/* Verified icon with blue color and spacing */}
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="ml-2 h-6 w-6 text-blue-600 flex-shrink-0"
+                        className="h-6 w-6 text-blue-600 flex-shrink-0"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                         aria-label="Verified Icon"
@@ -260,10 +260,10 @@ export default function DashboardLayout({ children }) {
                     </h2>
                   </div>
 
-                  <div className='ml-2 -mt-0 mb-1 italic'>
+                  <div className='ml-2 italic'>
                     <p>{loading ? 'Loading...' : (studentProfile?.headline || studentProfile?.tagline || 'Complete your profile to add a headline')}</p>
                   </div>
-                  <div className="ml-2 mt-2 flex flex-col sm:flex-row sm:space-x-6 text-sm text-black">
+                  <div className="ml-2 flex flex-col sm:flex-row sm:space-x-6 text-sm text-black">
                     <div>
                       <span className="font-medium text-gray-700 ">ID:</span> {loading ? 'Loading...' : (studentProfile?.enrollmentId || 'Click edit to set')}
                     </div>

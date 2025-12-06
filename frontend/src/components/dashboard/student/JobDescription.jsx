@@ -20,8 +20,8 @@ import { GoChecklist } from "react-icons/go";
 import { Loader } from "lucide-react";
 import { getJob } from '../../../services/jobs';
 
-// Timeline steps
-const interviewTimeline = [
+// Default timeline steps (fallback when no job-specific data)
+const defaultInterviewTimeline = [
   {
     label: "Round 1: Aptitude Test",
     description: "Initial screening test covering quantitative, logical, and verbal reasoning.",
@@ -73,6 +73,48 @@ const interviewTimeline = [
   },
 ];
 
+// Color palette for dynamic rounds
+const roundColors = [
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-green-500",
+  "bg-yellow-500",
+  "bg-indigo-500",
+  "bg-teal-500",
+  "bg-red-500",
+  "bg-pink-500",
+  "bg-orange-500",
+  "bg-cyan-500",
+];
+
+// Icon mapping for common round types
+const getRoundIcon = (label) => {
+  const lowerLabel = label.toLowerCase();
+  if (lowerLabel.includes("aptitude") || lowerLabel.includes("test") || lowerLabel.includes("written")) {
+    return <FaClipboardList className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("technical") || lowerLabel.includes("coding") || lowerLabel.includes("programming")) {
+    return <FaPhone className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("hr") || lowerLabel.includes("human resource")) {
+    return <FaTasks className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("group") || lowerLabel.includes("discussion") || lowerLabel.includes("gd")) {
+    return <FaUserCheck className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("final") || lowerLabel.includes("decision")) {
+    return <FaUsers className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("offer") || lowerLabel.includes("selection")) {
+    return <FaCheckCircle className="text-white" size={18} />;
+  }
+  if (lowerLabel.includes("onboarding") || lowerLabel.includes("orientation")) {
+    return <FaEnvelopeOpen className="text-white" size={18} />;
+  }
+  // Default icon
+  return <FaTasks className="text-white" size={18} />;
+};
+
 const JobDescription = ({ job, isOpen, onClose }) => {
   const [jobDetails, setJobDetails] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -99,24 +141,147 @@ const JobDescription = ({ job, isOpen, onClose }) => {
           setError(null);
           try {
             const details = await getJob(job.id);
+            if (details) {
             setJobDetails(details);
+            } else {
+              // If API returns null/undefined, use the job data we already have
+              console.warn('API returned no details, using provided job data');
+              setJobDetails(job);
+            }
           } catch (err) {
             console.error('Failed to fetch job details:', err);
-            setError('Failed to load job details');
+            // Fallback: Use the job data we already have instead of showing error
+            console.log('Using provided job data as fallback');
+            setJobDetails(job);
+            // Don't set error - we have the job data to display
           } finally {
             setLoading(false);
           }
         };
         fetchJobDetails();
       } else {
-        console.warn('Modal opened but job has no ID:', job);
-        setError('Invalid job data - missing ID');
+        // If no ID, use the job data directly
+        console.warn('Modal opened but job has no ID, using provided job data:', job);
+        setJobDetails(job);
+        setLoading(false);
       }
     }
   }, [isOpen, job]);
 
   // Use detailed job data if available, fallback to basic job data
   const displayJob = jobDetails || job;
+
+  // -------- Dynamic Interview Timeline --------
+  const interviewTimeline = useMemo(() => {
+    // Try to get interview rounds from job data
+    let rounds = [];
+    
+    // Method 1: Check for interviewRounds array
+    if (displayJob?.interviewRounds && Array.isArray(displayJob.interviewRounds) && displayJob.interviewRounds.length > 0) {
+      rounds = displayJob.interviewRounds.map((round, index) => ({
+        label: round.title || `Round ${index + 1}`,
+        description: round.detail || round.description || "Interview round details will be shared.",
+        color: roundColors[index % roundColors.length],
+        number: String(index + 1),
+        icon: getRoundIcon(round.title || `Round ${index + 1}`),
+      }));
+    }
+    // Method 2: Check for baseRoundDetails and extraRounds
+    else if (displayJob?.baseRoundDetails || displayJob?.extraRounds) {
+      const baseRounds = Array.isArray(displayJob.baseRoundDetails) ? displayJob.baseRoundDetails : [];
+      const extraRounds = Array.isArray(displayJob.extraRounds) ? displayJob.extraRounds : [];
+      
+      // Process base rounds
+      baseRounds.forEach((round, index) => {
+        if (round && typeof round === 'string' && round.trim()) {
+          rounds.push({
+            label: `Round ${index + 1}`,
+            description: round.trim(),
+            color: roundColors[index % roundColors.length],
+            number: String(index + 1),
+            icon: getRoundIcon(round),
+          });
+        } else if (round && typeof round === 'object' && round.title) {
+          rounds.push({
+            label: round.title || `Round ${index + 1}`,
+            description: round.detail || round.description || "Interview round details will be shared.",
+            color: roundColors[index % roundColors.length],
+            number: String(index + 1),
+            icon: getRoundIcon(round.title),
+          });
+        }
+      });
+      
+      // Process extra rounds
+      extraRounds.forEach((round, index) => {
+        if (round && typeof round === 'object') {
+          rounds.push({
+            label: round.title || `Round ${baseRounds.length + index + 1}`,
+            description: round.detail || round.description || "Interview round details will be shared.",
+            color: roundColors[(baseRounds.length + index) % roundColors.length],
+            number: String(baseRounds.length + index + 1),
+            icon: getRoundIcon(round.title),
+          });
+        }
+      });
+    }
+    // Method 3: Parse from requirements field (if it contains interview rounds)
+    else if (displayJob?.requirements && typeof displayJob.requirements === 'string') {
+      // Try to extract interview rounds from requirements text
+      const requirementsText = displayJob.requirements;
+      const roundPatterns = [
+        /Round\s*(\d+)[:]\s*([^\n\r]+)/gi,
+        /(\d+)[.]\s*([^\n\r]+)/gi,
+        /([A-Z][^:]+):\s*([^\n\r]+)/g,
+      ];
+      
+      let foundRounds = [];
+      roundPatterns.forEach(pattern => {
+        const matches = [...requirementsText.matchAll(pattern)];
+        matches.forEach((match, index) => {
+          if (match[1] && match[2]) {
+            foundRounds.push({
+              label: match[1].trim(),
+              description: match[2].trim(),
+            });
+          }
+        });
+      });
+      
+      if (foundRounds.length > 0) {
+        rounds = foundRounds.map((round, index) => ({
+          label: round.label || `Round ${index + 1}`,
+          description: round.description || "Interview round details will be shared.",
+          color: roundColors[index % roundColors.length],
+          number: String(index + 1),
+          icon: getRoundIcon(round.label),
+        }));
+      }
+    }
+    
+    // If we found rounds, return them; otherwise use default timeline
+    if (rounds.length > 0) {
+      // Add Offer and Onboarding steps at the end
+      rounds.push({
+        label: "OFFER",
+        description: "Formal job offer extended to selected candidates.",
+        color: "bg-teal-500",
+        number: String(rounds.length + 1),
+        icon: <FaCheckCircle className="text-white" size={18} />,
+      });
+      rounds.push({
+        label: "Onboarding",
+        description: "Orientation and integration process for new hires.",
+        color: "bg-red-500",
+        number: String(rounds.length + 1),
+        icon: <FaEnvelopeOpen className="text-white" size={18} />,
+      });
+      return rounds;
+    }
+    
+    // Fallback to default timeline
+    return defaultInterviewTimeline;
+  }, [displayJob]);
 
   // -------- Dynamic Timer --------
   const deadline = useMemo(() => {
@@ -200,11 +365,16 @@ const JobDescription = ({ job, isOpen, onClose }) => {
       if (details) {
         setJobDetails(details);
       } else {
-        setError('Job not found');
+        // Fallback: Use the job data we already have
+        console.warn('API returned no details, using provided job data');
+        setJobDetails(job);
       }
     } catch (err) {
       console.error('Error fetching job details:', err);
-      setError('Failed to load job details');
+      // Fallback: Use the job data we already have instead of showing error
+      console.log('Using provided job data as fallback');
+      setJobDetails(job);
+      // Don't set error - we have the job data to display
     } finally {
       setLoading(false);
     }
@@ -585,7 +755,7 @@ const JobDescription = ({ job, isOpen, onClose }) => {
                 <h3 className="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2">
                   <FaTasks className="text-blue-600" /> Interview Process
                 </h3>
-                <div className="relative w-full max-w-4xl mx-auto">
+                <div className="relative w-full max-w-4xl mx-auto px-4">
                   {/* Vertical Timeline Line */}
                   <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-gray-200 hidden md:block"></div>
                   

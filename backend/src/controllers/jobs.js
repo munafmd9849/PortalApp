@@ -436,6 +436,29 @@ export async function postJob(req, res) {
     const { selectedSchools, selectedCenters, selectedBatches } = req.body;
     const adminId = req.userId;
 
+    // Parse targeting arrays (handle both array and JSON string formats from frontend)
+    const parseTargeting = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const targetSchools = parseTargeting(selectedSchools);
+    const targetCenters = parseTargeting(selectedCenters);
+    const targetBatches = parseTargeting(selectedBatches);
+
+    // Convert arrays to JSON strings for database storage (schema expects String)
+    const targetSchoolsJson = JSON.stringify(targetSchools);
+    const targetCentersJson = JSON.stringify(targetCenters);
+    const targetBatchesJson = JSON.stringify(targetBatches);
+
     // Update job status
     const job = await prisma.job.update({
       where: { id: jobId },
@@ -444,42 +467,46 @@ export async function postJob(req, res) {
         isPosted: true,
         postedAt: new Date(),
         postedBy: adminId,
-        targetSchools: selectedSchools || [],
-        targetCenters: selectedCenters || [],
-        targetBatches: selectedBatches || [],
+        targetSchools: targetSchoolsJson,
+        targetCenters: targetCentersJson,
+        targetBatches: targetBatchesJson,
       },
       include: {
         company: true,
+        recruiter: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                displayName: true,
+              },
+            },
+          },
+        },
       },
     });
 
     // Add job distribution to queue (async background processing)
-    await addJobToQueue({
-      jobId: job.id,
-      jobData: job,
-      targeting: {
-        targetSchools: selectedSchools || [],
-        targetCenters: selectedCenters || [],
-        targetBatches: selectedBatches || [],
-      },
-    });
+    try {
+      await addJobToQueue({
+        jobId: job.id,
+        jobData: job,
+        targeting: {
+          targetSchools: targetSchools,
+          targetCenters: targetCenters,
+          targetBatches: targetBatches,
+        },
+      });
+      logger.info(`Job ${job.id} added to distribution queue`);
+    } catch (queueError) {
+      // Don't fail the request if queue fails - log and continue
+      logger.error(`Failed to add job ${job.id} to distribution queue:`, queueError);
+    }
 
     // Send email notification to recruiter about job being posted
     try {
-      const recruiter = await prisma.recruiter.findUnique({
-        where: { id: job.recruiterId },
-        include: {
-          user: {
-            select: {
-              email: true,
-              displayName: true,
-            },
-          },
-        },
-      });
-
-      if (recruiter) {
-        await sendJobPostedNotification(job, recruiter);
+      if (job.recruiter) {
+        await sendJobPostedNotification(job, job.recruiter);
         logger.info(`Job posted notification sent to recruiter for job ${job.id}`);
       }
     } catch (emailError) {
@@ -498,14 +525,14 @@ export async function postJob(req, res) {
       };
 
       // Apply targeting filters if specified
-      if (selectedSchools && selectedSchools.length > 0) {
-        where.school = { in: selectedSchools };
+      if (targetSchools.length > 0 && !targetSchools.includes('ALL')) {
+        where.school = { in: targetSchools };
       }
-      if (selectedCenters && selectedCenters.length > 0) {
-        where.center = { in: selectedCenters };
+      if (targetCenters.length > 0 && !targetCenters.includes('ALL')) {
+        where.center = { in: targetCenters };
       }
-      if (selectedBatches && selectedBatches.length > 0) {
-        where.batch = { in: selectedBatches };
+      if (targetBatches.length > 0 && !targetBatches.includes('ALL')) {
+        where.batch = { in: targetBatches };
       }
 
       // Find matching students
@@ -539,11 +566,25 @@ export async function postJob(req, res) {
     res.json({
       success: true,
       job,
-      message: 'Job posted and distribution queued',
+      message: 'Job posted successfully. Students have been notified.',
     });
   } catch (error) {
-    console.error('Post job error:', error);
-    res.status(500).json({ error: 'Failed to post job' });
+    logger.error('Post job error:', {
+      jobId: req.params.jobId,
+      error: error.message,
+      stack: error.stack,
+    });
+    console.error('Post job error details:', error);
+    
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error.message || 'Failed to post job'
+      : 'Failed to post job. Please try again or contact support.';
+    
+    res.status(500).json({ 
+      error: 'Failed to post job',
+      message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
 
@@ -713,5 +754,70 @@ export async function rejectJob(req, res) {
   } catch (error) {
     console.error('Reject job error:', error);
     res.status(500).json({ error: 'Failed to reject job' });
+  }
+}
+
+/**
+ * Auto-archive expired jobs (admin)
+ * Archives all jobs where applicationDeadline has passed and status is POSTED or ACTIVE
+ */
+export async function autoArchiveExpiredJobs(req, res) {
+  try {
+    const now = new Date();
+    
+    // Find all jobs that are posted/active and have passed their application deadline
+    const expiredJobs = await prisma.job.findMany({
+      where: {
+        status: {
+          in: ['POSTED', 'ACTIVE'],
+        },
+        applicationDeadline: {
+          lt: now, // Less than current date/time
+        },
+      },
+      select: {
+        id: true,
+        jobTitle: true,
+      },
+    });
+
+    if (expiredJobs.length === 0) {
+      return res.json({
+        success: true,
+        successful: 0,
+        archived: 0,
+        message: 'No expired jobs to archive',
+      });
+    }
+
+    // Archive all expired jobs
+    const result = await prisma.job.updateMany({
+      where: {
+        id: {
+          in: expiredJobs.map(job => job.id),
+        },
+      },
+      data: {
+        status: 'ARCHIVED',
+        isActive: false,
+        isPosted: false,
+      },
+    });
+
+    logger.info(`Auto-archived ${result.count} expired jobs`);
+
+    res.json({
+      success: true,
+      successful: result.count,
+      archived: result.count,
+      message: `Successfully archived ${result.count} expired job(s)`,
+    });
+  } catch (error) {
+    logger.error('Auto-archive expired jobs error:', error);
+    console.error('Auto-archive expired jobs error:', error);
+    res.status(500).json({ 
+      error: 'Failed to auto-archive expired jobs',
+      message: error.message || 'An unexpected error occurred',
+    });
   }
 }

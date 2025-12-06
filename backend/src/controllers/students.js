@@ -695,7 +695,7 @@ export async function getAllStudents(req, res) {
 }
 
 /**
- * Upload resume
+ * Upload resume - supports multiple resumes
  * Replaces: resumeStorage.uploadResume()
  */
 export async function uploadResume(req, res) {
@@ -707,28 +707,100 @@ export async function uploadResume(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Get student record
+    const student = await prisma.student.findUnique({
+      where: { userId },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
     // Upload to S3
     const key = `resumes/${userId}/${Date.now()}-${file.originalname}`;
     const fileUrl = await uploadToS3(file.buffer, key, file.mimetype);
 
-    // Update student profile
-    const student = await prisma.student.update({
-      where: { userId },
+    // Save to StudentResumeFile model (supports multiple resumes)
+    const resumeFile = await prisma.studentResumeFile.create({
       data: {
-        resumeUrl: fileUrl,
-        resumeFileName: file.originalname,
-        resumeUploadedAt: new Date(),
+        studentId: student.id,
+        userId: userId,
+        fileUrl: fileUrl,
+        fileName: file.originalname,
+        fileSize: file.size,
+        uploadedAt: new Date(),
       },
     });
 
     res.json({
+      id: resumeFile.id,
       url: fileUrl,
       fileName: file.originalname,
-      uploadedAt: student.resumeUploadedAt,
+      fileSize: file.size,
+      uploadedAt: resumeFile.uploadedAt,
     });
   } catch (error) {
     console.error('Upload resume error:', error);
     res.status(500).json({ error: 'Failed to upload resume' });
+  }
+}
+
+/**
+ * Get all resumes for a student
+ */
+export async function getResumes(req, res) {
+  try {
+    const userId = req.userId;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      include: {
+        resumeFiles: {
+          orderBy: { uploadedAt: 'desc' },
+        },
+      },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    res.json(student.resumeFiles || []);
+  } catch (error) {
+    console.error('Get resumes error:', error);
+    res.status(500).json({ error: 'Failed to get resumes' });
+  }
+}
+
+/**
+ * Delete a resume file
+ */
+export async function deleteResume(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeId } = req.params;
+
+    // Verify the resume belongs to this student
+    const resumeFile = await prisma.studentResumeFile.findFirst({
+      where: {
+        id: resumeId,
+        userId: userId,
+      },
+    });
+
+    if (!resumeFile) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+
+    // Delete from database (S3 file deletion can be added later if needed)
+    await prisma.studentResumeFile.delete({
+      where: { id: resumeId },
+    });
+
+    res.json({ message: 'Resume deleted successfully' });
+  } catch (error) {
+    console.error('Delete resume error:', error);
+    res.status(500).json({ error: 'Failed to delete resume' });
   }
 }
 

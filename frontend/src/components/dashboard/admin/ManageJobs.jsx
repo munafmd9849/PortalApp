@@ -2,8 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { deleteJob, subscribeJobs, postJob } from '../../../services/jobs';
 import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin } from 'lucide-react';
 import JobDescription from '../student/JobDescription';
+import { useToast } from '../../ui/Toast';
 
 export default function ManageJobs() {
+  const toast = useToast();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [postingJobs, setPostingJobs] = useState(new Set());
@@ -505,16 +507,33 @@ export default function ManageJobs() {
       if (process.env.NODE_ENV === 'development') {
         console.log('🚀 Posting job to database:', jobId, postData);
       }
-      await postJob(jobId, postData);
+      const result = await postJob(jobId, postData);
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ Job posted successfully:', jobId);
+      }
+
+      // Show success message
+      toast.success(
+        `Job "${job.jobTitle}" posted successfully!`,
+        `The job has been posted and students matching the criteria will receive email notifications.`
+      );
+
+      // Refresh jobs list to show updated status
+      if (jobsSubscriptionRef.current?.refresh) {
+        jobsSubscriptionRef.current.refresh();
       }
 
     } catch (err) {
       console.error('❌ Failed to post job:', err);
 
       let errorMessage = 'Failed to post job';
-      if (err?.code) {
+      if (err?.response?.error) {
+        errorMessage = err.response.error;
+      } else if (err?.response?.message) {
+        errorMessage = err.response.message;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.code) {
         switch (err.code) {
           case 'permission-denied':
             errorMessage = 'You do not have permission to post this job';
@@ -530,7 +549,10 @@ export default function ManageJobs() {
         }
       }
 
-      alert('Failed to post job: ' + errorMessage);
+      toast.error(
+        'Failed to Post Job',
+        errorMessage
+      );
 
     } finally {
       setPostingJobs(prev => {

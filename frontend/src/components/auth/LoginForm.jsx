@@ -69,7 +69,7 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
       <div>
         <label className="block text-sm font-medium mb-1">Login as:</label>
         <select 
-          className="w-full border px-3 py-2 rounded" 
+          className="w-full border px-3 py-2 rounded cursor-pointer" 
           value={role} 
           onChange={(e) => setRole(e.target.value)}
         >
@@ -82,7 +82,7 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
       
       {/* Email Input */}
       <input 
-        className="w-full border px-3 py-2 rounded" 
+        className="w-full border px-3 py-2 rounded cursor-text" 
         placeholder={role === 'student' ? 'yourname@pwioi.com' : role === 'admin' ? 'yourname@pwioi.live' : 'your.email@company.com'}
         type="email" 
         value={email} 
@@ -92,7 +92,7 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
       
       {/* Password Input */}
       <input 
-        className="w-full border px-3 py-2 rounded" 
+        className="w-full border px-3 py-2 rounded cursor-text" 
         placeholder="Password" 
         type="password" 
         value={password} 
@@ -103,7 +103,7 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
       {/* Submit Button */}
       <button 
         disabled={loading} 
-        className="w-full bg-black text-white py-2 rounded disabled:opacity-60"
+        className={`w-full bg-black text-white py-2 rounded ${loading ? 'cursor-not-allowed disabled:opacity-60' : 'cursor-pointer'}`}
       >
         {loading ? 'Signing in...' : 'Sign in'}
       </button>
@@ -114,7 +114,7 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
           type="button" 
           onClick={handleGoogle} 
           disabled={loading} 
-          className="w-full bg-white border mt-2 py-2 rounded disabled:opacity-60"
+          className={`w-full bg-white border mt-2 py-2 rounded ${loading ? 'cursor-not-allowed disabled:opacity-60' : 'cursor-pointer'}`}
         >
           {loading ? 'Please wait...' : 'Continue with Google'}
         </button>

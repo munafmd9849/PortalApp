@@ -69,8 +69,10 @@ router.post('/achievements', studentController.addAchievement);
 router.put('/achievements/:achievementId', studentController.updateAchievement);
 router.delete('/achievements/:achievementId', studentController.deleteAchievement);
 
-// Upload resume
+// Resume management
 router.post('/resume', upload.single('resume'), studentController.uploadResume);
+router.get('/resumes', studentController.getResumes);
+router.delete('/resumes/:resumeId', studentController.deleteResume);
 
 // Admin route - Get all students (must be last to avoid route conflicts)
 router.get('/', requireRole(['ADMIN']), studentController.getAllStudents);

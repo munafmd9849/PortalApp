@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit3, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import CustomDropdown from '../../common/CustomDropdown';
+import { FaChartLine } from 'react-icons/fa';
 import {
   addEducationArray,
   updateEducationArray,
@@ -439,14 +441,18 @@ const EducationSection = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Score Type</label>
-                <select
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <CustomDropdown
+                  label="Score Type"
+                  icon={FaChartLine}
+                  iconColor="text-blue-600"
+                  options={[
+                    { value: 'CGPA', label: 'CGPA' },
+                    { value: 'Percentage', label: 'Percentage' }
+                  ]}
                   value={currentEdu.scoreType}
-                  onChange={(e) => handleInputChange('scoreType', e.target.value)}
-                >
-                  <option value="CGPA">CGPA</option>
-                  <option value="Percentage">Percentage</option>
-                </select>
+                  onChange={(value) => handleInputChange('scoreType', value)}
+                  placeholder="Select Score Type"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{currentEdu.scoreType}</label>

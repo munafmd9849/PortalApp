@@ -35,6 +35,9 @@ router.post('/:jobId/approve', authenticate, requireRole(['ADMIN']), jobControll
 // Reject job (admin)
 router.post('/:jobId/reject', authenticate, requireRole(['ADMIN']), jobController.rejectJob);
 
+// Auto-archive expired jobs (admin)
+router.post('/auto-archive-expired', authenticate, requireRole(['ADMIN']), jobController.autoArchiveExpiredJobs);
+
 router.delete('/:jobId', authenticate, requireRole(['RECRUITER', 'ADMIN']), jobController.deleteJob);
 
 export default router;

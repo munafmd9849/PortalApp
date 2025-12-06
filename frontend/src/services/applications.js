@@ -114,30 +114,74 @@ function generateMockApplications() {
  */
 export const getStudentApplications = async (studentId) => {
   try {
-    // For now, always use mock data to ensure the page displays properly
-    // TODO: Re-enable real API fetching once backend is fully robust
-    const mockApps = generateMockApplications();
-    return mockApps;
-
-    // TODO: Uncomment when ready to use real data
-    /*
+    // Use real API to fetch applications
     const applications = await api.getStudentApplications();
     
-    // If API returns empty or fails, use mock data
-    if (!applications || applications.length === 0) {
-      console.log('No applications from API, using mock data');
-      return generateMockApplications();
+    // If API returns data, format it for frontend components
+    if (applications && Array.isArray(applications) && applications.length > 0) {
+      // Ensure data structure matches what components expect
+      const formattedApplications = applications.map(app => {
+        // Parse dates - backend returns ISO strings from Prisma DateTime
+        const parseDate = (dateValue) => {
+          if (!dateValue) return null;
+          // If already a string (ISO format from backend), return as-is
+          if (typeof dateValue === 'string') return dateValue;
+          // Handle Firebase Timestamp (legacy)
+          if (dateValue.toDate) return dateValue.toDate().toISOString();
+          // Handle Date objects
+          if (dateValue instanceof Date) return dateValue.toISOString();
+          // Try to parse as date
+          try {
+            return new Date(dateValue).toISOString();
+          } catch {
+            return null;
+          }
+        };
+
+        // Parse requiredSkills if it's a JSON string
+        const parseSkills = (skills) => {
+          if (!skills) return [];
+          if (Array.isArray(skills)) return skills;
+          if (typeof skills === 'string') {
+            try {
+              const parsed = JSON.parse(skills);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              // If not valid JSON, try splitting by comma
+              return skills.split(',').map(s => s.trim()).filter(s => s);
+            }
+          }
+          return [];
+        };
+
+        return {
+          ...app,
+          appliedDate: parseDate(app.appliedDate) || app.appliedDate,
+          interviewDate: parseDate(app.interviewDate) || app.interviewDate || null,
+          // Ensure company object exists with name
+          company: app.company || app.job?.company || { 
+            name: app.companyName || 'Unknown Company',
+            location: app.companyLocation || null,
+          },
+          // Ensure job object exists with jobTitle and parsed requiredSkills
+          job: {
+            ...app.job,
+            jobTitle: app.job?.jobTitle || app.job?.title || 'Unknown Position',
+            id: app.job?.id || app.jobId,
+            requiredSkills: parseSkills(app.job?.requiredSkills),
+          },
+        };
+      });
+      
+      return formattedApplications;
     }
     
-    // Merge real applications with mock data for demo
-    const mockApps = generateMockApplications();
-    return [...applications, ...mockApps];
-    */
+    // Return empty array if no applications
+    return [];
   } catch (error) {
     console.error('getStudentApplications error:', error);
-    // Return mock data on error
-    console.log('API error, using mock data');
-    return generateMockApplications();
+    // Return empty array on error (don't use mock data)
+    return [];
   }
 };
 

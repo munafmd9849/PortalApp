@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImMail } from 'react-icons/im';
 import { MdEditNote, MdBlock } from 'react-icons/md';
-import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner } from 'react-icons/fa';
+import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 import { TbHistoryToggle } from 'react-icons/tb';
 import { subscribeRecruiterDirectory, blockUnblockRecruiter, getRecruiterJobs, getRecruiterHistory, sendEmailToRecruiter, getRecruiterSummary } from '../../../services/recruiters';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
+import CustomDropdown from '../../common/CustomDropdown';
 
 export default function RecruiterDirectory() {
   const [expandedRecruiter, setExpandedRecruiter] = useState(null);
@@ -489,18 +490,19 @@ export default function RecruiterDirectory() {
           
           {/* Advanced Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
+            <CustomDropdown
+              label="Status"
+              icon={FaCheckCircle}
+              iconColor="text-green-600"
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'Active', label: 'Active' },
+                { value: 'Blocked', label: 'Blocked' }
+              ]}
                 value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                <option value="">All Statuses</option>
-                <option value="Active">Active</option>
-                <option value="Blocked">Blocked</option>
-              </select>
-            </div>
+              onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+              placeholder="All Statuses"
+            />
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>

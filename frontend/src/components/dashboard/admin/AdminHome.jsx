@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PieChart } from 'react-minimal-pie-chart';
 import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, BarChart3, Target, DollarSign, X, Loader2 } from 'lucide-react';
-import { FaChevronDown, FaTimes } from 'react-icons/fa';
+import { FaChevronDown, FaTimes, FaMapMarkerAlt, FaGraduationCap, FaUsers, FaUserShield } from 'react-icons/fa';
+import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
 import { Radar, PolarArea, Bar, Doughnut, Line } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
@@ -10,149 +11,10 @@ import api from '../../../services/api';
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
 
-const CustomDropdown = ({ 
-  label, 
-  options, 
-  selectedValues, 
-  onSelectionChange, 
-  multiple = false,
-  placeholder = "Select options"
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleOptionClick = (option) => {
-    if (multiple) {
-      const newSelected = selectedValues.includes(option.id)
-        ? selectedValues.filter(id => id !== option.id)
-        : [...selectedValues, option.id];
-      onSelectionChange(newSelected);
-    } else {
-      onSelectionChange([option.id]);
-      setIsOpen(false);
-    }
-  };
-
-  const removeOption = (optionId, e) => {
-    e.stopPropagation();
-    const newSelected = selectedValues.filter(id => id !== optionId);
-    onSelectionChange(newSelected);
-  };
-
-  const getDisplayText = () => {
-    if (selectedValues.length === 0) return placeholder;
-    if (!multiple) {
-      const selected = options.find(opt => opt.id === selectedValues[0]);
-      return selected ? selected.name : placeholder;
-    }
-    if (selectedValues.length === 1) {
-      const selected = options.find(opt => opt.id === selectedValues[0]);
-      return selected ? selected.name : placeholder;
-    }
-    return `${selectedValues.length} selected`;
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm text-gray-700 font-medium">{label}:</label>
-      <div className="relative" ref={dropdownRef}>
-        <button
-          type="button"
-          className={`w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between transition-all duration-200 ${
-            selectedValues.length > 0 
-              ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-300' 
-              : 'bg-gray-50 border-gray-300'
-          } hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
-          onClick={() => setIsOpen(prev => !prev)}
-        >
-          <span className="truncate flex-1">
-            {getDisplayText()}
-          </span>
-          <div className="flex items-center gap-1">
-            {multiple && selectedValues.length > 0 && (
-              <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                {selectedValues.length}
-              </span>
-            )}
-            <FaChevronDown className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-          </div>
-        </button>
-        
-        {isOpen && (
-          <div className="absolute z-20 w-full bg-white border-2 border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
-            {options.map((option) => {
-              const isSelected = selectedValues.includes(option.id);
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-colors duration-150 ${
-                    isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                  }`}
-                  onClick={() => handleOptionClick(option)}
-                >
-                  <span>{option.name}</span>
-                  {isSelected && (
-                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      
-      {multiple && selectedValues.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {selectedValues.map(value => {
-            const option = options.find(opt => opt.id === value);
-            return option ? (
-              <span 
-                key={value}
-                className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs font-medium"
-              >
-                {option.name}
-                <button
-                  type="button"
-                  onClick={(e) => removeOption(value, e)}
-                  className="hover:text-blue-900 focus:outline-none"
-                >
-                  <FaTimes className="w-3 h-3" />
-                </button>
-              </span>
-            ) : null;
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
 export default function AdminHome() {
-  const [filters, setFilters] = useState({ campus: [], school: [], batch: [], admin: [] });
-  const [showCampusDropdown, setShowCampusDropdown] = useState(false);
-  const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
-  const [showBatchDropdown, setShowBatchDropdown] = useState(false);
-  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const [filters, setFilters] = useState({ campus: '', school: '', batch: '', admin: '' });
   const [selectedSchool, setSelectedSchool] = useState('SOT');
 
-  const campusDropdownRef = useRef(null);
-  const schoolDropdownRef = useRef(null);
-  const batchDropdownRef = useRef(null);
-  const adminDropdownRef = useRef(null);
 
   // Chart.js color palette
   const chartColors = {
@@ -256,30 +118,20 @@ export default function AdminHome() {
   // Map AdminHome filters to service expectations
   const mapFiltersForService = (uiFilters) => {
     return {
-      center: uiFilters.campus || [], // campus -> center
-      school: uiFilters.school || [],
-      quarter: uiFilters.batch?.map(batch => {
+      center: uiFilters.campus ? [uiFilters.campus] : [], // campus -> center (convert single value to array)
+      school: uiFilters.school ? [uiFilters.school] : [],
+      quarter: uiFilters.batch ? [(() => {
         // Map batch years to quarters
-        switch(batch) {
+        switch(uiFilters.batch) {
           case '25-29': return 'Q1 (Pre-Placement)';
           case '24-28': return 'Q2 (Placement Drive)';
           case '23-27': return 'Q3 (Internship)';
           default: return 'Q4 (Final Placements)';
         }
-      }) || []
+      })()] : []
     };
   };
 
-  // Handle dropdown clicks outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (campusDropdownRef.current && !campusDropdownRef.current.contains(event.target)) setShowCampusDropdown(false);
-      if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) setShowSchoolDropdown(false);
-      if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target)) setShowBatchDropdown(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Subscribe to real-time dashboard data
   useEffect(() => {
@@ -317,15 +169,14 @@ export default function AdminHome() {
   }, []);
 
   // Handle filter changes (AdminPanel style)
-  const handleFilterChange = (filterType, values) => {
+  const handleFilterChange = (filterType, value) => {
     setFilters(prev => ({
       ...prev,
-      [filterType]: values
+      [filterType]: value
     }));
   };
 
-  const removeFilter = (filterType, value) => setFilters(prev => ({ ...prev, [filterType]: prev[filterType].filter(i => i !== value) }));
-  const clearAllFilters = () => setFilters({ campus: [], school: [], batch: [] });
+  const clearAllFilters = () => setFilters({ campus: '', school: '', batch: '', admin: '' });
 
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
 
@@ -498,103 +349,96 @@ export default function AdminHome() {
           Filter Dashboard
         </h2>
 
-        {(filters.campus.length > 0 || filters.school.length > 0 || filters.batch.length > 0 || filters.admin.length > 0) && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {filters.campus.map(c => {
-              const campusOption = filterOptions.campuses.find(option => option.id === c);
-              return (
-                <span key={c} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.blueLight, borderColor: chartColors.blue, color: chartColors.blue }}>
-                  Campus: {campusOption?.name || c}
-                  <button onClick={() => removeFilter('campus', c)} className="ml-1 hover:opacity-70">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              );
-            })}
-            {filters.school.map(s => {
-              const schoolOption = filterOptions.schools.find(option => option.id === s);
-              return (
-                <span key={s} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.greenLight, borderColor: chartColors.green, color: chartColors.green }}>
-                  School: {schoolOption?.name || s}
-                  <button onClick={() => removeFilter('school', s)} className="ml-1 hover:opacity-70">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              );
-            })}
-            {filters.batch.map(b => {
-              const batchOption = filterOptions.batches.find(option => option.id === b);
-              return (
-                <span key={b} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.purpleLight, borderColor: chartColors.purple, color: chartColors.purple }}>
-                  Batch: {batchOption?.name || b}
-                  <button onClick={() => removeFilter('batch', b)} className="ml-1 hover:opacity-70">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              );
-            })}
-            {filters.admin.map(a => {
-              const adminOption = filterOptions.admins.find(option => option.id === a);
-              return (
-                <span key={a} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.redLight, borderColor: chartColors.red, color: chartColors.red }}>
-                  Admin: {adminOption?.name || a}
-                  <button onClick={() => removeFilter('admin', a)} className="ml-1 hover:opacity-70">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              );
-            })}
+        {(filters.campus || filters.school || filters.batch || filters.admin) && (
+          <div className="mb-4 flex flex-wrap gap-2 items-center">
+            {filters.campus && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.blueLight, borderColor: chartColors.blue, color: chartColors.blue }}>
+                Campus: {filterOptions.campuses.find(opt => opt.id === filters.campus)?.name || filters.campus}
+                <button onClick={() => handleFilterChange('campus', '')} className="ml-1 hover:opacity-70">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.school && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.greenLight, borderColor: chartColors.green, color: chartColors.green }}>
+                School: {filterOptions.schools.find(opt => opt.id === filters.school)?.name || filters.school}
+                <button onClick={() => handleFilterChange('school', '')} className="ml-1 hover:opacity-70">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.batch && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.purpleLight, borderColor: chartColors.purple, color: chartColors.purple }}>
+                Batch: {filterOptions.batches.find(opt => opt.id === filters.batch)?.name || filters.batch}
+                <button onClick={() => handleFilterChange('batch', '')} className="ml-1 hover:opacity-70">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.admin && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border" style={{ backgroundColor: chartColors.redLight, borderColor: chartColors.red, color: chartColors.red }}>
+                Admin: {filterOptions.admins.find(opt => opt.id === filters.admin)?.name || filters.admin}
+                <button onClick={() => handleFilterChange('admin', '')} className="ml-1 hover:opacity-70">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
             <button onClick={clearAllFilters} className="text-xs text-gray-500 hover:text-gray-700 underline">Clear all</button>
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {['campus', 'school', 'batch', 'admin'].map((type, index) => (
-            <div key={type} className="flex flex-col gap-1">
-              <label className="text-sm text-gray-700 font-medium capitalize">{type}:</label>
-              <div className="relative" ref={[campusDropdownRef, schoolDropdownRef, batchDropdownRef, adminDropdownRef][index]}>
-                <button 
-                  type="button" 
-                  className={`w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between bg-white hover:bg-gray-50 transition-colors ${
-                    filters[type].length > 0 ? 'border-blue-300 bg-blue-50' : ''
-                  }`}
-                  onClick={() => [setShowCampusDropdown, setShowSchoolDropdown, setShowBatchDropdown, setShowAdminDropdown][index](p => !p)}
-                >
-                  <span className="truncate">
-                    {filters[type].length > 0 ? `${filters[type].length} selected` : `Select ${type}s`}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                </button>
-                {[showCampusDropdown, showSchoolDropdown, showBatchDropdown, showAdminDropdown][index] && (
-                  <div className="absolute z-10 overflow-y-auto max-h-60 w-full bg-white border border-gray-300 rounded-lg shadow-lg">
-                    {(type === 'campus' ? filterOptions.campuses : type === 'school' ? filterOptions.schools : type === 'batch' ? filterOptions.batches : filterOptions.admins).map((option, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-gray-50 cursor-pointer text-left border-b border-gray-100 last:border-b-0"
-                        onClick={() => {
-                          const currentValues = filters[type] || [];
-                          const newValues = currentValues.includes(option.id)
-                            ? currentValues.filter(id => id !== option.id)
-                            : [...currentValues, option.id];
-                          handleFilterChange(type, newValues);
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={filters[type].includes(option.id)}
-                          onChange={() => {}}
-                          className="rounded"
-                          style={{ color: chartColors.blue }}
-                        />
-                        <span className="text-gray-700">{option.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+          <CustomDropdown
+            label="Campus"
+            icon={FaMapMarkerAlt}
+            iconColor="text-blue-600"
+            options={[
+              { value: '', label: 'Select Campus' },
+              ...filterOptions.campuses.map(opt => ({ value: opt.id, label: opt.name }))
+            ]}
+            value={filters.campus}
+            onChange={(value) => handleFilterChange('campus', value)}
+            placeholder="Select Campus"
+          />
+          
+          <CustomDropdown
+            label="School"
+            icon={FaGraduationCap}
+            iconColor="text-purple-600"
+            options={[
+              { value: '', label: 'Select School' },
+              ...filterOptions.schools.map(opt => ({ value: opt.id, label: opt.name }))
+            ]}
+            value={filters.school}
+            onChange={(value) => handleFilterChange('school', value)}
+            placeholder="Select School"
+          />
+          
+          <CustomDropdown
+            label="Batch"
+            icon={FaUsers}
+            iconColor="text-indigo-600"
+            options={[
+              { value: '', label: 'Select Batch' },
+              ...filterOptions.batches.map(opt => ({ value: opt.id, label: opt.name }))
+            ]}
+            value={filters.batch}
+            onChange={(value) => handleFilterChange('batch', value)}
+            placeholder="Select Batch"
+          />
+          
+          <CustomDropdown
+            label="Admin"
+            icon={FaUserShield}
+            iconColor="text-red-600"
+            options={[
+              { value: '', label: 'Select Admin' },
+              ...filterOptions.admins.map(opt => ({ value: opt.id, label: opt.name }))
+            ]}
+            value={filters.admin}
+            onChange={(value) => handleFilterChange('admin', value)}
+            placeholder="Select Admin"
+          />
         </div>
       </div>
 

@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import CustomDropdown from '../../common/CustomDropdown';
+import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
 import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
@@ -998,45 +1000,22 @@ export default function CreateJob({ onCreated }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {/* Job Type Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Job Type <span className="text-red-500">*</span>:</label>
-                    <div className="relative" ref={jobTypeDropdownRef}>
-                      <button
-                        type="button"
-                        className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-blue-100 text-left flex items-center justify-between ${form.jobType && form.jobType !== '' ? 'bg-green-100' : 'bg-gray-100'}`}
-                        onClick={() => setShowJobTypes(prev => !prev)}
-                      >
-                        <span className="truncate">
-                          {form.jobType || 'Select Job Type'}
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                      </button>
-                      {showJobTypes && (
-                        <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-md">
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer border-b border-slate-200 text-left"
-                            onClick={() => {
-                              onJobTypeChange('Internship');
-                              setShowJobTypes(false);
-                            }}
-                          >
-                            <span>Internship</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer text-left"
-                            onClick={() => {
-                              onJobTypeChange('Full-Time');
-                              setShowJobTypes(false);
-                            }}
-                          >
-                            <span>Full-Time</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <CustomDropdown
+                    label={
+                      <>
+                        Job Type <span className="text-red-500">*</span>
+                      </>
+                    }
+                    icon={FaBriefcase}
+                    iconColor="text-blue-600"
+                    options={[
+                      { value: 'Internship', label: 'Internship' },
+                      { value: 'Full-Time', label: 'Full-Time' }
+                    ]}
+                    value={form.jobType}
+                    onChange={(value) => onJobTypeChange(value)}
+                    placeholder="Select Job Type"
+                  />
 
                   {form.jobType === 'Internship' ? (
                     <>
@@ -1067,38 +1046,23 @@ export default function CreateJob({ onCreated }) {
                   </div>
 
                   {/* Work Mode Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Work Mode <span className="text-red-500">*</span>:</label>
-                    <div className="relative" ref={workModeDropdownRef}>
-                      <button
-                        type="button"
-                        className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-blue-100 text-left flex items-center justify-between ${form.workMode && form.workMode !== '' ? 'bg-green-100' : 'bg-gray-100'}`}
-                        onClick={() => setShowWorkModes(prev => !prev)}
-                      >
-                        <span className="truncate">
-                          {form.workMode || 'Select Work Mode'}
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                      </button>
-                      {showWorkModes && (
-                        <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-md">
-                          {['On-site', 'Hybrid', 'Remote'].map((mode) => (
-                            <button
-                              key={mode}
-                              type="button"
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer border-b border-slate-200 last:border-b-0 text-left"
-                              onClick={() => {
-                                update({ workMode: mode });
-                                setShowWorkModes(false);
-                              }}
-                            >
-                              <span>{mode}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <CustomDropdown
+                    label={
+                      <>
+                        Work Mode <span className="text-red-500">*</span>
+                      </>
+                    }
+                    icon={FaLaptop}
+                    iconColor="text-indigo-600"
+                    options={[
+                      { value: 'On-site', label: 'On-site' },
+                      { value: 'Hybrid', label: 'Hybrid' },
+                      { value: 'Remote', label: 'Remote' }
+                    ]}
+                    value={form.workMode}
+                    onChange={(value) => update({ workMode: value })}
+                    placeholder="Select Work Mode"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -1434,38 +1398,22 @@ export default function CreateJob({ onCreated }) {
                   </div>
 
                   {/* Active Backlogs Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Active Backlogs <span className="text-red-500">*</span>:</label>
-                    <div className="relative" ref={backlogsDropdownRef}>
-                      <button
-                        type="button"
-                        className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-blue-100 text-left flex items-center justify-between ${form.backlogs && form.backlogs !== '' ? 'bg-green-100' : 'bg-gray-100'}`}
-                        onClick={() => setShowBacklogs(prev => !prev)}
-                      >
-                        <span className="truncate">
-                          {form.backlogs || 'Select Backlog Policy'}
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                      </button>
-                      {showBacklogs && (
-                        <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
-                          {['Allowed', 'Not Allowed'].map((policy) => (
-                            <button
-                              key={policy}
-                              type="button"
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer border-b border-slate-200 last:border-b-0 text-left"
-                              onClick={() => {
-                                update({ backlogs: policy });
-                                setShowBacklogs(false);
-                              }}
-                            >
-                              <span>{policy}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <CustomDropdown
+                    label={
+                      <>
+                        Active Backlogs <span className="text-red-500">*</span>
+                      </>
+                    }
+                    icon={FaExclamationTriangle}
+                    iconColor="text-orange-600"
+                    options={[
+                      { value: 'Allowed', label: 'Allowed' },
+                      { value: 'Not Allowed', label: 'Not Allowed' }
+                    ]}
+                    value={form.backlogs}
+                    onChange={(value) => update({ backlogs: value })}
+                    placeholder="Select Backlog Policy"
+                  />
                 </div>
               </>
             )}

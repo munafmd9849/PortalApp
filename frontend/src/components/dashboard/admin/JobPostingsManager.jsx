@@ -13,6 +13,7 @@ import {
 } from '../../../services/jobModeration';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
+import CustomDropdown from '../../common/CustomDropdown';
 import { 
   FaSearch, 
   FaFilter, 
@@ -46,9 +47,9 @@ export default function JobPostingsManager() {
   const [analytics, setAnalytics] = useState({});
   const [lastSnapshot, setLastSnapshot] = useState(null);
   
-  // Filter and search state - default to showing IN_REVIEW jobs (pending approval)
+  // Filter and search state - default to showing all jobs
   const [filters, setFilters] = useState({
-    status: 'in_review', // Default to showing jobs pending approval
+    status: 'all', // Default to showing all jobs
     companyId: '',
     recruiterId: '',
     startDate: '',
@@ -167,6 +168,67 @@ export default function JobPostingsManager() {
   const filteredJobs = useMemo(() => {
     let result = [...jobs];
     
+    // Apply status filter
+    if (filters.status && filters.status !== 'all') {
+      const filterStatus = filters.status.toLowerCase();
+      result = result.filter(job => {
+        const jobStatus = (job.status || '').toLowerCase();
+        
+        // Handle in_review filter - only show in_review jobs
+        if (filterStatus === 'in_review') {
+          return jobStatus === 'in_review';
+        }
+        
+        // Handle accepted filter - show both accepted and approved
+        if (filterStatus === 'accepted') {
+          return jobStatus === 'accepted' || jobStatus === 'approved';
+        }
+        
+        // Handle other status filters
+        if (filterStatus === 'draft') return jobStatus === 'draft';
+        if (filterStatus === 'posted') return jobStatus === 'posted' || jobStatus === 'active';
+        if (filterStatus === 'rejected') return jobStatus === 'rejected';
+        if (filterStatus === 'archived') return jobStatus === 'archived';
+        
+        // Default: exact match
+        return jobStatus === filterStatus;
+      });
+    }
+    
+    // Apply company filter
+    if (filters.companyId) {
+      result = result.filter(job => 
+        job.companyDetails?.id === filters.companyId
+      );
+    }
+    
+    // Apply recruiter filter
+    if (filters.recruiterId) {
+      result = result.filter(job => 
+        job.recruiterId === filters.recruiterId || 
+        job.recruiter?.id === filters.recruiterId
+      );
+    }
+    
+    // Apply date range filters
+    if (filters.startDate) {
+      const startDate = new Date(filters.startDate);
+      result = result.filter(job => {
+        if (!job.driveDate) return false;
+        const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
+        return driveDate >= startDate;
+      });
+    }
+    
+    if (filters.endDate) {
+      const endDate = new Date(filters.endDate);
+      result = result.filter(job => {
+        if (!job.driveDate) return false;
+        const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
+        return driveDate <= endDate;
+      });
+    }
+    
     // Apply search filter
     if (debouncedSearch) {
       const searchLower = debouncedSearch.toLowerCase();
@@ -180,7 +242,7 @@ export default function JobPostingsManager() {
     }
     
     return result;
-  }, [jobs, debouncedSearch]);
+  }, [jobs, filters, debouncedSearch]);
 
   // Paginated jobs
   const paginatedJobs = useMemo(() => {
@@ -225,6 +287,18 @@ export default function JobPostingsManager() {
       return `Server error (${error.status}). Please try again.`;
     }
     return defaultMessage;
+  };
+
+  // Reset all filters and search
+  const handleResetFilters = () => {
+    setFilters({
+      status: 'all',
+      companyId: '',
+      recruiterId: '',
+      startDate: '',
+      endDate: ''
+    });
+    setSearchTerm(''); // Also clear the search term
   };
 
   // Handle job moderation actions
@@ -409,7 +483,22 @@ export default function JobPostingsManager() {
 
     try {
       const result = await autoArchiveExpiredJobs(user);
-      toast.success(`Auto-archived ${result.successful} expired jobs`);
+      
+      if (result.successful > 0) {
+        toast.success(`Auto-archived ${result.successful} expired job(s) successfully!`);
+        
+        // Refresh jobs and analytics after archiving
+        setTimeout(() => {
+          if (jobsSubscriptionRef.current?.refresh) {
+            jobsSubscriptionRef.current.refresh();
+          }
+          if (analyticsSubscriptionRef.current?.refresh) {
+            analyticsSubscriptionRef.current.refresh();
+          }
+        }, 500);
+      } else {
+        toast.success('No expired jobs to archive. All jobs are up to date.');
+      }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Failed to auto-archive jobs. Please try again.');
       console.error('Error auto-archiving jobs:', {
@@ -452,6 +541,18 @@ export default function JobPostingsManager() {
         text: 'text-amber-700',
         border: 'border-amber-200',
         label: 'IN REVIEW'
+      },
+      accepted: {
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+        text: 'text-green-700',
+        border: 'border-green-200',
+        label: 'ACCEPTED'
+      },
+      approved: {
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+        text: 'text-green-700',
+        border: 'border-green-200',
+        label: 'ACCEPTED'
       },
       draft: { 
         bg: 'bg-gradient-to-r from-yellow-50 to-orange-50', 
@@ -539,6 +640,46 @@ export default function JobPostingsManager() {
         .react-datepicker__triangle {
           display: none;
         }
+        
+        /* Custom Select Dropdown Styles */
+        select {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+          background-position: right 0.5rem center;
+          background-repeat: no-repeat;
+          background-size: 1.5em 1.5em;
+          padding-right: 2.5rem;
+          background-color: white !important;
+        }
+        select:focus {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%232563eb' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+          background-color: white !important;
+        }
+        select option {
+          padding: 0.75rem 1rem;
+          font-weight: 500;
+          background-color: white !important;
+          color: #111827 !important;
+          border: none;
+        }
+        select option:hover,
+        select option:focus {
+          background-color: #f3f4f6 !important;
+          color: #111827 !important;
+        }
+        select option:checked,
+        select option[selected] {
+          background: linear-gradient(to right, #2563eb, #4f46e5) !important;
+          color: white !important;
+        }
+        /* Ensure dropdown menu background is solid */
+        select::-ms-expand {
+          display: none;
+        }
+        select {
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+        }
       `}</style>
       {/* Header and Analytics */}
       <div>
@@ -563,21 +704,21 @@ export default function JobPostingsManager() {
             <div className="flex items-center gap-3 mb-2">
               <FaFileAlt className="w-5 h-5 text-blue-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-blue-700">{analytics.total || 0}</div>
-            </div>
+          </div>
             <div className="text-sm font-medium text-blue-600">Total Jobs</div>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-green-700">{analytics.active || 0}</div>
-            </div>
+          </div>
             <div className="text-sm font-medium text-green-600">Active Jobs</div>
           </div>
           <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-5 rounded-xl shadow-sm border border-cyan-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <FaFileAlt className="w-5 h-5 text-cyan-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-cyan-700">{analytics.posted || 0}</div>
-            </div>
+          </div>
             <div className="text-sm font-medium text-cyan-600">Posted</div>
           </div>
           <div className="bg-gradient-to-br from-amber-50 to-yellow-100 p-5 rounded-xl shadow-sm border border-amber-200 hover:shadow-md transition-all duration-200">
@@ -614,107 +755,113 @@ export default function JobPostingsManager() {
           {/* Search */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Search Jobs</label>
-            <div className="relative">
+          <div className="relative">
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search by job title, company..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+            <input
+              type="text"
+              placeholder="Search by job title, company..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              />
+            />
             </div>
           </div>
 
           {/* Status Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="in_review">Under Review</option>
-              <option value="active">Active</option>
-              <option value="posted">Posted</option>
-              <option value="rejected">Rejected</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
+          <CustomDropdown
+            label="Status"
+            icon={FaFileAlt}
+            iconColor="text-blue-600"
+            value={filters.status}
+            onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+            placeholder="All Status"
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'in_review', label: 'Under Review' },
+              { value: 'accepted', label: 'Accepted' },
+              { value: 'active', label: 'Active' },
+              { value: 'posted', label: 'Posted' },
+              { value: 'rejected', label: 'Rejected' },
+              { value: 'archived', label: 'Archived' }
+            ]}
+          />
 
           {/* Company Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
-            <select
-              value={filters.companyId}
-              onChange={(e) => setFilters(prev => ({ ...prev, companyId: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-            >
-              <option value="">All Companies</option>
-              {companies.map(company => (
-                <option key={company.id} value={company.id}>{company.name}</option>
-              ))}
-            </select>
-          </div>
+          <CustomDropdown
+            label="Company"
+            icon={FaBuilding}
+            iconColor="text-indigo-600"
+            value={filters.companyId}
+            onChange={(value) => setFilters(prev => ({ ...prev, companyId: value }))}
+            placeholder="All Companies"
+            options={[
+              { value: '', label: 'All Companies' },
+              ...companies.map(company => ({
+                value: company.id,
+                label: company.name
+              }))
+            ]}
+          />
 
           {/* Recruiter Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Recruiter</label>
-            <select
-              value={filters.recruiterId}
-              onChange={(e) => setFilters(prev => ({ ...prev, recruiterId: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-            >
-              <option value="">All Recruiters</option>
-              {recruiters.map(recruiter => (
-                <option key={recruiter.id} value={recruiter.id}>{recruiter.name}</option>
-              ))}
-            </select>
-          </div>
+          <CustomDropdown
+            label="Recruiter"
+            icon={FaUser}
+            iconColor="text-purple-600"
+            value={filters.recruiterId}
+            onChange={(value) => setFilters(prev => ({ ...prev, recruiterId: value }))}
+            placeholder="All Recruiters"
+            options={[
+              { value: '', label: 'All Recruiters' },
+              ...recruiters.map(recruiter => ({
+                value: recruiter.id,
+                label: recruiter.name
+              }))
+            ]}
+          />
         </div>
 
         {/* Date Range */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <FaCalendarAlt className="w-4 h-4 text-blue-600" />
+              Start Date
+            </label>
             <div className="relative">
-              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-4 h-4 pointer-events-none z-10" />
+              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5 pointer-events-none z-10" />
               <DatePicker
                 selected={filters.startDate ? new Date(filters.startDate) : null}
                 onChange={(date) => setFilters(prev => ({ ...prev, startDate: date ? date.toISOString().split('T')[0] : '' }))}
                 dateFormat="dd/MM/yyyy"
                 placeholderText="Select start date"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
                 wrapperClassName="w-full"
-              />
+            />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <FaCalendarAlt className="w-4 h-4 text-orange-600" />
+              End Date
+            </label>
             <div className="relative">
-              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-4 h-4 pointer-events-none z-10" />
+              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-500 w-5 h-5 pointer-events-none z-10" />
               <DatePicker
                 selected={filters.endDate ? new Date(filters.endDate) : null}
                 onChange={(date) => setFilters(prev => ({ ...prev, endDate: date ? date.toISOString().split('T')[0] : '' }))}
                 dateFormat="dd/MM/yyyy"
                 placeholderText="Select end date"
                 minDate={filters.startDate ? new Date(filters.startDate) : null}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
                 wrapperClassName="w-full"
-              />
+            />
             </div>
           </div>
           <div className="flex items-end">
             <button
-              onClick={() => setFilters({
-                status: 'in_review',
-                companyId: '',
-                recruiterId: '',
-                startDate: '',
-                endDate: ''
-              })}
+              onClick={handleResetFilters}
               className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow"
             >
               Reset Filters
@@ -745,10 +892,64 @@ export default function JobPostingsManager() {
             <span className="text-gray-600">Loading jobs...</span>
           </div>
         ) : filteredJobs.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-500 mb-2">No jobs found</div>
-            <div className="text-sm text-gray-400">
-              {searchTerm ? 'Try adjusting your search criteria' : 'No jobs have been created yet'}
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 max-w-md w-full border-2 border-blue-200 shadow-lg">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                  <FaFileAlt className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No Jobs Found</h3>
+                <div className="text-sm text-gray-600 leading-relaxed">
+                  {searchTerm ? (
+                    <div className="space-y-2">
+                      <p className="font-medium">No jobs match your search criteria.</p>
+                      <p className="text-gray-500">Try adjusting your search terms or filters.</p>
+                    </div>
+                  ) : filters.status && filters.status !== 'all' ? (
+                    <div className="space-y-2">
+                      <p className="font-medium">
+                        No jobs found with status <span className="text-blue-600 font-bold capitalize">"{filters.status.replace('_', ' ')}"</span>
+                      </p>
+                      <p className="text-gray-500">There might be jobs with different statuses. Try viewing all jobs.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="font-medium">No jobs have been created yet.</p>
+                      <p className="text-gray-500">Jobs will appear here once recruiters start posting them.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {filters.status && filters.status !== 'all' && (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, status: 'all' }))}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all duration-200 font-semibold shadow-md hover:shadow-lg transform hover:scale-105 flex items-center justify-center gap-2"
+                  >
+                    <FaFileAlt className="w-4 h-4" />
+                    Show All Jobs
+                  </button>
+                  <button
+                    onClick={handleResetFilters}
+                    className="px-6 py-3 bg-white border-2 border-blue-300 hover:border-blue-400 text-blue-700 rounded-lg transition-all duration-200 font-semibold shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+                  >
+                    <FaFilter className="w-4 h-4" />
+                    Reset Filters
+                  </button>
+                </div>
+              )}
+              
+              {searchTerm && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="px-6 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -805,8 +1006,8 @@ export default function JobPostingsManager() {
                           <div className="flex items-center gap-2">
                             <FaBuilding className="w-4 h-4 text-blue-600 flex-shrink-0" />
                             <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={job.companyDetails?.name || job.company || job.companyName || 'N/A'}>
-                              {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
-                            </div>
+                          {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
+                        </div>
                           </div>
                           {job.companyLocation || job.companyDetails?.location ? (
                             <div className="pl-6">
@@ -1021,108 +1222,145 @@ const JobDetailsModal = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Job Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800">Job Information</h3>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Job Title</label>
-                <p className="text-gray-900">{job.jobTitle || 'N/A'}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Job Type</label>
-                <p className="text-gray-900">{job.jobType || 'N/A'}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Salary/Stipend</label>
-                <p className="text-gray-900">
-                  {job.salary || job.stipend ? 
-                    `₹${job.jobType === 'Internship' ? job.stipend : job.salary}` : 
-                    'N/A'
-                  }
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Location</label>
-                <p className="text-gray-900">{job.companyLocation || job.location || 'N/A'}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Drive Date</label>
-                <p className="text-gray-900">{formatDate(job.driveDate)}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Application Deadline</label>
-                <p className="text-gray-900">{formatDate(job.applicationDeadline)}</p>
-              </div>
-            </div>
-
-            {/* Company & Recruiter Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800">Company & Recruiter</h3>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Company</label>
-                <p className="text-gray-900">
-                  {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Recruiter Name</label>
-                <p className="text-gray-900">{job.recruiter?.name || 'N/A'}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Recruiter Email</label>
-                <p className="text-gray-900">{job.recruiter?.email || 'N/A'}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Target Schools</label>
-                <p className="text-gray-900">
-                  {job.targetSchools?.length ? job.targetSchools.join(', ') : 'N/A'}
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Target Centers</label>
-                <p className="text-gray-900">
-                  {job.targetCenters?.length ? job.targetCenters.join(', ') : 'N/A'}
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Target Batches</label>
-                <p className="text-gray-900">
-                  {job.targetBatches?.length ? job.targetBatches.join(', ') : 'N/A'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Job Description */}
+          {/* Job Description - Prominent Section */}
           {job.responsibilities && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Job Description</h3>
-              <div className="p-4 bg-gray-50 rounded-md">
-                <p className="text-gray-900 whitespace-pre-wrap">{job.responsibilities}</p>
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <FaFileAlt className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Job Description</h3>
+              </div>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 shadow-sm">
+                <div className="prose prose-sm max-w-none">
+                  <div className="text-gray-800 leading-relaxed whitespace-pre-wrap font-medium" 
+                       style={{ 
+                         fontSize: '15px',
+                         lineHeight: '1.8',
+                         wordBreak: 'break-word'
+                       }}>
+                    {job.responsibilities}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Job Information */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
+                <FaInfoCircle className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-bold text-gray-800">Job Information</h3>
+              </div>
+            <div className="space-y-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Title</label>
+                  <p className="text-base font-semibold text-gray-900">{job.jobTitle || 'N/A'}</p>
+              </div>
+              
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Type</label>
+                    <p className="text-sm font-medium text-gray-900">{job.jobType || 'N/A'}</p>
+              </div>
+              
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Salary/Stipend</label>
+                    <p className="text-sm font-medium text-gray-900">
+                  {job.salary || job.stipend ? 
+                    `₹${job.jobType === 'Internship' ? job.stipend : job.salary}` : 
+                        <span className="text-gray-400">Not specified</span>
+                  }
+                </p>
+                  </div>
+              </div>
+              
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Location</label>
+                  <p className="text-sm font-medium text-gray-900">{job.companyLocation || job.location || 'Not specified'}</p>
+              </div>
+              
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <label className="block text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Drive Date</label>
+                    <p className="text-sm font-semibold text-blue-900">{formatDate(job.driveDate)}</p>
+              </div>
+              
+                  <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                    <label className="block text-xs font-semibold text-orange-600 uppercase tracking-wide mb-1">Application Deadline</label>
+                    <p className="text-sm font-semibold text-orange-900">{formatDate(job.applicationDeadline) || 'Not specified'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Company & Recruiter Information */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
+                <FaBuilding className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-lg font-bold text-gray-800">Company & Recruiter</h3>
+              </div>
+            <div className="space-y-4">
+                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                  <label className="block text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1">Company Name</label>
+                  <p className="text-base font-semibold text-indigo-900">
+                  {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
+                </p>
+              </div>
+              
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Recruiter Name</label>
+                  <p className="text-sm font-medium text-gray-900">{job.recruiter?.name || 'Not provided'}</p>
+              </div>
+              
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Recruiter Email</label>
+                  <p className="text-sm font-medium text-blue-600 break-all">{job.recruiter?.email || 'Not provided'}</p>
+              </div>
+              
+                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <label className="block text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Targeting</label>
+                  <div className="space-y-2">
+              <div>
+                      <span className="text-xs font-medium text-green-700">Schools: </span>
+                      <span className="text-sm font-semibold text-green-900">
+                        {job.targetSchools?.length ? job.targetSchools.join(', ') : 'All Schools'}
+                      </span>
+              </div>
+              <div>
+                      <span className="text-xs font-medium text-green-700">Centers: </span>
+                      <span className="text-sm font-semibold text-green-900">
+                        {job.targetCenters?.length ? job.targetCenters.join(', ') : 'All Centers'}
+                      </span>
+              </div>
+              <div>
+                      <span className="text-xs font-medium text-green-700">Batches: </span>
+                      <span className="text-sm font-semibold text-green-900">
+                        {job.targetBatches?.length ? job.targetBatches.join(', ') : 'All Batches'}
+                      </span>
+              </div>
+            </div>
+          </div>
+              </div>
+            </div>
+          </div>
+
           {/* Skills Required */}
           {job.skills && job.skills.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Skills Required</h3>
+            <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <FaFileAlt className="w-5 h-5 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Required Skills</h3>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {job.skills.map((skill, index) => (
-                  <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                  <span 
+                    key={index} 
+                    className="px-4 py-2 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 rounded-lg text-sm font-semibold border border-purple-200 shadow-sm hover:shadow-md transition-shadow"
+                  >
                     {skill}
                   </span>
                 ))}
@@ -1131,27 +1369,30 @@ const JobDetailsModal = ({
           )}
 
           {/* Metadata */}
-          <div className="mt-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Metadata</h3>
+          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <FaInfoCircle className="w-5 h-5 text-gray-600" />
+              Additional Information
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Status</label>
-                <p className="text-gray-900">{job.status || 'Draft'}</p>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
+                <p className="text-sm font-semibold text-gray-900 capitalize">{job.status || 'Draft'}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Created At</label>
-                <p className="text-gray-900">{formatDate(job.createdAt)}</p>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Created At</label>
+                <p className="text-sm font-medium text-gray-700">{formatDate(job.createdAt)}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Posted At</label>
-                <p className="text-gray-900">{formatDate(job.postedAt)}</p>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Posted At</label>
+                <p className="text-sm font-medium text-gray-700">{formatDate(job.postedAt) || 'Not posted yet'}</p>
               </div>
             </div>
             
             {job.rejectionReason && (
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-600">Rejection Reason</label>
-                <p className="text-red-900 bg-red-50 p-3 rounded-md">{job.rejectionReason}</p>
+              <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                <label className="block text-sm font-bold text-red-700 mb-2">Rejection Reason</label>
+                <p className="text-red-900 font-medium leading-relaxed">{job.rejectionReason}</p>
               </div>
             )}
           </div>
@@ -1293,7 +1534,7 @@ const RejectModal = ({
           >
             {loading ? (
               <>
-                <FaSpinner className="w-4 h-4 animate-spin" />
+              <FaSpinner className="w-4 h-4 animate-spin" />
                 <span>Rejecting...</span>
               </>
             ) : (

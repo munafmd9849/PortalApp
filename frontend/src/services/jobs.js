@@ -139,27 +139,72 @@ export async function deleteJob(jobId) {
  */
 export async function getTargetedJobsForStudent(studentId) {
   try {
-    // For now, always use mock data to ensure the page displays properly
-    // TODO: Re-enable real API fetching once backend is fully robust
-    const mockJobs = getMockJobs();
-    // Return only posted jobs for students
-    return mockJobs.filter(j => j.isPosted || j.status === 'posted');
-
-    // TODO: Uncomment when ready to use real data
-    /*
+    // Call real API to get targeted jobs
     const jobs = await api.getTargetedJobs();
+    
     if (jobs && jobs.length > 0) {
-      return jobs;
+      // Transform jobs to match expected format
+      const transformedJobs = jobs.map(job => {
+        // Handle date objects (from database or mock data)
+        const parseDate = (dateValue) => {
+          if (!dateValue) return null;
+          if (typeof dateValue === 'string') return new Date(dateValue);
+          if (dateValue.toDate) return dateValue.toDate(); // Firebase Timestamp
+          if (dateValue instanceof Date) return dateValue;
+          return new Date(dateValue);
+        };
+
+        return {
+          id: job.id,
+          jobTitle: job.jobTitle || job.title,
+          jobType: job.jobType || job.type,
+          salary: job.salary || job.ctc || job.salaryRange,
+          stipend: job.stipend,
+          company: job.companyName || job.company?.name || job.company,
+          companyName: job.companyName || job.company?.name || job.company,
+          companyLocation: job.companyLocation || job.location || job.company?.location,
+          companyDetails: job.company,
+          recruiter: job.recruiter ? {
+            id: job.recruiter.id,
+            name: job.recruiter.user?.displayName || job.recruiter.user?.email,
+            email: job.recruiter.user?.email
+          } : null,
+          recruiterId: job.recruiterId,
+          driveDate: parseDate(job.driveDate),
+          applicationDeadline: parseDate(job.applicationDeadline),
+          createdAt: parseDate(job.createdAt),
+          postedAt: parseDate(job.postedAt),
+          status: job.status?.toLowerCase() || 'draft',
+          isPosted: job.isPosted === true || job.status === 'POSTED' || job.status === 'posted',
+          posted: job.isPosted === true || job.status === 'POSTED' || job.status === 'posted',
+          description: job.description,
+          requirements: job.requirements,
+          requiredSkills: Array.isArray(job.requiredSkills) ? job.requiredSkills : 
+            (typeof job.requiredSkills === 'string' ? JSON.parse(job.requiredSkills || '[]') : []),
+          location: job.location || job.companyLocation,
+          workMode: job.workMode,
+          openings: job.openings,
+          qualification: job.qualification,
+          // Parse targeting arrays (stored as JSON strings in SQLite)
+          targetSchools: Array.isArray(job.targetSchools) ? job.targetSchools :
+            (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools || '[]') : []),
+          targetCenters: Array.isArray(job.targetCenters) ? job.targetCenters :
+            (typeof job.targetCenters === 'string' ? JSON.parse(job.targetCenters || '[]') : []),
+          targetBatches: Array.isArray(job.targetBatches) ? job.targetBatches :
+            (typeof job.targetBatches === 'string' ? JSON.parse(job.targetBatches || '[]') : []),
+        };
+      });
+      
+      return transformedJobs;
     }
-    // Fallback to mock data
-    const mockJobs = getMockJobs();
-    return mockJobs.filter(j => j.isPosted || j.status === 'posted');
-    */
+    
+    // If API returns empty, return empty array (don't use mock data)
+    console.log('No jobs found from API for student');
+    return [];
   } catch (error) {
     console.error('getTargetedJobsForStudent error:', error);
-    // Return mock data on error
-    const mockJobs = getMockJobs();
-    return mockJobs.filter(j => j.isPosted || j.status === 'posted');
+    // Return empty array on error (don't show mock data)
+    return [];
   }
 }
 

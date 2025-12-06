@@ -253,9 +253,9 @@ export const api = {
       // Try to call logout API, but don't fail if it errors
       try {
         await apiRequest('/auth/logout', {
-          method: 'POST',
+      method: 'POST',
           body: JSON.stringify({ refreshToken }),
-        });
+    });
       } catch (apiError) {
         console.warn('Logout API call failed, but clearing tokens anyway:', apiError);
       }
@@ -264,7 +264,7 @@ export const api = {
       return { success: true };
     } catch (error) {
       // Even if everything fails, clear tokens
-      clearAuthTokens();
+    clearAuthTokens();
       throw error;
     }
   },
@@ -391,6 +391,9 @@ export const api = {
   rejectJob: (jobId, data) => apiRequest(`/jobs/${jobId}/reject`, {
     method: 'POST',
     body: JSON.stringify(data),
+  }),
+  autoArchiveExpiredJobs: () => apiRequest('/jobs/auto-archive-expired', {
+    method: 'POST',
   }),
 
   // Applications
