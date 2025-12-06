@@ -125,7 +125,7 @@ export default function DashboardLayout({ children }) {
     if (studentProfile.school) completion += stepValue;
     if (studentProfile.batch) completion += stepValue;
     if (studentProfile.cgpa) completion += stepValue;
-    if (studentProfile.tagline) completion += stepValue;
+    if (studentProfile.headline || studentProfile.tagline) completion += stepValue;
     if (studentProfile.bio) completion += stepValue;
     if (studentProfile.city) completion += stepValue;
 
@@ -261,7 +261,7 @@ export default function DashboardLayout({ children }) {
                   </div>
 
                   <div className='ml-2 -mt-0 mb-1 italic'>
-                    <p>{loading ? 'Loading...' : (studentProfile?.tagline || 'Complete your profile to add a tagline')}</p>
+                    <p>{loading ? 'Loading...' : (studentProfile?.headline || studentProfile?.tagline || 'Complete your profile to add a headline')}</p>
                   </div>
                   <div className="ml-2 mt-2 flex flex-col sm:flex-row sm:space-x-6 text-sm text-black">
                     <div>

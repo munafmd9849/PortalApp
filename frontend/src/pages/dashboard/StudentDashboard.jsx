@@ -14,7 +14,8 @@ import { getStudentApplications, applyToJob, subscribeStudentApplications } from
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
-import { FaHackerrank, FaInstagram, FaYoutube } from 'react-icons/fa';
+import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
+import CustomDropdown from '../../components/common/CustomDropdown';
 import {
   Home,
   Briefcase,
@@ -41,12 +42,24 @@ import {
   Loader,
   Info,
   AlertTriangle,
-  X
+  X,
+  User,
+  Mail,
+  Phone,
+  Hash,
+  Award,
+  MapPin,
+  Building2,
+  Type,
+  Linkedin,
+  Image as ImageIcon,
+  Camera
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
 import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
+import StudentCalendar from '../../components/dashboard/student/StudentCalendar';
 
 const normalizeProfileSnapshot = (profile = {}) => ({
   fullName: profile.fullName || '',
@@ -846,7 +859,64 @@ export default function StudentDashboard() {
       } else {
         await createCompleteStudentProfile(user.id, profileData, []);
       }
-      initialProfileRef.current = normalizeProfileSnapshot(profileData);
+      
+      // Reload profile from server to get the latest data
+      const updatedProfile = await getStudentProfile(user.id);
+      if (updatedProfile) {
+        // Update all state with the latest profile data
+        setFullName(updatedProfile.fullName || '');
+        setEmail(updatedProfile.email || '');
+        setPhone(updatedProfile.phone || '');
+        setEnrollmentId(updatedProfile.enrollmentId || '');
+        setCgpa(updatedProfile.cgpa?.toString?.() || '');
+        setBatch(updatedProfile.batch || '');
+        setCenter(updatedProfile.center || '');
+        setSchool(updatedProfile.school || '');
+        setBio(updatedProfile.bio || '');
+        setHeadline(updatedProfile.headline || updatedProfile.Headline || '');
+        setCity(updatedProfile.city || '');
+        setStateRegion(updatedProfile.stateRegion || updatedProfile.state || '');
+        setLinkedin(updatedProfile.linkedin || '');
+        setLeetcode(updatedProfile.leetcode || '');
+        setCodeforces(updatedProfile.codeforces || '');
+        setGfg(updatedProfile.gfg || '');
+        setHackerrank(updatedProfile.hackerrank || '');
+        setGithubUrl(updatedProfile.githubUrl || updatedProfile.github || '');
+        setYoutubeUrl(updatedProfile.youtubeUrl || updatedProfile.youtube || '');
+        setInstagramUrl(updatedProfile.instagramUrl || updatedProfile.instagram || '');
+        setProfilePhoto(updatedProfile.profilePhoto || '');
+        setJobFlexibility(updatedProfile.jobFlexibility || '');
+        
+        // Update initial snapshot
+        const sanitizedProfile = {
+          fullName: updatedProfile.fullName || '',
+          email: updatedProfile.email || '',
+          phone: updatedProfile.phone || '',
+          enrollmentId: updatedProfile.enrollmentId || '',
+          cgpa: updatedProfile.cgpa?.toString?.() || '',
+          batch: updatedProfile.batch || '',
+          center: updatedProfile.center || '',
+          school: updatedProfile.school || '',
+          bio: updatedProfile.bio || '',
+          Headline: updatedProfile.headline || updatedProfile.Headline || '',
+          city: updatedProfile.city || '',
+          stateRegion: updatedProfile.stateRegion || updatedProfile.state || '',
+          linkedin: updatedProfile.linkedin || '',
+          githubUrl: updatedProfile.githubUrl || updatedProfile.github || '',
+          youtubeUrl: updatedProfile.youtubeUrl || updatedProfile.youtube || '',
+          instagramUrl: updatedProfile.instagramUrl || updatedProfile.instagram || '',
+          leetcode: updatedProfile.leetcode || '',
+          codeforces: updatedProfile.codeforces || '',
+          gfg: updatedProfile.gfg || '',
+          hackerrank: updatedProfile.hackerrank || '',
+          profilePhoto: updatedProfile.profilePhoto || '',
+          jobFlexibility: updatedProfile.jobFlexibility || '',
+        };
+        initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
+      } else {
+        // Fallback to using profileData if reload fails
+        initialProfileRef.current = normalizeProfileSnapshot(profileData);
+      }
       setIsFormDirty(false);
       
       // Dispatch custom event to notify DashboardLayout to reload profile
@@ -1069,25 +1139,69 @@ export default function StudentDashboard() {
     return colors[index];
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'TBD';
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'TBD';
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
+      let date;
+      // Handle different date formats
+      if (dateValue instanceof Date) {
+        date = dateValue;
+      } else if (typeof dateValue === 'string') {
+        date = new Date(dateValue);
+      } else if (dateValue && typeof dateValue === 'object' && dateValue.toDate) {
+        // Handle Firebase Timestamp or mock date objects
+        date = dateValue.toDate();
+      } else if (dateValue && typeof dateValue === 'object' && dateValue.getTime) {
+        // Handle date-like objects
+        date = new Date(dateValue.getTime());
+      } else {
+        date = new Date(dateValue);
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'TBD';
+      }
+      
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       });
-    } catch {
-      return dateString;
+    } catch (error) {
+      console.warn('Date formatting error:', error, dateValue);
+      return 'TBD';
     }
   };
 
   const formatSalary = (salary) => {
     if (!salary) return 'Not specified';
+    
+    // Handle number format
     if (typeof salary === 'number') {
-      return `₹${(salary / 100000).toFixed(0)} LPA`;
+      if (salary >= 100000) {
+        return `₹${(salary / 100000).toFixed(1)} LPA`;
+      } else {
+        return `₹${salary.toLocaleString()}`;
+      }
     }
-    return salary;
+    
+    // Handle string format
+    if (typeof salary === 'string') {
+      // Try to parse if it's a number string
+      const numSalary = parseFloat(salary);
+      if (!isNaN(numSalary)) {
+        if (numSalary >= 100000) {
+          return `₹${(numSalary / 100000).toFixed(1)} LPA`;
+        } else {
+          return `₹${numSalary.toLocaleString()}`;
+        }
+      }
+      // Return as-is if it's already formatted
+      return salary;
+    }
+    
+    return 'Not specified';
   };
 
   const renderContent = () => {
@@ -1300,12 +1414,9 @@ export default function StudentDashboard() {
 
       case 'calendar':
         return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Academic Calendar</h2>
-              {/* Calendar content omitted for brevity */}
-            </div>
-          </div>
+          <ErrorBoundary>
+            <StudentCalendar applications={applications} jobs={jobs} />
+          </ErrorBoundary>
         );
 
       case 'applications':
@@ -1488,19 +1599,24 @@ export default function StudentDashboard() {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Profile</h2>
               
               <form className="space-y-6" onSubmit={handleSaveProfile}>
-                {/* Profile Photo Section - Top Row */}
-                <div className="flex gap-4 w-1/2 pr-3">
-                  {profilePhoto && (
-                    <div className="w-1/2 flex items-center justify-center">
-                      <div className="text-center">
-                        <img src={profilePhoto} alt="Profile Preview" className="w-23 h-23 rounded-full object-cover mx-auto border-4 border-gray-200 shadow-lg" />
-                        <p className="text-sm text-gray-600 mt-2">Profile Preview</p>
-                      </div>
+                {/* Profile Photo Section */}
+                <div className="flex items-start gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <ImageIcon size={16} className="text-gray-500" />
+                      Profile Photo
+                    </label>
+                  </div>
+                  <div className="relative group flex-shrink-0">
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200 shadow-lg bg-gray-100 flex items-center justify-center">
+                      {profilePhoto ? (
+                        <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={48} className="text-gray-400" />
+                      )}
                     </div>
-                  )}
-                  <div className="w-1/2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
-                    <div className="relative">
+                    <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                      <Camera size={24} className="text-white" />
                       <input
                         type="file"
                         accept="image/*"
@@ -1514,18 +1630,16 @@ export default function StudentDashboard() {
                           }
                         }}
                       />
-                      <div className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white cursor-pointer hover:bg-gray-50 transition-colors">
-                        <span className="text-gray-700">
-                          {profilePhoto ? 'Change Photo' : 'Choose a photo'}
-                        </span>
-                      </div>
-                    </div>
+                    </label>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <User size={16} className="text-gray-500" />
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="fullName"
                       type="text"
@@ -1542,7 +1656,10 @@ export default function StudentDashboard() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Mail size={16} className="text-gray-500" />
+                      Email <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="email"
                       type="email"
@@ -1562,7 +1679,10 @@ export default function StudentDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Phone size={16} className="text-gray-500" />
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="phone"
                       type="tel"
@@ -1579,7 +1699,10 @@ export default function StudentDashboard() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Enrollment ID <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Hash size={16} className="text-gray-500" />
+                      Enrollment ID <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="enrollmentId"
                       type="text"
@@ -1599,7 +1722,10 @@ export default function StudentDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">CGPA</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Trophy size={16} className="text-yellow-500" />
+                      CGPA
+                    </label>
                     <input
                       type="number"
                       step="0.01"
@@ -1618,64 +1744,82 @@ export default function StudentDashboard() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Batch <span className="text-red-500">*</span></label>
-                    <select
-                      id="batch"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <CustomDropdown
+                      label={
+                        <>
+                          Batch <span className="text-red-500">*</span>
+                        </>
+                      }
+                      icon={FaUsers}
+                      iconColor="text-indigo-600"
+                      options={[
+                        { value: '', label: 'Select Batch' },
+                        { value: '25-29', label: '25-29' },
+                        { value: '24-28', label: '24-28' },
+                        { value: '23-27', label: '23-27' }
+                      ]}
                       value={batch}
-                      onChange={(e) => {
-                        setBatch(e.target.value);
-                        validateField('batch', e.target.value);
+                      onChange={(value) => {
+                        setBatch(value);
+                        validateField('batch', value);
                       }}
-                    >
-                      <option value="">Select Batch</option>
-                      <option value="25-29">25-29</option>
-                      <option value="24-28">24-28</option>
-                      <option value="23-27">23-27</option>
-                    </select>
+                      placeholder="Select Batch"
+                    />
                     {validationErrors.batch && (
                       <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">School <span className="text-red-500">*</span></label>
-                    <select
-                      id="school"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <CustomDropdown
+                      label={
+                        <>
+                          School <span className="text-red-500">*</span>
+                        </>
+                      }
+                      icon={FaGraduationCap}
+                      iconColor="text-purple-600"
+                      options={[
+                        { value: '', label: 'Select School' },
+                        { value: 'SOT', label: 'School of Technology' },
+                        { value: 'SOM', label: 'School of Management' },
+                        { value: 'SOH', label: 'School of HealthCare' }
+                      ]}
                       value={school}
-                      onChange={(e) => {
-                        setSchool(e.target.value);
-                        validateField('school', e.target.value);
+                      onChange={(value) => {
+                        setSchool(value);
+                        validateField('school', value);
                       }}
-                    >
-                      <option value="">Select School</option>
-                      <option value="SOT">School of Technology</option>
-                      <option value="SOM">School of Management</option>
-                      <option value="SOH">School of HealthCare</option>
-                    </select>
+                      placeholder="Select School"
+                    />
                     {validationErrors.school && (
                       <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Center <span className="text-red-500">*</span></label>
-                    <select
-                      id="center"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <CustomDropdown
+                      label={
+                        <>
+                          Center <span className="text-red-500">*</span>
+                        </>
+                      }
+                      icon={FaMapMarkerAlt}
+                      iconColor="text-blue-600"
+                      options={[
+                        { value: '', label: 'Select Center' },
+                        { value: 'BANGALORE', label: 'Bangalore' },
+                        { value: 'NOIDA', label: 'Noida' },
+                        { value: 'LUCKNOW', label: 'Lucknow' },
+                        { value: 'PUNE', label: 'Pune' },
+                        { value: 'PATNA', label: 'Patna' },
+                        { value: 'INDORE', label: 'Indore' }
+                      ]}
                       value={center}
-                      onChange={(e) => {
-                        setCenter(e.target.value);
-                        validateField('center', e.target.value);
+                      onChange={(value) => {
+                        setCenter(value);
+                        validateField('center', value);
                       }}
-                    >
-                      <option value="">Select Center</option>
-                      <option value="BANGALORE">Bangalore</option>
-                      <option value="NOIDA">Noida</option>
-                      <option value="LUCKNOW">Lucknow</option>
-                      <option value="PUNE">Pune</option>
-                      <option value="PATNA">Patna</option>
-                      <option value="INDORE">Indore</option>
-                    </select>
+                      placeholder="Select Center"
+                    />
                     {validationErrors.center && (
                       <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
                     )}
@@ -1684,7 +1828,10 @@ export default function StudentDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <MapPin size={16} className="text-gray-500" />
+                      City
+                    </label>
                     <input
                       type="text"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1694,7 +1841,10 @@ export default function StudentDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">State/Region</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Building2 size={16} className="text-gray-500" />
+                      State/Region
+                    </label>
                     <input
                       type="text"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1707,7 +1857,10 @@ export default function StudentDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Headline</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Type size={16} className="text-gray-500" />
+                      Headline
+                    </label>
                     <input
                       type="text"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1717,7 +1870,10 @@ export default function StudentDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Linkedin size={16} className="text-blue-600" />
+                      LinkedIn
+                    </label>
                     <input
                       type="url"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1732,7 +1888,10 @@ export default function StudentDashboard() {
                 {(school === 'SOT' || school === 'SOM') && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">YouTube</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Youtube size={16} className="text-red-600" />
+                        YouTube
+                      </label>
                       <input
                         type="url"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1743,7 +1902,10 @@ export default function StudentDashboard() {
                     </div>
                     {school === 'SOT' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">GitHub</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Github size={16} className="text-gray-700" />
+                          GitHub
+                        </label>
                         <input
                           type="url"
                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1755,7 +1917,10 @@ export default function StudentDashboard() {
                     )}
                     {school === 'SOM' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Instagram</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <FaInstagram size={16} className="text-pink-500" />
+                          Instagram
+                        </label>
                         <input
                           type="url"
                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1771,7 +1936,10 @@ export default function StudentDashboard() {
                 {school === 'SOT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">LeetCode</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
+                        LeetCode
+                      </label>
                       <input
                         type="url"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1781,7 +1949,10 @@ export default function StudentDashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Codeforces</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <SiCodeforces size={16} className="text-blue-600" />
+                        Codeforces
+                      </label>
                       <input
                         type="url"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1796,7 +1967,10 @@ export default function StudentDashboard() {
                 {school === 'SOT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">GeeksforGeeks</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <SiGeeksforgeeks size={16} className="text-green-600" />
+                        GeeksforGeeks
+                      </label>
                       <input
                         type="url"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1806,7 +1980,10 @@ export default function StudentDashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">HackerRank</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <FaHackerrank size={16} className="text-emerald-600" />
+                        HackerRank
+                      </label>
                       <input
                         type="url"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1819,7 +1996,10 @@ export default function StudentDashboard() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <FileText size={16} className="text-gray-500" />
+                    Bio
+                  </label>
                   <textarea
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows="4"

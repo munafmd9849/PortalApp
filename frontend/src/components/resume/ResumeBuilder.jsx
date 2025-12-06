@@ -3,7 +3,7 @@
  * Complete interface for entering details, previewing, and exporting resumes
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { getStudentProfile, updateStudentProfile } from '../../services/students';
 import { 
@@ -42,14 +42,34 @@ import {
   FolderKanban,
   Trophy,
   Save,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  BarChart3,
+  X,
+  FileX,
+  Mail,
+  Phone,
+  Linkedin,
+  Github,
+  Youtube,
+  MapPin,
+  Building2,
+  Users,
+  Award,
+  Hash,
+  Calendar,
+  Globe,
+  Type
 } from 'lucide-react';
+import { validateResumeFile, formatFileSize, checkATSScore } from '../../utils/resumeUtils';
+import ResumeAnalyzer from './ResumeAnalyzer';
 
 const ResumeBuilder = () => {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('1');
-  const [activeSection, setActiveSection] = useState('personal');
+  const [activeMode, setActiveMode] = useState('buildResume'); // 'buildResume', 'uploadResume', 'atsFriendly'
+  const [activeSection, setActiveSection] = useState('personal'); // Only for buildResume mode
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -79,6 +99,20 @@ const ResumeBuilder = () => {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(null);
 
+  // Resume Upload states
+  const [resumeFile, setResumeFile] = useState(null);
+  const [resumeInfo, setResumeInfo] = useState({
+    fileName: null,
+    fileSize: null,
+    uploadedAt: null,
+    hasResume: false,
+    resumeUrl: null
+  });
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Load student profile
   useEffect(() => {
     const loadProfile = async () => {
@@ -99,6 +133,17 @@ const ResumeBuilder = () => {
             linkedin: profile.linkedin || '',
             githubUrl: profile.githubUrl || ''
           });
+
+          // Load resume info if exists
+          if (profile.resumeUrl || profile.resumeFileName) {
+            setResumeInfo({
+              fileName: profile.resumeFileName || null,
+              fileSize: null,
+              uploadedAt: profile.resumeUploadedAt || null,
+              hasResume: true,
+              resumeUrl: profile.resumeUrl || null
+            });
+          }
         }
       } catch (err) {
         console.error('Error loading profile:', err);
@@ -145,6 +190,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to save. Please try again.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -153,7 +199,8 @@ const ResumeBuilder = () => {
   // Education CRUD
   const handleAddEducation = async () => {
     if (!newEducation.degree || !newEducation.institution) {
-      setError('Please fill in degree and institution.');
+      setError('Please fill in qualification/education type and institution.');
+      setTimeout(() => setError(''), 4000);
       return;
     }
     try {
@@ -218,6 +265,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to delete education.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -227,6 +275,7 @@ const ResumeBuilder = () => {
   const handleAddExperience = async () => {
     if (!newExperience.title || !newExperience.company) {
       setError('Please fill in title and company.');
+      setTimeout(() => setError(''), 4000);
       return;
     }
     try {
@@ -302,6 +351,7 @@ const ResumeBuilder = () => {
   const handleAddSkill = async () => {
     if (!newSkill.skillName.trim()) {
       setError('Please enter a skill name.');
+      setTimeout(() => setError(''), 4000);
       return;
     }
     try {
@@ -314,6 +364,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to add skill.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -329,6 +380,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to delete skill.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -338,6 +390,7 @@ const ResumeBuilder = () => {
   const handleAddProject = async () => {
     if (!newProject.title || !newProject.description) {
       setError('Please fill in title and description.');
+      setTimeout(() => setError(''), 4000);
       return;
     }
     try {
@@ -365,6 +418,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to add project.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -396,6 +450,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to update project.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -412,6 +467,7 @@ const ResumeBuilder = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Failed to delete project.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -423,12 +479,129 @@ const ResumeBuilder = () => {
       setLoading(true);
       const profile = await getStudentProfile(user.id);
       setStudent(profile);
+      
+      // Reload resume info
+      if (profile.resumeUrl || profile.resumeFileName) {
+        setResumeInfo({
+          fileName: profile.resumeFileName || null,
+          fileSize: null,
+          uploadedAt: profile.resumeUploadedAt || null,
+          hasResume: true,
+          resumeUrl: profile.resumeUrl || null
+        });
+      }
+      
       setSuccess('Profile refreshed!');
       setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
       setError('Failed to refresh.');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle file upload
+  const handleFileSelect = (file) => {
+    if (!file) return;
+
+    const validation = validateResumeFile(file);
+    if (!validation.valid) {
+      setError(validation.errors[0] || 'Invalid file');
+      setTimeout(() => setError(''), 4000);
+      return;
+    }
+
+    setResumeFile(file);
+    setError('');
+  };
+
+  const handleFileUpload = async () => {
+    if (!resumeFile || !user?.id) {
+      setError('Please select a file to upload');
+      setTimeout(() => setError(''), 4000);
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError('');
+      setSuccess('');
+
+      const result = await api.uploadResume(resumeFile, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      // Update resume info
+      setResumeInfo({
+        fileName: result.fileName || resumeFile.name,
+        fileSize: resumeFile.size,
+        uploadedAt: result.uploadedAt || new Date().toISOString(),
+        hasResume: true,
+        resumeUrl: result.resumeUrl || null
+      });
+
+      // Reload profile to get updated resume info
+      const profile = await getStudentProfile(user.id);
+      setStudent(profile);
+
+      setSuccess('Resume uploaded successfully!');
+      setResumeFile(null);
+      setUploadProgress(0);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError(err.message || 'Failed to upload resume. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteResume = async () => {
+    if (!window.confirm('Are you sure you want to delete your uploaded resume?')) return;
+    
+    try {
+      setSaving(true);
+      // TODO: Implement delete resume API call
+      // await api.deleteResume();
+      
+      setResumeInfo({
+        fileName: null,
+        fileSize: null,
+        uploadedAt: null,
+        hasResume: false,
+        resumeUrl: null
+      });
+      
+      setResumeFile(null);
+      setSuccess('Resume deleted successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to delete resume.');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
     }
   };
 
@@ -528,7 +701,8 @@ const ResumeBuilder = () => {
     { id: '3', name: 'Compact', description: 'Space-efficient design', icon: '📋' }
   ];
 
-  const sections = [
+  // Sections only for Build Resume mode
+  const buildSections = [
     { id: 'personal', label: 'Personal Info', icon: User },
     { id: 'education', label: 'Education', icon: GraduationCap },
     { id: 'experience', label: 'Experience', icon: Briefcase },
@@ -561,7 +735,7 @@ const ResumeBuilder = () => {
   return (
     <div className="w-full space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
+      <div className="bg-blue-600 rounded-lg p-6 text-white">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -569,7 +743,7 @@ const ResumeBuilder = () => {
               Resume Builder
             </h2>
             <p className="text-blue-100 mt-1">
-              Enter your details, preview, and export your professional resume
+              Build, upload, or analyze your professional resume
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -602,58 +776,105 @@ const ResumeBuilder = () => {
         </div>
       )}
 
-      {/* Section Tabs */}
+      {/* Main Mode Navigation - Top 3 Options */}
       <div className="bg-white rounded-lg border-2 border-gray-200 p-2">
-        <div className="flex flex-wrap gap-2">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeSection === section.id
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Icon size={18} />
-                <span className="font-medium">{section.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setActiveMode('buildResume');
+              setActiveSection('personal');
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg transition-all font-medium ${
+              activeMode === 'buildResume'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <FileText size={20} />
+            <span>Build Resume</span>
+          </button>
+          <button
+            onClick={() => setActiveMode('uploadResume')}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg transition-all font-medium ${
+              activeMode === 'uploadResume'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Upload size={20} />
+            <span>Upload Resume</span>
+          </button>
+          <button
+            onClick={() => setActiveMode('atsFriendly')}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg transition-all font-medium ${
+              activeMode === 'atsFriendly'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <BarChart3 size={20} />
+            <span>ATS Friendly</span>
+          </button>
         </div>
       </div>
 
-      {/* Template Selector (shown in preview) */}
-      {activeSection === 'preview' && (
-        <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Layout size={20} className="text-gray-600" />
-            <h3 className="text-lg font-semibold text-gray-800">Choose Template</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                onClick={() => setSelectedTemplate(template.id)}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  selectedTemplate === template.id
-                    ? 'border-blue-500 bg-blue-50 shadow-md'
-                    : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                }`}
-              >
-                <div className="text-3xl mb-2">{template.icon}</div>
-                <div className="font-semibold text-gray-800">{template.name}</div>
-                <div className="text-sm text-gray-600 mt-1">{template.description}</div>
-              </button>
-            ))}
+      {/* Build Resume Mode - Section Tabs */}
+      {activeMode === 'buildResume' && (
+        <div className="bg-white rounded-lg border-2 border-gray-200 p-2">
+          <div className="flex flex-wrap gap-2">
+            {buildSections.map((section) => {
+              const Icon = section.icon;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    activeSection === section.id
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span className="font-medium">{section.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Content Sections */}
-      <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+      {/* Build Resume Mode Content */}
+      {activeMode === 'buildResume' && (
+        <>
+          {/* Template Selector (shown in preview) */}
+          {activeSection === 'preview' && (
+            <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Layout size={20} className="text-gray-600" />
+                <h3 className="text-lg font-semibold text-gray-800">Choose Template</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {templates.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => setSelectedTemplate(template.id)}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      selectedTemplate === template.id
+                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="text-3xl mb-2">{template.icon}</div>
+                    <div className="font-semibold text-gray-800">{template.name}</div>
+                    <div className="text-sm text-gray-600 mt-1">{template.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Content Sections */}
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
         {/* Personal Info */}
         {activeSection === 'personal' && (
           <div className="space-y-4">
@@ -663,7 +884,10 @@ const ResumeBuilder = () => {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <User size={16} className="text-gray-500" />
+                  Full Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={personalInfo.fullName}
@@ -672,7 +896,10 @@ const ResumeBuilder = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <Mail size={16} className="text-gray-500" />
+                  Email <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="email"
                   value={personalInfo.email}
@@ -681,7 +908,10 @@ const ResumeBuilder = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <Phone size={16} className="text-gray-500" />
+                  Phone <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="tel"
                   value={personalInfo.phone}
@@ -690,7 +920,10 @@ const ResumeBuilder = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <Linkedin size={16} className="text-blue-600" />
+                  LinkedIn
+                </label>
                 <input
                   type="url"
                   value={personalInfo.linkedin}
@@ -700,7 +933,10 @@ const ResumeBuilder = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">GitHub</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <Github size={16} className="text-gray-700" />
+                  GitHub
+                </label>
                 <input
                   type="url"
                   value={personalInfo.githubUrl}
@@ -711,7 +947,10 @@ const ResumeBuilder = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Professional Summary</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <FileText size={16} className="text-gray-500" />
+                Professional Summary
+              </label>
               <textarea
                 value={personalInfo.summary}
                 onChange={(e) => setPersonalInfo({...personalInfo, summary: e.target.value})}
@@ -740,21 +979,34 @@ const ResumeBuilder = () => {
             </h3>
             <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
               <h4 className="font-semibold mb-3">Add New Education</h4>
+              <div className="mb-2 text-xs text-gray-600">
+                Add any type of education: Degree, Diploma, Certificate, High School, Training, Online Course, etc.
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="Degree *"
-                  value={newEducation.degree}
-                  onChange={(e) => setNewEducation({...newEducation, degree: e.target.value})}
-                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <input
-                  type="text"
-                  placeholder="Institution *"
-                  value={newEducation.institution}
-                  onChange={(e) => setNewEducation({...newEducation, institution: e.target.value})}
-                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Qualification/Education Type <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., B.Tech, Diploma, Certificate"
+                    value={newEducation.degree}
+                    onChange={(e) => setNewEducation({...newEducation, degree: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Institution <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Institution name"
+                    value={newEducation.institution}
+                    onChange={(e) => setNewEducation({...newEducation, institution: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
                 <input
                   type="number"
                   placeholder="Start Year"
@@ -793,18 +1045,30 @@ const ResumeBuilder = () => {
                 editingEducation?.id === edu.id ? (
                   <div key={edu.id} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={editingEducation.degree}
-                        onChange={(e) => setEditingEducation({...editingEducation, degree: e.target.value})}
-                        className="px-3 py-2 border border-gray-300 rounded-lg"
-                      />
-                      <input
-                        type="text"
-                        value={editingEducation.institution}
-                        onChange={(e) => setEditingEducation({...editingEducation, institution: e.target.value})}
-                        className="px-3 py-2 border border-gray-300 rounded-lg"
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Qualification/Education Type <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g., B.Tech, Diploma, Certificate"
+                          value={editingEducation.degree}
+                          onChange={(e) => setEditingEducation({...editingEducation, degree: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Institution <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Institution name"
+                          value={editingEducation.institution}
+                          onChange={(e) => setEditingEducation({...editingEducation, institution: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
                       <input
                         type="number"
                         value={editingEducation.startYear}
@@ -873,20 +1137,30 @@ const ResumeBuilder = () => {
               <h4 className="font-semibold mb-3">Add New Experience</h4>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Job Title *"
-                    value={newExperience.title}
-                    onChange={(e) => setNewExperience({...newExperience, title: e.target.value})}
-                    className="px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Company *"
-                    value={newExperience.company}
-                    onChange={(e) => setNewExperience({...newExperience, company: e.target.value})}
-                    className="px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Job Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Job Title"
+                      value={newExperience.title}
+                      onChange={(e) => setNewExperience({...newExperience, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Company name"
+                      value={newExperience.company}
+                      onChange={(e) => setNewExperience({...newExperience, company: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
                   <input
                     type="text"
                     placeholder="Start Date (e.g., Jan 2023)"
@@ -1011,13 +1285,18 @@ const ResumeBuilder = () => {
             <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
               <h4 className="font-semibold mb-3">Add New Skill</h4>
               <div className="flex gap-3">
-                <input
-                  type="text"
-                  placeholder="Skill Name *"
-                  value={newSkill.skillName}
-                  onChange={(e) => setNewSkill({...newSkill, skillName: e.target.value})}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
-                />
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Skill Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Skill Name"
+                    value={newSkill.skillName}
+                    onChange={(e) => setNewSkill({...newSkill, skillName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
                 <select
                   value={newSkill.rating}
                   onChange={(e) => setNewSkill({...newSkill, rating: parseInt(e.target.value)})}
@@ -1069,20 +1348,30 @@ const ResumeBuilder = () => {
             <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
               <h4 className="font-semibold mb-3">Add New Project (AI-Enhanced)</h4>
               <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Project Title *"
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({...newProject, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <textarea
-                  placeholder="Project Description * (AI will generate professional content)"
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({...newProject, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Project Title"
+                    value={newProject.title}
+                    onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Description <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    placeholder="Project Description (AI will generate professional content)"
+                    value={newProject.description}
+                    onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
                 <input
                   type="text"
                   placeholder="Tech Stack (comma-separated, e.g., React, Node.js, MongoDB)"
@@ -1196,7 +1485,7 @@ const ResumeBuilder = () => {
               <button
                 onClick={handleExportPDF}
                 disabled={exporting}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 shadow-md"
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 shadow-md"
               >
                 {exporting ? (
                   <>
@@ -1235,7 +1524,176 @@ const ResumeBuilder = () => {
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
+
+      {/* Upload Resume Mode Content */}
+      {activeMode === 'uploadResume' && (
+        <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <Upload size={24} />
+              Upload Resume
+            </h3>
+            
+            {resumeInfo.hasResume ? (
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Resume Uploaded</h4>
+                      <p className="text-sm text-gray-600">
+                        {resumeInfo.fileName}
+                        {resumeInfo.fileSize && ` • ${formatFileSize(resumeInfo.fileSize)}`}
+                      </p>
+                      {resumeInfo.uploadedAt && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Uploaded: {new Date(resumeInfo.uploadedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleDeleteResume}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 size={18} />
+                    Delete
+                  </button>
+                </div>
+                {resumeInfo.resumeUrl && (
+                  <a
+                    href={resumeInfo.resumeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    <FileText size={18} />
+                    View Uploaded Resume
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 transition-colors ${
+                  isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="text-center">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    {isDragging ? 'Drop your resume here' : 'Upload Your Resume'}
+                  </h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Drag and drop a PDF file here, or click to browse
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Choose File
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Maximum file size: 10MB • PDF format only
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {resumeFile && !resumeInfo.hasResume && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                    <div>
+                      <p className="font-medium text-gray-900">{resumeFile.name}</p>
+                      <p className="text-sm text-gray-600">{formatFileSize(resumeFile.size)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setResumeFile(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="mb-3">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">Uploading... {uploadProgress}%</p>
+                  </div>
+                )}
+                <button
+                  onClick={handleFileUpload}
+                  disabled={uploading}
+                  className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader className="animate-spin" size={18} />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={18} />
+                      Upload Resume
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-semibold mb-1">💡 Tips for Resume Upload:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Upload a PDF format resume for best compatibility</li>
+                    <li>Ensure your resume is ATS-friendly (simple formatting, standard fonts)</li>
+                    <li>Keep file size under 10MB</li>
+                    <li>After uploading, use the ATS Friendly section to analyze your resume</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ATS Friendly Mode Content */}
+      {activeMode === 'atsFriendly' && (
+        <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <BarChart3 size={24} />
+              ATS Analysis
+            </h3>
+            <p className="text-gray-600">
+              Get detailed analysis of your uploaded resume including ATS compatibility, keyword matching, and improvement suggestions.
+            </p>
+            <ResumeAnalyzer resumeInfo={resumeInfo} userId={user?.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
