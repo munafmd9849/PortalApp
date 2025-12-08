@@ -13,6 +13,7 @@ import {
 import { getStudentApplications, applyToJob, subscribeStudentApplications } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/api';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import CustomDropdown from '../../components/common/CustomDropdown';
@@ -241,6 +242,12 @@ export default function StudentDashboard() {
   // Job Description Modal state
   const [selectedJob, setSelectedJob] = useState(null);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  
+  // Resume Selection Modal state
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
+  const [pendingJob, setPendingJob] = useState(null);
+  const [resumes, setResumes] = useState([]);
+  const [loadingResumes, setLoadingResumes] = useState(false);
 
   // Case-insensitive string matching helper
   const matchesIgnoreCase = (str1, str2) => {
@@ -511,37 +518,87 @@ export default function StudentDashboard() {
     }
   }, [user?.id]);
 
+  // Load resumes from API
+  const loadResumes = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingResumes(true);
+      const response = await fetch(`${API_BASE_URL}/students/resumes`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setResumes(Array.isArray(data) ? data : []);
+      } else if (response.status === 404) {
+        setResumes([]);
+      } else {
+        throw new Error('Failed to load resumes');
+      }
+    } catch (err) {
+      console.error('Error loading resumes:', err);
+      setResumes([]);
+    } finally {
+      setLoadingResumes(false);
+    }
+  }, [user?.id]);
+
   const handleApplyToJob = async (job) => {
     if (!user?.id || !job?.id) {
       console.error('Missing user ID or job ID');
       return;
     }
 
+    // Store the job and show resume selection modal
+    setPendingJob(job);
+    await loadResumes();
+    setIsResumeModalOpen(true);
+  };
+
+  const handleResumeSelection = async (resumeId = null) => {
+    if (!pendingJob) return;
+    
+    setIsResumeModalOpen(false);
+    
     try {
-      setApplying(prev => ({ ...prev, [job.id]: true }));
+      setApplying(prev => ({ ...prev, [pendingJob.id]: true }));
       
       if (process.env.NODE_ENV === 'development') {
         console.log('📝 Applying to job:', {
-          jobId: job.id,
-          jobTitle: job.jobTitle,
-          companyId: job.companyId,
-          companyName: job.company?.name
+          jobId: pendingJob.id,
+          jobTitle: pendingJob.jobTitle,
+          companyId: pendingJob.companyId,
+          companyName: pendingJob.company?.name,
+          resumeId
         });
       }
       
-      const companyId = job.companyId || job.company?.id || null;
-      await applyToJob(user.id, job.id, companyId);
+      const companyId = pendingJob.companyId || pendingJob.company?.id || null;
+      await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
       
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ Application submitted successfully');
       }
       
+      // Refresh applications list
+      await loadApplicationsData();
+      
     } catch (error) {
       console.error('❌ Error applying to job:', error);
       alert('Failed to apply to job. Please try again.');
     } finally {
-      setApplying(prev => ({ ...prev, [job.id]: false }));
+      setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
+      setPendingJob(null);
     }
+  };
+
+  const handleCreateResume = () => {
+    setIsResumeModalOpen(false);
+    setPendingJob(null);
+    setActiveTab('resume');
   };
 
   const hasApplied = (jobId) => {
@@ -2425,6 +2482,102 @@ export default function StudentDashboard() {
         isOpen={isJobModalOpen}
         onClose={handleCloseJobModal}
       />
+
+      {/* Resume Selection Modal */}
+      {isResumeModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={() => {
+          setIsResumeModalOpen(false);
+          setPendingJob(null);
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Select Resume</h2>
+              <button
+                onClick={() => {
+                  setIsResumeModalOpen(false);
+                  setPendingJob(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors rounded-full p-1 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {pendingJob && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <p className="text-xs font-medium text-blue-800 mb-1">Applying to:</p>
+                <p className="text-sm font-semibold text-gray-900">{pendingJob.jobTitle}</p>
+                <p className="text-xs text-gray-600">{pendingJob.companyName || pendingJob.company?.name}</p>
+              </div>
+            )}
+            
+            <p className="text-sm text-gray-600 mb-6">
+              Choose how you want to submit your resume for this application.
+            </p>
+
+            {loadingResumes ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="animate-spin text-blue-600" size={24} />
+                <span className="ml-2 text-gray-600">Loading resumes...</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Use Existing Resume Option */}
+                {resumes.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      Use Existing Resume
+                    </h3>
+                    <div className="space-y-2">
+                      {resumes.map((resume) => (
+                        <button
+                          key={resume.id || resume.fileName}
+                          onClick={() => handleResumeSelection(resume.id || resume.fileName)}
+                          className="w-full text-left px-4 py-3 border border-blue-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-between bg-white shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 rounded-md">
+                              <FileText className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium text-gray-700 block">
+                                {resume.fileName || resume.name || 'Resume'}
+                              </span>
+                              {resume.uploadedAt && (
+                                <span className="text-xs text-gray-500">
+                                  Uploaded {new Date(resume.uploadedAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <CheckCircle className="h-5 w-5 text-green-500 opacity-0 group-hover:opacity-100" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Create New Resume Option */}
+                <button
+                  onClick={handleCreateResume}
+                  className="w-full px-4 py-4 border-2 border-dashed border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-all flex items-center justify-center gap-3 text-blue-600 font-semibold bg-white shadow-sm"
+                >
+                  <FilePlus className="h-5 w-5" />
+                  <span>Create New Resume</span>
+                </button>
+
+                {/* If no resumes exist, show message */}
+                {resumes.length === 0 && (
+                  <p className="text-xs text-gray-500 text-center py-2 italic">
+                    No resumes uploaded yet. Create a new one to proceed.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
