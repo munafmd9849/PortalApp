@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ImEye } from 'react-icons/im';
 import { MdBlock } from 'react-icons/md';
-import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUserEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle } from 'react-icons/fa';
-import { Loader, Download, Upload } from 'lucide-react';
+import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaEdit } from 'react-icons/fa';
+import { Loader, Download, Upload, SquarePen, User } from 'lucide-react';
+import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { getAllStudents, updateStudentStatus, updateStudentProfile, getEducationalBackground, getStudentSkills, updateEducationalBackground } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
+import { API_BASE_URL } from '../../../config/api';
 import DashboardHome from '../../../components/dashboard/student/DashboardHome';
 import { getStudentApplications } from '../../../services/applications';
 import { getTargetedJobsForStudent } from '../../../services/jobs';
@@ -501,8 +503,125 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
 };
 
 
+// CGPA Edit Modal Component
+const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
+  const [cgpa, setCgpa] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  React.useEffect(() => {
+    if (student && isOpen) {
+      setCgpa(student.cgpa || '');
+      setError('');
+    }
+  }, [student, isOpen]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Validate CGPA
+    const cgpaValue = parseFloat(cgpa);
+    if (isNaN(cgpaValue) || cgpaValue < 0 || cgpaValue > 10) {
+      setError('CGPA must be between 0 and 10');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSave(student.id, { cgpa: cgpaValue.toString() });
+      onClose();
+    } catch (err) {
+      console.error('Error updating CGPA:', err);
+      setError(err.message || 'Failed to update CGPA. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !student) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[10000] p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-bold text-gray-800">Edit CGPA</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <FaTimes size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Student Name
+            </label>
+            <input
+              type="text"
+              value={student.fullName || student.email || 'N/A'}
+              disabled
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CGPA <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              value={cgpa}
+              onChange={(e) => setCgpa(e.target.value)}
+              min="0"
+              max="10"
+              step="0.01"
+              placeholder="Enter CGPA (0-10)"
+              className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                error ? 'border-red-500' : 'border-gray-300'
+              }`}
+              required
+            />
+            {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+            <p className="text-xs text-gray-500 mt-1">Enter a value between 0 and 10</p>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {loading && <Loader className="h-4 w-4 animate-spin mr-2" />}
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Student Dashboard Panel Component
-const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
+const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStudentUpdate }) => {
+  const [isCGPAModalOpen, setIsCGPAModalOpen] = useState(false);
+  const [currentStudent, setCurrentStudent] = useState(student);
+
+  // Update current student when student prop changes
+  React.useEffect(() => {
+    setCurrentStudent(student);
+  }, [student]);
+
   // Prevent body scroll when panel is open
   React.useEffect(() => {
     if (isOpen) {
@@ -535,6 +654,42 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
 
   const hasApplied = () => false;
 
+  // School-specific header texts
+  const getSchoolHeaderText = (school) => {
+    const schoolTexts = {
+      'SOT': 'Building with Code. Empowering with Innovation.',
+      'SOM': 'Leading with Vision. Strategizing with Innovation.',
+      'SOH': 'Healing with Science. Caring with Innovation.'
+    };
+    return schoolTexts[school] || schoolTexts['SOT'];
+  };
+
+  // Normalize school value
+  const normalizeSchool = (value) => {
+    if (!value) return 'SOT';
+    const v = String(value).trim().toUpperCase();
+    if (v === 'SOT' || v === 'SCHOOL OF TECHNOLOGY') return 'SOT';
+    if (v === 'SOM' || v === 'SCHOOL OF MANAGEMENT') return 'SOM';
+    if (v === 'SOH' || v === 'SCHOOL OF HEALTHCARE' || v === 'SCHOOL OF HEALTH CARE') return 'SOH';
+    return 'SOT';
+  };
+
+  const getStudentSchool = () => {
+    const raw = currentStudent?.school || student?.school || 'SOT';
+    return normalizeSchool(raw);
+  };
+
+  // Profile image sizing
+  const profileConfig = {
+    imageSize: 20,
+    svgSize: 80,
+    circleRadius: 36,
+    strokeWidth: 4,
+    iconSize: 8
+  };
+
+  const profileImageSrc = currentStudent?.profilePhoto || student?.profilePhoto;
+
   return (
     <>
       {/* Backdrop with blur and fade */}
@@ -551,52 +706,110 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
 
       {/* Sliding Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-white shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${
+        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Panel Header */}
-        <div className="flex flex-col p-4 lg:p-6 border-b bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10 shadow-sm space-y-3">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg lg:text-2xl font-bold text-gray-800 truncate">
-                Student Dashboard
-              </h2>
-              <p className="text-xs lg:text-sm text-gray-600 mt-1 truncate">
-                {student.fullName || student.email} {student.enrollmentId && `- ${student.enrollmentId}`}
-              </p>
+        {/* Navbar - Matching Original Student Dashboard */}
+        <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
+          <div className="w-full px-2 py-1">
+            <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400">
+              <div className="flex justify-between items-center h-23 gap-2 relative">
+                {/* Left Side - Student Details */}
+                <div className="flex items-center flex-1">
+                  {/* Profile Image */}
+                  <div className="flex-shrink-0 relative">
+                    <div
+                      className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden"
+                      style={{
+                        width: `${profileConfig.imageSize * 0.25}rem`,
+                        height: `${profileConfig.imageSize * 0.25}rem`
+                      }}
+                    >
+                      {profileImageSrc ? (
+                        <img
+                          src={profileImageSrc}
+                          alt="Profile photo"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User
+                          className="text-white"
+                          style={{
+                            width: `${profileConfig.iconSize * 0.25}rem`,
+                            height: `${profileConfig.iconSize * 0.25}rem`
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Student Details */}
+                  <div className="ml-4 space-y-1.5">
+                    <div className="flex items-center">
+                      <h2 className="text-2xl font-bold text-black flex items-center gap-2">
+                        {currentStudent?.fullName || student?.fullName || student?.email || 'Student Name'}
+
+                        <button
+                          onClick={() => setIsCGPAModalOpen(true)}
+                          className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50 cursor-pointer"
+                          aria-label="Edit CGPA"
+                          title="Edit CGPA"
+                        >
+                          <SquarePen className="h-3 w-3 absolute start-0" />
+                        </button>
+
+                        {/* Verified icon */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-6 w-6 text-blue-600 flex-shrink-0"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-label="Verified Icon"
+                          role="img"
+                        >
+                          <path d="m23 12-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69zm-12.91 4.72-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48z" />
+                        </svg>
+                      </h2>
+                    </div>
+
+                    <div className='ml-2 italic'>
+                      <p>{currentStudent?.headline || currentStudent?.tagline || student?.headline || student?.tagline || 'Complete your profile to add a headline'}</p>
+                    </div>
+                    <div className="ml-2 flex flex-col sm:flex-row sm:space-x-6 text-sm text-black">
+                      <div>
+                        <span className="font-medium text-gray-700">ID:</span> {currentStudent?.enrollmentId || student?.enrollmentId || 'N/A'}
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">CGPA:</span> {currentStudent?.cgpa || student?.cgpa || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center - PWIOI logo */}
+                <div className='absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2'>
+                  <img src={PWIOILOGO} alt="PWIOI Logo" className='w-30' />
+                </div>
+
+                {/* Right Side - Close Button */}
+                <div className="flex items-center">
+                  <button
+                    onClick={onClose}
+                    className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white transition-colors flex-shrink-0"
+                    aria-label="Close panel"
+                  >
+                    <FaTimes size={20} />
+                  </button>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={onClose}
-              className="ml-4 p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white transition-colors flex-shrink-0"
-              aria-label="Close panel"
-            >
-              <FaTimes size={20} className="lg:w-6 lg:h-6" />
-            </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 text-xs sm:text-sm text-gray-600">
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-gray-700">CGPA:</span>
-              <span>{student.cgpa || 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-gray-700">School:</span>
-              <span>{student.school || 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-gray-700">Batch:</span>
-              <span>{student.batch || 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-gray-700">Center:</span>
-              <span>{student.center || 'N/A'}</span>
-            </div>
-          </div>
-        </div>
+        </nav>
 
         {/* Panel Content - Scrollable */}
-        <div className="h-[calc(100%-73px)] lg:h-[calc(100%-89px)] overflow-y-auto">
+        <div className="h-[calc(100%-5rem)] overflow-y-auto">
           <div className="p-4 lg:p-6">
             {dashboardData.loading ? (
               <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -624,8 +837,10 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                 </div>
               </div>
             ) : (
-            <DashboardHome
+            <div>
+              <DashboardHome
                 studentData={{
+                  ...currentStudent,
                   ...student,
                   id: student.id
                 }}
@@ -638,12 +853,42 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                 handleApplyToJob={handleApplyToJob}
                 hasApplied={hasApplied}
                 applying={{}}
-              hideFooter
+                hideApplicationTracker={true}
+                hideJobPostings={true}
+                hideFooter={true}
+                isAdminView={true}
               />
+              {/* Add spacing at bottom after certifications */}
+              <div className="h-12"></div>
+            </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* CGPA Edit Modal */}
+      <EditCGPAModal
+        isOpen={isCGPAModalOpen}
+        onClose={() => setIsCGPAModalOpen(false)}
+        student={currentStudent || student}
+        onSave={async (studentId, updatedData) => {
+          try {
+            // For admin updates, include studentId in the request body
+            // The backend will check if user is admin and update the specified student
+            const updateData = { ...updatedData, studentId };
+            await updateStudentProfile(studentId, updateData);
+            // Update local state
+            setCurrentStudent(prev => ({ ...prev, cgpa: updatedData.cgpa }));
+            // Notify parent component if callback exists
+            if (onStudentUpdate) {
+              onStudentUpdate(studentId, updatedData);
+            }
+          } catch (error) {
+            console.error('Error updating CGPA:', error);
+            throw error;
+          }
+        }}
+      />
     </>
   );
 };
@@ -1632,7 +1877,7 @@ export default function StudentDirectory() {
                                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 }`}
                             >
-                              {operationLoading ? <Loader className="h-5 w-5 animate-spin" /> : <FaUserEdit className="text-md" />}
+                              {operationLoading ? <Loader className="h-5 w-5 animate-spin" /> : <FaEdit className="text-md" />}
                             </button>
                             <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                               {canModifyStudents() ? 'Edit Student' : 'Admin access required'}
@@ -1774,6 +2019,16 @@ export default function StudentDirectory() {
         onClose={handleCloseStudentView}
         student={selectedStudent}
         dashboardData={studentDashboardData}
+        onStudentUpdate={(studentId, updatedData) => {
+          // Update the student in the students list
+          setStudents(prev => prev.map(s => 
+            s.id === studentId ? { ...s, ...updatedData } : s
+          ));
+          // Update selected student if it's the same
+          if (selectedStudent?.id === studentId) {
+            setSelectedStudent(prev => ({ ...prev, ...updatedData }));
+          }
+        }}
       />
     </div>
   );

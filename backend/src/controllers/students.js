@@ -131,6 +131,24 @@ export async function updateStudentProfile(req, res) {
   try {
     const userId = req.userId;
     const profileData = req.body;
+    const userRole = req.user?.role;
+    
+    // For admin users, allow updating other students' profiles if studentId is provided
+    let targetUserId = userId;
+    if (userRole === 'ADMIN' && profileData.studentId) {
+      // Admin is updating another student's profile
+      const targetStudent = await prisma.student.findUnique({
+        where: { id: profileData.studentId },
+        select: { userId: true },
+      });
+      if (!targetStudent) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+      targetUserId = targetStudent.userId;
+      // Remove studentId from profileData as it's not a student field
+      delete profileData.studentId;
+    }
+    
     const hasProfilePhotoField = Object.prototype.hasOwnProperty.call(profileData, 'profilePhoto');
     const rawProfilePhoto = hasProfilePhotoField ? profileData.profilePhoto : undefined;
     const trimmedProfilePhoto =
@@ -139,18 +157,18 @@ export async function updateStudentProfile(req, res) {
 
     // Check if student exists first
     const existingStudent = await prisma.student.findUnique({
-      where: { userId },
+      where: { userId: targetUserId },
     });
 
     if (hasProfilePhotoField) {
-      await updateUserProfilePhoto(userId, normalizedProfilePhoto);
+      await updateUserProfilePhoto(targetUserId, normalizedProfilePhoto);
     }
 
     // If student doesn't exist, create it (defensive programming)
     if (!existingStudent) {
       // Get user info for default values
       const user = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: targetUserId },
         select: { email: true, role: true },
       });
 
@@ -214,7 +232,7 @@ export async function updateStudentProfile(req, res) {
 
       // Ensure required fields have defaults
       const studentData = {
-        userId,
+        userId: targetUserId,
         email: cleanData.email || user.email,
         fullName: cleanData.fullName || user.email, // Use email as fallback for name
         phone: cleanData.phone || null,
@@ -225,7 +243,7 @@ export async function updateStudentProfile(req, res) {
         ...cleanData, // Spread cleanData to include other fields like bio, headline, etc.
       };
 
-      console.log('Creating student with data:', { userId, email: studentData.email, fullName: studentData.fullName });
+      console.log('Creating student with data:', { userId: targetUserId, email: studentData.email, fullName: studentData.fullName });
 
       // Create student record with cleaned data
       const student = await prisma.student.create({
@@ -244,7 +262,7 @@ export async function updateStudentProfile(req, res) {
       if (cleanData.linkedin || cleanData.githubUrl || cleanData.youtubeUrl ||
           cleanData.leetcode || cleanData.codeforces || cleanData.gfg || cleanData.hackerrank) {
         try {
-          await syncCodingProfiles(userId, cleanData);
+          await syncCodingProfiles(targetUserId, cleanData);
         } catch (syncError) {
           console.warn('Failed to sync coding profiles during creation (non-fatal):', syncError);
         }
@@ -348,7 +366,7 @@ export async function updateStudentProfile(req, res) {
 
     // Update student profile
     const student = await prisma.student.update({
-      where: { userId },
+      where: { userId: targetUserId },
       data: cleanData,
       include: {
         skills: true,
@@ -364,7 +382,7 @@ export async function updateStudentProfile(req, res) {
     if (profileData.linkedin || profileData.githubUrl || profileData.youtubeUrl ||
         profileData.leetcode || profileData.codeforces || profileData.gfg || profileData.hackerrank) {
       try {
-        await syncCodingProfiles(userId, profileData);
+        await syncCodingProfiles(targetUserId, profileData);
       } catch (syncError) {
         // Log but don't fail the entire update if sync fails
         console.warn('Failed to sync coding profiles (non-fatal):', syncError);

@@ -3,7 +3,7 @@ import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
 
-const Achievements = () => {
+const Achievements = ({ isAdminView = false }) => {
   const { user } = useAuth();
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -306,7 +306,11 @@ const Achievements = () => {
           )}
           <button
             onClick={() => startEditing(achievement)}
-            className="text-gray-600 hover:text-blue-600 transition touch-manipulation p-1"
+            disabled={isAdminView}
+            className={`text-gray-600 transition touch-manipulation p-1 ${
+              isAdminView ? 'cursor-not-allowed' : 'hover:text-blue-600'
+            }`}
+            title={isAdminView ? 'Admin view - cannot edit achievements' : `Edit ${achievement.hasCertificate ? 'certification' : 'achievement'}`}
           >
             <Edit2 size={15} />
           </button>
@@ -367,12 +371,16 @@ const Achievements = () => {
           <div className="flex justify-end mb-4 mr-[-1%]">
             <button
               onClick={() => addNewAchievement(false)}
+              disabled={isAdminView}
               aria-label="Add new award"
               className={`rounded-full p-2 shadow transition ${
-                isAwardAddButtonActive 
+                isAdminView 
+                  ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                  : isAwardAddButtonActive 
                   ? 'bg-[#5e9ad6] hover:bg-[#4a7bb8]' 
                   : 'bg-[#8ec5ff] hover:bg-[#5e9ad6]'
               }`}
+              title={isAdminView ? 'Admin view - cannot add awards' : 'Add new award'}
             >
               <Plus size={18} className="text-white" />
             </button>
@@ -432,12 +440,16 @@ const Achievements = () => {
           <div className="flex justify-end mb-3 mr-[-1%]">
             <button
               onClick={() => addNewAchievement(true)}
+              disabled={isAdminView}
               aria-label="Add new certificate"
               className={`rounded-full p-2 shadow transition ${
-                isCertAddButtonActive 
+                isAdminView 
+                  ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                  : isCertAddButtonActive 
                   ? 'bg-[#5e9ad6] hover:bg-[#4a7bb8]' 
                   : 'bg-[#8ec5ff] hover:bg-[#5e9ad6]'
               }`}
+              title={isAdminView ? 'Admin view - cannot add certificates' : 'Add new certificate'}
             >
               <Plus size={18} className="text-white" />
             </button>

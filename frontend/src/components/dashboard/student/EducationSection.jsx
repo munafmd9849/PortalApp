@@ -10,7 +10,7 @@ import {
   getStudentProfile
 } from '../../../services/students';
 
-const EducationSection = () => {
+const EducationSection = ({ isAdminView = false }) => {
   const { user } = useAuth();
   const [educationEntries, setEducationEntries] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -229,22 +229,27 @@ const EducationSection = () => {
           <div className="flex gap-2">
             <button
               onClick={handleAddClick}
+              disabled={educationEntries.length >= 4 || isAdminView}
               aria-label="Add new education"
               className={`rounded-full p-2 shadow transition ${
-                isAddButtonActive 
+                isAdminView || educationEntries.length >= 4
+                  ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                  : isAddButtonActive 
                   ? 'bg-[#5e9ad6] hover:bg-[#4a7bb8]' 
                   : 'bg-[#8ec5ff] hover:bg-[#5e9ad6]'
               }`}
-              disabled={educationEntries.length >= 4}
+              title={isAdminView ? 'Admin view - cannot add education' : educationEntries.length >= 4 ? 'Maximum 4 education entries allowed' : 'Add new education'}
             >
               <Plus size={18} className="text-white" />
             </button>
             <button
               onClick={toggleEditMode}
+              disabled={isAdminView}
               aria-label={editMode ? 'Exit edit mode' : 'Edit education'}
-              className={`bg-[#8ec5ff] rounded-full p-2 shadow hover:bg-[#5e9ad6] transition flex items-center justify-center ${
+              className={`bg-[#8ec5ff] rounded-full p-2 shadow transition flex items-center justify-center ${
                 editMode ? 'bg-[#5e9ad6]' : ''
-              }`}
+              } ${isAdminView ? 'cursor-not-allowed' : 'hover:bg-[#5e9ad6]'}`}
+              title={isAdminView ? 'Admin view - cannot edit education' : (editMode ? 'Exit edit mode' : 'Edit education')}
             >
               <Edit3 size={17} className="text-white" />
             </button>

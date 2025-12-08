@@ -28,7 +28,11 @@ const DashboardHome = ({
   loadingSkills = false,
   handleApplyToJob,
   hasApplied,
-  applying = {}
+  applying = {},
+  hideApplicationTracker = false,
+  hideJobPostings = false,
+  hideFooter = false,
+  isAdminView = false
 }) => {
   const { user } = useAuth();
   const [error, setError] = useState('');
@@ -123,40 +127,46 @@ const DashboardHome = ({
       <DashboardStatsSection studentData={formattedStudentData} />
 
       {/* Live Application Tracker Section */}
-      <ApplicationTrackerSection 
-        applications={applications} 
-        onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
-      />
+      {!hideApplicationTracker && (
+        <ApplicationTrackerSection 
+          applications={applications} 
+          onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
+        />
+      )}
 
       {/* Latest Job Postings Section */}
-      <JobPostingsSection 
-        jobs={jobs} 
-        onKnowMore={handleKnowMore} 
-        onApply={handleApplyToJob}
-        hasApplied={hasApplied}
-        applying={applying}
-        onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
-      />
+      {!hideJobPostings && (
+        <JobPostingsSection 
+          jobs={jobs} 
+          onKnowMore={handleKnowMore} 
+          onApply={handleApplyToJob}
+          hasApplied={hasApplied}
+          applying={applying}
+          onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
+        />
+      )}
 
       {/* Education Section */}
-      <EducationSection />
+      <EducationSection isAdminView={isAdminView} />
 
       {/* Skills Section */}
-      <SkillsSection />
+      <SkillsSection isAdminView={isAdminView} />
 
       {/* Projects Section */}
-      <ProjectsSection studentId={user?.id} />
+      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
 
       {/* Achievements & Certifications Section */}
-      <Achievements />
+      <Achievements isAdminView={isAdminView} />
 
       {/* Student Footer */}
-      <div>
-        <StudentFooter
-          onPlacementPolicy={openPlacementPolicy}
-          onContactTeam={contactAdmin}
-        />
-      </div>
+      {!hideFooter && (
+        <div>
+          <StudentFooter
+            onPlacementPolicy={openPlacementPolicy}
+            onContactTeam={contactAdmin}
+          />
+        </div>
+      )}
 
       {/* Job Description Modal */}
       <JobDescription 

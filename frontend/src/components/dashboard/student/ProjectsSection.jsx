@@ -9,7 +9,7 @@ import {
   generateProjectContent
 } from '../../../services/students';
 
-const ProjectsSection = () => {
+const ProjectsSection = ({ studentId, isAdminView = false }) => {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -261,13 +261,16 @@ const ProjectsSection = () => {
         <div className="flex justify-end mb-3 mr-[-1%]">
           <button
             onClick={addNewProject}
+            disabled={loading || isAdminView}
             aria-label="Add new project"
-            className={`rounded-full p-2 shadow transition disabled:opacity-50 ${
-              isAddButtonActive 
+            className={`rounded-full p-2 shadow transition ${
+              isAdminView 
+                ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                : isAddButtonActive 
                 ? 'bg-[#5e9ad6] hover:bg-[#4a7bb8]' 
                 : 'bg-[#8ec5ff] hover:bg-[#5e9ad6]'
             }`}
-            disabled={loading}
+            title={isAdminView ? 'Admin view - cannot add projects' : 'Add new project'}
           >
             <Plus size={18} className="text-white" />
           </button>
@@ -514,8 +517,11 @@ const ProjectsSection = () => {
                       <button
                         onClick={() => startEditing(index)}
                         aria-label={`Edit project ${project.title}`}
-                        className="text-gray-600 hover:text-blue-600 transition disabled:opacity-50 touch-manipulation p-1"
-                        disabled={loading}
+                        className={`text-gray-600 transition touch-manipulation p-1 ${
+                          isAdminView ? 'cursor-not-allowed' : 'hover:text-blue-600'
+                        } ${loading ? 'opacity-50' : ''}`}
+                        disabled={loading || isAdminView}
+                        title={isAdminView ? 'Admin view - cannot edit projects' : `Edit project ${project.title}`}
                       >
                         <Edit2 size={15} />
                       </button>
