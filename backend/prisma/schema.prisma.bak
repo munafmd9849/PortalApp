@@ -1,0 +1,581 @@
+// Prisma Schema for PWIOI Placement Portal
+// Migrated from Firebase Firestore to PostgreSQL/SQLite
+// Compatible with both for development (SQLite) and production (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // SQLite for development, PostgreSQL for production
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & USERS
+// ============================================================================
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String   // Hashed password (replaces Firebase Auth)
+  role              String   @default("STUDENT") // UserRole: STUDENT, RECRUITER, ADMIN, SUPER_ADMIN
+  status            String   @default("PENDING") // UserStatus: ACTIVE, PENDING, REJECTED, BLOCKED
+  emailVerified     Boolean  @default(false)
+  emailVerifiedAt   DateTime?
+  recruiterVerified Boolean  @default(false) // For recruiter role
+  
+  // Profile fields (varies by role)
+  displayName       String?
+  profilePhoto      String?  // S3 URL
+  
+  // Block info
+  blockInfo         Json?    // { type, endDate, reason, notes, blockedBy, blockedAt }
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  student           Student?
+  recruiter         Recruiter?
+  admin             Admin?
+  
+  // Auth relations
+  refreshTokens     RefreshToken[]
+  notifications     Notification[]
+  queries           StudentQuery[]
+  adminRequests     AdminRequest[]
+  
+  @@index([email])
+  @@index([role, status])
+  @@map("users")
+}
+
+// Enums converted to String for SQLite compatibility
+// UserRole: "STUDENT", "RECRUITER", "ADMIN", "SUPER_ADMIN"
+// UserStatus: "ACTIVE", "PENDING", "REJECTED", "BLOCKED"
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model OTP {
+  id        String   @id @default(uuid())
+  email     String
+  otp       String   // 6-digit OTP
+  purpose   String   @default("VERIFY_EMAIL") // VERIFY_EMAIL, RESET_PASSWORD, etc.
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([email, purpose, isUsed])
+  @@index([expiresAt])
+  @@map("otps")
+}
+
+// ============================================================================
+// STUDENT PROFILES
+// ============================================================================
+
+model Student {
+  id           String  @id @default(uuid())
+  userId       String  @unique
+  
+  // Basic Info
+  fullName     String
+  email        String  @unique
+  phone        String
+  enrollmentId String  @unique
+  cgpa         Float?
+  
+  // Academic Info
+  batch        String  // e.g., "25-29"
+  center       String  // e.g., "BANGALORE", "NOIDA"
+  school       String  // e.g., "SOT", "SOM", "SOH"
+  
+  // Profile
+  bio          String?
+  headline     String?
+  city         String?
+  stateRegion  String?
+  jobFlexibility String?
+  
+  // Social Profiles
+  linkedin     String?
+  githubUrl    String?
+  youtubeUrl   String?
+  leetcode     String?
+  codeforces   String?
+  gfg          String?
+  hackerrank   String?
+  
+  // Resume
+  resumeUrl    String?  // S3 URL
+  resumeFileName String?
+  resumeUploadedAt DateTime?
+  
+  // Statistics
+  statsApplied     Int @default(0)
+  statsShortlisted Int @default(0)
+  statsInterviewed Int @default(0)
+  statsOffers      Int @default(0)
+  
+  // Email preferences
+  emailNotificationsDisabled Boolean @default(false)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications Application[]
+  skills       Skill[]
+  education    Education[]
+  projects     Project[]
+  achievements Achievement[]
+  certifications Certification[]
+  jobTracking  JobTracking[]
+  codingProfiles CodingProfile[]
+  
+  @@index([center, batch])
+  @@index([school, batch])
+  @@index([emailNotificationsDisabled, createdAt])
+  @@map("students")
+}
+
+// Student Skills (array-based, stored as separate table)
+model Skill {
+  id        String   @id @default(uuid())
+  studentId String
+  skillName String
+  rating    Int      @default(1) // 1-5
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId, skillName])
+  @@index([studentId, skillName])
+  @@map("skills")
+}
+
+// Educational Background
+model Education {
+  id          String   @id @default(uuid())
+  studentId   String
+  degree      String
+  institution String
+  startYear   Int?
+  endYear     Int?
+  cgpa        Float?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, endYear(sort: Desc)])
+  @@map("education")
+}
+
+// Projects
+model Project {
+  id           String   @id @default(uuid())
+  studentId    String
+  title        String
+  description  String?
+  technologies String[] // Array of technologies
+  githubUrl    String?
+  liveUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, createdAt(sort: Desc)])
+  @@map("projects")
+}
+
+// Achievements
+model Achievement {
+  id             String   @id @default(uuid())
+  studentId      String
+  title          String
+  description    String?
+  date           DateTime?
+  hasCertificate Boolean  @default(false)
+  certificateUrl String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, createdAt(sort: Desc)])
+  @@map("achievements")
+}
+
+// Certifications (separate from achievements for clarity)
+model Certification {
+  id             String   @id @default(uuid())
+  studentId      String
+  title          String
+  description    String?
+  issuedDate     DateTime?
+  expiryDate     DateTime?
+  certificateUrl String?
+  issuer         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, issuedDate(sort: Desc)])
+  @@map("certifications")
+}
+
+// Coding Profiles
+model CodingProfile {
+  id        String   @id @default(uuid())
+  studentId String
+  platform  String   // 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'github', 'linkedin', 'youtube'
+  profileUrl String
+  username  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId, platform])
+  @@index([studentId, platform])
+  @@map("coding_profiles")
+}
+
+// ============================================================================
+// COMPANIES
+// ============================================================================
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  logo        String?  // S3 URL
+  website     String?
+  location    String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  jobs        Job[]
+  recruiters  Recruiter[]
+  
+  @@index([name])
+  @@map("companies")
+}
+
+// ============================================================================
+// RECRUITERS
+// ============================================================================
+
+model Recruiter {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  
+  // Company info (can be null if not linked to company)
+  companyId       String?
+  companyName     String?  // If not in companies table
+  location        String?
+  
+  // Additional info
+  relationshipType String?  // 'Partner Company', etc.
+  zone            String?   // 'North Zone', etc.
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company         Company? @relation(fields: [companyId], references: [id])
+  jobs            Job[]
+  
+  @@index([userId])
+  @@map("recruiters")
+}
+
+// ============================================================================
+// JOBS
+// ============================================================================
+
+model Job {
+  id                String   @id @default(uuid())
+  
+  // Basic Info
+  jobTitle          String
+  description       String   @db.Text
+  requirements      String[] // Array of requirements
+  requiredSkills    String[] // Array of skills
+  
+  // Company & Recruiter
+  companyId         String?
+  recruiterId       String?
+  companyName       String?  // Fallback if companyId is null
+  
+  // Compensation
+  salary            String?  // Can be number or range string
+  ctc               String?
+  salaryRange       String?
+  
+  // Location & Dates
+  location          String?
+  companyLocation   String?
+  driveDate         DateTime?
+  applicationDeadline DateTime?
+  
+  // Job Details
+  jobType           String?  // 'Full-time', 'Internship', etc.
+  experienceLevel   String?
+  driveVenues       String[] // Array of venue strings
+  
+  // SPOCs (Single Point of Contact)
+  spocs             Json     // Array of { fullName, email, phone }
+  
+  // Status
+  status            String   @default("DRAFT") // JobStatus: DRAFT, IN_REVIEW, POSTED, ACTIVE, ARCHIVED, REJECTED
+  isActive          Boolean  @default(false)
+  isPosted          Boolean  @default(false)
+  
+  // Targeting
+  targetSchools     String[] // Array of schools or ["ALL"]
+  targetCenters     String[] // Array of centers or ["ALL"]
+  targetBatches     String[] // Array of batches or ["ALL"]
+  
+  // Approval/Rejection
+  submittedAt       DateTime?
+  postedAt          DateTime?
+  postedBy          String?  // Admin user ID
+  approvedAt        DateTime?
+  approvedBy        String?  // Admin user ID
+  rejectedAt        DateTime?
+  rejectedBy        String?  // Admin user ID
+  rejectionReason   String?  @db.Text
+  archivedAt        DateTime?
+  archivedBy        String?  // Admin user ID
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  company           Company?     @relation(fields: [companyId], references: [id])
+  recruiter         Recruiter?   @relation(fields: [recruiterId], references: [id])
+  applications      Application[]
+  jobTracking       JobTracking[]
+  
+  @@index([status, createdAt(sort: Desc)])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@index([recruiterId, createdAt(sort: Desc)])
+  @@index([isPosted, createdAt(sort: Desc)])
+  @@map("jobs")
+}
+
+// JobStatus: "DRAFT", "IN_REVIEW", "POSTED", "ACTIVE", "ARCHIVED", "REJECTED"
+
+// Job Tracking (tracks which students have seen/available jobs)
+model JobTracking {
+  id        String   @id @default(uuid())
+  studentId String
+  jobId     String
+  isNew     Boolean  @default(true)
+  viewed    Boolean  @default(false)
+  viewedAt  DateTime?
+  applied   Boolean  @default(false)
+  appliedAt DateTime?
+  createdAt DateTime @default(now())
+  
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId, jobId])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([jobId])
+  @@index([studentId, viewed])
+  @@map("job_tracking")
+}
+
+// ============================================================================
+// APPLICATIONS
+// ============================================================================
+
+model Application {
+  id            String   @id @default(uuid())
+  studentId     String
+  jobId         String
+  companyId     String?
+  
+  status        String @default("APPLIED") // ApplicationStatus: APPLIED, SHORTLISTED, INTERVIEWED, OFFERED, SELECTED, REJECTED, JOB_REMOVED
+  appliedDate   DateTime @default(now()) // Date only (YYYY-MM-DD)
+  interviewDate DateTime?
+  
+  // Additional notes
+  notes         String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId, jobId]) // One application per student per job
+  @@index([studentId, appliedDate(sort: Desc)])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([jobId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("applications")
+}
+
+// ApplicationStatus: "APPLIED", "SHORTLISTED", "INTERVIEWED", "OFFERED", "SELECTED", "REJECTED", "JOB_REMOVED"
+
+// ============================================================================
+// RESUMES
+// ============================================================================
+
+model Resume {
+  id           String   @id @default(uuid())
+  userId       String
+  resumeId     String   @default("default") // For multiple resumes
+  
+  // Content
+  originalText String   @db.Text @default("")
+  enhancedText String   @db.Text @default("")
+  previewMode  String   @default("original") // 'original' | 'enhanced'
+  
+  // File info
+  fileUrl      String?  // S3 URL
+  fileName     String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, resumeId])
+  @@index([userId, resumeId])
+  @@map("resumes")
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String   @db.Text
+  data      Json     @default("{}") // Type-specific data
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// Email Notifications Queue
+model EmailNotification {
+  id         String   @id @default(uuid())
+  jobId      String?
+  userId     String?
+  status     String @default("PENDING") // EmailStatus: PENDING, SENT, FAILED
+  recipients String[] // Array of email addresses
+  subject    String?
+  body       String?  @db.Text
+  error      String?  @db.Text
+  sentAt     DateTime?
+  createdAt  DateTime @default(now())
+  
+  @@index([status, createdAt])
+  @@index([jobId, createdAt(sort: Desc)])
+  @@map("email_notifications")
+}
+
+// EmailStatus: "PENDING", "SENT", "FAILED"
+
+// ============================================================================
+// STUDENT QUERIES (Support Tickets)
+// ============================================================================
+
+model StudentQuery {
+  id        String   @id @default(uuid())
+  studentId String
+  subject   String
+  message   String   @db.Text
+  status    String @default("OPEN") // QueryStatus: OPEN, RESOLVED, CLOSED
+  response  String?  @db.Text
+  respondedBy String? // Admin user ID
+  respondedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("student_queries")
+}
+
+// QueryStatus: "OPEN", "RESOLVED", "CLOSED"
+
+// ============================================================================
+// ADMIN REQUESTS
+// ============================================================================
+
+model AdminRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  email       String
+  reason      String?  @db.Text
+  status      String @default("PENDING") // RequestStatus: PENDING, APPROVED, REJECTED
+  requestedAt DateTime @default(now())
+  approvedAt  DateTime?
+  approvedBy  String?  // Admin user ID
+  rejectedAt  DateTime?
+  rejectedBy  String?  // Admin user ID
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([status, requestedAt(sort: Desc)])
+  @@map("admin_requests")
+}
+
+// RequestStatus: "PENDING", "APPROVED", "REJECTED"
+
+// ============================================================================
+// ADMIN MODEL (Additional admin-specific data)
+// ============================================================================
+
+model Admin {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("admins")
+}
