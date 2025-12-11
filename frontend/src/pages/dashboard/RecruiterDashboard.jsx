@@ -1,10 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FiHome, FiBriefcase, FiUsers, FiCalendar, FiMessageSquare, FiBarChart2, FiSettings, FiLogOut } from 'react-icons/fi';
+import { SquarePen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PWIOILOGO from '../../assets/images/brand_logo.webp';
 import Dashboard from '../recruiter/dashboard';
 import JobPostings from '../recruiter/JobPostings';
+import RecruiterCalendar from '../../components/dashboard/recruiter/RecruiterCalendar';
+import RecruiterAnalytics from '../../components/dashboard/recruiter/RecruiterAnalytics';
+import CompanyHistory from '../../components/dashboard/recruiter/CompanyHistory';
+import HelpSupport from '../../components/dashboard/recruiter/HelpSupport';
+import Recommendations from '../../components/dashboard/recruiter/Recommendations';
+import RecruiterProfile from '../../components/dashboard/recruiter/RecruiterProfile';
 import { useAuth } from '../../hooks/useAuth';
+import api from '../../services/api';
 
 const RecruiterDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -12,17 +20,37 @@ const RecruiterDashboard = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [recruiterProfile, setRecruiterProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },
     { id: 'jobPostings', label: 'Job Postings', icon: FiBriefcase },
-    { id: 'candidates', label: 'Candidates', icon: FiUsers },
+    { id: 'recommendations', label: 'Recommendations', icon: FiUsers },
     { id: 'calendar', label: 'Calendar', icon: FiCalendar },
-    { id: 'messages', label: 'Messages', icon: FiMessageSquare },
     { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
-    { id: 'settings', label: 'Settings', icon: FiSettings },
+    { id: 'history', label: 'Company History', icon: FiBriefcase },
+    { id: 'help', label: 'Help & Support', icon: FiMessageSquare },
+    { id: 'profile', label: 'Profile', icon: FiSettings },
   ];
+
+  // Load recruiter profile
+  useEffect(() => {
+    loadRecruiterProfile();
+  }, [user]);
+
+  const loadRecruiterProfile = async () => {
+    try {
+      setLoading(true);
+      const userData = await api.getCurrentUser();
+      setRecruiterProfile(userData.user);
+    } catch (error) {
+      console.error('Error loading recruiter profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -82,18 +110,20 @@ const RecruiterDashboard = () => {
         return <Dashboard />;
       case 'jobPostings':
         return <JobPostings/>;
-      case 'candidates':
-        return <div>Candidates Content</div>;
+      case 'recommendations':
+        return <Recommendations />;
       case 'calendar':
-        return <div>Calendar Content</div>;
-      case 'messages':
-        return <div>Messages Content</div>;
+        return <RecruiterCalendar />;
       case 'analytics':
-        return <div>Analytics Content</div>;
-      case 'settings':
-        return <div>Settings Content</div>;
+        return <RecruiterAnalytics />;
+      case 'history':
+        return <CompanyHistory />;
+      case 'help':
+        return <HelpSupport />;
+      case 'profile':
+        return <RecruiterProfile />;
       default:
-        return <div>Recruiter Dashboard Content</div>;
+        return <Dashboard />;
     }
   };
 
@@ -108,8 +138,20 @@ const RecruiterDashboard = () => {
             <div className="flex justify-between items-center h-23 gap-2 relative">
               <div className="ml-4 space-y-0">
                 <div className="flex items-center">
-                  <h2 className="text-2xl font-bold text-black flex items-center">
-                    Welcome, Recruiter!
+                  <h2 className="text-2xl font-bold text-black flex items-center gap-2">
+                    {loading ? 'Loading...' : (recruiterProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Recruiter')}
+                    <button
+                      onClick={() => {
+                        setActiveTab('profile');
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('editProfileClicked'));
+                        }, 100);
+                      }}
+                      className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50 cursor-pointer"
+                      aria-label="Edit profile"
+                    >
+                      <SquarePen className="h-3 w-3 absolute start-0" />
+                    </button>
                   </h2>
                 </div>
                 <div className='ml-2 -mt-0 mb-1 italic'>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, Info, Plus, X, Loader, ChevronUp, ChevronDown } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronUp, ChevronDown, CheckCircle, XCircle, Pause } from 'lucide-react';
 import CreateJob from '../../components/dashboard/admin/CreateJob.jsx';
+import api from '../../services/api';
 
 const ErrorBoundary = ({ children }) => {
   try {
@@ -11,14 +12,34 @@ const ErrorBoundary = ({ children }) => {
   }
 };
 
+// Sync function to update admin and student dashboards
+const syncJobStatusUpdate = async (jobId, newStatus) => {
+  try {
+    // TODO: Replace with actual API call
+    // await api.syncJobStatusUpdate(jobId, newStatus);
+    
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('jobStatusUpdated', {
+      detail: { jobId, status: newStatus }
+    }));
+    
+    console.log(`Job status synced: ${jobId} -> ${newStatus}`);
+  } catch (error) {
+    console.error('Error syncing job status:', error);
+    throw error;
+  }
+};
+
 const JobPostings = () => {
   const [activeView, setActiveView] = useState('active');
+  const [updatingStatus, setUpdatingStatus] = useState({});
 
-  // Mock data for job postings
+  // Mock data for job postings with status management
   const [jobs, setJobs] = useState([
-    { id: '1', title: 'Frontend Developer', company: 'WebTech', status: 'Live', applications: 24, views: 153, datePosted: '2023-10-26' },
-    { id: '2', title: 'Data Scientist', company: 'DataCorp', status: 'Live', applications: 42, views: 287, datePosted: '2023-10-25' },
-    { id: '3', title: 'DevOps Engineer', company: 'Cloudify', status: 'Pending Approval', applications: 0, views: 15, datePosted: '2023-10-27' },
+    { id: '1', title: 'Frontend Developer', company: 'WebTech', status: 'Active', applications: 24, views: 153, datePosted: '2023-10-26' },
+    { id: '2', title: 'Data Scientist', company: 'DataCorp', status: 'Active', applications: 42, views: 287, datePosted: '2023-10-25' },
+    { id: '3', title: 'DevOps Engineer', company: 'Cloudify', status: 'On Hold', applications: 0, views: 15, datePosted: '2023-10-27' },
+    { id: '4', title: 'Backend Developer', company: 'TechCorp', status: 'Closed', applications: 15, views: 89, datePosted: '2023-09-15' },
   ]);
 
   // Mock data for drafts
@@ -27,9 +48,37 @@ const JobPostings = () => {
     { id: 'd2', title: 'Backend Engineer', company: 'ServerStack', lastModified: '2023-10-23' },
   ]);
 
+  // Handle job status update
+  const handleStatusUpdate = async (jobId, newStatus) => {
+    try {
+      setUpdatingStatus(prev => ({ ...prev, [jobId]: true }));
+      
+      // Update local state
+      setJobs(prev => prev.map(job => 
+        job.id === jobId ? { ...job, status: newStatus } : job
+      ));
+      
+      // TODO: Replace with actual API call
+      // await api.updateJobStatus(jobId, newStatus);
+      
+      // Sync with admin and student dashboards
+      await syncJobStatusUpdate(jobId, newStatus);
+      
+      alert(`Job status updated to ${newStatus}. Changes have been synced to admin and student dashboards.`);
+    } catch (error) {
+      console.error('Error updating job status:', error);
+      alert('Failed to update job status. Please try again.');
+      // Revert local state on error
+      setJobs(prev => prev.map(job => 
+        job.id === jobId ? { ...job, status: jobs.find(j => j.id === jobId)?.status } : job
+      ));
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [jobId]: false }));
+    }
+  };
+
   const handleCloseJob = (jobId) => {
-    console.log('Closing job:', jobId);
-    alert(`Job ${jobId} closed.`);
+    handleStatusUpdate(jobId, 'Closed');
   };
 
   const handleCloneJob = (jobId) => {
@@ -47,14 +96,30 @@ const JobPostings = () => {
   const renderActiveView = () => {
     switch (activeView) {
       case 'active':
-        return <ActivePostingsView jobs={jobs} onCloseJob={handleCloseJob} onCloneJob={handleCloneJob} />;
+        return (
+          <ActivePostingsView 
+            jobs={jobs} 
+            onCloseJob={handleCloseJob} 
+            onCloneJob={handleCloneJob}
+            onStatusUpdate={handleStatusUpdate}
+            updatingStatus={updatingStatus}
+          />
+        );
       case 'drafts':
         return <DraftPostingsView drafts={drafts} />;
       case 'new':
         // UPDATED: This now directly renders the CreateJob component with three creation methods inside it
         return <CreateJob onCreated={handleJobCreated} />;
       default:
-        return <ActivePostingsView jobs={jobs} onCloseJob={handleCloseJob} onCloneJob={handleCloneJob} />;
+        return (
+          <ActivePostingsView 
+            jobs={jobs} 
+            onCloseJob={handleCloseJob} 
+            onCloneJob={handleCloneJob}
+            onStatusUpdate={handleStatusUpdate}
+            updatingStatus={updatingStatus}
+          />
+        );
     }
   };
 
@@ -107,10 +172,36 @@ const JobPostings = () => {
   );
 };
 
-// Sub-components (EXACTLY AS ORIGINAL)
-const ActivePostingsView = ({ jobs, onCloseJob, onCloneJob }) => {
+// Sub-components with Job Management Panel
+const ActivePostingsView = ({ jobs, onCloseJob, onCloneJob, onStatusUpdate, updatingStatus }) => {
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState({});
+
+  const toggleStatusDropdown = (jobId) => {
+    setStatusDropdownOpen(prev => ({
+      ...prev,
+      [jobId]: !prev[jobId]
+    }));
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Active':
+        return 'bg-green-100 text-green-800';
+      case 'Closed':
+        return 'bg-red-100 text-red-800';
+      case 'On Hold':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="p-4 bg-blue-50 border-b border-blue-200">
+        <h3 className="text-lg font-semibold text-gray-800">Job Management Panel</h3>
+        <p className="text-sm text-gray-600 mt-1">Manage all your job postings and update their status</p>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -131,10 +222,47 @@ const ActivePostingsView = ({ jobs, onCloseJob, onCloneJob }) => {
                   <div className="text-sm text-gray-500">{job.company}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${job.status === 'Live' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                    {job.status}
-                  </span>
+                  <div className="relative">
+                    <button
+                      onClick={() => toggleStatusDropdown(job.id)}
+                      disabled={updatingStatus[job.id]}
+                      className={`px-3 py-1 inline-flex items-center text-xs leading-5 font-semibold rounded-full ${getStatusColor(job.status)} ${
+                        updatingStatus[job.id] ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80 cursor-pointer'
+                      }`}
+                    >
+                      {updatingStatus[job.id] ? (
+                        <>
+                          <Loader className="w-3 h-3 mr-1 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          {job.status}
+                          <ChevronDown className="w-3 h-3 ml-1" />
+                        </>
+                      )}
+                    </button>
+                    {statusDropdownOpen[job.id] && !updatingStatus[job.id] && (
+                      <div className="absolute z-10 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200">
+                        <div className="py-1">
+                          {['Active', 'On Hold', 'Closed'].map((status) => (
+                            <button
+                              key={status}
+                              onClick={() => {
+                                onStatusUpdate(job.id, status);
+                                setStatusDropdownOpen(prev => ({ ...prev, [job.id]: false }));
+                              }}
+                              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                                job.status === status ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                              }`}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{job.applications}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{job.views}</td>
@@ -149,9 +277,6 @@ const ActivePostingsView = ({ jobs, onCloseJob, onCloneJob }) => {
                     </button>
                     <button title="Clone" onClick={() => onCloneJob(job.id)} className="text-gray-400 hover:text-purple-600 p-1 rounded hover:bg-gray-100">
                       <CopyIcon />
-                    </button>
-                    <button title="Close Job" onClick={() => onCloseJob(job.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-gray-100">
-                      <ArchiveIcon />
                     </button>
                   </div>
                 </td>
