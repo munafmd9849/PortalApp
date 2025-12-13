@@ -25,6 +25,7 @@ import adminRequestRoutes from './routes/adminRequests.js';
 import recruiterRoutes from './routes/recruiters.js';
 import contactRoutes from './routes/contact.js';
 import searchRoutes from './routes/search.js';
+import interviewRoutes from './routes/interviews.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -129,6 +130,7 @@ app.use('/api/admin-requests', adminRequestRoutes);
 app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/admin/interview', interviewRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

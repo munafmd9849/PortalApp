@@ -45,18 +45,26 @@ export default function AuthRedirect() {
 
       // Public paths that authenticated users can visit without redirect
       const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
+      
+      // Admin sub-routes that should not redirect
+      const isAdminSubRoute = roleLower === 'admin' && (
+        currentPath.startsWith('/admin/interview-session/') ||
+        currentPath.startsWith('/admin/assessment/') ||
+        currentPath.startsWith('/admin/job/')
+      );
 
       // Only redirect if:
       // 1. We have a target dashboard
       // 2. We're NOT on a public path
-      // 3. We're NOT already on the target dashboard
-      // 4. We haven't already redirected in this session
-      if (targetDashboard && !publicPaths.includes(currentPath) && currentPath !== targetDashboard && !hasRedirectedRef.current) {
+      // 3. We're NOT on an admin sub-route
+      // 4. We're NOT already on the target dashboard
+      // 5. We haven't already redirected in this session
+      if (targetDashboard && !publicPaths.includes(currentPath) && !isAdminSubRoute && currentPath !== targetDashboard && !hasRedirectedRef.current) {
         console.log(`AuthRedirect - Redirecting authenticated user from ${currentPath} to ${targetDashboard}`);
         hasRedirectedRef.current = true;
         navigate(targetDashboard, { replace: true });
-      } else if (currentPath === targetDashboard) {
-        // We're on the correct dashboard - allow navigation to stay
+      } else if (currentPath === targetDashboard || isAdminSubRoute) {
+        // We're on the correct dashboard or admin sub-route - allow navigation to stay
         hasRedirectedRef.current = false;
       }
     } else if (user && !role) {
@@ -70,9 +78,10 @@ export default function AuthRedirect() {
       hasRedirectedRef.current = false;
     }
     
-    // Note: We intentionally do NOT include location.pathname in dependencies
-    // to prevent re-running on every path change. We manually check it above.
-  }, [user, role, loading, navigate]); // Removed location.pathname from deps
+    // Note: We intentionally do NOT include location in dependencies
+    // to prevent infinite loops. The effect only re-runs when user, role, or loading changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, role, loading, navigate]);
 
   return null; // This component doesn't render anything
 }

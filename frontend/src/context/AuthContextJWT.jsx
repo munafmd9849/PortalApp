@@ -39,7 +39,9 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        // Call API directly - let it handle its own timeouts
         const data = await api.getCurrentUser();
+        
         const userData = data.user;
 
         setUser(userData);
@@ -47,13 +49,14 @@ export function AuthProvider({ children }) {
         setEmailVerified(userData.emailVerified || false);
         setUserStatus(userData.status || 'ACTIVE');
 
-      // Initialize Socket.IO connection (only once)
-      if (userData && !socketInitializedRef.current) {
-        socketInitializedRef.current = true;
-        initSocket();
-      }
+        // Initialize Socket.IO connection (only once)
+        if (userData && !socketInitializedRef.current) {
+          socketInitializedRef.current = true;
+          initSocket();
+        }
       } catch (error) {
         console.error('Failed to load user:', error);
+        // Clear tokens and set loading to false even on error
         api.clearAuthTokens();
         setUser(null);
         setRole(null);
@@ -61,6 +64,7 @@ export function AuthProvider({ children }) {
         setUserStatus(null);
         userLoadedRef.current = false; // Allow retry on error
       } finally {
+        // Always set loading to false, even if there's an error
         setLoading(false);
       }
     }
