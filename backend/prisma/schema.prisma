@@ -151,6 +151,7 @@ model Student {
   certifications Certification[]
   jobTracking  JobTracking[]
   codingProfiles CodingProfile[]
+  interviewEvaluations InterviewEvaluation[]
   resumeFiles  StudentResumeFile[]
   
   @@index([center, batch])
@@ -406,6 +407,7 @@ model Job {
   recruiter         Recruiter?   @relation(fields: [recruiterId], references: [id])
   applications      Application[]
   jobTracking       JobTracking[]
+  interviews        Interview[]
   
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
@@ -626,4 +628,76 @@ model Admin {
   
   @@index([userId])
   @@map("admins")
+}
+
+// ============================================================================
+// INTERVIEW SESSIONS
+// ============================================================================
+
+model Interview {
+  id                String   @id @default(uuid())
+  jobId             String
+  companyId         String?
+  status            String   @default("ONGOING") // InterviewStatus: ONGOING, COMPLETED, CANCELLED
+  currentRound      String?  // Name of the current round
+  rounds            String   @default("[]") // JSON array of rounds: [{ name, criteria, status }]
+  
+  // Statistics
+  totalCandidates   Int      @default(0)
+  doneCandidates    Int      @default(0)
+  pendingCandidates Int      @default(0)
+  selectedCandidates Int     @default(0)
+  onHoldCandidates  Int      @default(0)
+  
+  // Timestamps
+  startedAt         DateTime @default(now())
+  completedAt       DateTime?
+  
+  // Relations
+  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  evaluations       InterviewEvaluation[]
+  activities        InterviewActivity[]
+  
+  @@unique([jobId])
+  @@index([status, startedAt(sort: Desc)])
+  @@index([jobId])
+  @@map("interviews")
+}
+
+model InterviewEvaluation {
+  id          String   @id @default(uuid())
+  interviewId String
+  studentId   String
+  roundName   String
+  marks       Float?
+  remarks     String?
+  status      String?  // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
+  evaluatedBy String?  // User ID of the evaluator
+  evaluatedAt DateTime @default(now())
+  
+  // Relations
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([interviewId, studentId, roundName])
+  @@index([interviewId, roundName])
+  @@index([studentId])
+  @@map("interview_evaluations")
+}
+
+model InterviewActivity {
+  id           String   @id @default(uuid())
+  interviewId  String
+  studentId    String?
+  roundName    String?
+  activityType String   // ActivityType: EVALUATION, ROUND_STARTED, ROUND_COMPLETED, SESSION_ENDED
+  message      String
+  performedBy  String?  // User ID
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  
+  @@index([interviewId, createdAt(sort: Desc)])
+  @@map("interview_activities")
 }

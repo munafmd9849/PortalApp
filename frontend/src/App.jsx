@@ -24,6 +24,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
+import InterviewSessionPage from './pages/InterviewSessionPage'
+import Assessment from './pages/Assessment'
 import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
@@ -199,8 +201,10 @@ function AppContent() {
         </Route>
 
         <Route element={<ProtectedRoute allowRoles={['admin']} />}>
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
+          <Route path="/admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Route>
 
         {/* Catch all route */}
