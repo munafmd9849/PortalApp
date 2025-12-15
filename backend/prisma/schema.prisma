@@ -121,6 +121,7 @@ model Student {
   codeforces   String?
   gfg          String?
   hackerrank   String?
+  otherProfiles String?  // JSON string: [{platformName: string, profileId: string}]
   
   // Resume
   resumeUrl    String?  // S3 URL

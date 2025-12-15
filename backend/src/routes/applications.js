@@ -19,6 +19,9 @@ router.get('/', requireRole(['ADMIN']), applicationController.getAllApplications
 // Get student's applications (student only)
 router.get('/student', requireRole(['STUDENT']), applicationController.getStudentApplications);
 
+// Get student's interview history with rounds (student only)
+router.get('/student/interview-history', requireRole(['STUDENT']), applicationController.getStudentInterviewHistory);
+
 // Apply to job
 router.post('/jobs/:jobId', requireRole(['STUDENT']), applicationController.applyToJob);
 

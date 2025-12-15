@@ -245,15 +245,29 @@ export async function createJob(req, res) {
     const companyName = jobData.companyName || jobData.company;
     let companyId = jobData.companyId;
     if (!companyId && companyName) {
+      // Prepare company data including website
+      const companyData = {
+        name: companyName,
+        location: jobData.companyLocation || null,
+        website: jobData.website || null,
+      };
+      
       const company = await prisma.company.upsert({
         where: { name: companyName },
-        update: {},
-        create: {
-          name: companyName,
-          location: jobData.companyLocation,
+        update: {
+          // Update website and location if provided (but don't overwrite existing with null)
+          ...(jobData.website && { website: jobData.website }),
+          ...(jobData.companyLocation && { location: jobData.companyLocation }),
         },
+        create: companyData,
       });
       companyId = company.id;
+    } else if (companyId && jobData.website) {
+      // If companyId exists and website is provided, update the company website
+      await prisma.company.update({
+        where: { id: companyId },
+        data: { website: jobData.website },
+      });
     }
 
     // Map frontend fields to database schema

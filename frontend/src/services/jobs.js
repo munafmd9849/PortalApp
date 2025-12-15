@@ -164,6 +164,7 @@ export async function getTargetedJobsForStudent(studentId) {
           companyName: job.companyName || job.company?.name || job.company,
           companyLocation: job.companyLocation || job.location || job.company?.location,
           companyDetails: job.company,
+          website: job.website || job.company?.website,
           recruiter: job.recruiter ? {
             id: job.recruiter.id,
             name: job.recruiter.user?.displayName || job.recruiter.user?.email,
@@ -185,6 +186,7 @@ export async function getTargetedJobsForStudent(studentId) {
           workMode: job.workMode,
           openings: job.openings,
           qualification: job.qualification,
+          minCgpa: job.minCgpa || job.cgpaRequirement,
           // Parse targeting arrays (stored as JSON strings in SQLite)
           targetSchools: Array.isArray(job.targetSchools) ? job.targetSchools :
             (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools || '[]') : []),

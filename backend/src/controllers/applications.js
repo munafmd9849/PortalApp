@@ -134,6 +134,279 @@ export async function getStudentApplications(req, res) {
 }
 
 /**
+ * Get student interview history with rounds and evaluation details
+ * GET /api/applications/student/interview-history
+ */
+export async function getStudentInterviewHistory(req, res) {
+  try {
+    const userId = req.userId;
+    const { mock } = req.query; // Optional query parameter to return mock data
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      // Return mock data if requested
+      if (mock === 'true') {
+        const mockExample = {
+          id: 'mock-interview-1',
+          studentId: 'mock-student-1',
+          jobId: 'mock-job-1',
+          companyId: 'mock-company-1',
+          status: 'REJECTED',
+          appliedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+          interviewDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+          company: { 
+            name: 'TechCorp Solutions',
+            id: 'mock-company-1'
+          },
+          job: {
+            jobTitle: 'Software Engineer - Full Stack',
+            id: 'mock-job-1',
+            location: 'Bangalore, India',
+            experienceLevel: 'Mid Level',
+            jobType: 'Full-Time',
+          },
+          interviewHistory: {
+            interviewId: 'mock-interview-1',
+            hasInterview: true,
+            rounds: [
+              { name: 'Technical Round 1', criteria: 'DSA and Problem Solving', status: 'completed' },
+              { name: 'Technical Round 2', criteria: 'System Design and Architecture', status: 'completed' },
+              { name: 'HR Round', criteria: 'Cultural fit and Communication', status: 'completed' }
+            ],
+            lastRoundReached: 'HR Round',
+            roundsReached: ['Technical Round 1', 'Technical Round 2', 'HR Round'],
+            evaluations: [
+              {
+                roundName: 'Technical Round 1',
+                marks: 85,
+                remarks: 'Strong problem-solving skills, good knowledge of data structures',
+                status: 'SELECTED',
+                evaluatedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+              },
+              {
+                roundName: 'Technical Round 2',
+                marks: 78,
+                remarks: 'Good system design thinking, needs improvement in scalability concepts',
+                status: 'SELECTED',
+                evaluatedAt: new Date(Date.now() - 17 * 24 * 60 * 60 * 1000),
+              },
+              {
+                roundName: 'HR Round',
+                marks: null,
+                remarks: 'Did not meet cultural fit requirements',
+                status: 'REJECTED',
+                evaluatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+              }
+            ],
+            isCracked: false,
+            isRejected: true,
+          },
+        };
+        return res.json([mockExample]);
+      }
+      return res.json([]);
+    }
+
+    // Get all applications
+    const applications = await prisma.application.findMany({
+      where: { studentId: student.id },
+      include: {
+        job: {
+          include: {
+            company: true,
+          },
+        },
+      },
+      orderBy: { appliedDate: 'desc' },
+    });
+
+    // Get all interviews for the jobs this student applied to
+    const jobIds = applications.map(app => app.jobId);
+    const interviews = await prisma.interview.findMany({
+      where: { jobId: { in: jobIds } },
+    });
+
+    // Get all interview evaluations for this student
+    const evaluations = await prisma.interviewEvaluation.findMany({
+      where: { studentId: student.id },
+      orderBy: { evaluatedAt: 'desc' },
+    });
+
+    // Create a map of interviewId -> interview
+    const interviewMap = new Map(interviews.map(int => [int.jobId, int]));
+    
+    // Create a map of interviewId -> evaluations for this student
+    const evaluationMap = new Map();
+    evaluations.forEach(evaluation => {
+      if (!evaluationMap.has(evaluation.interviewId)) {
+        evaluationMap.set(evaluation.interviewId, []);
+      }
+      evaluationMap.get(evaluation.interviewId).push(evaluation);
+    });
+
+    // Format applications with interview history
+    const formatted = applications.map(app => {
+      const interview = interviewMap.get(app.jobId);
+      const appEvaluations = interview ? (evaluationMap.get(interview.id) || []) : [];
+      
+      // Parse rounds from interview
+      let rounds = [];
+      if (interview?.rounds) {
+        try {
+          rounds = typeof interview.rounds === 'string' 
+            ? JSON.parse(interview.rounds) 
+            : interview.rounds;
+        } catch (e) {
+          console.error('Error parsing rounds:', e);
+          rounds = [];
+        }
+      }
+
+      // Determine which round the student reached
+      let lastRoundReached = null;
+      let lastEvaluationStatus = null;
+      let highestRoundIndex = -1;
+
+      if (appEvaluations.length > 0 && rounds.length > 0) {
+        // Find the highest round they were evaluated in
+        appEvaluations.forEach(evaluation => {
+          const roundIndex = rounds.findIndex(r => r.name === evaluation.roundName);
+          if (roundIndex > highestRoundIndex) {
+            highestRoundIndex = roundIndex;
+            lastRoundReached = evaluation.roundName;
+            lastEvaluationStatus = evaluation.status;
+          }
+        });
+      }
+
+      // Determine final status
+      // If status is SELECTED/OFFERED -> cracked (green)
+      // If status is REJECTED -> rejected (yellow)
+      // Otherwise use application status
+      let finalStatus = app.status;
+      let isCracked = false;
+      let isRejected = false;
+
+      if (lastEvaluationStatus === 'SELECTED') {
+        isCracked = true;
+        finalStatus = 'SELECTED';
+      } else if (lastEvaluationStatus === 'REJECTED') {
+        isRejected = true;
+        finalStatus = 'REJECTED';
+      } else if (app.status === 'SELECTED' || app.status === 'OFFERED') {
+        isCracked = true;
+      } else if (app.status === 'REJECTED') {
+        isRejected = true;
+      }
+
+      return {
+        id: app.id,
+        studentId: app.studentId,
+        jobId: app.jobId,
+        companyId: app.companyId,
+        status: finalStatus,
+        appliedDate: app.appliedDate,
+        interviewDate: app.interviewDate,
+        company: app.job?.company || { name: 'Unknown Company' },
+        job: {
+          jobTitle: app.job?.jobTitle || 'Unknown Position',
+          ...app.job,
+        },
+        // Interview history fields
+        interviewHistory: interview ? {
+          interviewId: interview.id,
+          hasInterview: true,
+          rounds: rounds,
+          lastRoundReached: lastRoundReached,
+          roundsReached: appEvaluations.map(e => e.roundName),
+          evaluations: appEvaluations.map(e => ({
+            roundName: e.roundName,
+            marks: e.marks,
+            remarks: e.remarks,
+            status: e.status,
+            evaluatedAt: e.evaluatedAt,
+          })),
+          isCracked,
+          isRejected,
+        } : {
+          hasInterview: false,
+        },
+      };
+    });
+
+    // If mock parameter is true or no interview history exists, return one mock example for demonstration
+    if (mock === 'true' || (formatted.length === 0 || formatted.filter(app => app.interviewHistory?.hasInterview).length === 0)) {
+      const mockExample = {
+        id: 'mock-interview-1',
+        studentId: student?.id || 'mock-student-1',
+        jobId: 'mock-job-1',
+        companyId: 'mock-company-1',
+        status: 'REJECTED',
+        appliedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+        interviewDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days ago
+        company: { 
+          name: 'TechCorp Solutions',
+          id: 'mock-company-1'
+        },
+        job: {
+          jobTitle: 'Software Engineer - Full Stack',
+          id: 'mock-job-1',
+          location: 'Bangalore, India',
+          experienceLevel: 'Mid Level',
+          jobType: 'Full-Time',
+        },
+        interviewHistory: {
+          interviewId: 'mock-interview-1',
+          hasInterview: true,
+          rounds: [
+            { name: 'Technical Round 1', criteria: 'DSA and Problem Solving', status: 'completed' },
+            { name: 'Technical Round 2', criteria: 'System Design and Architecture', status: 'completed' },
+            { name: 'HR Round', criteria: 'Cultural fit and Communication', status: 'completed' }
+          ],
+          lastRoundReached: 'HR Round',
+          roundsReached: ['Technical Round 1', 'Technical Round 2', 'HR Round'],
+          evaluations: [
+            {
+              roundName: 'Technical Round 1',
+              marks: 85,
+              remarks: 'Strong problem-solving skills, good knowledge of data structures',
+              status: 'SELECTED',
+              evaluatedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            {
+              roundName: 'Technical Round 2',
+              marks: 78,
+              remarks: 'Good system design thinking, needs improvement in scalability concepts',
+              status: 'SELECTED',
+              evaluatedAt: new Date(Date.now() - 17 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            {
+              roundName: 'HR Round',
+              marks: null,
+              remarks: 'Did not meet cultural fit requirements',
+              status: 'REJECTED',
+              evaluatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+            }
+          ],
+          isCracked: false,
+          isRejected: true,
+        },
+      };
+      return res.json([mockExample]);
+    }
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Get student interview history error:', error);
+    res.status(500).json({ error: 'Failed to get interview history', details: error.message });
+  }
+}
+
+/**
  * Apply to job
  * Replaces: applyToJob()
  */

@@ -15,29 +15,37 @@ const devs = [
     name: "Niraj",
     linkedin: "https://linkedin.com/in/niraj",
     img: dev,
-    role:
-      "The brain behind the scenes. Manages the logic, data flow, and functionality that make the portal run like clockwork.",
   },
   {
     name: "Pratik",
     linkedin: "https://linkedin.com/in/pratik",
     img: dev3,
-    role:
-      "The backbone of reliability. Works on databases, server-side processes, and making sure the system stays stable no matter what.",
   },
   {
     name: "Roshan",
     linkedin: "https://linkedin.com/in/roshan",
     img: dev2,
-    role:
-      "Turns ideas into sleek, responsive designs and ensures every click feels smooth. Balances creativity with functionality to make the first impression count.",
   },
   {
     name: "Esha",
     linkedin: "https://linkedin.com/in/roshan",
     img: dev4,
-    role:
-      "Turns ideas into sleek, responsive designs and ensures every click feels smooth. Balances creativity with functionality to make the first impression count.",
+  },
+  // Three additional empty circles
+  {
+    name: "",
+    linkedin: "#",
+    img: null,
+  },
+  {
+    name: "",
+    linkedin: "#",
+    img: null,
+  },
+  {
+    name: "",
+    linkedin: "#",
+    img: null,
   },
 ];
 
@@ -93,27 +101,32 @@ const MentorHoverCard = ({ src, name, linkedin, description }) => (
 
 const DevHoverCard = ({ src, name, linkedin }) => (
   <div className="relative group w-28 h-28 mx-auto bg-[#FFEEC3] rounded-full flex items-center justify-center shadow-lg border-4 border-[#f6e1a1] overflow-hidden">
-    
-    <img
-      src={src}
-      alt={name}
-      className="block max-w-none w-auto h-full object-cover scale-150 group-hover:scale-160 transition-transform duration-300"
-      style={{ objectPosition: "center center" }}
-    />
-    {/* Overlay */}
-    <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
-      <span className="text-base font-medium mb-2 text-white drop-shadow font-inter select-none">
-        {name}
-      </span>
-      <a
-        href={linkedin}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bg-[#0A66C2] p-2 rounded-full text-white shadow-md hover:scale-110 transition cursor-pointer"
-      >
-        <FaLinkedin size={20} />
-      </a>
-    </div>
+    {src ? (
+      <img
+        src={src}
+        alt={name}
+        className="block max-w-none w-auto h-full object-cover scale-150 group-hover:scale-160 transition-transform duration-300"
+        style={{ objectPosition: "center center" }}
+      />
+    ) : (
+      <div className="w-full h-full bg-[#FFEEC3]" />
+    )}
+    {/* Overlay - only show if name exists */}
+    {name && (
+      <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+        <span className="text-base font-medium mb-2 text-white drop-shadow font-inter select-none">
+          {name}
+        </span>
+        <a
+          href={linkedin}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-[#0A66C2] p-2 rounded-full text-white shadow-md hover:scale-110 transition cursor-pointer"
+        >
+          <FaLinkedin size={20} />
+        </a>
+      </div>
+    )}
   </div>
 );
 
@@ -151,15 +164,12 @@ const MeetDevTeamPage = () => {
           Dev Team
         </h2>
         <div className="grid md:grid-cols-4 gap-10">
-          {devs.map((dev) => (
+          {devs.map((dev, index) => (
             <div
-              key={dev.name}
+              key={dev.name || `dev-${index}`}
               className="flex flex-col items-center text-center max-w-xs mx-auto"
             >
               <DevHoverCard src={dev.img} name={dev.name} linkedin={dev.linkedin} />
-              <p className="mt-4 text-gray-700 font-inter text-base leading-relaxed line-clamp-4">
-                {dev.role}
-              </p>
             </div>
           ))}
         </div>

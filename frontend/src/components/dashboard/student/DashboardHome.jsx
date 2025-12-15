@@ -89,6 +89,47 @@ const DashboardHome = ({
     return true; // If we can't parse criteria, assume eligible
   };
 
+  // Check if student's CGPA meets job requirement
+  const meetsCgpaRequirement = (job) => {
+    const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+    const studentCgpa = formattedStudentData?.cgpa;
+    if (!jobMinCgpa || !studentCgpa) {
+      // If no requirement specified or student hasn't entered CGPA, allow application
+      return true;
+    }
+
+    // Parse student CGPA
+    const studentCgpaNum = parseFloat(studentCgpa);
+    if (isNaN(studentCgpaNum)) {
+      // If student CGPA is not a valid number, assume they meet requirement (edge case)
+      return true;
+    }
+
+    // Parse job requirement - could be CGPA (0-10) or percentage (0-100)
+    const requirementStr = String(jobMinCgpa).trim();
+    let requiredCgpa = null;
+
+    // Check if it's a percentage (ends with %)
+    if (requirementStr.endsWith('%')) {
+      const percentage = parseFloat(requirementStr.slice(0, -1));
+      if (!isNaN(percentage)) {
+        // Convert percentage to CGPA (assuming 10-point scale: 70% = 7.0)
+        requiredCgpa = percentage / 10;
+      }
+    } else {
+      // Try to parse as CGPA directly
+      requiredCgpa = parseFloat(requirementStr);
+    }
+
+    if (isNaN(requiredCgpa)) {
+      // If we can't parse the requirement, allow application
+      return true;
+    }
+
+    // Compare: student CGPA must be >= required CGPA
+    return studentCgpaNum >= requiredCgpa;
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'applied': return 'text-blue-600 bg-blue-100';
@@ -142,6 +183,7 @@ const DashboardHome = ({
           onApply={handleApplyToJob}
           hasApplied={hasApplied}
           applying={applying}
+          meetsCgpaRequirement={meetsCgpaRequirement}
           onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
         />
       )}

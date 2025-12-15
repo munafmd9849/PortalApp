@@ -85,18 +85,8 @@ function LandingPage() {
   };
 
   const handlePlacementPolicy = () => {
-    // Open placement policy PDF (if file exists)
-    // TODO: Add PlacementPolicy.pdf to frontend/src/assets/docs/
-    const policyUrl = placementPolicy.startsWith('/') 
-      ? placementPolicy 
-      : placementPolicy;
-    
-    // Try to open the file, if it fails show a message
-    const link = document.createElement('a');
-    link.href = policyUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
+    // Open placement policy Google Doc
+    window.open('https://docs.google.com/document/d/1yEH5gMSux0cCf8UmS1d4p1GpZvL-nRzQHLutu8MrZoY/edit?usp=sharing', '_blank');
   };
 
   return (

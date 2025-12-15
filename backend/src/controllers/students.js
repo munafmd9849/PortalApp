@@ -352,12 +352,52 @@ export async function updateStudentProfile(req, res) {
     }
 
     // Normalize string fields (trim whitespace)
-    const stringFields = ['fullName', 'phone', 'enrollmentId', 'batch', 'center', 'school', 'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility'];
+    const stringFields = ['fullName', 'phone', 'enrollmentId', 'batch', 'center', 'school', 'bio', 'headline', 'jobFlexibility'];
     stringFields.forEach(field => {
       if (cleanData[field] && typeof cleanData[field] === 'string') {
         cleanData[field] = cleanData[field].trim();
       }
     });
+
+    // Handle otherProfiles - ensure it's a valid JSON string
+    if (cleanData.otherProfiles !== undefined) {
+      if (typeof cleanData.otherProfiles === 'string') {
+        try {
+          // Validate it's valid JSON
+          const parsed = JSON.parse(cleanData.otherProfiles);
+          if (Array.isArray(parsed)) {
+            // Filter out invalid entries and ensure proper structure
+            const validProfiles = parsed.filter(p => p && typeof p === 'object' && p.platformName && p.profileId);
+            cleanData.otherProfiles = JSON.stringify(validProfiles);
+          } else {
+            delete cleanData.otherProfiles;
+          }
+        } catch (e) {
+          // Invalid JSON, remove it
+          delete cleanData.otherProfiles;
+        }
+      } else if (Array.isArray(cleanData.otherProfiles)) {
+        // If it's already an array, stringify it
+        const validProfiles = cleanData.otherProfiles.filter(p => p && typeof p === 'object' && p.platformName && p.profileId);
+        cleanData.otherProfiles = JSON.stringify(validProfiles);
+      } else {
+        delete cleanData.otherProfiles;
+      }
+    }
+
+    // Capitalize first letter of city and stateRegion
+    const capitalizeFirstLetter = (str) => {
+      if (!str || typeof str !== 'string' || !str.trim()) return str;
+      const trimmed = str.trim();
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    };
+
+    if (cleanData.city && typeof cleanData.city === 'string') {
+      cleanData.city = capitalizeFirstLetter(cleanData.city.trim());
+    }
+    if (cleanData.stateRegion && typeof cleanData.stateRegion === 'string') {
+      cleanData.stateRegion = capitalizeFirstLetter(cleanData.stateRegion.trim());
+    }
 
     // If cleanData is empty, return existing student (nothing to update)
     if (Object.keys(cleanData).length === 0) {
