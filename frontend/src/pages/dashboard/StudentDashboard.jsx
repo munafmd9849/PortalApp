@@ -10,7 +10,7 @@ import {
   getStudentSkills,
   getEducationalBackground,
 } from '../../services/students';
-import { getStudentApplications, applyToJob, subscribeStudentApplications } from '../../services/applications';
+import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
@@ -55,7 +55,9 @@ import {
   Linkedin,
   Image as ImageIcon,
   Camera,
-  Globe
+  Globe,
+  Plus,
+  Link as LinkIcon
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -89,6 +91,7 @@ const normalizeProfileSnapshot = (profile = {}) => ({
   hackerrank: profile.hackerrank || '',
   profilePhoto: profile.profilePhoto || '',
   jobFlexibility: profile.jobFlexibility || '',
+  otherProfiles: profile.otherProfiles ? (typeof profile.otherProfiles === 'string' ? JSON.parse(profile.otherProfiles) : profile.otherProfiles) : [],
 });
 
 export default function StudentDashboard() {
@@ -144,6 +147,10 @@ export default function StudentDashboard() {
   const [instagramUrl, setInstagramUrl] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
   const [jobFlexibility, setJobFlexibility] = useState('');
+  const [otherProfiles, setOtherProfiles] = useState([]); // [{platformName: string, profileId: string}]
+  const [showAddProfileForm, setShowAddProfileForm] = useState(false);
+  const [newProfile, setNewProfile] = useState({ platformName: '', profileId: '' });
+  const addProfileFormRef = useRef(null);
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
@@ -172,6 +179,7 @@ export default function StudentDashboard() {
     hackerrank,
     profilePhoto,
     jobFlexibility,
+    otherProfiles,
   }), [
     fullName,
     email,
@@ -195,6 +203,7 @@ export default function StudentDashboard() {
     hackerrank,
     profilePhoto,
     jobFlexibility,
+    otherProfiles,
   ]);
 
   const resetProfileForm = useCallback(() => {
@@ -222,6 +231,7 @@ export default function StudentDashboard() {
     setHackerrank(snapshot.hackerrank);
     setProfilePhoto(snapshot.profilePhoto);
     setJobFlexibility(snapshot.jobFlexibility);
+    setOtherProfiles(snapshot.otherProfiles || []);
   }, []);
   
   
@@ -233,6 +243,9 @@ export default function StudentDashboard() {
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
+  const [interviewHistory, setInterviewHistory] = useState([]);
+  const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
+  const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
   
   // Jobs state
   const [jobs, setJobs] = useState([]);
@@ -442,6 +455,21 @@ export default function StudentDashboard() {
         setInstagramUrl(profileData.instagramUrl || profileData.instagram || '');
         setProfilePhoto(profileData.profilePhoto || '');
         setJobFlexibility(profileData.jobFlexibility || '');
+        
+        // Parse otherProfiles from JSON string if it exists
+        if (profileData.otherProfiles) {
+          try {
+            const parsed = typeof profileData.otherProfiles === 'string' 
+              ? JSON.parse(profileData.otherProfiles) 
+              : profileData.otherProfiles;
+            setOtherProfiles(Array.isArray(parsed) ? parsed : []);
+          } catch (e) {
+            console.error('Error parsing otherProfiles:', e);
+            setOtherProfiles([]);
+          }
+        } else {
+          setOtherProfiles([]);
+        }
 
         const sanitizedProfile = {
           fullName: profileData.fullName || '',
@@ -465,7 +493,8 @@ export default function StudentDashboard() {
           gfg: profileData.gfg || '',
           hackerrank: profileData.hackerrank || '',
           profilePhoto: profileData.profilePhoto || '',
-          jobFlexibility: profileData.jobFlexibility || '',
+            jobFlexibility: profileData.jobFlexibility || '',
+            otherProfiles: profileData.otherProfiles ? (typeof profileData.otherProfiles === 'string' ? JSON.parse(profileData.otherProfiles) : profileData.otherProfiles) : [],
         };
         initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
         setIsFormDirty(false);
@@ -518,6 +547,21 @@ export default function StudentDashboard() {
     }
   }, [user?.id]);
 
+  const loadInterviewHistory = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setLoadingInterviewHistory(true);
+    try {
+      const historyData = await getStudentInterviewHistory(user.id);
+      setInterviewHistory(historyData || []);
+    } catch (err) {
+      console.error('Failed to load interview history:', err);
+      setInterviewHistory([]);
+    } finally {
+      setLoadingInterviewHistory(false);
+    }
+  }, [user?.id]);
+
   // Load resumes from API
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
@@ -549,6 +593,12 @@ export default function StudentDashboard() {
   const handleApplyToJob = async (job) => {
     if (!user?.id || !job?.id) {
       console.error('Missing user ID or job ID');
+      return;
+    }
+
+    // Check CGPA requirement
+    if (!meetsCgpaRequirement(job)) {
+      alert("Couldn't apply for Job as CGPA requirement not met.");
       return;
     }
 
@@ -605,6 +655,46 @@ export default function StudentDashboard() {
     return applications.some(app => app.jobId === jobId);
   };
 
+  // Check if student's CGPA meets job requirement
+  const meetsCgpaRequirement = (job) => {
+    const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+    if (!jobMinCgpa || !cgpa) {
+      // If no requirement specified or student hasn't entered CGPA, allow application
+      return true;
+    }
+
+    // Parse student CGPA
+    const studentCgpa = parseFloat(cgpa);
+    if (isNaN(studentCgpa)) {
+      // If student CGPA is not a valid number, assume they meet requirement (edge case)
+      return true;
+    }
+
+    // Parse job requirement - could be CGPA (0-10) or percentage (0-100)
+    const requirementStr = String(jobMinCgpa).trim();
+    let requiredCgpa = null;
+
+    // Check if it's a percentage (ends with %)
+    if (requirementStr.endsWith('%')) {
+      const percentage = parseFloat(requirementStr.slice(0, -1));
+      if (!isNaN(percentage)) {
+        // Convert percentage to CGPA (assuming 10-point scale: 70% = 7.0)
+        requiredCgpa = percentage / 10;
+      }
+    } else {
+      // Try to parse as CGPA directly
+      requiredCgpa = parseFloat(requirementStr);
+    }
+
+    if (isNaN(requiredCgpa)) {
+      // If we can't parse the requirement, allow application
+      return true;
+    }
+
+    // Compare: student CGPA must be >= required CGPA
+    return studentCgpa >= requiredCgpa;
+  };
+
   // Job Description Modal handlers
   const handleKnowMore = (job) => {
     setSelectedJob(job);
@@ -616,6 +706,29 @@ export default function StudentDashboard() {
     setSelectedJob(null);
   };
 
+
+  // Handle click outside to close add profile form
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showAddProfileForm && addProfileFormRef.current && !addProfileFormRef.current.contains(event.target)) {
+        // Check if click is not on the Add Profile button
+        const addButton = event.target.closest('button');
+        if (addButton && addButton.textContent.includes('Add Profile')) {
+          return; // Don't close if clicking the Add Profile button
+        }
+        setShowAddProfileForm(false);
+        setNewProfile({ platformName: '', profileId: '' });
+      }
+    };
+
+    if (showAddProfileForm) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAddProfileForm]);
 
   // Handle URL parameters to set active tab
   useEffect(() => {
@@ -690,6 +803,13 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
 
+  // Load interview history when applications tab is active
+  useEffect(() => {
+    if (user?.id && activeTab === 'applications') {
+      loadInterviewHistory();
+    }
+  }, [user?.id, activeTab, loadInterviewHistory]);
+
   // Validation helper functions
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -697,8 +817,17 @@ export default function StudentDashboard() {
   };
 
   const validatePhone = (phone) => {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,11}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+    // Remove all spaces, dashes, and parentheses
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    // Must be exactly 10 digits and start with 6, 7, 8, or 9
+    const phoneRegex = /^[6789]\d{9}$/;
+    return phoneRegex.test(cleanedPhone);
+  };
+
+  // Capitalize first letter of city/state
+  const capitalizeFirstLetter = (str) => {
+    if (!str || !str.trim()) return str;
+    return str.trim().charAt(0).toUpperCase() + str.trim().slice(1).toLowerCase();
   };
 
   const validateCGPA = (cgpa) => {
@@ -737,7 +866,7 @@ export default function StudentDashboard() {
       errors.push('Phone number is required');
       missingFields.push({ field: 'phone', section: 'basic' });
     } else if (!validatePhone(phone.trim())) {
-      errors.push('Please enter a valid phone number');
+      errors.push('Invalid phone number. Must be 10 digits starting with 6, 7, 8, or 9');
       missingFields.push({ field: 'phone', section: 'basic' });
     }
 
@@ -815,7 +944,7 @@ export default function StudentDashboard() {
         if (!value.trim()) {
           errors.phone = 'Phone number is required';
         } else if (!validatePhone(value.trim())) {
-          errors.phone = 'Please enter a valid phone number';
+          errors.phone = 'Invalid phone number. Must be 10 digits starting with 6, 7, 8, or 9';
         } else {
           delete errors.phone;
         }
@@ -930,8 +1059,8 @@ export default function StudentDashboard() {
         center,
         bio: bio.trim(),
         Headline: Headline.trim(),
-        city: city.trim(),
-        stateRegion: stateRegion.trim(),
+        city: capitalizeFirstLetter(city),
+        stateRegion: capitalizeFirstLetter(stateRegion),
         linkedin: linkedin.trim(),
         githubUrl: githubUrl.trim(),
         youtubeUrl: youtubeUrl.trim(),
@@ -986,6 +1115,21 @@ export default function StudentDashboard() {
         setProfilePhoto(updatedProfile.profilePhoto || '');
         setJobFlexibility(updatedProfile.jobFlexibility || '');
         
+        // Parse otherProfiles
+        if (updatedProfile.otherProfiles) {
+          try {
+            const parsed = typeof updatedProfile.otherProfiles === 'string' 
+              ? JSON.parse(updatedProfile.otherProfiles) 
+              : updatedProfile.otherProfiles;
+            setOtherProfiles(Array.isArray(parsed) ? parsed : []);
+          } catch (e) {
+            console.error('Error parsing otherProfiles:', e);
+            setOtherProfiles([]);
+          }
+        } else {
+          setOtherProfiles([]);
+        }
+        
         // Update initial snapshot
         const sanitizedProfile = {
           fullName: updatedProfile.fullName || '',
@@ -1010,6 +1154,7 @@ export default function StudentDashboard() {
           hackerrank: updatedProfile.hackerrank || '',
           profilePhoto: updatedProfile.profilePhoto || '',
           jobFlexibility: updatedProfile.jobFlexibility || '',
+          otherProfiles: updatedProfile.otherProfiles ? (typeof updatedProfile.otherProfiles === 'string' ? JSON.parse(updatedProfile.otherProfiles) : updatedProfile.otherProfiles) : [],
         };
         initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
       } else {
@@ -1126,16 +1271,19 @@ export default function StudentDashboard() {
 
   const handleSkillClick = (skillId) => {
     const urls = {
-      leetcode: 'https://leetcode.com',
-      codeforces: 'https://codeforces.com',
-      gfg: 'https://geeksforgeeks.org',
-      hackerrank: 'https://hackerrank.com',
-      github: 'https://github.com',
-      instagram: 'https://instagram.com',
-      youtube: 'https://youtube.com',
-      linkedin: 'https://linkedin.com'
+      leetcode: leetcode || 'https://leetcode.com',
+      codeforces: codeforces || 'https://codeforces.com',
+      gfg: gfg || 'https://geeksforgeeks.org',
+      hackerrank: hackerrank || 'https://hackerrank.com',
+      github: githubUrl || 'https://github.com',
+      instagram: instagramUrl || 'https://instagram.com',
+      youtube: youtubeUrl || 'https://youtube.com',
+      linkedin: linkedin || 'https://linkedin.com'
     };
-    window.open(urls[skillId], '_blank');
+    const url = urls[skillId];
+    if (url) {
+      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
+    }
   };
 
   const handleLogout = async () => {
@@ -1474,12 +1622,15 @@ export default function StudentDashboard() {
                         </button>
                         <button
                           onClick={() => handleApplyToJob(job)}
-                          disabled={hasApplied(job.id) || applying[job.id]}
+                          disabled={hasApplied(job.id) || applying[job.id] || !meetsCgpaRequirement(job)}
+                          title={!meetsCgpaRequirement(job) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
                           className={`px-2 py-1 rounded-sm text-xs font-medium transition-all duration-200 whitespace-nowrap ${
                             hasApplied(job.id)
                               ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
                               : applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
+                              : !meetsCgpaRequirement(job)
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
                               : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600 cursor-pointer'
                           }`}
                         >
@@ -1492,6 +1643,11 @@ export default function StudentDashboard() {
                             <>
                               <Loader className="h-3 w-3 inline mr-1 animate-spin" />
                               Applying...
+                            </>
+                          ) : !meetsCgpaRequirement(job) ? (
+                            <>
+                              <XCircle className="h-3 w-3 inline mr-1" />
+                              CGPA Not Met
                             </>
                           ) : (
                             'Apply Now'
@@ -1536,6 +1692,9 @@ export default function StudentDashboard() {
           return status === 'OFFERED' || status === 'SELECTED';
         }).length;
 
+        // Filter applications with interview history (Past Records)
+        const pastRecords = interviewHistory.filter(app => app.interviewHistory?.hasInterview);
+
         return (
           <div className="space-y-6">
             {/* Application Summary - At Top */}
@@ -1561,8 +1720,184 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Track Applications</h2>
+            {/* View Toggle */}
+            <div className="flex justify-center">
+              <div className="bg-white rounded-sm p-1 shadow-sm border border-gray-200 inline-flex">
+                <button
+                  onClick={() => setApplicationsView('current')}
+                  className={`px-6 py-3 rounded-md font-medium transition-all duration-200 ${
+                    applicationsView === 'current' 
+                      ? 'bg-yellow-200 text-black shadow-md' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Current Applications
+                </button>
+                <button
+                  onClick={() => setApplicationsView('past')}
+                  className={`px-6 py-3 rounded-md font-medium transition-all duration-200 flex items-center ${
+                    applicationsView === 'past' 
+                      ? 'bg-yellow-500 text-white shadow-md' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <ClipboardList className="mr-2 w-4 h-4" />
+                  Past Applications
+                </button>
+              </div>
+            </div>
+
+            {applicationsView === 'past' ? (
+              /* Past Applications View */
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Past Applications</h2>
+                <p className="text-sm text-gray-600 mb-6">Your interview history and results</p>
+                
+                {loadingInterviewHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader className="animate-spin h-8 w-8 text-blue-600" />
+                    <span className="ml-2 text-gray-600">Loading interview history...</span>
+                  </div>
+                ) : pastRecords.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-gray-500 text-lg">No past interview records found</p>
+                    <p className="text-gray-400 text-sm">Your completed interview records will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pastRecords.map((record) => {
+                      const history = record.interviewHistory;
+                      const bgColor = history.isCracked 
+                        ? 'from-green-50 to-green-100' 
+                        : history.isRejected 
+                        ? 'from-yellow-50 to-yellow-100' 
+                        : 'from-gray-50 to-gray-100';
+                      
+                      return (
+                        <div
+                          key={record.id}
+                          className={`p-6 rounded-xl bg-gradient-to-r ${bgColor} hover:shadow-lg transition-all duration-200 border ${
+                            history.isCracked ? 'border-green-200' : history.isRejected ? 'border-yellow-200' : 'border-gray-200'
+                          }`}
+                        >
+                          {/* Header Row */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center">
+                              <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 rounded-lg mr-4 flex items-center justify-center`}>
+                                <span className="text-white font-bold text-lg">
+                                  {getCompanyInitial(record.company?.name)}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="text-xl font-bold text-gray-900">
+                                  {record.job?.jobTitle || 'Unknown Position'}
+                                </h3>
+                                <p className="text-lg font-semibold text-gray-700">
+                                  {record.company?.name || 'Unknown Company'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              {history.isCracked && (
+                                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-200 text-green-800">
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Cracked
+                                </span>
+                              )}
+                              {history.isRejected && (
+                                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-yellow-200 text-yellow-800">
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Rejected
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Interview Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="bg-white/50 p-3 rounded-lg">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Round Reached</p>
+                              <p className="text-sm font-semibold text-gray-800">
+                                {history.lastRoundReached || 'Not evaluated'}
+                              </p>
+                            </div>
+                            <div className="bg-white/50 p-3 rounded-lg">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total Rounds</p>
+                              <p className="text-sm font-semibold text-gray-800">
+                                {history.rounds?.length || 0} rounds
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Rounds Progress */}
+                          {history.rounds && history.rounds.length > 0 && (
+                            <div className="mt-4 bg-white/50 p-4 rounded-lg">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Interview Rounds</p>
+                              <div className="space-y-2">
+                                {history.rounds.map((round, index) => {
+                                  const wasReached = history.roundsReached?.includes(round.name);
+                                  const evaluation = history.evaluations?.find(e => e.roundName === round.name);
+                                  
+                                  return (
+                                    <div
+                                      key={index}
+                                      className={`flex items-center justify-between p-2 rounded ${
+                                        wasReached 
+                                          ? evaluation?.status === 'SELECTED'
+                                            ? 'bg-green-100 border border-green-300'
+                                            : evaluation?.status === 'REJECTED'
+                                            ? 'bg-red-100 border border-red-300'
+                                            : 'bg-blue-100 border border-blue-300'
+                                          : 'bg-gray-100 border border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-center">
+                                        <span className="font-medium text-sm text-gray-800">
+                                          {round.name || `Round ${index + 1}`}
+                                        </span>
+                                        {wasReached && evaluation?.marks !== null && (
+                                          <span className="ml-2 text-xs text-gray-600">
+                                            ({evaluation.marks}/100)
+                                          </span>
+                                        )}
+                                      </div>
+                                      {wasReached && (
+                                        <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                          evaluation?.status === 'SELECTED'
+                                            ? 'bg-green-200 text-green-800'
+                                            : evaluation?.status === 'REJECTED'
+                                            ? 'bg-red-200 text-red-800'
+                                            : 'bg-blue-200 text-blue-800'
+                                        }`}>
+                                          {evaluation?.status || 'Evaluated'}
+                                        </span>
+                                      )}
+                                      {!wasReached && (
+                                        <span className="text-xs text-gray-400">Not reached</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Applied Date */}
+                          <div className="mt-4 flex items-center text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            <span className="font-medium">Applied: {formatDate(record.appliedDate)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Current Applications View */
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Current Applications</h2>
               
               {loadingApplications ? (
                 <div className="flex items-center justify-center py-8">
@@ -1716,6 +2051,7 @@ export default function StudentDashboard() {
                 </div>
               )}
             </div>
+            )}
           </div>
         );
 
@@ -1827,12 +2163,17 @@ export default function StudentDashboard() {
                       <input
                         id="phone"
                         type="tel"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your phone number"
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Enter your 10-digit phone number (starting with 6, 7, 8, or 9)"
                         value={phone}
+                        maxLength={10}
                         onChange={(e) => {
-                          setPhone(e.target.value);
-                          validateField('phone', e.target.value);
+                          // Only allow digits
+                          const digitsOnly = e.target.value.replace(/\D/g, '');
+                          setPhone(digitsOnly);
+                          validateField('phone', digitsOnly);
                         }}
                       />
                       {validationErrors.phone && (
@@ -2000,6 +2341,11 @@ export default function StudentDashboard() {
                           setCity(e.target.value);
                           validateField('city', e.target.value);
                         }}
+                        onBlur={(e) => {
+                          const capitalized = capitalizeFirstLetter(e.target.value);
+                          setCity(capitalized);
+                          validateField('city', capitalized);
+                        }}
                       />
                       {validationErrors.city && (
                         <p className="text-red-500 text-sm mt-1">{validationErrors.city}</p>
@@ -2020,6 +2366,11 @@ export default function StudentDashboard() {
                         onChange={(e) => {
                           setStateRegion(e.target.value);
                           validateField('stateRegion', e.target.value);
+                        }}
+                        onBlur={(e) => {
+                          const capitalized = capitalizeFirstLetter(e.target.value);
+                          setStateRegion(capitalized);
+                          validateField('stateRegion', capitalized);
                         }}
                       />
                       {validationErrors.stateRegion && (
@@ -2192,6 +2543,162 @@ export default function StudentDashboard() {
                   </div>
                 )}
 
+                {/* Other Profiles Section - After Coding Platforms */}
+                {(school === 'SOT' || school === 'SOM' || school === 'SOH') && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                      <LinkIcon size={20} className="text-purple-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">Other Profiles</h3>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Add additional profiles (e.g., Kaggle, CodeChef, or any other platform)
+                    </p>
+                    
+                    {/* List of existing profiles */}
+                    {otherProfiles.length > 0 && (
+                      <div className="space-y-3">
+                        {otherProfiles.map((profile, index) => (
+                          <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Platform Name</label>
+                                <input
+                                  type="text"
+                                  value={profile.platformName || ''}
+                                  onChange={(e) => {
+                                    const updated = [...otherProfiles];
+                                    updated[index] = { ...updated[index], platformName: e.target.value };
+                                    setOtherProfiles(updated);
+                                  }}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="e.g., Kaggle"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Profile ID/URL</label>
+                                <input
+                                  type="text"
+                                  value={profile.profileId || ''}
+                                  onChange={(e) => {
+                                    const updated = [...otherProfiles];
+                                    updated[index] = { ...updated[index], profileId: e.target.value };
+                                    setOtherProfiles(updated);
+                                  }}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="username or URL"
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = otherProfiles.filter((_, i) => i !== index);
+                                setOtherProfiles(updated);
+                              }}
+                              className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove profile"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Inline Add Profile Form */}
+                    {showAddProfileForm && (
+                      <div 
+                        ref={addProfileFormRef}
+                        className="mb-4 p-4 border border-gray-300 rounded bg-gray-50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Platform Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newProfile.platformName}
+                              onChange={(e) => setNewProfile({ ...newProfile, platformName: e.target.value })}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="e.g., Kaggle, CodeChef"
+                              autoFocus
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Profile ID/URL <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newProfile.profileId}
+                              onChange={(e) => setNewProfile({ ...newProfile, profileId: e.target.value })}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="username or full URL"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAddProfileForm(false);
+                              setNewProfile({ platformName: '', profileId: '' });
+                            }}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (newProfile.platformName.trim() && newProfile.profileId.trim()) {
+                                setOtherProfiles([...otherProfiles, { 
+                                  platformName: newProfile.platformName.trim(), 
+                                  profileId: newProfile.profileId.trim() 
+                                }]);
+                                setShowAddProfileForm(false);
+                                setNewProfile({ platformName: '', profileId: '' });
+                              }
+                            }}
+                            disabled={!newProfile.platformName.trim() || !newProfile.profileId.trim()}
+                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Add new profile button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showAddProfileForm) {
+                          // Cancel adding if form is already shown
+                          setShowAddProfileForm(false);
+                          setNewProfile({ platformName: '', profileId: '' });
+                        } else {
+                          // Show form
+                          setNewProfile({ platformName: '', profileId: '' });
+                          setShowAddProfileForm(true);
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        showAddProfileForm 
+                          ? 'text-white bg-blue-600 hover:bg-blue-700' 
+                          : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                    >
+                      <Plus size={16} />
+                      Add Profile
+                    </button>
+                  </div>
+                )}
+
                 {/* Bio Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
@@ -2343,7 +2850,7 @@ export default function StudentDashboard() {
                 </nav>
               </div>
 
-              {visibleSkillsCredentials.length > 0 && (
+              {(visibleSkillsCredentials.length > 0 || (otherProfiles && otherProfiles.length > 0)) && (
                 <div className="mb-6">
                   {sidebarWidth >= 9 && (
                     <h2 className="text-base font-bold text-gray-900 mb-3">Skills & Credentials</h2>
@@ -2351,6 +2858,18 @@ export default function StudentDashboard() {
                   <nav className="space-y-1">
                     {visibleSkillsCredentials.map((skill) => {
                       const Icon = skill.icon;
+                      const profileUrl = skill.id === 'leetcode' ? leetcode
+                        : skill.id === 'codeforces' ? codeforces
+                        : skill.id === 'gfg' ? gfg
+                        : skill.id === 'hackerrank' ? hackerrank
+                        : skill.id === 'github' ? githubUrl
+                        : skill.id === 'instagram' ? instagramUrl
+                        : skill.id === 'youtube' ? youtubeUrl
+                        : skill.id === 'linkedin' ? linkedin
+                        : '';
+                      
+                      if (!profileUrl) return null;
+                      
                       return (
                         <div key={skill.id} className="mb-1">
                           <button
@@ -2363,6 +2882,49 @@ export default function StudentDashboard() {
                             {sidebarWidth >= 9 && (
                               <>
                                 <span className="flex-1 text-left">{skill.label}</span>
+                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Display Other Profiles */}
+                    {otherProfiles && otherProfiles.length > 0 && otherProfiles.map((profile, index) => {
+                      if (!profile.platformName || !profile.profileId) return null;
+                      
+                      // Build URL - if profileId looks like a URL, use it directly, otherwise try common patterns
+                      let profileUrl = profile.profileId;
+                      if (!profileUrl.startsWith('http')) {
+                        // Common platform URL patterns
+                        const platformLower = profile.platformName.toLowerCase();
+                        if (platformLower.includes('kaggle')) {
+                          profileUrl = `https://www.kaggle.com/${profile.profileId}`;
+                        } else if (platformLower.includes('codechef')) {
+                          profileUrl = `https://www.codechef.com/users/${profile.profileId}`;
+                        } else if (platformLower.includes('atcoder')) {
+                          profileUrl = `https://atcoder.jp/users/${profile.profileId}`;
+                        } else if (platformLower.includes('topcoder')) {
+                          profileUrl = `https://www.topcoder.com/members/${profile.profileId}`;
+                        } else {
+                          // Generic fallback
+                          profileUrl = profile.profileId;
+                        }
+                      }
+                      
+                      return (
+                        <div key={`other-${index}`} className="mb-1">
+                          <button
+                            onClick={() => window.open(profileUrl, '_blank')}
+                            className={`w-full flex items-center rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 transition-all duration-200 group cursor-pointer ${sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2'
+                              }`}
+                            title={sidebarWidth < 9 ? profile.platformName : ''}
+                          >
+                            <LinkIcon className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''} text-purple-600`} />
+                            {sidebarWidth >= 9 && (
+                              <>
+                                <span className="flex-1 text-left">{profile.platformName}</span>
                                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </>
                             )}

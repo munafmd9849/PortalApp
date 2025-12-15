@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Loader } from 'lucide-react';
+import { CheckCircle, Loader, XCircle } from 'lucide-react';
 
-export default function JobPostingsSection({ jobs, onApply, hasApplied, applying, onExploreMore, onKnowMore }) {
+export default function JobPostingsSection({ jobs, onApply, hasApplied, applying, meetsCgpaRequirement, onExploreMore, onKnowMore }) {
   const [logoStates, setLogoStates] = useState({});
 
   // Function to get company logo URL from Clearbit API or other sources
@@ -185,12 +185,15 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                         </button>
                         <button
                           onClick={() => onApply && onApply(job)}
-                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id]}
+                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id] || (meetsCgpaRequirement && !meetsCgpaRequirement(job))}
+                          title={(meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
                           className={`flex-1 px-3 py-2 font-medium rounded-md transition-all duration-200 shadow-sm text-sm ${
                             hasApplied && hasApplied(job.id)
                               ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
                               : applying && applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
+                              : (meetsCgpaRequirement && !meetsCgpaRequirement(job))
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
                               : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
                           }`}
                         >
@@ -203,6 +206,11 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                             <>
                               <Loader className="h-4 w-4 inline mr-1 animate-spin" />
                               Applying...
+                            </>
+                          ) : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? (
+                            <>
+                              <XCircle className="h-4 w-4 inline mr-1" />
+                              CGPA Not Met
                             </>
                           ) : (
                             'Apply Now'
@@ -241,12 +249,15 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                         </button>
                         <button
                           onClick={() => onApply && onApply(job)}
-                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id]}
+                          disabled={hasApplied && hasApplied(job.id) || applying && applying[job.id] || (meetsCgpaRequirement && !meetsCgpaRequirement(job))}
+                          title={(meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
                           className={`px-2 py-1 font-medium rounded-sm transition-all duration-200 shadow-sm text-xs whitespace-nowrap ${
                             hasApplied && hasApplied(job.id)
                               ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
                               : applying && applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
+                              : (meetsCgpaRequirement && !meetsCgpaRequirement(job))
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
                               : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600'
                           }`}
                         >
@@ -259,6 +270,11 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                             <>
                               <Loader className="h-3 w-3 inline mr-1 animate-spin" />
                               Applying...
+                            </>
+                          ) : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? (
+                            <>
+                              <XCircle className="h-3 w-3 inline mr-1" />
+                              CGPA Not Met
                             </>
                           ) : (
                             'Apply Now'

@@ -402,6 +402,8 @@ export const api = {
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
   getStudentApplications: () => apiRequest('/applications/student'),
+  
+  getStudentInterviewHistory: () => apiRequest('/applications/student/interview-history'),
   applyToJob: (jobId) => apiRequest(`/applications/jobs/${jobId}`, {
     method: 'POST',
   }),

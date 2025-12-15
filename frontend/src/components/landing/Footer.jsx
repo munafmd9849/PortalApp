@@ -8,7 +8,7 @@ const PWIOIFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam }) => {
 
   // Open Google Docs placement policy in new tab
   const openPlacementPolicy = () => {
-    window.open('https://docs.google.com/document/d/1umgfuxaRYNI_bqzw70RMrzzG6evMJyKGi1O18AJ7gXU/edit?usp=sharing', '_blank');
+    window.open('https://docs.google.com/document/d/1yEH5gMSux0cCf8UmS1d4p1GpZvL-nRzQHLutu8MrZoY/edit?usp=sharing', '_blank');
   };
 
   return (

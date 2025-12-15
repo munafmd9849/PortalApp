@@ -44,15 +44,8 @@ const DashboardStatsSection = ({ studentData }) => {
       iconBgColor: 'bg-purple-600',
       iconColor: 'text-white',
       icon: TrendingUp,
-      percentage: true,
     },
   ];
-
-  const calculateOfferPercentage = () => {
-    const totalApplied = stats?.applied || 0;
-    const totalOffers = stats?.offers || 0;
-    return totalApplied > 0 ? Math.round((totalOffers / totalApplied) * 100) : 0;
-  };
 
   return (
     <div className="w-full">
@@ -65,7 +58,7 @@ const DashboardStatsSection = ({ studentData }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {statsData.map((stat, index) => {
               const Icon = stat.icon;
-              const displayValue = stat.percentage ? `${calculateOfferPercentage()}%` : stat.count;
+              const displayValue = stat.count;
 
               return (
                 <div

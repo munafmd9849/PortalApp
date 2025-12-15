@@ -250,3 +250,16 @@ export const subscribeStudentApplications = (studentId, callback) => {
  * Subscribe to applications (alias)
  */
 export const subscribeToApplications = subscribeStudentApplications;
+
+/**
+ * Get student interview history with rounds and evaluation details
+ */
+export const getStudentInterviewHistory = async (studentId) => {
+  try {
+    const history = await api.getStudentInterviewHistory();
+    return history || [];
+  } catch (error) {
+    console.error('getStudentInterviewHistory error:', error);
+    return [];
+  }
+};

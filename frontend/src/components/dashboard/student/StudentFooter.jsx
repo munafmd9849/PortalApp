@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import brandLogo from '../../../assets/images/brand_logo.webp';
-// Placement Policy PDF - using public path
-const policyPdf = '/PlacementPolicy.pdf';
+// Placement Policy Google Doc
+const policyDoc = 'https://docs.google.com/document/d/1yEH5gMSux0cCf8UmS1d4p1GpZvL-nRzQHLutu8MrZoY/edit?usp=sharing';
 
 const StudentFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam, onPlacementPolicy }) => {
     const navigate = useNavigate();
@@ -63,7 +63,7 @@ const StudentFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam, onPlacementP
                         Quick Links
                     </h3>
                     <a
-                        href={policyPdf}
+                        href={policyDoc}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-gray-400 no-underline mb-3 relative inline-block transition-all duration-300 pl-0 hover:text-white hover:pl-5 before:content-['→'] before:absolute before:left-[-20px] before:opacity-0 before:transition-all before:duration-300 hover:before:opacity-100 hover:before:left-0 text-left cursor-pointer"

@@ -219,6 +219,18 @@ export default function CreateJob({ onCreated }) {
     setCreationMethod('manual'); // Switch back to manual after loading data
   };
 
+  // Capitalize job title - first letter of each word
+  const capitalizeJobTitle = (title) => {
+    if (!title || !title.trim()) return title;
+    return title
+      .split(' ')
+      .map(word => {
+        if (!word) return word;
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
+  };
+
   // Handle Excel bulk processing
   const handleExcelBulkUpload = async (results) => {
     console.log('Excel processing results:', results);
@@ -260,7 +272,10 @@ export default function CreateJob({ onCreated }) {
     const updates = {};
 
     // Map parser fields to form fields
-    if (data.jobTitle || data.title) updates.jobTitle = data.jobTitle || data.title;
+    if (data.jobTitle || data.title) {
+      const title = data.jobTitle || data.title;
+      updates.jobTitle = capitalizeJobTitle(title);
+    }
     if (data.company) updates.company = data.company;
     if (data.companyLocation || data.location) updates.companyLocation = data.companyLocation || data.location;
     if (data.responsibilities || data.description) updates.responsibilities = data.responsibilities || data.description;
@@ -290,7 +305,7 @@ export default function CreateJob({ onCreated }) {
     console.log('🔄 Populating form with Excel data:', jobData);
 
     // === SECTION 1: COMPANY DETAILS ===
-    if (jobData.jobTitle) updates.jobTitle = jobData.jobTitle;
+    if (jobData.jobTitle) updates.jobTitle = capitalizeJobTitle(jobData.jobTitle);
     if (jobData.company) updates.company = jobData.company;
     if (jobData.companyLocation) updates.companyLocation = jobData.companyLocation;
     if (jobData.website) updates.website = jobData.website;
@@ -539,6 +554,15 @@ export default function CreateJob({ onCreated }) {
     }
   };
 
+  const onJobTitleChange = (value) => {
+    update({ jobTitle: value });
+  };
+
+  const onJobTitleBlur = (value) => {
+    const capitalized = capitalizeJobTitle(value);
+    update({ jobTitle: capitalized });
+  };
+
   const onJobTypeChange = (val) => {
     update({ jobType: val });
   };
@@ -699,7 +723,7 @@ export default function CreateJob({ onCreated }) {
     // Ensure required fields are not empty strings
     const companyName = (form.company || '').trim();
     const description = (form.responsibilities || '').trim();
-    const jobTitle = (form.jobTitle || '').trim();
+    const jobTitle = capitalizeJobTitle((form.jobTitle || '').trim());
     const requiredSkills = Array.isArray(form.skills) ? form.skills : [];
     
     // Validate required fields before building payload
@@ -1042,7 +1066,7 @@ export default function CreateJob({ onCreated }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="flex flex-col gap-1">
                     <label className="text-sm text-black font-medium">Job Title <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.jobTitle?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. Full Stack Developer" value={form.jobTitle} onChange={(e) => update({ jobTitle: e.target.value })} />
+                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.jobTitle?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. Full Stack Developer" value={form.jobTitle} onChange={(e) => onJobTitleChange(e.target.value)} onBlur={(e) => onJobTitleBlur(e.target.value)} />
                   </div>
 
                   {/* Work Mode Dropdown */}
