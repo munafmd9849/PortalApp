@@ -7,6 +7,14 @@ export default {
   ],
   theme: {
     extend: {
+      width: {
+        '30': '4rem',   // 64px - reduced from 120px to match previous appearance
+        '35': '5rem',   // 80px
+        '40': '6rem',   // 96px
+      },
+      height: {
+        '23': '5.75rem', // 92px - for header consistency
+      },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         heading: ['Montserrat', 'ui-sans-serif', 'system-ui', 'sans-serif'],

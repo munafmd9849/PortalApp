@@ -547,21 +547,6 @@ export default function StudentDashboard() {
     }
   }, [user?.id]);
 
-  const loadInterviewHistory = useCallback(async () => {
-    if (!user?.id) return;
-    
-    setLoadingInterviewHistory(true);
-    try {
-      const historyData = await getStudentInterviewHistory(user.id);
-      setInterviewHistory(historyData || []);
-    } catch (err) {
-      console.error('Failed to load interview history:', err);
-      setInterviewHistory([]);
-    } finally {
-      setLoadingInterviewHistory(false);
-    }
-  }, [user?.id]);
-
   // Load resumes from API
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
@@ -596,12 +581,6 @@ export default function StudentDashboard() {
       return;
     }
 
-    // Check CGPA requirement
-    if (!meetsCgpaRequirement(job)) {
-      alert("Couldn't apply for Job as CGPA requirement not met.");
-      return;
-    }
-
     // Store the job and show resume selection modal
     setPendingJob(job);
     await loadResumes();
@@ -627,6 +606,7 @@ export default function StudentDashboard() {
       }
       
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
+      // Pass resumeId in applicationData if backend supports it
       await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
       
       if (process.env.NODE_ENV === 'development') {
@@ -3096,7 +3076,7 @@ export default function StudentDashboard() {
                         <button
                           key={resume.id || resume.fileName}
                           onClick={() => handleResumeSelection(resume.id || resume.fileName)}
-                          className="w-full text-left px-4 py-3 border border-blue-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-between bg-white shadow-sm"
+                          className="w-full text-left px-4 py-3 border border-blue-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-between bg-white shadow-sm group"
                         >
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-100 rounded-md">

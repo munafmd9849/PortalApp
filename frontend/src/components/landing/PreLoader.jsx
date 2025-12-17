@@ -65,7 +65,8 @@ const Preloader = ({ onComplete }) => {
           <img
             src={logo}
             alt="Brand Logo"
-            className="w-38 animate-fadeUp"
+            className="w-32 h-32 md:w-38 md:h-38 animate-fadeUp"
+            style={{ maxWidth: '152px', height: 'auto' }}
           />
         </div>
       </div>

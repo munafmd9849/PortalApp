@@ -179,7 +179,7 @@ function Header({ onLoginOpen, onScrollToContact }) {
             <img
               src={brandLogo}
               alt="PW IOI Logo"
-              className="w-30 md:w-35 lg:w-40"
+              className="w-20 md:w-24 lg:w-28"
             />
           </a>
         </div>

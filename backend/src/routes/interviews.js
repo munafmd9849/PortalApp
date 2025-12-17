@@ -48,5 +48,3 @@ router.get('/:interviewId/activities', getInterviewActivities);
 router.post('/:interviewId/end', endInterviewSession);
 
 export default router;
-
-

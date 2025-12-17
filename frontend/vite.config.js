@@ -1,12 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
   ],
   resolve: {
     alias: {
@@ -15,8 +13,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react-pdf'],
+    force: true, // Force re-optimization
   },
   build: {
     target: 'es2020',
+  },
+  server: {
+    hmr: {
+      overlay: false, // Disable error overlay to prevent blocking
+    },
   },
 });

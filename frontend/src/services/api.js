@@ -469,6 +469,40 @@ export const api = {
   getAuthToken,
   setAuthTokens,
   clearAuthTokens,
+
+  // Generic HTTP methods for calendar and other services
+  get: (endpoint, config = {}) => {
+    const query = config.params ? new URLSearchParams(config.params).toString() : '';
+    const url = query ? `${endpoint}?${query}` : endpoint;
+    return apiRequest(url).then(data => ({ data }));
+  },
+  post: (endpoint, data, config = {}) => {
+    return apiRequest(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...config,
+    }).then(response => ({ data: response }));
+  },
+  put: (endpoint, data, config = {}) => {
+    return apiRequest(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      ...config,
+    }).then(response => ({ data: response }));
+  },
+  delete: (endpoint, config = {}) => {
+    return apiRequest(endpoint, {
+      method: 'DELETE',
+      ...config,
+    }).then(response => ({ data: response }));
+  },
+  patch: (endpoint, data, config = {}) => {
+    return apiRequest(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      ...config,
+    }).then(response => ({ data: response }));
+  },
 };
 
 export default api;

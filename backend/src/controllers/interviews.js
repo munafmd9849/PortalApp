@@ -542,5 +542,3 @@ export const endInterviewSession = async (req, res) => {
     res.status(500).json({ error: 'Failed to end interview session', details: error.message });
   }
 };
-
-

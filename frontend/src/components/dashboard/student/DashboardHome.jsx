@@ -183,7 +183,6 @@ const DashboardHome = ({
           onApply={handleApplyToJob}
           hasApplied={hasApplied}
           applying={applying}
-          meetsCgpaRequirement={meetsCgpaRequirement}
           onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
         />
       )}

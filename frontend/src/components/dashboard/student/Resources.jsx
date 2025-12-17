@@ -87,7 +87,7 @@ export default function PlacementResources() {
               Placement resources
             </p>
             <h1 className="text-3xl font-bold text-slate-900 mt-2">
-              Search smarter, prepare faster
+              Search smarter. Prepare faster
             </h1>
             <p className="text-slate-600 mt-2">
               Get trusted resources from the web for any topic you&apos;re preparing.
