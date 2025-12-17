@@ -155,7 +155,11 @@ async function apiRequest(endpoint, options = {}) {
       });
       
       const error = new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-      error.response = errorData;
+      error.response = {
+        data: errorData,
+        status: response.status,
+        statusText: response.statusText,
+      };
       error.status = response.status;
       throw error;
     }
@@ -481,7 +485,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
       ...config,
-    }).then(response => ({ data: response }));
+    }).then(response => ({ data: response })).catch(error => {
+      // Re-throw to preserve error structure
+      throw error;
+    });
   },
   put: (endpoint, data, config = {}) => {
     return apiRequest(endpoint, {

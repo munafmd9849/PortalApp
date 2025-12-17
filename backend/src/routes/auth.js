@@ -29,7 +29,11 @@ const router = express.Router();
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
-  body('role').isIn(['STUDENT', 'RECRUITER', 'ADMIN']),
+  body('role').custom((value) => {
+    if (!value) return false;
+    const upper = value.toUpperCase();
+    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
+  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
   body('verificationToken').optional().isString(), // Optional: verification token from OTP
 ], async (req, res) => {
   try {
@@ -38,7 +42,9 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, role, profile = {}, verificationToken } = req.body;
+    const { email, password, role: roleFromBody, profile = {}, verificationToken } = req.body;
+    // Normalize role to uppercase
+    const role = roleFromBody ? roleFromBody.toUpperCase() : undefined;
 
     // Track if email was verified via OTP
     let emailVerified = false;
@@ -207,8 +213,16 @@ router.post('/register', [
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
-  body('role').optional().isIn(['STUDENT', 'RECRUITER', 'ADMIN']),
-  body('selectedRole').optional().isIn(['STUDENT', 'RECRUITER', 'ADMIN']),
+  body('role').optional().custom((value) => {
+    if (!value) return true;
+    const upper = value.toUpperCase();
+    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
+  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+  body('selectedRole').optional().custom((value) => {
+    if (!value) return true;
+    const upper = value.toUpperCase();
+    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
+  }).withMessage('SelectedRole must be STUDENT, RECRUITER, or ADMIN'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -217,7 +231,8 @@ router.post('/login', [
     }
 
     const { email, password, role: roleFromBody, selectedRole } = req.body;
-    const role = selectedRole || roleFromBody; // Accept both 'role' and 'selectedRole'
+    // Normalize role to uppercase (accept both 'role' and 'selectedRole')
+    const role = (selectedRole || roleFromBody) ? (selectedRole || roleFromBody).toUpperCase() : undefined;
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -239,8 +254,8 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Verify role if specified
-    if (role && user.role !== role) {
+    // Verify role if specified (case-insensitive comparison)
+    if (role && user.role.toUpperCase() !== role.toUpperCase()) {
       return res.status(403).json({ error: 'Invalid role for this account' });
     }
 

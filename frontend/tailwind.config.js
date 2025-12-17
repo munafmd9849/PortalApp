@@ -32,6 +32,7 @@ export default {
         'float-slow': 'float 20s ease-in-out infinite',
         'float-medium': 'float 15s ease-in-out infinite',
         'float-fast': 'float 10s ease-in-out infinite',
+        'spin-slow': 'spin 3s linear infinite',
       },
       keyframes: {
         'gradient-xy': {

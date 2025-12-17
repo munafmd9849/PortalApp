@@ -26,6 +26,8 @@ import recruiterRoutes from './routes/recruiters.js';
 import contactRoutes from './routes/contact.js';
 import searchRoutes from './routes/search.js';
 import interviewRoutes from './routes/interviews.js';
+import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
+import calendarRoutes from './routes/calendar.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -131,6 +133,23 @@ app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin/interview', interviewRoutes);
+app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
+app.use('/api/calendar', calendarRoutes); // New unified calendar routes
+
+// Google Calendar OAuth callback for popup flow
+// This route is called by Google with the authorization code
+// Support both old and new callback paths for compatibility
+app.get('/auth/google/calendar/callback', async (req, res) => {
+  const { handleOAuthCallback } = await import('./controllers/calendarOAuth.js');
+  return handleOAuthCallback(req, res);
+});
+
+// Legacy callback route (for backward compatibility)
+// If Google Cloud Console is configured with /auth/google/callback
+app.get('/auth/google/callback', async (req, res) => {
+  const { handleOAuthCallback } = await import('./controllers/calendarOAuth.js');
+  return handleOAuthCallback(req, res);
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

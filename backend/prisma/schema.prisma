@@ -32,6 +32,9 @@ model User {
   // Block info (stored as JSON string for SQLite)
   blockInfo         String?    // { type, endDate, reason, notes, blockedBy, blockedAt } as JSON string
   
+  // Google Calendar integration
+  googleCalendarConnected Boolean @default(false)
+  
   // Timestamps
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -47,6 +50,7 @@ model User {
   notifications     Notification[]
   queries           StudentQuery[]
   adminRequests     AdminRequest[]
+  googleCalendarToken GoogleCalendarToken?
   
   @@index([email])
   @@index([role, status])
@@ -629,6 +633,26 @@ model Admin {
   
   @@index([userId])
   @@map("admins")
+}
+
+// ============================================================================
+// GOOGLE CALENDAR TOKENS
+// ============================================================================
+
+model GoogleCalendarToken {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String?
+  expiryDate   DateTime?
+  scope        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("google_calendar_tokens")
 }
 
 // ============================================================================

@@ -547,6 +547,22 @@ export default function StudentDashboard() {
     }
   }, [user?.id]);
 
+  // Load interview history
+  const loadInterviewHistory = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setLoadingInterviewHistory(true);
+    try {
+      const historyData = await getStudentInterviewHistory(user.id);
+      setInterviewHistory(historyData || []);
+    } catch (err) {
+      console.error('Failed to load interview history:', err);
+      setInterviewHistory([]);
+    } finally {
+      setLoadingInterviewHistory(false);
+    }
+  }, [user?.id]);
+
   // Load resumes from API
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
