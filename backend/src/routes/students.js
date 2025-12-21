@@ -70,7 +70,25 @@ router.put('/achievements/:achievementId', studentController.updateAchievement);
 router.delete('/achievements/:achievementId', studentController.deleteAchievement);
 
 // Resume management
-router.post('/resume', upload.single('resume'), studentController.uploadResume);
+router.post('/resume', (req, res, next) => {
+  upload.single('resume')(req, res, (err) => {
+    if (err) {
+      // Handle multer errors
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File size exceeds 10MB limit' });
+        }
+        return res.status(400).json({ error: `Upload error: ${err.message}` });
+      }
+      // Handle file filter errors
+      if (err.message === 'Only PDF files are allowed') {
+        return res.status(400).json({ error: 'Only PDF files are allowed' });
+      }
+      return res.status(400).json({ error: err.message || 'File upload error' });
+    }
+    next();
+  });
+}, studentController.uploadResume);
 router.get('/resumes', studentController.getResumes);
 router.delete('/resumes/:resumeId', studentController.deleteResume);
 

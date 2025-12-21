@@ -14,7 +14,9 @@ import {
   FaChevronUp,
   FaClock,
   FaCheck,
-  FaTimesCircle
+  FaTimesCircle,
+  FaStamp,
+  FaEnvelope
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
@@ -36,7 +38,9 @@ const StudentQuerySystem = () => {
     startDate: '',
     endDate: '',
     timeSlot: '',
-    reason: ''
+    reason: '',
+    teacherEmail: '',
+    endorsementMessage: ''
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -79,7 +83,8 @@ const StudentQuerySystem = () => {
   const queryTypes = [
     { id: 'question', name: 'Ask a Question', icon: <FaQuestionCircle />, description: 'Get clarification on placement process', color: 'blue' },
     { id: 'cgpa', name: 'Update CGPA', icon: <FaChartLine />, description: 'Submit updated marks with proof', color: 'green' },
-    { id: 'calendar', name: 'Block Calendar', icon: <FaCalendarAlt />, description: 'Request specific time slots', color: 'purple' }
+    { id: 'calendar', name: 'Block Calendar', icon: <FaCalendarAlt />, description: 'Request specific time slots', color: 'purple' },
+    { id: 'endorsement', name: 'Request Endorsement', icon: <FaStamp />, description: 'Request teacher endorsement letter', color: 'orange' }
   ];
 
   const timeSlots = [
@@ -169,6 +174,10 @@ const StudentQuerySystem = () => {
       }
     }
 
+    if (activeTab === 'endorsement') {
+      // Message is optional for endorsement
+    }
+
     if (activeTab === 'cgpa') {
       if (!formData.cgpa || formData.cgpa < 0 || formData.cgpa > 10) {
         errors.cgpa = 'Please enter a valid CGPA between 0 and 10';
@@ -200,6 +209,14 @@ const StudentQuerySystem = () => {
 
       if (!formData.reason) {
         errors.reason = 'Reason is required';
+      }
+    }
+
+    if (activeTab === 'endorsement') {
+      if (!formData.teacherEmail || !formData.teacherEmail.trim()) {
+        errors.teacherEmail = 'Teacher email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.teacherEmail.trim())) {
+        errors.teacherEmail = 'Please enter a valid email address';
       }
     }
 
@@ -294,7 +311,9 @@ const StudentQuerySystem = () => {
       startDate: '',
       endDate: '',
       timeSlot: '',
-      reason: ''
+      reason: '',
+      teacherEmail: '',
+      endorsementMessage: ''
     });
     setFormErrors({});
     setSubmitted(false);
@@ -461,6 +480,7 @@ const StudentQuerySystem = () => {
                             {query.type === 'question' && <FaQuestionCircle className="text-blue-500 text-xl" />}
                             {query.type === 'cgpa' && <FaChartLine className="text-green-500 text-xl" />}
                             {query.type === 'calendar' && <FaCalendarAlt className="text-purple-500 text-xl" />}
+                            {query.type === 'endorsement' && <FaStamp className="text-orange-500 text-xl" />}
                           </div>
                           <div>
                             <h3 className="font-medium text-gray-800">{query.subject}</h3>
@@ -777,6 +797,60 @@ const StudentQuerySystem = () => {
                 </>
               )}
 
+              {/* Endorsement Request fields */}
+              {activeTab === 'endorsement' && (
+                <>
+                  <div className="mb-6">
+                    <label className="block text-gray-700 font-medium mb-2 flex items-center">
+                      Teacher Email Address
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <div className="relative">
+                      <FaEnvelope className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="email"
+                        name="teacherEmail"
+                        value={formData.teacherEmail}
+                        onChange={handleInputChange}
+                        placeholder="teacher@example.com"
+                        className={`w-full pl-12 pr-4 py-3 border ${formErrors.teacherEmail ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200`}
+                        required
+                      />
+                    </div>
+                    {formErrors.teacherEmail && <p className="text-red-500 text-sm mt-1">{formErrors.teacherEmail}</p>}
+                  </div>
+
+                  <div className="mb-6">
+                    <label className="block text-gray-700 font-medium mb-2">
+                      Message (Optional)
+                    </label>
+                    <textarea
+                      name="endorsementMessage"
+                      value={formData.endorsementMessage}
+                      onChange={handleInputChange}
+                      placeholder="Add any additional message or context for the teacher..."
+                      rows={4}
+                      className={`w-full px-4 py-3 border min-h-[120px] max-h-[300px] resize-y ${formErrors.endorsementMessage ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200`}
+                    />
+                    {formErrors.endorsementMessage && <p className="text-red-500 text-sm mt-1">{formErrors.endorsementMessage}</p>}
+                  </div>
+                  
+                  <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-200">
+                    <div className="flex items-start">
+                      <FaInfoCircle className="text-orange-600 mt-0.5 mr-3 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm text-orange-700 mb-2">
+                          An email with a secure link will be sent to the teacher. The teacher will be able to fill in their details, write an endorsement message, and sign the document digitally.
+                        </p>
+                        <p className="text-sm text-orange-600">
+                          The endorsement will be automatically associated with your profile once the teacher completes the form.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Error Display */}
               {formErrors.submit && (
                 <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -844,6 +918,13 @@ const StudentQuerySystem = () => {
               </div>
               <h3 className="font-semibold text-gray-800 mb-2">Calendar Management</h3>
               <p className="text-sm text-gray-600">Block your calendar for interviews, exams, or personal commitments.</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+              <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
+                <FaStamp className="text-orange-600 text-xl" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">Teacher Endorsements</h3>
+              <p className="text-sm text-gray-600">Request endorsement letters from your teachers with digital signatures.</p>
             </div>
           </div>
         )}

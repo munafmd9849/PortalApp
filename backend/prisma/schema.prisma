@@ -154,6 +154,7 @@ model Student {
   codingProfiles CodingProfile[]
   interviewEvaluations InterviewEvaluation[]
   resumeFiles  StudentResumeFile[]
+  endorsements Endorsement[]
   
   @@index([center, batch])
   @@index([school, batch])
@@ -589,6 +590,41 @@ model StudentQuery {
 }
 
 // QueryStatus: "OPEN", "RESOLVED", "CLOSED"
+
+// ============================================================================
+// ENDORSEMENTS
+// ============================================================================
+
+model Endorsement {
+  id              String   @id @default(uuid())
+  studentId       String
+  queryId         String?  // Associated query ID if created from query
+  teacherEmail    String
+  token           String   @unique // Unique token for endorsement link
+  status          String   @default("PENDING") // EndorsementStatus: PENDING, COMPLETED, EXPIRED
+  
+  // Teacher response data
+  teacherName     String?
+  teacherMessage  String?
+  signatureData   String?  // Base64 encoded signature image
+  
+  // Request metadata
+  studentMessage  String?  // Optional message from student
+  requestedAt     DateTime @default(now())
+  completedAt     DateTime?
+  expiresAt       DateTime
+  
+  // Relations
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([studentId, requestedAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@index([teacherEmail])
+  @@map("endorsements")
+}
+
+// EndorsementStatus: "PENDING", "COMPLETED", "EXPIRED"
 
 // ============================================================================
 // ADMIN REQUESTS

@@ -1,5 +1,8 @@
 import prisma from '../config/database.js';
 import { createNotification } from './notifications.js';
+import { sendEndorsementRequestEmail } from '../services/emailService.js';
+import crypto from 'crypto';
+import logger from '../config/logger.js';
 
 const QUERY_NOTIFICATION_TYPES = {
   question: 'question_request',
@@ -9,7 +12,7 @@ const QUERY_NOTIFICATION_TYPES = {
 
 function normalizeType(type = 'question') {
   const normalized = (type || 'question').toLowerCase();
-  if (['question', 'cgpa', 'calendar'].includes(normalized)) {
+  if (['question', 'cgpa', 'calendar', 'endorsement'].includes(normalized)) {
     return normalized;
   }
   return 'question';
@@ -130,6 +133,8 @@ export async function createStudentQuery(req, res) {
       endDate,
       timeSlot,
       reason,
+      teacherEmail,
+      endorsementMessage,
     } = req.body;
 
     const normalizedType = normalizeType(type);
@@ -142,6 +147,8 @@ export async function createStudentQuery(req, res) {
       endDate: endDate || null,
       timeSlot: timeSlot || null,
       reason: reason || null,
+      teacherEmail: teacherEmail || null,
+      endorsementMessage: endorsementMessage || null,
     };
 
     const studentProfile = await prisma.student.findUnique({
@@ -170,11 +177,16 @@ export async function createStudentQuery(req, res) {
         batch: null,
       };
 
+    // For endorsement type, use a default message if none provided
+    const queryMessage = normalizedType === 'endorsement' && !message?.trim()
+      ? `Endorsement request sent to ${teacherEmail || 'teacher'}.`
+      : message || '';
+
     const query = await prisma.studentQuery.create({
       data: {
         studentId,
         subject,
-        message,
+        message: queryMessage,
         type: normalizedType,
         metadata: serializeMetadata({
           ...metadata,
@@ -200,11 +212,75 @@ export async function createStudentQuery(req, res) {
 
     console.log(`[Query Creation] Query created successfully: ${query.id}, studentId: ${studentId}`);
     
-    // Notify admins about the new query
-    await notifyAdminsAboutQuery(query, metadata, {
-      ...profileForNotification,
-      displayName: userProfile?.displayName,
-    });
+    // Handle endorsement type - create endorsement record and send email
+    if (normalizedType === 'endorsement' && teacherEmail) {
+      try {
+        // Generate unique token for endorsement link
+        const token = crypto.randomBytes(32).toString('hex');
+        
+        // Calculate expiration date (30 days from now)
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        
+        // Get student profile for email
+        const studentProfileData = await prisma.student.findUnique({
+          where: { userId: studentId },
+          select: { fullName: true },
+        });
+        
+        const studentName = studentProfileData?.fullName || userProfile?.displayName || userProfile?.email || 'Student';
+        
+        logger.info(`[Endorsement] Creating endorsement for student ${studentName}, sending to ${teacherEmail.trim()}`);
+        
+        // Create endorsement record
+        const endorsement = await prisma.endorsement.create({
+          data: {
+            studentId: studentId,
+            queryId: query.id,
+            teacherEmail: teacherEmail.trim(),
+            token: token,
+            status: 'PENDING',
+            studentMessage: endorsementMessage || null,
+            expiresAt: expiresAt,
+          },
+        });
+        
+        logger.info(`[Endorsement] Endorsement record created: ${endorsement.id}`);
+        
+        // Send endorsement request email to teacher
+        const endorsementLink = `/endorsement/${token}`;
+        logger.info(`[Endorsement] Attempting to send email to ${teacherEmail.trim()} with link: ${endorsementLink}`);
+        
+        const emailResult = await sendEndorsementRequestEmail(
+          teacherEmail.trim(),
+          studentName,
+          endorsementLink,
+          endorsementMessage || null
+        );
+        
+        logger.info(`[Endorsement] Email sent successfully to ${teacherEmail.trim()}. MessageId: ${emailResult.messageId || 'N/A'}`);
+        logger.info(`[Endorsement] Created endorsement ${endorsement.id} and sent email to ${teacherEmail.trim()}`);
+      } catch (endorsementError) {
+        logger.error('[Endorsement] Error creating endorsement or sending email:', endorsementError);
+        logger.error('[Endorsement] Error details:', {
+          message: endorsementError.message,
+          stack: endorsementError.stack,
+          code: endorsementError.code,
+          response: endorsementError.response,
+        });
+        // Don't fail the query creation if endorsement setup fails
+        // The query is already created, we just log the error
+        // But we should still inform the user that email might not have been sent
+      }
+    }
+    
+    // Notify admins about the new query (skip for endorsement as it's handled separately)
+    if (normalizedType !== 'endorsement') {
+      await notifyAdminsAboutQuery(query, metadata, {
+        ...profileForNotification,
+        displayName: userProfile?.displayName,
+      });
+    }
 
     res.status(201).json({
       query: formatQuery(query),

@@ -41,8 +41,24 @@ router.post(
   }),
   body('type')
     .optional()
-    .isIn(['question', 'cgpa', 'calendar'])
+    .isIn(['question', 'cgpa', 'calendar', 'endorsement'])
     .withMessage('Invalid query type'),
+  body('teacherEmail')
+    .optional()
+    .custom((value, { req }) => {
+      const type = (req.body.type || 'question').toLowerCase();
+      if (type === 'endorsement') {
+        if (!value || !value.trim()) {
+          throw new Error('Teacher email is required for endorsement requests');
+        }
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value.trim())) {
+          throw new Error('Please provide a valid teacher email address');
+        }
+      }
+      return true;
+    }),
   handleValidation,
   createStudentQuery
 );
