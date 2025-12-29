@@ -3,7 +3,8 @@ import api from './api.js';
 export const QUERY_TYPES = {
   QUESTION: 'question',
   CGPA_UPDATE: 'cgpa',
-  CALENDAR_BLOCK: 'calendar'
+  CALENDAR_BLOCK: 'calendar',
+  ENDORSEMENT: 'endorsement'
 };
 
 export const QUERY_STATUS = {
@@ -28,7 +29,7 @@ function generateReferenceId() {
 
 function normalizeType(type = 'question') {
   const normalized = (type || 'question').toLowerCase();
-  if (['question', 'cgpa', 'calendar'].includes(normalized)) {
+  if (['question', 'cgpa', 'calendar', 'endorsement'].includes(normalized)) {
     return normalized;
   }
   return 'question';
@@ -69,13 +70,16 @@ function buildPayload(formData) {
     throw new Error('Subject is required');
   }
   
-  if (!message || message.length < 10) {
-    throw new Error('Message must be at least 10 characters');
+  // Message validation - not required for endorsement type
+  if (type !== QUERY_TYPES.ENDORSEMENT) {
+    if (!message || message.length < 10) {
+      throw new Error('Message must be at least 10 characters');
+    }
   }
   
   const payload = {
     subject,
-    message,
+    message: message || '', // Allow empty message for endorsement
     type,
   };
 
@@ -88,6 +92,15 @@ function buildPayload(formData) {
     payload.endDate = formData.endDate || null;
     payload.timeSlot = formData.timeSlot || null;
     payload.reason = formData.reason || null;
+  }
+
+  if (payload.type === QUERY_TYPES.ENDORSEMENT) {
+    payload.teacherEmail = formData.teacherEmail?.trim() || null;
+    payload.endorsementMessage = formData.endorsementMessage?.trim() || null;
+    // For endorsement, use endorsementMessage as the message field if provided
+    if (formData.endorsementMessage?.trim()) {
+      payload.message = formData.endorsementMessage.trim();
+    }
   }
 
   return payload;

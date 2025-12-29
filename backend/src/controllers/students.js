@@ -776,19 +776,46 @@ export async function uploadResume(req, res) {
 
     // Upload to S3
     const key = `resumes/${userId}/${Date.now()}-${file.originalname}`;
-    const fileUrl = await uploadToS3(file.buffer, key, file.mimetype);
+    let fileUrl;
+    try {
+      fileUrl = await uploadToS3(file.buffer, key, file.mimetype);
+    } catch (s3Error) {
+      console.error('S3 upload error:', s3Error);
+      // Check for common S3 errors
+      if (s3Error.name === 'CredentialsProviderError' || s3Error.message?.includes('credentials')) {
+        return res.status(500).json({ 
+          error: 'S3 configuration error: AWS credentials are missing or invalid. Please check server configuration.' 
+        });
+      }
+      if (s3Error.name === 'NoSuchBucket' || s3Error.message?.includes('bucket')) {
+        return res.status(500).json({ 
+          error: 'S3 configuration error: Bucket not found. Please check S3_BUCKET_NAME configuration.' 
+        });
+      }
+      return res.status(500).json({ 
+        error: `Failed to upload to storage: ${s3Error.message || 'Unknown error'}` 
+      });
+    }
 
     // Save to StudentResumeFile model (supports multiple resumes)
-    const resumeFile = await prisma.studentResumeFile.create({
-      data: {
-        studentId: student.id,
-        userId: userId,
-        fileUrl: fileUrl,
-        fileName: file.originalname,
-        fileSize: file.size,
-        uploadedAt: new Date(),
-      },
-    });
+    let resumeFile;
+    try {
+      resumeFile = await prisma.studentResumeFile.create({
+        data: {
+          studentId: student.id,
+          userId: userId,
+          fileUrl: fileUrl,
+          fileName: file.originalname,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+        },
+      });
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return res.status(500).json({ 
+        error: `Failed to save resume record: ${dbError.message || 'Database error'}` 
+      });
+    }
 
     res.json({
       id: resumeFile.id,
@@ -799,7 +826,9 @@ export async function uploadResume(req, res) {
     });
   } catch (error) {
     console.error('Upload resume error:', error);
-    res.status(500).json({ error: 'Failed to upload resume' });
+    res.status(500).json({ 
+      error: `Failed to upload resume: ${error.message || 'Unknown error'}` 
+    });
   }
 }
 

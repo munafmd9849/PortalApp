@@ -609,3 +609,90 @@ export async function sendGenericNotification(email, subject, message) {
   }
 }
 
+/**
+ * Send endorsement request email to teacher
+ * @param {string} teacherEmail - Teacher email address
+ * @param {string} studentName - Student's name
+ * @param {string} endorsementLink - Unique link for endorsement submission
+ * @param {string} studentMessage - Optional message from student
+ * @returns {Promise<Object>} Result
+ */
+export async function sendEndorsementRequestEmail(teacherEmail, studentName, endorsementLink, studentMessage = null) {
+  try {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const fullLink = `${frontendUrl}${endorsementLink}`;
+    
+    const subject = `Endorsement Request from ${studentName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Endorsement Request</h2>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #1f2937; font-size: 16px; line-height: 1.6;">Hello,</p>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            <strong>${studentName}</strong> has requested an endorsement letter from you through the PWIOI Placement Portal.
+          </p>
+          ${studentMessage ? `
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #92400e; font-size: 14px; font-style: italic;">
+              "${studentMessage}"
+            </p>
+            <p style="margin: 5px 0 0; color: #78350f; font-size: 12px;">— ${studentName}</p>
+          </div>
+          ` : ''}
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            To provide your endorsement, please click the button below. You will be able to:
+          </p>
+          <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 15px 0;">
+            <li>Fill in your name and details</li>
+            <li>Write an endorsement message</li>
+            <li>Sign the document digitally using a canvas</li>
+          </ul>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${fullLink}" style="display: inline-block; background: #f97316; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+              Complete Endorsement
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 25px;">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${fullLink}" style="color: #f97316; word-break: break-all;">${fullLink}</a>
+          </p>
+          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #991b1b; font-size: 12px;">
+              <strong>Note:</strong> This link will expire in 30 days. Please complete the endorsement as soon as possible.
+            </p>
+          </div>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            This is an automated email from PWIOI Placement Portal. If you did not expect this request, please ignore this email.
+          </p>
+        </div>
+      </div>
+    `;
+    
+    const text = `
+Endorsement Request from ${studentName}
+
+${studentName} has requested an endorsement letter from you.
+
+${studentMessage ? `Message from student: "${studentMessage}"\n\n` : ''}To provide your endorsement, please visit:
+${fullLink}
+
+You will be able to fill in your details, write an endorsement message, and sign the document digitally.
+
+This link will expire in 30 days.
+
+This is an automated email from PWIOI Placement Portal.
+    `.trim();
+
+    const result = await sendEmail({ to: teacherEmail, subject, html, text });
+    
+    logger.info(`Endorsement request email sent to ${teacherEmail} for student ${studentName}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send endorsement request email to ${teacherEmail}:`, error);
+    throw error;
+  }
+}
+

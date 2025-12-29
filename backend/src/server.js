@@ -28,6 +28,7 @@ import searchRoutes from './routes/search.js';
 import interviewRoutes from './routes/interviews.js';
 import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
 import calendarRoutes from './routes/calendar.js';
+import endorsementRoutes from './routes/endorsements.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -135,6 +136,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/admin/interview', interviewRoutes);
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
 app.use('/api/calendar', calendarRoutes); // New unified calendar routes
+app.use('/api/endorsements', endorsementRoutes);
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code

@@ -8,6 +8,7 @@ import EducationSection from './EducationSection';
 import SkillsSection from './SkillsSection';
 import ProjectsSection from './ProjectsSection';
 import Achievements from './Achievements';
+import Endorsements from './Endorsements';
 import StudentFooter from './StudentFooter';
 import JobDescription from './JobDescription';
 import { 
@@ -198,6 +199,9 @@ const DashboardHome = ({
 
       {/* Achievements & Certifications Section */}
       <Achievements isAdminView={isAdminView} />
+
+      {/* Endorsements Section */}
+      <Endorsements isAdminView={isAdminView} />
 
       {/* Student Footer */}
       {!hideFooter && (

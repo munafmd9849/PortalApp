@@ -7,6 +7,15 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
+// Validate S3 configuration
+if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  console.warn('⚠️  AWS credentials not configured. S3 uploads will fail.');
+}
+
+if (!process.env.S3_BUCKET_NAME) {
+  console.warn('⚠️  S3_BUCKET_NAME not configured. S3 uploads will fail.');
+}
+
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
@@ -25,6 +34,15 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME;
  * @returns {Promise<string>} Public URL
  */
 export async function uploadToS3(fileBuffer, key, contentType) {
+  // Validate configuration before attempting upload
+  if (!BUCKET_NAME) {
+    throw new Error('S3_BUCKET_NAME is not configured');
+  }
+  
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    throw new Error('AWS credentials are not configured');
+  }
+
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -35,7 +53,7 @@ export async function uploadToS3(fileBuffer, key, contentType) {
   await s3Client.send(command);
   
   // Return public URL (configure bucket for public access or use presigned URLs)
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 }
 
 /**

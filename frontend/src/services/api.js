@@ -206,7 +206,17 @@ async function uploadFile(endpoint, file, fieldName = 'file', onProgress) {
       if (xhr.status === 200 || xhr.status === 201) {
         resolve(JSON.parse(xhr.responseText));
       } else {
-        reject(new Error(`Upload failed: ${xhr.statusText}`));
+        // Try to parse error response body
+        let errorMessage = `Upload failed: ${xhr.statusText}`;
+        try {
+          const errorResponse = JSON.parse(xhr.responseText);
+          if (errorResponse.error) {
+            errorMessage = errorResponse.error;
+          }
+        } catch (e) {
+          // If parsing fails, use default message
+        }
+        reject(new Error(errorMessage));
       }
     });
 
@@ -439,6 +449,9 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(payload),
   }),
+
+  // Endorsements
+  getStudentEndorsements: () => apiRequest('/endorsements/student'),
 
   // Admin Requests
   createAdminRequest: (data) => apiRequest('/admin-requests', {
