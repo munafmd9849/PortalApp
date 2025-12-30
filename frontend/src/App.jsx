@@ -29,6 +29,7 @@ import Assessment from './pages/Assessment'
 import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
+import Endorsement from './pages/Endorsement'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
@@ -180,6 +181,7 @@ function AppContent() {
         <Route path="/dev-team" element={<DevTeam />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/endorsement/:token" element={<Endorsement />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute allowRoles={['student']} />}>
