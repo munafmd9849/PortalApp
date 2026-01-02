@@ -41,10 +41,17 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   setImmediate(() => {
     transporter.verify((error, success) => {
       if (error) {
-        console.error('❌ Email transporter verification failed:', error.message);
-        console.error('   Check your EMAIL_USER and EMAIL_PASS in .env file');
-        if (error.message.includes('Invalid login')) {
-          console.error('   ⚠️  Gmail App Password might be incorrect or expired');
+        // Only show error if it's not a network/DNS issue (which is common)
+        if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+          console.warn('⚠️  Email transporter verification skipped: Cannot reach SMTP server');
+          console.warn('   This is usually due to network/DNS issues and can be ignored during development');
+          console.warn('   Email functionality will work when network is available');
+        } else {
+          console.error('❌ Email transporter verification failed:', error.message);
+          console.error('   Check your EMAIL_USER and EMAIL_PASS in .env file');
+          if (error.message.includes('Invalid login')) {
+            console.error('   ⚠️  Gmail App Password might be incorrect or expired');
+          }
         }
       } else {
         console.log('✅ Email transporter is ready');

@@ -181,7 +181,8 @@ function AppContent() {
         <Route path="/dev-team" element={<DevTeam />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/endorsement/:token" element={<Endorsement />} />
+        <Route path="/endorse/:token" element={<Endorsement />} />
+        <Route path="/endorsement/:token" element={<Endorsement />} /> {/* Legacy route support */}
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute allowRoles={['student']} />}>

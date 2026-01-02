@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { subscribeJobs } from '../../../services/jobs';
 import { API_BASE_URL } from '../../../config/api';
 import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle } from 'lucide-react';
-import JobDescription from '../student/JobDescription';
+import JobDetailsView from '../student/JobDetailsView';
 import { useToast } from '../../ui/Toast';
 
 export default function ScheduleInterview() {
@@ -343,7 +343,7 @@ export default function ScheduleInterview() {
                                 </button>
                               </div>
                               <div className="p-6">
-                                <JobDescription job={job} />
+                                <JobDetailsView job={job} />
                               </div>
                             </div>
                           </div>

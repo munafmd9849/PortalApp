@@ -190,10 +190,13 @@ export const getStudentApplications = async (studentId) => {
  */
 export const applyToJob = async (studentId, jobId, applicationData = {}) => {
   try {
-    const application = await api.applyToJob(jobId);
+    console.log('📝 [applyToJob] Calling API with:', { jobId, applicationData });
+    // Include resumeId and companyId in the request body
+    const application = await api.applyToJob(jobId, applicationData);
+    console.log('✅ [applyToJob] Application created:', application);
     return application;
   } catch (error) {
-    console.error('applyToJob error:', error);
+    console.error('❌ [applyToJob] Error:', error);
     throw error;
   }
 };

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ImEye } from 'react-icons/im';
+import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaCheckCircle, FaUsers, FaChartLine } from 'react-icons/fa';
 import { MdBlock } from 'react-icons/md';
-import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaEdit } from 'react-icons/fa';
 import { Loader, Download, Upload, SquarePen, User } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { getAllStudents, updateStudentStatus, updateStudentProfile, getEducationalBackground, getStudentSkills, updateEducationalBackground } from '../../../services/students';
+import { getAllStudents, updateStudentStatus, updateStudentProfile, updateEducationalBackground, getStudentSkills } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -13,6 +13,8 @@ import { getStudentApplications } from '../../../services/applications';
 import { getTargetedJobsForStudent } from '../../../services/jobs';
 import CustomDropdown from '../../common/CustomDropdown';
 import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
+import StudentDetailsModal from '../../common/StudentDetailsModal';
+import BlockModal from '../../common/BlockModal';
 // TODO: Replace Firebase operations with API calls
 
 const STATUS_OPTIONS = [
@@ -20,294 +22,6 @@ const STATUS_OPTIONS = [
   { id: 'Inactive', name: 'Inactive' },
   { id: 'Blocked', name: 'Blocked' },
 ];
-
-
-const StudentDetailsModal = ({ isOpen, onClose, student }) => {
-  const [detailedStudent, setDetailedStudent] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Fetch detailed student data when modal opens
-  useEffect(() => {
-    if (isOpen && student?.id) {
-      fetchDetailedStudentData();
-    }
-  }, [isOpen, student?.id]);
-
-  const fetchDetailedStudentData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const [educationData, skillsData] = await Promise.all([
-        getEducationalBackground(student.id),
-        getStudentSkills(student.id)
-      ]);
-
-      setDetailedStudent({
-        ...student,
-        education: educationData.sort((a, b) => new Date(b.endYear || '9999') - new Date(a.endYear || '9999')),
-        skills: skillsData.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-      });
-
-    } catch (err) {
-      console.error('Error fetching detailed student data:', err);
-      setError('Failed to load student details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isOpen || !student) return null;
-
-  const studentData = detailedStudent || student;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Student Details</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <FaTimes size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader className="h-6 w-6 animate-spin text-blue-600 mr-2" />
-              <span className="text-gray-600">Loading student details...</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <p className="text-red-600">{error}</p>
-              <button
-                onClick={fetchDetailedStudentData}
-                className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Personal Information */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <FaUser className="mr-2 text-blue-600" />
-                Personal Information
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Full Name</label>
-                  <p className="text-gray-800">{studentData.fullName || studentData.email || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Email</label>
-                  <p className="text-gray-800 flex items-center">
-                    <FaEnvelope className="mr-2 text-gray-400" size={14} />
-                    {studentData.email || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Phone</label>
-                  <p className="text-gray-800 flex items-center">
-                    <FaPhone className="mr-2 text-gray-400" size={14} />
-                    {studentData.phone || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Enrollment ID</label>
-                  <p className="text-gray-800 flex items-center">
-                    <FaIdCard className="mr-2 text-gray-400" size={14} />
-                    {studentData.enrollmentId || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Academic Information */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <FaGraduationCap className="mr-2 text-green-600" />
-                Academic Information
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">School</label>
-                  <p className="text-gray-800">{studentData.school || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Center</label>
-                  <p className="text-gray-800 flex items-center">
-                    <FaMapMarkerAlt className="mr-2 text-gray-400" size={14} />
-                    {studentData.center || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">CGPA</label>
-                  <p className="text-gray-800">{studentData.cgpa || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Batch</label>
-                  <p className="text-gray-800 flex items-center">
-                    <FaCalendarAlt className="mr-2 text-gray-400" size={14} />
-                    {studentData.batch || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Information */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Status</label>
-                  <p className="text-gray-800">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${studentData.status === 'Active' ? 'bg-green-100 text-green-800' :
-                        studentData.status === 'Blocked' ? 'bg-red-200 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                      }`}>
-                      {studentData.status || 'Active'}
-                    </span>
-                  </p>
-                  {studentData.blockDetails && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                      <p className="text-xs text-red-600">
-                        <strong>Blocked:</strong> {studentData.blockDetails.reason}
-                      </p>
-                      {studentData.blockDetails.notes && (
-                        <p className="text-xs text-red-600 mt-1">{studentData.blockDetails.notes}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Bio</label>
-                  <p className="text-gray-800">{studentData.bio || 'No bio available'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Tagline</label>
-                  <p className="text-gray-800">{studentData.tagline || 'No tagline available'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Statistics */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Application Statistics</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{student.stats?.applied || 0}</div>
-                  <div className="text-sm text-gray-500">Applied</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-600">{student.stats?.shortlisted || 0}</div>
-                  <div className="text-sm text-gray-500">Shortlisted</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{student.stats?.interviewed || 0}</div>
-                  <div className="text-sm text-gray-500">Interviewed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{studentData.stats?.offers || 0}</div>
-                  <div className="text-sm text-gray-500">Offers</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Educational Background */}
-            <div className="bg-gray-50 p-4 rounded-lg md:col-span-2">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <FaGraduationCap className="mr-2 text-purple-600" />
-                Educational Background
-              </h3>
-              {studentData.education && studentData.education.length > 0 ? (
-                <div className="space-y-3">
-                  {studentData.education.map((edu, index) => (
-                    <div key={index} className="border-l-4 border-purple-500 pl-4 py-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold text-gray-800">{edu.degree || 'N/A'}</p>
-                          <p className="text-gray-600">{edu.institution || 'N/A'}</p>
-                          <p className="text-sm text-gray-500">
-                            {edu.fieldOfStudy && `${edu.fieldOfStudy} • `}
-                            {edu.startYear || 'N/A'} - {edu.endYear || 'Present'}
-                          </p>
-                        </div>
-                        {edu.gpa && (
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-gray-700">GPA: {edu.gpa}</p>
-                          </div>
-                        )}
-                      </div>
-                      {edu.description && (
-                        <p className="text-sm text-gray-600 mt-2">{edu.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No educational background information available</p>
-              )}
-            </div>
-
-            {/* Skills */}
-            <div className="bg-gray-50 p-4 rounded-lg md:col-span-2">
-              <h3 className="text-lg font-semibold mb-4">Skills & Expertise</h3>
-              {studentData.skills && studentData.skills.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {studentData.skills.map((skill, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
-                      <span className="font-medium text-gray-800">{skill.skillName}</span>
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-600 mr-2">Rating:</span>
-                        <div className="flex items-center">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <span
-                              key={star}
-                              className={`text-sm ${star <= (skill.rating || 0) ? 'text-yellow-500' : 'text-gray-300'
-                                }`}
-                            >
-                              ★
-                            </span>
-                          ))}
-                          <span className="ml-1 text-xs text-gray-600">({skill.rating || 0}/5)</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No skills information available</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t p-4 bg-gray-50">
-          <div className="flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Edit Student Modal
 const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
@@ -393,24 +107,27 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   if (!isOpen || !student) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Edit Student</h2>
+        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-green-600 to-emerald-600">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <FaEdit className="text-green-200" />
+            Edit Student
+          </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-all duration-200"
           >
             <FaTimes size={20} />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 bg-gray-50">
+          <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Full Name *
               </label>
               <input
@@ -418,15 +135,18 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.fullName ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+                  errors.fullName 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-200 bg-white focus:border-green-500'
+                }`}
                 placeholder="Enter student's full name"
               />
-              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
+              {errors.fullName && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.fullName}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Email Address *
               </label>
               <input
@@ -434,15 +154,18 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+                  errors.email 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-200 bg-white focus:border-green-500'
+                }`}
                 placeholder="Enter student email"
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              {errors.email && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Phone Number *
               </label>
               <input
@@ -450,15 +173,18 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+                  errors.phone 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-200 bg-white focus:border-green-500'
+                }`}
                 placeholder="+91 12345 67890"
               />
-              {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+              {errors.phone && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.phone}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 CGPA *
               </label>
               <input
@@ -470,19 +196,22 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 max="10"
                 step="0.01"
                 placeholder="Enter CGPA (0-10)"
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cgpa ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+                  errors.cgpa 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-200 bg-white focus:border-green-500'
+                }`}
               />
-              {errors.cgpa && <p className="text-red-500 text-sm mt-1">{errors.cgpa}</p>}
+              {errors.cgpa && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.cgpa}</p>}
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold transition-all duration-200 border-2 border-gray-200"
               disabled={loading}
             >
               Cancel
@@ -490,7 +219,7 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-semibold shadow-md hover:shadow-lg transition-all duration-200"
             >
               {loading && <Loader className="h-4 w-4 animate-spin mr-2" />}
               {loading ? 'Saving...' : 'Save Changes'}
@@ -501,7 +230,6 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
     </div>
   );
 };
-
 
 // CGPA Edit Modal Component
 const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
@@ -616,12 +344,48 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
 const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStudentUpdate }) => {
   const [isCGPAModalOpen, setIsCGPAModalOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(student);
+  const [profileData, setProfileData] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Load profile data when student changes
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!student?.id || !isOpen) {
+        setProfileData(null);
+        return;
+      }
+
+      try {
+        setLoadingProfile(true);
+        // Check if student object already has endorsementsData
+        if (student.endorsementsData) {
+          const profile = {
+            endorsementsData: student.endorsementsData,
+          };
+          setProfileData(profile);
+        } else {
+          // If student has userId, try to get full profile via API
+          // Note: This might not work if the endpoint requires student role
+          // For now, just set to null and let components handle their own data loading
+          setProfileData(null);
+        }
+      } catch (error) {
+        console.error('Error loading profile data for admin view:', error);
+        setProfileData(null);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    if (isOpen && student?.id) {
+      loadProfileData();
+    }
+  }, [student?.id, student?.endorsementsData, isOpen]);
 
   // Update current student when student prop changes
   React.useEffect(() => {
     setCurrentStudent(student);
   }, [student]);
-
   // Prevent body scroll when panel is open
   React.useEffect(() => {
     if (isOpen) {
@@ -790,7 +554,7 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStud
 
                 {/* Center - PWIOI logo */}
                 <div className='absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2'>
-                  <img src={PWIOILOGO} alt="PWIOI Logo" className='w-30' />
+                  <img src={PWIOILOGO} alt="PWIOI Logo" className='w-20' />
                 </div>
 
                 {/* Right Side - Close Button */}
@@ -837,30 +601,31 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStud
                 </div>
               </div>
             ) : (
-            <div>
-              <DashboardHome
-                studentData={{
-                  ...currentStudent,
-                  ...student,
-                  id: student.id
-                }}
-                jobs={dashboardData.jobs}
-                applications={dashboardData.applications}
-                skillsEntries={dashboardData.skills}
-                loadingJobs={false}
-                loadingApplications={false}
-                loadingSkills={false}
-                handleApplyToJob={handleApplyToJob}
-                hasApplied={hasApplied}
-                applying={{}}
-                hideApplicationTracker={true}
-                hideJobPostings={true}
-                hideFooter={true}
-                isAdminView={true}
-              />
-              {/* Add spacing at bottom after certifications */}
-              <div className="h-12"></div>
-            </div>
+              <div>
+                <DashboardHome
+                  studentData={{
+                    ...currentStudent,
+                    ...student,
+                    id: student.id
+                  }}
+                  jobs={dashboardData.jobs}
+                  applications={dashboardData.applications}
+                  skillsEntries={dashboardData.skills}
+                  loadingJobs={false}
+                  loadingApplications={false}
+                  loadingSkills={false}
+                  handleApplyToJob={handleApplyToJob}
+                  hasApplied={hasApplied}
+                  applying={{}}
+                  hideApplicationTracker={true}
+                  hideJobPostings={true}
+                  hideFooter={true}
+                  isAdminView={true}
+                  profileData={profileData || (student.endorsementsData ? { endorsementsData: student.endorsementsData } : null)}
+                />
+                {/* Add spacing at bottom */}
+                <div className="h-12"></div>
+              </div>
             )}
           </div>
         </div>
@@ -890,167 +655,6 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStud
         }}
       />
     </>
-  );
-};
-
-const BlockStudentModal = ({ isOpen, onClose, student, onConfirm }) => {
-  const [blockType, setBlockType] = useState('Permanent');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [reason, setReason] = useState('');
-  const [notes, setNotes] = useState('');
-  const [otherReason, setOtherReason] = useState('');
-
-  // Reset form when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setBlockType('Permanent');
-      setEndDate('');
-      setEndTime('');
-      setReason('');
-      setNotes('');
-      setOtherReason('');
-    }
-  }, [isOpen]);
-
-  const isConfirmEnabled =
-    reason &&
-    notes &&
-    (blockType === 'Permanent' || (blockType === 'Temporary' && endDate && endTime));
-
-  const handleConfirm = () => {
-    if (isConfirmEnabled) {
-      onConfirm({
-        blockType,
-        endDate: blockType === 'Temporary' ? endDate : null,
-        endTime: blockType === 'Temporary' ? endTime : null,
-        reason: reason === 'Other' ? otherReason : reason,
-        notes,
-      });
-      onClose();
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 sm:p-8">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Block Student</h2>
-        <p className="text-sm sm:text-base text-gray-600 mb-4">
-          Are you sure you want to block the following student? This action is irreversible.
-        </p>
-        <div className="mb-4">
-          <p className="text-sm sm:text-base font-medium text-gray-700">Name: {student?.fullName}</p>
-          <p className="text-sm sm:text-base font-medium text-gray-700">Enrollment ID: {student?.enrollmentId}</p>
-          <p className="text-sm sm:text-base font-medium text-gray-700">Program: {student?.school}</p>
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">Block Type</label>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="blockType"
-                value="Permanent"
-                checked={blockType === 'Permanent'}
-                onChange={() => setBlockType('Permanent')}
-                className="mr-2"
-              />
-              Permanent Block
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="blockType"
-                value="Temporary"
-                checked={blockType === 'Temporary'}
-                onChange={() => setBlockType('Temporary')}
-                className="mr-2"
-              />
-              Temporary Block
-            </label>
-          </div>
-        </div>
-        {blockType === 'Temporary' && (
-          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">End Time</label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
-        <div className="mb-4">
-          <CustomDropdown
-            label="Reason for Blocking"
-            icon={FaInfoCircle}
-            iconColor="text-red-600"
-            options={[
-              { value: '', label: 'Select a reason' },
-              { value: 'Placed Already', label: 'Placed Already' },
-              { value: 'Academic Reasons', label: 'Academic Reasons' },
-              { value: 'Policy Violation', label: 'Policy Violation' },
-              { value: 'Other', label: 'Other' }
-            ]}
-            value={reason}
-            onChange={(value) => setReason(value)}
-            placeholder="Select a reason"
-          />
-          {reason === 'Other' && (
-            <input
-              type="text"
-              value={otherReason}
-              onChange={(e) => setOtherReason(e.target.value)}
-              placeholder="Specify the reason"
-              className="w-full mt-2 p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          )}
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">Administrative Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Provide specific details for the audit log"
-            className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          ></textarea>
-        </div>
-        <p className="text-sm sm:text-base text-red-600 mb-4">
-          Warning: {blockType === 'Permanent'
-            ? 'Blocking this student will permanently revoke their application privileges.'
-            : `Blocking this student will revoke their application privileges until ${endDate} ${endTime}.`}
-        </p>
-        <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!isConfirmEnabled}
-            className={`px-4 py-2 rounded-lg text-white ${isConfirmEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`}
-          >
-            Confirm Block
-          </button>
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -1367,17 +971,37 @@ export default function StudentDirectory() {
     });
   };
 
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'Active':
-        return 'bg-green-100 text-green-800';
-      case 'Inactive':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Blocked':
-        return 'bg-red-200 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  // Get status styling - matching job moderation style
+  const getStatusChip = (status) => {
+    const statusStyles = {
+      active: { 
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50', 
+        text: 'text-green-700', 
+        border: 'border-green-200',
+        label: 'Active'
+      },
+      inactive: { 
+        bg: 'bg-gradient-to-r from-yellow-50 to-amber-50', 
+        text: 'text-yellow-700', 
+        border: 'border-yellow-200',
+        label: 'Inactive'
+      },
+      blocked: { 
+        bg: 'bg-gradient-to-r from-red-50 to-rose-50', 
+        text: 'text-red-700', 
+        border: 'border-red-200',
+        label: 'Blocked'
+      }
+    };
+    
+    const normalizedStatus = status?.toLowerCase();
+    const style = statusStyles[normalizedStatus] || statusStyles.inactive;
+    
+    return (
+      <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
+        {style.label}
+      </span>
+    );
   };
 
   const handleBlockClick = (student) => {
@@ -1494,6 +1118,32 @@ export default function StudentDirectory() {
     }
   };
 
+  const handleStudentUpdate = async (studentId, updatedData) => {
+    if (!canModifyStudents()) {
+      alert('Only administrators can edit student information.');
+      throw new Error('Permission denied');
+    }
+
+    try {
+      // Update local state
+      setStudents(prevStudents => 
+        prevStudents.map(student => 
+          student.id === studentId 
+            ? { ...student, ...updatedData }
+            : student
+        )
+      );
+      
+      // Also update selectedStudent if it's the same student
+      if (selectedStudent && selectedStudent.id === studentId) {
+        setSelectedStudent(prev => ({ ...prev, ...updatedData }));
+      }
+    } catch (error) {
+      console.error('Error updating student in list:', error);
+      throw error;
+    }
+  };
+
   // Permission check for admin-only actions
   const canModifyStudents = () => {
     return user && (user.role === 'admin' || user.userType === 'admin');
@@ -1591,14 +1241,28 @@ export default function StudentDirectory() {
     return merged;
   }, [uniqueSchools]);
 
+  // Calculate statistics - must be before conditional returns to follow Rules of Hooks
+  const stats = useMemo(() => {
+    const active = filteredStudents.filter(s => s.status === 'Active').length;
+    const blocked = filteredStudents.filter(s => s.status === 'Blocked').length;
+    const inactive = filteredStudents.filter(s => s.status === 'Inactive').length;
+    return { total: filteredStudents.length, active, blocked, inactive };
+  }, [filteredStudents]);
+
   if (loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center">
-              <Loader className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-              <span className="text-gray-600">Loading students...</span>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-12">
+            <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  <Loader className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+                  <div className="absolute inset-0 h-12 w-12 border-4 border-blue-200 rounded-full"></div>
+                </div>
+                <span className="text-gray-700 font-medium text-lg">Loading students...</span>
+                <p className="text-gray-500 text-sm mt-2">Please wait while we fetch the data</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1609,36 +1273,40 @@ export default function StudentDirectory() {
   // Show error screen only if no students loaded AND error exists
   if (error && students.length === 0 && !loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <svg className="mx-auto h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-12">
+            <div className="text-center py-12">
+              <div className="mb-6">
+                <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center">
+                  <svg className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-3">Failed to Load Students</h2>
+              <p className="text-red-600 mb-8 max-w-md mx-auto font-medium">{error}</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={refreshStudents}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold transform hover:scale-105"
+                >
+                  Retry
+                </button>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    loadStudents();
+                  }}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 font-semibold border-2 border-gray-200"
+                >
+                  Dismiss
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-6">
+                If the problem persists, check your connection or contact support.
+              </p>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Failed to Load Students</h2>
-            <p className="text-red-600 mb-6 max-w-md mx-auto">{error}</p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={refreshStudents}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Retry
-              </button>
-              <button
-                onClick={() => {
-                  setError(null);
-                  loadStudents();
-                }}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-              >
-                Dismiss
-              </button>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              If the problem persists, check your connection or contact support.
-            </p>
           </div>
         </div>
       </div>
@@ -1646,349 +1314,435 @@ export default function StudentDirectory() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        {/* Error Banner (shows if error exists but we have previous data) */}
-        {error && students.length > 0 && (
-          <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm text-yellow-800">
-                  <strong>Warning:</strong> {error}
-                </p>
-                <p className="text-xs text-yellow-700 mt-1">
-                  Showing previously loaded data. Click retry to refresh.
-                </p>
-              </div>
-              <div className="ml-auto flex-shrink-0">
-                <button
-                  onClick={refreshStudents}
-                  className="text-sm text-yellow-800 hover:text-yellow-900 underline mr-3"
-                >
-                  Retry
-                </button>
-                <button
-                  onClick={() => setError(null)}
-                  className="text-sm text-yellow-800 hover:text-yellow-900"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+    <div className="space-y-6">
+      {/* Header and Analytics */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Student Directory</h2>
+            <p className="text-gray-600 text-lg">Manage and monitor all student accounts</p>
           </div>
-        )}
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Student Directory</h1>
-          <div className="flex flex-wrap items-center gap-3">
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => downloadFilteredStudents('export')}
+              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
             <button
               onClick={refreshStudents}
               disabled={loading}
-              className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md disabled:opacity-50"
             >
-              {loading ? 'Refreshing...' : 'Refresh'}
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <FaChartLine className="w-4 h-4" />
+                  Refresh
+                </>
+              )}
             </button>
-            <button
-              onClick={() => downloadFilteredStudents('import')}
-              className="flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
-            >
-              <Upload className="text-sm" />
-              Import CSV
-            </button>
-            <button
-              onClick={() => downloadFilteredStudents('export')}
-              className="flex items-center gap-2 px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
-            >
-              <Download className="text-sm" />
-              Export CSV
-            </button>
-            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-              {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'} found
-            </span>
           </div>
         </div>
 
-
-
-        {/* Search Bar */}
-        <div className="relative mb-6">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FaSearch className="text-gray-400" />
+        {/* Analytics Cards - Matching Job Moderation Style */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaUsers className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-blue-700">{stats.total}</div>
+            </div>
+            <div className="text-sm font-medium text-blue-600">Total Students</div>
           </div>
-          <input
-            type="text"
-            placeholder="Search by name, email, or enrollment ID"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            title="Toggle filters"
-          >
-            <FaFilter />
-          </button>
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-green-700">{stats.active}</div>
+            </div>
+            <div className="text-sm font-medium text-green-600">Active</div>
+          </div>
+          <div className="bg-gradient-to-br from-red-50 to-rose-100 p-5 rounded-xl shadow-sm border border-red-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <MdBlock className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-red-700">{stats.blocked}</div>
+            </div>
+            <div className="text-sm font-medium text-red-600">Blocked</div>
+          </div>
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 p-5 rounded-xl shadow-sm border border-yellow-200 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-3 mb-2">
+              <FaUser className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-yellow-700">{stats.inactive}</div>
+            </div>
+            <div className="text-sm font-medium text-yellow-600">Inactive</div>
+          </div>
         </div>
+      </div>
 
-        {/* Filters */}
-        {showFilters && (
-          <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-gray-700">Filters</h2>
+      {/* Error Banner */}
+      {error && students.length > 0 && (
+        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-yellow-800">
+                <strong>Warning:</strong> {error}
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                Showing previously loaded data. Click retry to refresh.
+              </p>
+            </div>
+            <div className="ml-auto flex-shrink-0 flex gap-2">
               <button
-                onClick={clearFilters}
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                onClick={refreshStudents}
+                className="text-sm font-medium text-yellow-800 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-3 py-1 rounded-md transition-colors"
               >
-                Clear all
+                Retry
+              </button>
+              <button
+                onClick={() => setError(null)}
+                className="text-sm text-yellow-800 hover:text-yellow-900 p-1 rounded-md hover:bg-yellow-100 transition-colors"
+              >
+                ✕
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div>
-                <CustomDropdown
-                  label="Center"
-                  icon={FaMapMarkerAlt}
-                  iconColor="text-indigo-600"
-                  options={filterCenterOptions.map(opt => ({ value: opt.id, label: opt.name }))}
-                  value={filters.center}
-                  onChange={(value) => handleFilterDropdownChange('center', value)}
-                  placeholder="All Centers"
-                />
-              </div>
+          </div>
+        </div>
+      )}
 
-              <div>
-                <CustomDropdown
-                  label="School"
-                  icon={FaGraduationCap}
-                  iconColor="text-purple-600"
-                  options={filterSchoolOptions.map(opt => ({ value: opt.id, label: opt.name }))}
-                  value={filters.school}
-                  onChange={(value) => handleFilterDropdownChange('school', value)}
-                  placeholder="All Schools"
-                />
-              </div>
 
-              <div>
-                <CustomDropdown
-                  label="Status"
-                  icon={FaCheckCircle}
-                  iconColor="text-green-600"
-                  options={STATUS_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
-                  value={filters.status}
-                  onChange={(value) => handleFilterDropdownChange('status', value)}
-                  placeholder="All Status(es)"
-                />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Min CGPA</label>
-                <input
-                  type="number"
-                  name="minCgpa"
-                  placeholder="0.00"
-                  min="0"
-                  max="10"
-                  step="0.01"
-                  value={filters.minCgpa}
-                  onChange={handleFilterChange}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+      {/* Filters and Search */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex items-center gap-2 mb-4">
+          <FaFilter className="w-5 h-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          {/* Search */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Search Students</label>
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search by name, email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max CGPA</label>
-                <input
-                  type="number"
-                  name="maxCgpa"
-                  placeholder="10.00"
-                  min="0"
-                  max="10"
-                  step="0.01"
-                  value={filters.maxCgpa}
-                  onChange={handleFilterChange}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+          {/* Center Filter */}
+          <CustomDropdown
+            label="Center"
+            icon={FaMapMarkerAlt}
+            iconColor="text-indigo-600"
+            options={filterCenterOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+            value={filters.center}
+            onChange={(value) => handleFilterDropdownChange('center', value)}
+            placeholder="All Centers"
+          />
+
+          {/* School Filter */}
+          <CustomDropdown
+            label="School"
+            icon={FaGraduationCap}
+            iconColor="text-purple-600"
+            options={filterSchoolOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+            value={filters.school}
+            onChange={(value) => handleFilterDropdownChange('school', value)}
+            placeholder="All Schools"
+          />
+
+          {/* Status Filter */}
+          <CustomDropdown
+            label="Status"
+            icon={FaCheckCircle}
+            iconColor="text-green-600"
+            options={STATUS_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
+            value={filters.status}
+            onChange={(value) => handleFilterDropdownChange('status', value)}
+            placeholder="All Status"
+          />
+        </div>
+
+        {/* CGPA Range and Reset */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <FaGraduationCap className="w-4 h-4 text-blue-600" />
+              Min CGPA
+            </label>
+            <input
+              type="number"
+              name="minCgpa"
+              placeholder="0.00"
+              min="0"
+              max="10"
+              step="0.01"
+              value={filters.minCgpa}
+              onChange={handleFilterChange}
+              className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <FaGraduationCap className="w-4 h-4 text-orange-600" />
+              Max CGPA
+            </label>
+            <input
+              type="number"
+              name="maxCgpa"
+              placeholder="10.00"
+              min="0"
+              max="10"
+              step="0.01"
+              value={filters.maxCgpa}
+              onChange={handleFilterChange}
+              className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={clearFilters}
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Results Summary */}
+      {!loading && (
+        <div className="text-sm text-gray-600">
+          {search || Object.values(filters).some(f => f) ? (
+            <span>
+              Showing {filteredStudents.length} of {students.length} students
+              {search && <span className="font-medium"> matching "{search}"</span>}
+            </span>
+          ) : (
+            <span>Showing all {students.length} students</span>
+          )}
+        </div>
+      )}
+
+      {/* Students Table */}
+      <div className="bg-white rounded-lg shadow border overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader className="animate-spin text-blue-600 mr-3" />
+            <span className="text-gray-600">Loading students...</span>
+          </div>
+        ) : displayedStudents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 max-w-md w-full border-2 border-blue-200 shadow-lg">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                  <FaUsers className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No Students Found</h3>
+                <div className="text-sm text-gray-600 leading-relaxed">
+                  {search ? (
+                    <div className="space-y-2">
+                      <p className="font-medium">No students match your search criteria.</p>
+                      <p className="text-gray-500">Try adjusting your search terms or filters.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="font-medium">No students have been registered yet.</p>
+                      <p className="text-gray-500">Students will appear here once they register.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Student Table (horizontally scrollable with controls) */}
-        <div className="relative rounded-lg shadow">
-
-          <div
-            id="students-table-scroll"
-            className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm"
-          >
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">Name</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">Email</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">EnRoll ID</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">Center</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">School</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">CGPA</th>
-                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider">Status</th>
-                  <th className="p-3 text-center font-medium text-gray-700 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {displayedStudents.length > 0 ? (
-                  displayedStudents.map((student) => (
-                    <tr key={student.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      <td className="p-3 text-gray-800 font-medium">{student.fullName || student.email || 'N/A'}</td>
-                      <td className="p-3 text-gray-600 truncate max-w-[190px]">{student.email}</td>
-                      <td className="p-3 text-gray-600 font-mono text-xs">{student.enrollmentId}</td>
-                      <td className="p-3 text-gray-600 truncate max-w-[90px]">{student.center}</td>
-                      <td className="p-3 text-gray-600">{student.school}</td>
-                      <td className="p-3 text-gray-600 font-medium">{student.cgpa}</td>
-                      <td className="p-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(student.status)}`}>
-                          {student.status}
-                        </span>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
+                <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      Student Details
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      Email
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      Enrollment ID
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      Center
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      School
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      CGPA
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-white">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {displayedStudents.map((student) => (
+                    <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={student.fullName || student.email || 'N/A'}>
+                            {student.fullName || student.email || 'N/A'}
+                          </div>
+                          {student.phone && (
+                            <div className="flex items-center gap-1.5">
+                              <FaPhone className="w-3 h-3 text-gray-500" />
+                              <span className="text-xs text-gray-600">{student.phone}</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center space-x-3">
-                          <div className="relative group">
-                            <button
-                              onClick={() => handleViewStudentDashboard(student)}
-                              className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                            >
-                              <ImEye className="text-md" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                              View Dashboard
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <button
-                              onClick={() => handleEditStudent(student)}
-                              disabled={!canModifyStudents() || operationLoading}
-                              className={`p-2 rounded-lg transition-colors ${operationLoading
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : canModifyStudents()
-                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                }`}
-                            >
-                              {operationLoading ? <Loader className="h-5 w-5 animate-spin" /> : <FaEdit className="text-md" />}
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                              {canModifyStudents() ? 'Edit Student' : 'Admin access required'}
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <button
-                              onClick={() => handleBlockClick(student)}
-                              disabled={!canModifyStudents() || operationLoading}
-                              className={`p-2 rounded-lg transition-colors ${operationLoading
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : canModifyStudents()
-                                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                }`}
-                            >
-                              {operationLoading ? <Loader className="h-5 w-5 animate-spin" /> : <MdBlock className="text-md" />}
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                              {canModifyStudents()
-                                ? `${student.status === 'Blocked' ? 'Unblock' : 'Block'} Student`
-                                : 'Admin access required'
-                              }
-                            </span>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <FaEnvelope className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.email}>
+                            {student.email}
                           </div>
                         </div>
                       </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded inline-block">
+                          {student.enrollmentId || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <FaMapMarkerAlt className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.center || 'N/A'}>
+                            {student.center || 'N/A'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <FaGraduationCap className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                          <div className="text-xs font-semibold text-gray-900">{student.school || 'N/A'}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-green-50 rounded-lg">
+                            <FaGraduationCap className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{student.cgpa || 'N/A'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100">
+                        {getStatusChip(student.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center gap-2">
+                          {/* View Dashboard Button */}
+                          <button
+                            onClick={() => handleViewStudentDashboard(student)}
+                            className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                            title="View Dashboard"
+                          >
+                            <ImEye className="w-4 h-4" />
+                          </button>
+
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => handleEditStudent(student)}
+                            disabled={!canModifyStudents() || operationLoading}
+                            className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                            title="Edit Student"
+                          >
+                            {operationLoading ? (
+                              <Loader className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <FaEdit className="w-4 h-4" />
+                            )}
+                          </button>
+
+                          {/* Block/Unblock Button */}
+                          <button
+                            onClick={() => handleBlockClick(student)}
+                            disabled={!canModifyStudents() || operationLoading}
+                            className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                            title={student.status === 'Blocked' ? 'Unblock Student' : 'Block Student'}
+                          >
+                            {operationLoading ? (
+                              <Loader className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <MdBlock className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="p-8 text-center text-gray-500">
-                      <div className="flex flex-col items-center justify-center">
-                        <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-lg font-medium text-gray-500">No students found</p>
-                        <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Pagination Controls */}
-        {filteredStudents.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between mt-6 space-y-4 sm:space-y-0">
-            <div className="text-sm text-gray-600">
-              Showing {((currentPage - 1) * studentsPerPage) + 1} to {Math.min(currentPage * studentsPerPage, filteredStudents.length)} of {filteredStudents.length} entries
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <FaChevronLeft className="mr-1 text-xs" />
-                Previous
-              </button>
 
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-
-                  return (
+            {/* Pagination */}
+            {filteredStudents.length > studentsPerPage && (
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-t-2 border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <span className="text-gray-500">Showing</span>
+                    <span className="font-semibold text-blue-700">{((currentPage - 1) * studentsPerPage) + 1}</span>
+                    <span className="text-gray-500">to</span>
+                    <span className="font-semibold text-blue-700">{Math.min(currentPage * studentsPerPage, filteredStudents.length)}</span>
+                    <span className="text-gray-500">of</span>
+                    <span className="font-semibold text-blue-700">{filteredStudents.length}</span>
+                    <span className="text-gray-500">results</span>
+                  </div>
+                  <div className="flex items-center gap-3">
                     <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 text-sm font-medium rounded-lg ${currentPage === pageNum ? 'bg-blue-600 text-white' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'} transition-colors`}
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
                     >
-                      {pageNum}
+                      <FaChevronLeft className="w-3.5 h-3.5" />
+                      <span>Previous</span>
                     </button>
-                  );
-                })}
-
-                {totalPages > 5 && currentPage < totalPages - 2 && (
-                  <span className="px-2 py-1 text-gray-500">...</span>
-                )}
-
-                {totalPages > 5 && currentPage < totalPages - 2 && (
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    {totalPages}
-                  </button>
-                )}
+                    <div className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 shadow-sm">
+                      <span className="text-blue-700">{currentPage}</span>
+                      <span className="text-gray-500 mx-1">/</span>
+                      <span>{totalPages}</span>
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
+                    >
+                      <span>Next</span>
+                      <FaChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
-
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <FaChevronRight className="ml-1 text-xs" />
-              </button>
-            </div>
-          </div>
+            )}
+          </>
         )}
       </div>
 
@@ -2006,10 +1760,11 @@ export default function StudentDirectory() {
         onSave={handleEditSave}
       />
 
-      <BlockStudentModal
+      <BlockModal
         isOpen={blockModalOpen}
         onClose={() => setBlockModalOpen(false)}
-        student={selectedStudent}
+        entity={selectedStudent}
+        entityType="student"
         onConfirm={handleBlockConfirm}
       />
 
@@ -2019,16 +1774,7 @@ export default function StudentDirectory() {
         onClose={handleCloseStudentView}
         student={selectedStudent}
         dashboardData={studentDashboardData}
-        onStudentUpdate={(studentId, updatedData) => {
-          // Update the student in the students list
-          setStudents(prev => prev.map(s => 
-            s.id === studentId ? { ...s, ...updatedData } : s
-          ));
-          // Update selected student if it's the same
-          if (selectedStudent?.id === studentId) {
-            setSelectedStudent(prev => ({ ...prev, ...updatedData }));
-          }
-        }}
+        onStudentUpdate={handleStudentUpdate}
       />
     </div>
   );

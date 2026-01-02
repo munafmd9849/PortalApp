@@ -64,6 +64,70 @@ export async function getRecruiterDirectory(req, res) {
 }
 
 /**
+ * Get recruiter jobs by email (admin)
+ * Returns all jobs posted by a recruiter
+ */
+export async function getRecruiterJobs(req, res) {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Recruiter email is required' });
+    }
+
+    // Find recruiter by email
+    const recruiter = await prisma.recruiter.findFirst({
+      where: {
+        user: {
+          email: email,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            displayName: true,
+          },
+        },
+        company: true,
+      },
+    });
+
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter not found' });
+    }
+
+    // Get all jobs for this recruiter
+    const jobs = await prisma.job.findMany({
+      where: {
+        recruiterId: recruiter.id,
+      },
+      include: {
+        company: true,
+        recruiter: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                displayName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json(jobs);
+  } catch (error) {
+    console.error('Get recruiter jobs error:', error);
+    res.status(500).json({ error: 'Failed to get recruiter jobs' });
+  }
+}
+
+/**
  * Block/unblock recruiter (admin)
  * Replaces: blockUnblockRecruiter()
  */

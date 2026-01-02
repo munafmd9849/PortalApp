@@ -275,7 +275,7 @@ export default function DashboardLayout({ children }) {
               </div>
 
               <div className='absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2'>
-                <img src={PWIOILOGO} alt="" className='w-30' />
+                <img src={PWIOILOGO} alt="" className='w-20' />
                 <h1 className='text-nowrap text-3xl text-black-300 opacity-90 font-caveat'>{getSchoolHeaderText(getStudentSchool())}</h1>
               </div>
 

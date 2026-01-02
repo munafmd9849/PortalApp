@@ -85,21 +85,28 @@ const RecruiterDashboardLayout = ({ children }) => {
             className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400"
           >
             <div className="flex justify-between items-center h-23 gap-2 relative">
-              <div className="ml-4 space-y-0">
-                <div className="flex items-center">
-                  <h2 className="text-2xl font-bold text-black flex items-center">
-                    Welcome, Recruiter!
-                  </h2>
-                </div>
-                <div className='ml-2 -mt-0 mb-1 italic'>
-                  <p>{recruiterTagline}</p>
+              {/* Left Side - Recruiter Details */}
+              <div className="flex items-center flex-1">
+                <div className="ml-4 space-y-1.5">
+                  <div className="flex items-center">
+                    <h2 className="text-2xl font-bold text-black flex items-center">
+                      Welcome, Recruiter!
+                    </h2>
+                  </div>
+                  <div className='ml-2 italic'>
+                    <p>{recruiterTagline}</p>
+                  </div>
                 </div>
               </div>
 
-              <div className='absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2'>
-                <img src={PWIOILOGO} alt="" className='w-30' />
+              {/* Center - PWIOI logo and tagline */}
+              <div className='absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2 pointer-events-none z-0'>
+                <img src={PWIOILOGO} alt="" className='w-20' />
                 <h1 className='text-nowrap text-3xl text-black-300 opacity-90 font-caveat'>{recruiterTagline}</h1>
               </div>
+
+              {/* Right Side - empty (no actions) */}
+              <div className="flex items-center gap-2 z-30"></div>
             </div>
           </div>
         </div>

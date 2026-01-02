@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getJob } from '../../../services/jobs';
 import { 
   FaBriefcase, 
@@ -26,6 +26,7 @@ import {
 export default function AdminJobDetail() {
   const { jobId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,13 +109,29 @@ export default function AdminJobDetail() {
     );
   }
 
+  const handleBack = () => {
+    // Check if window was opened by another window (window.open)
+    // or if we don't have a referrer from the same origin
+    const wasOpened = window.opener !== null;
+    const referrer = document.referrer;
+    const isFromSameOrigin = referrer && referrer.includes(window.location.origin);
+    
+    if (wasOpened || !isFromSameOrigin) {
+      // Opened in new tab/window - navigate to recruiter directory
+      navigate('/admin?tab=recruiterDirectory');
+    } else {
+      // Normal navigation - go back
+      navigate(-1);
+    }
+  };
+
   if (error || !job) {
     return (
       <div className="text-center py-20 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 flex items-center justify-center">
         <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-red-100/50 p-8 max-w-md">
           <div className="text-red-600 mb-6 font-medium">{error || 'Job not found'}</div>
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
           >
             Go Back
@@ -129,7 +146,7 @@ export default function AdminJobDetail() {
       {/* Header with Back Button */}
       <div className="flex items-center justify-between mb-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
           className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:text-slate-900 hover:bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200 transition-all duration-200 font-medium"
         >
           <FaArrowLeft className="text-sm" />
@@ -756,4 +773,7 @@ export default function AdminJobDetail() {
     </div>
   );
 }
+
+
+
 

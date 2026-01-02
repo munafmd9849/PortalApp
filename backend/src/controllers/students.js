@@ -6,6 +6,7 @@
 
 import prisma from '../config/database.js';
 import { uploadToS3, deleteFromS3 } from '../config/s3.js';
+import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
@@ -30,10 +31,17 @@ export async function getStudentProfile(req, res) {
     const { studentId } = req.params;
     const userId = studentId || req.userId;
 
+    console.log('🔍 [getStudentProfile] Request received:', {
+      studentId,
+      reqUserId: req.userId,
+      finalUserId: userId,
+    });
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
+    // SINGLE CONSOLIDATED PRISMA QUERY
     const student = await prisma.student.findUnique({
       where: { userId },
       include: {
@@ -62,7 +70,16 @@ export async function getStudentProfile(req, res) {
       },
     });
 
+    // CRITICAL: Verify data ownership
+    console.log('🔍 [getStudentProfile] Student found:', {
+      studentId: student?.id,
+      userId: student?.userId,
+      fullName: student?.fullName,
+      email: student?.email,
+    });
+
     if (!student) {
+      console.log('⚠️ [getStudentProfile] Student not found, returning empty profile');
       // Return empty profile structure instead of 404 for new users
       return res.json({
         id: null,
@@ -80,41 +97,88 @@ export async function getStudentProfile(req, res) {
         achievements: [],
         certifications: [],
         codingProfiles: [],
+        experiences: [],
       });
     }
 
-    if (student) {
-      const { user, ...studentData } = student;
-      res.json({
-        ...studentData,
-        profilePhoto: user?.profilePhoto || null,
-      });
-    } else {
-      res.json({
-        id: null,
-        userId,
-        fullName: '',
-        email: '',
-        phone: '',
-        enrollmentId: '',
-        school: '',
-        center: '',
-        batch: '',
-        skills: [],
-        education: [],
-        projects: [],
-        achievements: [],
-        certifications: [],
-        codingProfiles: [],
-        profilePhoto: null,
+    // NORMALIZE: Ensure arrays are never null, always []
+    const normalizedData = {
+      ...student,
+      skills: Array.isArray(student.skills) ? student.skills : [],
+      education: Array.isArray(student.education) ? student.education : [],
+      projects: Array.isArray(student.projects) ? student.projects : [],
+      achievements: Array.isArray(student.achievements) ? student.achievements : [],
+      certifications: Array.isArray(student.certifications) ? student.certifications : [],
+      experiences: Array.isArray(student.experiences) ? student.experiences : [],
+      codingProfiles: Array.isArray(student.codingProfiles) ? student.codingProfiles : [],
+      profilePhoto: student.user?.profilePhoto || null,
+    };
+
+    // Remove user relation from response (we only need profilePhoto)
+    delete normalizedData.user;
+
+    // CRITICAL: Log counts before sending response
+    console.log('📊 [getStudentProfile] Data counts:', {
+      studentId: normalizedData.id,
+      skills: normalizedData.skills.length,
+      education: normalizedData.education.length,
+      projects: normalizedData.projects.length,
+      achievements: normalizedData.achievements.length,
+      certifications: normalizedData.certifications.length,
+      experiences: normalizedData.experiences.length,
+      codingProfiles: normalizedData.codingProfiles.length,
+    });
+
+    // Verify projects ownership
+    if (normalizedData.projects.length > 0) {
+      const allProjectsMatch = normalizedData.projects.every(
+        p => p.studentId === normalizedData.id
+      );
+      console.log('✅ [getStudentProfile] Projects ownership check:', {
+        allProjectsMatch,
+        projectCount: normalizedData.projects.length,
+        firstProjectStudentId: normalizedData.projects[0]?.studentId,
+        studentId: normalizedData.id,
       });
     }
+
+    // Verify achievements ownership
+    if (normalizedData.achievements.length > 0) {
+      const allAchievementsMatch = normalizedData.achievements.every(
+        a => a.studentId === normalizedData.id
+      );
+      console.log('✅ [getStudentProfile] Achievements ownership check:', {
+        allAchievementsMatch,
+        achievementCount: normalizedData.achievements.length,
+      });
+    }
+
+    // Verify certifications ownership
+    if (normalizedData.certifications.length > 0) {
+      const allCertificationsMatch = normalizedData.certifications.every(
+        c => c.studentId === normalizedData.id
+      );
+      console.log('✅ [getStudentProfile] Certifications ownership check:', {
+        allCertificationsMatch,
+        certificationCount: normalizedData.certifications.length,
+      });
+    }
+
+    // SINGLE CANONICAL RESPONSE - All data at top level
+    console.log('📤 [getStudentProfile] Sending response with data counts:', {
+      projects: normalizedData.projects.length,
+      achievements: normalizedData.achievements.length,
+      certifications: normalizedData.certifications.length,
+    });
+
+    res.json(normalizedData);
   } catch (error) {
-    console.error('Get student profile error:', error);
+    console.error('❌ [getStudentProfile] Error:', error);
     console.error('Error details:', {
       message: error.message,
       code: error.code,
       meta: error.meta,
+      stack: error.stack,
     });
     res.status(500).json({ 
       error: 'Failed to get student profile',
@@ -860,7 +924,201 @@ export async function getResumes(req, res) {
 }
 
 /**
- * Delete a resume file
+ * Upload profile image - Cloudinary
+ * POST /api/students/profile-image
+ * Auth: Student only
+ */
+export async function uploadProfileImage(req, res) {
+  try {
+    const userId = req.userId;
+    const file = req.file; // From multer middleware
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Get student record
+    const student = await prisma.student.findUnique({
+      where: { userId },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Check if file was uploaded to Cloudinary (multer-storage-cloudinary)
+    if (!file.path || !file.public_id) {
+      return res.status(400).json({ error: 'File upload failed. Please try again.' });
+    }
+
+    const newImageUrl = file.secure_url || file.url;
+    const newPublicId = file.public_id;
+
+    // If existing profile image → delete old one from Cloudinary
+    if (student.profileImagePublicId) {
+      try {
+        await deleteFromCloudinary(student.profileImagePublicId);
+      } catch (deleteError) {
+        console.error('Error deleting old profile image:', deleteError);
+        // Continue even if deletion fails (non-critical)
+      }
+    }
+
+    // Update student record with new image
+    const updatedStudent = await prisma.student.update({
+      where: { id: student.id },
+      data: {
+        profileImageUrl: newImageUrl,
+        profileImagePublicId: newPublicId,
+      },
+    });
+
+    res.json({
+      message: 'Profile image uploaded successfully',
+      profileImage: {
+        url: updatedStudent.profileImageUrl,
+        publicId: updatedStudent.profileImagePublicId,
+      },
+    });
+  } catch (error) {
+    console.error('Upload profile image error:', error);
+    res.status(500).json({ 
+      error: `Failed to upload profile image: ${error.message || 'Unknown error'}` 
+    });
+  }
+}
+
+/**
+ * Upload resume - Cloudinary (supports multiple resumes)
+ * POST /api/students/resume
+ * Body: { title } (optional)
+ * Auth: Student only
+ */
+export async function uploadResumeCloudinary(req, res) {
+  try {
+    const userId = req.userId;
+    const file = req.file; // From multer middleware
+    const { title } = req.body; // Optional title
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Get student record
+    const student = await prisma.student.findUnique({
+      where: { userId },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Check if file was uploaded to Cloudinary
+    if (!file.path || !file.public_id) {
+      return res.status(400).json({ error: 'File upload failed. Please try again.' });
+    }
+
+    const fileUrl = file.secure_url || file.url;
+    const publicId = file.public_id;
+
+    // Save to StudentResumeFile model (supports multiple resumes)
+    // New resume → default = false unless it's the first resume
+    const existingResumes = await prisma.studentResumeFile.count({
+      where: { studentId: student.id },
+    });
+
+    const isDefault = existingResumes === 0; // First resume is default
+
+    // If this is set as default, unset all others
+    if (isDefault) {
+      await prisma.studentResumeFile.updateMany({
+        where: { studentId: student.id },
+        data: { isDefault: false },
+      });
+    }
+
+    const resumeFile = await prisma.studentResumeFile.create({
+      data: {
+        studentId: student.id,
+        userId: userId,
+        fileUrl: fileUrl,
+        fileName: file.originalname || 'resume.pdf',
+        fileSize: file.bytes || file.size || null,
+        publicId: publicId,
+        title: title || file.originalname || 'Resume',
+        isDefault: isDefault,
+        uploadedAt: new Date(),
+      },
+    });
+
+    res.json({
+      id: resumeFile.id,
+      url: resumeFile.fileUrl,
+      fileName: resumeFile.fileName,
+      fileSize: resumeFile.fileSize,
+      title: resumeFile.title,
+      isDefault: resumeFile.isDefault,
+      uploadedAt: resumeFile.uploadedAt,
+    });
+  } catch (error) {
+    console.error('Upload resume error:', error);
+    res.status(500).json({ 
+      error: `Failed to upload resume: ${error.message || 'Unknown error'}` 
+    });
+  }
+}
+
+/**
+ * Set default resume
+ * PATCH /api/students/resume/:resumeId/default
+ * Auth: Student only
+ */
+export async function setDefaultResume(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeId } = req.params;
+
+    // Verify the resume belongs to this student
+    const resumeFile = await prisma.studentResumeFile.findFirst({
+      where: {
+        id: resumeId,
+        userId: userId,
+      },
+      include: {
+        student: true,
+      },
+    });
+
+    if (!resumeFile) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+
+    // Set all resumes isDefault = false
+    await prisma.studentResumeFile.updateMany({
+      where: { studentId: resumeFile.studentId },
+      data: { isDefault: false },
+    });
+
+    // Set selected resume isDefault = true
+    const updatedResume = await prisma.studentResumeFile.update({
+      where: { id: resumeId },
+      data: { isDefault: true },
+    });
+
+    res.json({
+      message: 'Default resume updated successfully',
+      resume: updatedResume,
+    });
+  } catch (error) {
+    console.error('Set default resume error:', error);
+    res.status(500).json({ error: 'Failed to set default resume' });
+  }
+}
+
+/**
+ * Delete resume - Cloudinary
+ * DELETE /api/students/resume/:resumeId
+ * Auth: Student only
  */
 export async function deleteResume(req, res) {
   try {
@@ -873,16 +1131,47 @@ export async function deleteResume(req, res) {
         id: resumeId,
         userId: userId,
       },
+      include: {
+        student: true,
+      },
     });
 
     if (!resumeFile) {
       return res.status(404).json({ error: 'Resume not found' });
     }
 
-    // Delete from database (S3 file deletion can be added later if needed)
+    const wasDefault = resumeFile.isDefault;
+    const studentId = resumeFile.studentId;
+
+    // Delete file from Cloudinary using publicId
+    if (resumeFile.publicId) {
+      try {
+        await deleteFromCloudinary(resumeFile.publicId);
+      } catch (deleteError) {
+        console.error('Error deleting file from Cloudinary:', deleteError);
+        // Continue with DB deletion even if Cloudinary deletion fails
+      }
+    }
+
+    // Remove entry from DB
     await prisma.studentResumeFile.delete({
       where: { id: resumeId },
     });
+
+    // If deleted resume was default → set latest resume as default
+    if (wasDefault) {
+      const latestResume = await prisma.studentResumeFile.findFirst({
+        where: { studentId: studentId },
+        orderBy: { uploadedAt: 'desc' },
+      });
+
+      if (latestResume) {
+        await prisma.studentResumeFile.update({
+          where: { id: latestResume.id },
+          data: { isDefault: true },
+        });
+      }
+    }
 
     res.json({ message: 'Resume deleted successfully' });
   } catch (error) {

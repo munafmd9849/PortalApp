@@ -1,8 +1,10 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
-import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
@@ -926,45 +928,119 @@ export default function CreateJob({ onCreated }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Custom Calendar Styles */}
+      <style>{`
+        .react-datepicker {
+          font-family: inherit;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .react-datepicker__header {
+          background: linear-gradient(to right, #2563eb, #4f46e5);
+          border-bottom: none;
+          border-radius: 0.5rem 0.5rem 0 0;
+        }
+        .react-datepicker__current-month {
+          color: white;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        .react-datepicker__day-name {
+          color: white;
+          font-weight: 500;
+        }
+        .react-datepicker__day--selected,
+        .react-datepicker__day--keyboard-selected {
+          background: linear-gradient(to right, #2563eb, #4f46e5);
+          border-radius: 0.375rem;
+        }
+        .react-datepicker__day:hover {
+          background-color: #dbeafe;
+          border-radius: 0.375rem;
+        }
+        .react-datepicker__day--today {
+          font-weight: 600;
+          color: #2563eb;
+        }
+        .react-datepicker__navigation-icon::before {
+          border-color: white;
+        }
+        .react-datepicker__triangle {
+          display: none;
+        }
+      `}</style>
+
       {/* Header - ALWAYS VISIBLE */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Job Description</h2>
-        <p className="text-sm text-slate-600">Please fill the following details</p>
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+              <Briefcase className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-bold text-gray-900">Create Job Posting</h2>
+              <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border border-gray-200">
+                <Info className="w-4 h-4 text-blue-600" />
+                <span>Fields marked with <span className="text-red-500 font-semibold">*</span> are required</span>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.</p>
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
+                <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                <span>Save drafts anytime</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
+                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                <span>Upload JD or Excel</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
+                <FileText className="w-3.5 h-3.5 text-purple-600" />
+                <span>Multiple positions supported</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* THREE CREATION METHOD OPTIONS - ALWAYS VISIBLE */}
-      <div className="flex justify-center mb-8">
-        <div className="bg-white rounded-sm p-1 shadow-sm border border-gray-200 inline-flex gap-2">
-          <button
-            onClick={() => setCreationMethod('manual')}
-            className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${creationMethod === 'manual'
-              ? 'bg-gradient-to-br from-blue-600 to-purple-700 text-white shadow-md'
-              : 'text-gray-600 hover:text-gray-800'
-              }`}
-          >
-            Manual Entry
-          </button>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex justify-center">
+          <div className="bg-gray-50 rounded-lg p-1 inline-flex gap-2 border border-gray-200">
+            <button
+              onClick={() => setCreationMethod('manual')}
+              className={`px-6 py-2.5 rounded-md font-medium transition-all duration-200 ${creationMethod === 'manual'
+                ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+            >
+              Manual Entry
+            </button>
 
-          <button
-            onClick={() => setCreationMethod('uploadJD')}
-            className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${creationMethod === 'uploadJD'
-              ? 'bg-gradient-to-b from-blue-600 to-purple-700 text-white shadow-md'
-              : 'text-gray-600 hover:text-gray-800'
-              }`}
-          >
-            Upload JD
-          </button>
+            <button
+              onClick={() => setCreationMethod('uploadJD')}
+              className={`px-6 py-2.5 rounded-md font-medium transition-all duration-200 ${creationMethod === 'uploadJD'
+                ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+            >
+              Upload JD
+            </button>
 
-          <button
-            onClick={() => setCreationMethod('uploadExcel')}
-            className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${creationMethod === 'uploadExcel'
-              ? 'bg-gradient-to-tr to-blue-600 from-purple-700 text-white shadow-md'
-              : 'text-gray-600 hover:text-gray-800'
-              }`}
-          >
-            Upload Excel
-          </button>
+            <button
+              onClick={() => setCreationMethod('uploadExcel')}
+              className={`px-6 py-2.5 rounded-md font-medium transition-all duration-200 ${creationMethod === 'uploadExcel'
+                ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+            >
+              Upload Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -993,32 +1069,67 @@ export default function CreateJob({ onCreated }) {
 
       {/* MANUAL FORM */}
       {creationMethod === 'manual' && (
-        <form onSubmit={handleSubmit} noValidate className="bg-white border border-slate-200 rounded-lg p-4 space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-8">
           
           {/* Section 1: Company Details */}
-          <section className="space-y-4 border-b-[1.5px] border-gray-700 pb-6 mb-6">
-            <h3 className="text-lg font-semibold">Company Details</h3>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <Building2 size={20} className="text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Company Details</h3>
+            </div>
 
             {!isSectionCollapsed('company') && (
               <>
                 {/* Company field taking full row */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm text-black font-medium">Company <span className="text-red-500">*</span>:</label>
-                  <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.company?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. ABC Corp" value={form.company} onChange={(e) => update({ company: e.target.value })} />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Building2 size={16} className="text-gray-500" />
+                    Company <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                      form.company?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                    }`} 
+                    placeholder="e.g. ABC Corp" 
+                    value={form.company} 
+                    onChange={(e) => update({ company: e.target.value })} 
+                  />
                 </div>
 
                 {/* LinkedIn and Website fields half-half */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-blue-600 font-medium">LinkedIn <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-blue-200 rounded-md px-3 py-2 text-sm text-blue-700 placeholder:text-gray-400 ${linkedinError ? 'border-red-400 bg-red-50' : form.linkedin?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="https://linkedin.com/company/example" value={form.linkedin} onChange={(e) => onLinkedInChange(e.target.value)} required />
-                    {linkedinError && <p className="text-xs text-red-600 mt-1">{linkedinError}</p>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Linkedin size={16} className="text-blue-600" />
+                      LinkedIn <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        linkedinError ? 'border-red-500 bg-red-50' : form.linkedin?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="https://linkedin.com/company/example" 
+                      value={form.linkedin} 
+                      onChange={(e) => onLinkedInChange(e.target.value)} 
+                      required 
+                    />
+                    {linkedinError && <p className="text-red-500 text-sm mt-1">{linkedinError}</p>}
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-blue-600 font-medium">Website <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-blue-200 rounded-md px-3 py-2 text-sm text-blue-700 placeholder:text-gray-400 ${websiteError ? 'border-red-400 bg-red-50' : form.website?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="www.company.com" value={form.website} onChange={(e) => onWebsiteChange(e.target.value)} required />
-                    {websiteError && <p className="text-xs text-red-600 mt-1">{websiteError}</p>}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Globe size={16} className="text-gray-500" />
+                      Website <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        websiteError ? 'border-red-500 bg-red-50' : form.website?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="www.company.com" 
+                      value={form.website} 
+                      onChange={(e) => onWebsiteChange(e.target.value)} 
+                      required 
+                    />
+                    {websiteError && <p className="text-red-500 text-sm mt-1">{websiteError}</p>}
                   </div>
                 </div>
 
@@ -1043,30 +1154,71 @@ export default function CreateJob({ onCreated }) {
 
                   {form.jobType === 'Internship' ? (
                     <>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-sm text-black font-medium">Stipend <span className="text-red-500">*</span>:</label>
-                        <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${stipendError ? 'border-red-400 bg-red-50' : form.stipend?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="₹ per month (e.g. 15000)" value={form.stipend} onChange={(e) => onStipendChange(e.target.value)} />
-                        {stipendError && <p className="text-xs text-red-600 mt-1">{stipendError}</p>}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <FaDollarSign size={16} className="text-gray-500" />
+                          Stipend <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="₹ per month (e.g. 15000)" 
+                          value={form.stipend} 
+                          onChange={(e) => onStipendChange(e.target.value)} 
+                        />
+                        {stipendError && <p className="text-red-500 text-sm mt-1">{stipendError}</p>}
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-sm text-black font-medium">Duration <span className="text-red-500">*</span>:</label>
-                        <input className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm pr-10 ${durationError ? 'border-red-400 bg-red-50' : form.duration?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. 6 months" value={form.duration} onChange={(e) => onDurationChange(e.target.value)} />
-                        {durationError && <p className="text-xs text-red-600 mt-1">{durationError}</p>}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <FaClock size={16} className="text-gray-500" />
+                          Duration <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            durationError ? 'border-red-500 bg-red-50' : form.duration?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="e.g. 6 months" 
+                          value={form.duration} 
+                          onChange={(e) => onDurationChange(e.target.value)} 
+                        />
+                        {durationError && <p className="text-red-500 text-sm mt-1">{durationError}</p>}
                       </div>
                     </>
                   ) : form.jobType === 'Full-Time' ? (
-                    <div className="flex flex-col gap-1 sm:col-span-2">
-                      <label className="text-sm text-black font-medium">Salary (CTC) <span className="text-red-500">*</span>:</label>
-                      <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${salaryError ? 'border-red-400 bg-red-50' : form.salary?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="₹ per annum (e.g. 12,00,000)" value={form.salary} onChange={(e) => onSalaryChange(e.target.value)} />
-                      {salaryError && <p className="text-xs text-red-600 mt-1">{salaryError}</p>}
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <FaDollarSign size={16} className="text-gray-500" />
+                        Salary (CTC) <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`} 
+                        placeholder="₹ per annum (e.g. 12,00,000)" 
+                        value={form.salary} 
+                        onChange={(e) => onSalaryChange(e.target.value)} 
+                      />
+                      {salaryError && <p className="text-red-500 text-sm mt-1">{salaryError}</p>}
                     </div>
                   ) : null}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Job Title <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.jobTitle?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. Full Stack Developer" value={form.jobTitle} onChange={(e) => onJobTitleChange(e.target.value)} onBlur={(e) => onJobTitleBlur(e.target.value)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Briefcase size={16} className="text-gray-500" />
+                      Job Title <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.jobTitle?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. Full Stack Developer" 
+                      value={form.jobTitle} 
+                      onChange={(e) => onJobTitleChange(e.target.value)} 
+                      onBlur={(e) => onJobTitleBlur(e.target.value)} 
+                    />
                   </div>
 
                   {/* Work Mode Dropdown */}
@@ -1089,22 +1241,44 @@ export default function CreateJob({ onCreated }) {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="flex flex-col gap-1 sm:col-span-2">
-                    <label className="text-sm text-black font-medium">Company Location <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${companyLocationError ? 'border-red-400 bg-red-50' : form.companyLocation?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="City, State (e.g. Bangalore, Karnataka)" value={form.companyLocation} onChange={(e) => onCompanyLocationChange(e.target.value)} />
-                    {companyLocationError && <p className="text-xs text-red-600 mt-1">{companyLocationError}</p>}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <MapPin size={16} className="text-gray-500" />
+                      Company Location <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        companyLocationError ? 'border-red-500 bg-red-50' : form.companyLocation?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="City, State (e.g. Bangalore, Karnataka)" 
+                      value={form.companyLocation} 
+                      onChange={(e) => onCompanyLocationChange(e.target.value)} 
+                    />
+                    {companyLocationError && <p className="text-red-500 text-sm mt-1">{companyLocationError}</p>}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Open Positions:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.openings?.trim() ? 'bg-green-50' : 'bg-gray-50'}`} placeholder="e.g. 15" value={form.openings} onChange={(e) => update({ openings: e.target.value })} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Users size={16} className="text-gray-500" />
+                      Open Positions
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.openings?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. 15" 
+                      value={form.openings} 
+                      onChange={(e) => update({ openings: e.target.value })} 
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm text-black font-medium">Roles & Responsibilities:</label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Roles & Responsibilities</label>
                   <textarea
-                    className={`border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[120px] max-h-[300px] resize-y ${form.responsibilities?.trim() ? 'bg-green-50' : 'bg-gray-50'}`}
+                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[300px] resize-y ${
+                      form.responsibilities?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                    }`}
                     placeholder="Outline responsibilities, tech stack, team, etc. (optional)"
                     value={form.responsibilities}
                     onChange={(e) => update({ responsibilities: e.target.value })}
@@ -1143,7 +1317,10 @@ export default function CreateJob({ onCreated }) {
 
                 {/* Company SPOC Subsection */}
                 <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="text-md font-medium text-gray-800 mb-4">Company SPOC</h4>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users size={18} className="text-indigo-600" />
+                    <h4 className="text-md font-semibold text-gray-900">Company SPOC</h4>
+                  </div>
                   {form.spocs.map((spoc, idx) => (
                     <div key={idx} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
@@ -1159,31 +1336,46 @@ export default function CreateJob({ onCreated }) {
                           </button>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm text-black font-medium">Full Name:</label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Hash size={16} className="text-gray-500" />
+                            Full Name
+                          </label>
                           <input
-                            className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${spoc.fullName?.trim() ? 'bg-green-50' : 'bg-white'}`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                              spoc.fullName?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
                             placeholder="e.g. Amit Kumar"
                             value={spoc.fullName}
                             onChange={(e) => updateSpoc(idx, 'fullName', e.target.value)}
                           />
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm text-black font-medium">Email ID:</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Mail size={16} className="text-gray-500" />
+                            Email ID
+                          </label>
                           <input
                             type="email"
-                            className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${spoc.email?.trim() ? 'bg-green-50' : 'bg-white'}`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                              spoc.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
                             placeholder="e.g. amit.kumar@company.com"
                             value={spoc.email}
                             onChange={(e) => updateSpoc(idx, 'email', e.target.value)}
                           />
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm text-black font-medium">Phone Number:</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Phone size={16} className="text-gray-500" />
+                            Phone Number
+                          </label>
                           <input
                             type="tel"
-                            className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${spoc.phone?.trim() ? 'bg-green-50' : 'bg-white'}`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                              spoc.phone?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
                             placeholder="e.g. +91 9876543210"
                             value={spoc.phone}
                             onChange={(e) => updateSpoc(idx, 'phone', e.target.value)}
@@ -1219,55 +1411,97 @@ export default function CreateJob({ onCreated }) {
           </section>
 
           {/* Section 2: About Drive */}
-          <section className="space-y-4 border-b-[1.5px] border-gray-600 pb-6 mb-6">
-            <h3 className="text-lg font-semibold">About Drive</h3>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <Calendar size={20} className="text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900">About Drive</h3>
+            </div>
 
             {!isSectionCollapsed('drive') && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Drive Date <span className="text-red-500">*</span>:</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Drive Date with DatePicker */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FaCalendarAlt className="w-4 h-4 text-green-600" />
+                      Drive Date <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative">
-                      <input
-                        className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm pr-10 ${driveDraft.driveDateText?.trim() ? 'bg-green-100' : 'bg-gray-100'}`}
-                        placeholder="DD/MM/YYYY"
-                        value={driveDraft.driveDateText || ''}
-                        onChange={(e) => onDriveDateText(e.target.value)}
+                      <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5 pointer-events-none z-10" />
+                      <DatePicker
+                        selected={driveDraft.driveDateISO ? new Date(driveDraft.driveDateISO) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            const isoDate = date.toISOString();
+                            const formattedDate = toDDMMYYYY(isoDate);
+                            setDriveDraft(prev => ({
+                              ...prev,
+                              driveDateISO: isoDate,
+                              driveDateText: formattedDate
+                            }));
+                            update({ driveDateISO: isoDate, driveDateText: formattedDate });
+                          } else {
+                            setDriveDraft(prev => ({
+                              ...prev,
+                              driveDateISO: '',
+                              driveDateText: ''
+                            }));
+                            update({ driveDateISO: '', driveDateText: '' });
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        placeholderText="Select drive date"
+                        minDate={new Date()}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                        wrapperClassName="w-full"
                       />
-                      <button
-                        type="button"
-                        onClick={() => hiddenDateRef.current?.showPicker?.() || hiddenDateRef.current?.click()}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-900"
-                        title="Pick a date"
-                      >
-                        <Calendar className="w-4 h-4" />
-                      </button>
-                      <input ref={hiddenDateRef} type="date" className="sr-only" onChange={onPickDate} />
                     </div>
                   </div>
 
-                  {/* Drive Venue Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Drive Venue <span className="text-red-500">*</span>:</label>
+                  {/* Drive Venue Multi-Select Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <MapPin size={16} className="text-green-600" />
+                      Drive Venue <span className="text-red-500">*</span>
+                    </label>
                     <div ref={venueDropdownRef} className="relative">
                       <button
                         type="button"
-                        className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-blue-100 text-left flex items-center justify-between ${driveDraft.driveVenues.length ? 'bg-green-100' : 'bg-gray-100'}`}
+                        className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
                         onClick={() => setShowVenues((v) => !v)}
                       >
-                        <span>
-                          {driveDraft.driveVenues.length ? driveDraft.driveVenues.join(', ') : 'Select venues'}
+                        <span className="truncate flex-1 text-gray-900">
+                          {driveDraft.driveVenues.length > 0 
+                            ? driveDraft.driveVenues.join(', ') 
+                            : 'Select venues'}
                         </span>
-                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                        <ChevronDown className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showVenues ? 'rotate-180' : ''}`} />
                       </button>
                       {showVenues && (
-                        <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
-                          {DRIVE_VENUES.map((v) => (
-                            <label key={v} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer border-b border-slate-200 last:border-b-0">
-                              <input type="checkbox" checked={driveDraft.driveVenues.includes(v)} onChange={() => toggleVenue(v)} />
-                              <span>{v}</span>
-                            </label>
-                          ))}
+                        <div className="absolute z-20 w-full bg-white border-2 border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                          {DRIVE_VENUES.map((v) => {
+                            const isSelected = driveDraft.driveVenues.includes(v);
+                            return (
+                              <label
+                                key={v}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${
+                                  isSelected
+                                    ? 'bg-blue-50 text-blue-700 font-medium'
+                                    : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleVenue(v)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                  />
+                                  <span>{v}</span>
+                                </div>
+                              </label>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1290,34 +1524,83 @@ export default function CreateJob({ onCreated }) {
           </section>
 
           {/* Section 3: Skills & Eligibility */}
-          <section className="space-y-4 border-b-[1.5px] border-gray-600 pb-6 mb-6">
-            <h3 className="text-lg font-semibold">Skills & Eligibility</h3>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <GraduationCap size={20} className="text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Skills & Eligibility</h3>
+            </div>
 
             {!isSectionCollapsed('skills') && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Qualification <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.qualification?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. B.Tech, BCA, MCA" value={form.qualification} onChange={(e) => update({ qualification: e.target.value })} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <GraduationCap size={16} className="text-purple-600" />
+                      Qualification <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.qualification?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. B.Tech, BCA, MCA" 
+                      value={form.qualification} 
+                      onChange={(e) => update({ qualification: e.target.value })} 
+                    />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Specialization:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.specialization?.trim() ? 'bg-green-50' : 'bg-gray-50'}`} placeholder="e.g. Computer Science (optional)" value={form.specialization} onChange={(e) => update({ specialization: e.target.value })} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Award size={16} className="text-gray-500" />
+                      Specialization
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.specialization?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. Computer Science (optional)" 
+                      value={form.specialization} 
+                      onChange={(e) => update({ specialization: e.target.value })} 
+                    />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Year of Passing <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.yop?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. 2025 or 25" value={form.yop} onChange={(e) => onYopChange(e.target.value)} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Calendar size={16} className="text-gray-500" />
+                      Year of Passing <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.yop?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. 2025 or 25" 
+                      value={form.yop} 
+                      onChange={(e) => onYopChange(e.target.value)} 
+                    />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Minimum CGPA/Percentage <span className="text-red-500">*</span>:</label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${minCgpaError ? 'border-red-400 bg-red-50' : form.minCgpa?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. 7.0 or 70%" value={form.minCgpa} onChange={(e) => onMinCgpaChange(e.target.value)} onBlur={(e) => onMinCgpaBlur(e.target.value)} />
-                    {minCgpaError && <p className="text-xs text-red-600 mt-1">{minCgpaError}</p>}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Award size={16} className="text-yellow-500" />
+                      Minimum CGPA/Percentage <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        minCgpaError ? 'border-red-500 bg-red-50' : form.minCgpa?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. 7.0 or 70%" 
+                      value={form.minCgpa} 
+                      onChange={(e) => onMinCgpaChange(e.target.value)} 
+                      onBlur={(e) => onMinCgpaBlur(e.target.value)} 
+                    />
+                    {minCgpaError && <p className="text-red-500 text-sm mt-1">{minCgpaError}</p>}
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-black font-medium">Skills <span className="text-red-500">*</span>:</label>
-                  <div className={`relative border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[42px] flex flex-wrap items-center gap-1 ${form.skills.length > 0 ? 'bg-green-100' : 'bg-gray-100'}`}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Code2 size={16} className="text-orange-600" />
+                    Skills <span className="text-red-500">*</span>
+                  </label>
+                  <div className={`relative border rounded-md px-3 py-2 min-h-[42px] flex flex-wrap items-center gap-1 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors ${
+                    form.skills.length > 0 ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                  }`}>
                     {form.skills.map((s, idx) => (
                       <span key={`${s}-${idx}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
                         {s}
@@ -1338,41 +1621,55 @@ export default function CreateJob({ onCreated }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {/* Year Gaps Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium">Year Gaps <span className="text-red-500">*</span>:</label>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Calendar size={16} className="text-gray-500" />
+                      Year Gaps <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative" ref={gapAllowedDropdownRef}>
                       {!gapInputMode ? (
                         <>
                           <button
                             type="button"
-                            className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-blue-100 text-left flex items-center justify-between ${form.gapAllowed && form.gapAllowed !== '' ? 'bg-green-100' : 'bg-gray-100'}`}
+                            className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
                             onClick={() => setShowGapAllowed(prev => !prev)}
                           >
-                            <span className="truncate">
+                            <span className="truncate flex-1 text-gray-900">
                               {form.gapAllowed === 'Custom' && form.gapYears
                                 ? `${form.gapYears} Year/s Allowed`
                                 : form.gapAllowed || 'Select Gap Policy'}
                             </span>
-                            <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                            <ChevronDown className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showGapAllowed ? 'rotate-180' : ''}`} />
                           </button>
                           {showGapAllowed && (
-                            <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
-                              {['Allowed', 'Not Allowed'].map((policy) => (
-                                <button
-                                  key={policy}
-                                  type="button"
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer border-b border-slate-200 text-left"
-                                  onClick={() => {
-                                    update({ gapAllowed: policy, gapYears: '' });
-                                    setShowGapAllowed(false);
-                                  }}
-                                >
-                                  <span>{policy}</span>
-                                </button>
-                              ))}
+                            <div className="absolute z-20 w-full bg-white border-2 border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                              {['Allowed', 'Not Allowed'].map((policy) => {
+                                const isSelected = form.gapAllowed === policy;
+                                return (
+                                  <button
+                                    key={policy}
+                                    type="button"
+                                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${
+                                      isSelected 
+                                        ? 'bg-blue-50 text-blue-700 font-medium' 
+                                        : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
+                                    }`}
+                                    onClick={() => {
+                                      update({ gapAllowed: policy, gapYears: '' });
+                                      setShowGapAllowed(false);
+                                    }}
+                                  >
+                                    <span>{policy}</span>
+                                  </button>
+                                );
+                              })}
                               <button
                                 type="button"
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-100 cursor-pointer text-left"
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer text-left transition-all duration-200 ${
+                                  form.gapAllowed === 'Custom'
+                                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                                    : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
+                                }`}
                                 onClick={() => {
                                   setGapInputMode(true);
                                   setShowGapAllowed(false);
@@ -1388,11 +1685,11 @@ export default function CreateJob({ onCreated }) {
                           )}
                         </>
                       ) : (
-                        <div className="border border-gray-200 bg-gray-50 rounded-md px-3 py-2 text-sm w-full flex items-center">
+                        <div className="border-2 border-gray-300 bg-white rounded-lg px-4 py-3 text-sm w-full flex items-center focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 transition-all duration-200">
                           <input
                             data-gap-input
                             type="text"
-                            className="bg-transparent border-none outline-none text-sm w-8 text-center"
+                            className="bg-transparent border-none outline-none text-sm w-8 text-center text-gray-900"
                             placeholder="_"
                             value={form.gapYears}
                             onChange={(e) => update({ gapYears: e.target.value })}
@@ -1415,7 +1712,7 @@ export default function CreateJob({ onCreated }) {
                               }
                             }}
                           />
-                          <span className="text-sm ml-1">Year/s Allowed</span>
+                          <span className="text-sm ml-1 text-gray-700">Year/s Allowed</span>
                         </div>
                       )}
                     </div>
@@ -1456,46 +1753,83 @@ export default function CreateJob({ onCreated }) {
           </section>
 
           {/* Section 4: Interview Process */}
-          <section className="space-y-4 border-b-[1.5px] border-gray-600 pb-6 mb-6">
-            <h3 className="text-lg font-semibold">Interview Process</h3>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <Code2 size={20} className="text-indigo-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Interview Process</h3>
+            </div>
 
             {!isSectionCollapsed('interview') && (
               <>
                 {/* Base fixed rounds */}
-                <div className="flex flex-wrap items-center gap-4">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="text-xs font-medium text-black whitespace-nowrap">{[`${toRoman(1)} Round`, `${toRoman(2)} Round`, `${toRoman(3)} Round`][i]} <span className="text-red-500">*</span></div>
-                      <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm w-48 ${form.baseRoundDetails[i]?.trim() ? 'bg-green-100' : 'bg-gray-100'}`} placeholder="e.g. Online test, DS&A" value={form.baseRoundDetails[i]} onChange={(e) => updateBaseRoundDetail(i, e.target.value)} required />
-                      {i < 2 && <span className="text-slate-300">—</span>}
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Code2 size={16} className="text-indigo-600" />
+                          {[`${toRoman(1)} Round`, `${toRoman(2)} Round`, `${toRoman(3)} Round`][i]} <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            form.baseRoundDetails[i]?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="e.g. Online test, DS&A" 
+                          value={form.baseRoundDetails[i]} 
+                          onChange={(e) => updateBaseRoundDetail(i, e.target.value)} 
+                          required 
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Extra rounds */}
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="space-y-3">
                   {form.extraRounds.map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="text-xs font-medium text-slate-600 whitespace-nowrap">{r.title}</div>
-                      <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm w-48 ${r.detail?.trim() ? 'bg-green-50' : 'bg-gray-50'}`} placeholder="e.g. Managerial round (optional)" value={r.detail} onChange={(e) => updateExtraRoundDetail(idx, e.target.value)} />
-                      <button type="button" onClick={() => removeExtraRound(idx)} className="text-slate-500 hover:text-red-600" title="Remove this round">
+                    <div key={idx} className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Code2 size={16} className="text-gray-500" />
+                          {r.title}
+                        </label>
+                        <input 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            r.detail?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="e.g. Managerial round (optional)" 
+                          value={r.detail} 
+                          onChange={(e) => updateExtraRoundDetail(idx, e.target.value)} 
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => removeExtraRound(idx)} 
+                        className="mb-0.5 px-3 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors" 
+                        title="Remove this round"
+                      >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ))}
-                  <button type="button" onClick={addRound} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">
+                  <button 
+                    type="button" 
+                    onClick={addRound} 
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                  >
                     <Plus className="w-4 h-4" /> Add Round
                   </button>
                 </div>
 
                 {/* Agreement notes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium flex items-center gap-2">
-                      Service Agreement:
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FileText size={16} className="text-gray-500" />
+                      Service Agreement
                       <div className="relative">
                         <Info
-                          className="w-3 h-3 text-slate-500 hover:text-slate-700 cursor-help"
+                          className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help"
                           onMouseEnter={() => setTooltipVisible(prev => ({ ...prev, serviceAgreement: true }))}
                           onMouseLeave={() => setTooltipVisible(prev => ({ ...prev, serviceAgreement: false }))}
                         />
@@ -1507,14 +1841,22 @@ export default function CreateJob({ onCreated }) {
                         )}
                       </div>
                     </label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.serviceAgreement?.trim() ? 'bg-green-50' : 'bg-gray-50'}`} placeholder="e.g. 1 year bond (optional)" value={form.serviceAgreement} onChange={(e) => update({ serviceAgreement: e.target.value })} />
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.serviceAgreement?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. 1 year bond (optional)" 
+                      value={form.serviceAgreement} 
+                      onChange={(e) => update({ serviceAgreement: e.target.value })} 
+                    />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-black font-medium flex items-center gap-2">
-                      Blocking Period:
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Clock size={16} className="text-gray-500" />
+                      Blocking Period
                       <div className="relative">
                         <Info
-                          className="w-3 h-3 text-slate-500 hover:text-slate-700 cursor-help"
+                          className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help"
                           onMouseEnter={() => setTooltipVisible(prev => ({ ...prev, blockingPeriod: true }))}
                           onMouseLeave={() => setTooltipVisible(prev => ({ ...prev, blockingPeriod: false }))}
                         />
@@ -1526,7 +1868,14 @@ export default function CreateJob({ onCreated }) {
                         )}
                       </div>
                     </label>
-                    <input className={`border border-gray-300 rounded-md px-3 py-2 text-sm ${form.blockingPeriod?.trim() ? 'bg-green-50' : 'bg-gray-50'}`} placeholder="e.g. 6 months (optional)" value={form.blockingPeriod} onChange={(e) => update({ blockingPeriod: e.target.value })} />
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.blockingPeriod?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. 6 months (optional)" 
+                      value={form.blockingPeriod} 
+                      onChange={(e) => update({ blockingPeriod: e.target.value })} 
+                    />
                   </div>
                 </div>
               </>
@@ -1547,10 +1896,15 @@ export default function CreateJob({ onCreated }) {
 
           {/* Final Section: Instructions + Buttons */}
           <section className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-black font-medium">Any Specific Instructions:</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <FileText size={16} className="text-gray-500" />
+                Any Specific Instructions
+              </label>
               <textarea
-                className={`border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[120px] max-h-[250px] resize-y ${form.instructions?.trim() ? 'bg-green-50' : 'bg-gray-50'}`}
+                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[250px] resize-y ${
+                  form.instructions?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                }`}
                 placeholder="Any notes for candidates or TPO team (optional)"
                 value={form.instructions}
                 onChange={(e) => update({ instructions: e.target.value })}
@@ -1587,38 +1941,51 @@ export default function CreateJob({ onCreated }) {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 pt-4">
               <button
                 type="submit"
                 disabled={!canPost || posting}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white ${!canPost || posting ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium text-white transition-all duration-200 ${
+                  !canPost || posting 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
+                }`}
               >
-                {posting ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                {posting ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Submit for Review
               </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving || (!form.company?.trim() || !form.jobTitle?.trim())}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border ${isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'}`}
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${
+                  isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) 
+                    ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300 shadow-sm hover:shadow'
+                }`}
               >
-                {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 Save (Draft)
               </button>
               <button
                 type="button"
                 onClick={handleAddAnotherPosition}
                 disabled={isSaving || (!form.company?.trim() || !form.jobTitle?.trim())}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border ${isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) ? 'bg-emerald-200 text-emerald-500 border-emerald-300 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${
+                  isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) 
+                    ? 'bg-emerald-200 text-emerald-500 border-emerald-300 cursor-not-allowed' 
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 shadow-sm hover:shadow'
+                }`}
               >
-                {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : null}
-                + Add Another Position
+                {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Another Position
               </button>
               <button
                 type="button"
                 onClick={() => resetForm()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border border-slate-200 hover:bg-slate-50"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm hover:shadow transition-all duration-200"
               >
+                <X className="w-4 h-4" />
                 Cancel / Reset
               </button>
             </div>

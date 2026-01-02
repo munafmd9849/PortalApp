@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 /* Explicit Caveat font class */
 .font-caveat {
   font-family: 'Caveat', 'cursive' !important;

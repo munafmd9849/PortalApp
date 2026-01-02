@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Save, Download, Eye, Edit3, Plus, Trash2, Palette, Type, Layout,
   FileText, User, Briefcase, GraduationCap, Award, Code, Languages, Heart,
-  Loader, CheckCircle, AlertCircle, ChevronUp, ChevronDown
+  Loader, CheckCircle, AlertCircle, ChevronUp, ChevronDown, Mail, FileUp
 } from 'lucide-react';
 import ResumePreview from './ResumePreview';
 import { saveResumeData, getResumeData } from '../../services/resumeData';
 import { ExperienceForm, EducationForm } from './SectionForms';
+import api from '../../services/api';
 
 const SECTION_TYPES = {
   PERSONAL: 'personal',
@@ -18,6 +19,7 @@ const SECTION_TYPES = {
   CERTIFICATIONS: 'certifications',
   LANGUAGES: 'languages',
   INTERESTS: 'interests',
+  ENDORSEMENTS: 'endorsements',
   CUSTOM: 'custom'
 };
 
@@ -31,6 +33,7 @@ const SECTION_ICONS = {
   [SECTION_TYPES.CERTIFICATIONS]: Award,
   [SECTION_TYPES.LANGUAGES]: Languages,
   [SECTION_TYPES.INTERESTS]: Heart,
+  [SECTION_TYPES.ENDORSEMENTS]: Mail,
   [SECTION_TYPES.CUSTOM]: Plus
 };
 
@@ -66,7 +69,9 @@ export default function CustomResumeBuilder({ userId }) {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const autoSaveRef = useRef(null);
+  const previewRef = useRef(null);
 
   useEffect(() => {
     loadResumeData();
@@ -239,6 +244,109 @@ export default function CustomResumeBuilder({ userId }) {
     console.log('Downloading resume...');
   };
 
+  // Generate PDF and auto-upload to resume manager
+  const handleGeneratePDFAndSave = async () => {
+    if (!userId) {
+      setSaveStatus({ type: 'error', message: 'User ID is required' });
+      return;
+    }
+
+    try {
+      setGeneratingPDF(true);
+      setSaveStatus(null);
+
+      // First, save the resume data
+      await saveResumeData(userId, resumeData);
+
+      // Generate PDF using html2pdf.js
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = previewRef.current || document.getElementById('resume-preview-container');
+      
+      if (!element) {
+        throw new Error('Resume preview element not found. Please switch to preview mode first.');
+      }
+
+      const opt = {
+        margin: 0.5,
+        filename: `Resume_${resumeData.personal.fullName || userId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          letterRendering: true
+        },
+        jsPDF: { 
+          unit: 'in', 
+          format: 'letter', 
+          orientation: 'portrait' 
+        }
+      };
+
+      // Generate PDF blob using html2pdf.js
+      // html2pdf.js returns a promise, so we need to use .then() or wrap it properly
+      const pdfBlob = await new Promise((resolve, reject) => {
+        html2pdf()
+          .set(opt)
+          .from(element)
+          .outputPdf('blob')
+          .then((blob) => {
+            if (!blob || blob.size === 0) {
+              reject(new Error('Generated PDF is empty. Please check your resume content.'));
+              return;
+            }
+            resolve(blob);
+          })
+          .catch((err) => {
+            console.error('PDF generation error:', err);
+            reject(new Error('Failed to generate PDF. Please try again.'));
+          });
+      });
+      
+      console.log('✅ PDF blob generated:', { size: pdfBlob.size, type: pdfBlob.type });
+      
+      // Validate blob
+      if (!pdfBlob || pdfBlob.size === 0) {
+        throw new Error('Generated PDF is empty. Please check your resume content.');
+      }
+      
+      // Create a File object from the blob
+      const pdfFile = new File(
+        [pdfBlob], 
+        `Resume_${resumeData.personal.fullName || userId}_${Date.now()}.pdf`,
+        { type: 'application/pdf' }
+      );
+      
+      console.log('✅ PDF file created:', { name: pdfFile.name, size: pdfFile.size, type: pdfFile.type });
+
+      // Upload to resume manager
+      setSaveStatus({ type: 'info', message: 'Uploading resume...' });
+      const resumeTitle = `Resume - ${resumeData.personal.fullName || 'My Resume'}`;
+      
+      const uploadedResume = await api.uploadResume(pdfFile, resumeTitle, (progress) => {
+        console.log('Upload progress:', progress);
+      });
+
+      setSaveStatus({ 
+        type: 'success', 
+        message: `Resume generated and saved successfully! You can now use it when applying to jobs.` 
+      });
+
+      // Clear status after 5 seconds
+      setTimeout(() => setSaveStatus(null), 5000);
+
+    } catch (error) {
+      console.error('Error generating and saving PDF:', error);
+      setSaveStatus({ 
+        type: 'error', 
+        message: error.message || 'Failed to generate and save PDF. Please try again.' 
+      });
+      setTimeout(() => setSaveStatus(null), 5000);
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -284,8 +392,27 @@ export default function CustomResumeBuilder({ userId }) {
               Save
             </button>
             <button
+              onClick={handleGeneratePDFAndSave}
+              disabled={generatingPDF || saving}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              title="Generate PDF and save it to your resume manager for job applications"
+            >
+              {generatingPDF ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FileUp className="h-4 w-4 mr-2" />
+                  Generate PDF & Save
+                </>
+              )}
+            </button>
+            <button
               onClick={handleDownload}
               className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+              title="Download PDF to your computer"
             >
               <Download className="h-4 w-4 mr-2" />
               Download
@@ -431,7 +558,11 @@ export default function CustomResumeBuilder({ userId }) {
           {/* Right Column - Preview */}
           <div className="lg:w-1/2">
             <div className="sticky top-6">
-              <div className="bg-white rounded-lg shadow-lg p-8">
+              <div 
+                id="resume-preview-container"
+                ref={previewRef}
+                className="bg-white rounded-lg shadow-lg p-8"
+              >
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Live Preview</h2>
                 <ResumePreview resumeData={resumeData} />
               </div>

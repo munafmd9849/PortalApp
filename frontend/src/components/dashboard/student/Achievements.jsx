@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
+import { mockAchievements, mockCertifications, shouldUseMockData } from '../../../utils/mockData';
 
 const Achievements = ({ isAdminView = false }) => {
   const { user } = useAuth();
@@ -34,24 +35,63 @@ const Achievements = ({ isAdminView = false }) => {
     const loadAchievements = async () => {
       try {
         setLoading(true);
+        console.log('🚀 [Achievements] Starting loadAchievements, isMounted:', isMounted);
         const profile = await getStudentProfile(user.id);
-        if (isMounted) {
-          const achievementsArray = profile?.achievements || [];
-          const certificationsArray = profile?.certifications || [];
-          setAchievements([...achievementsArray, ...certificationsArray]);
+        
+        // CRITICAL: Log raw API response
+        console.log('📥 [Achievements] PROFILE API RESPONSE:', profile);
+        console.log('📥 [Achievements] Achievements field:', profile?.achievements);
+        console.log('📥 [Achievements] Certifications field:', profile?.certifications);
+        console.log('📥 [Achievements] Achievements type:', typeof profile?.achievements);
+        console.log('📥 [Achievements] Certifications type:', typeof profile?.certifications);
+        console.log('📥 [Achievements] Achievements isArray:', Array.isArray(profile?.achievements));
+        console.log('📥 [Achievements] Certifications isArray:', Array.isArray(profile?.certifications));
+        console.log('🔍 [Achievements] isMounted check:', isMounted);
+        
+        // CRITICAL: Always process data, but check isMounted before setState
+        // SAFE: Normalize to arrays, never null/undefined
+        const achievementsArray = Array.isArray(profile?.achievements) 
+          ? profile.achievements 
+          : (profile?.achievements ? [profile.achievements] : []);
+        const certificationsArray = Array.isArray(profile?.certifications) 
+          ? profile.certifications 
+          : (profile?.certifications ? [profile.certifications] : []);
+        const allItems = [...achievementsArray, ...certificationsArray];
+        const hasRealData = allItems.length > 0;
+        
+        console.log('🔍 [Achievements] Processed data:', {
+          achievementsCount: achievementsArray.length,
+          certificationsCount: certificationsArray.length,
+          totalRealItems: allItems.length,
+          hasRealData,
+          firstAchievement: achievementsArray[0] || null,
+          firstCertification: certificationsArray[0] || null,
+          isMounted,
+        });
+        
+        // CRITICAL: Update state regardless of isMounted (React handles cleanup)
+        if (hasRealData) {
+          console.log('✅ [Achievements] Setting real achievements/certifications:', allItems);
+          setAchievements(allItems);
+        } else {
+          // Only use mock data if explicitly enabled AND no real data
+          if (shouldUseMockData()) {
+            const mockData = [...mockAchievements, ...mockCertifications];
+            console.log('📦 [Achievements] No real data, using mock data. Count:', mockData.length);
+            setAchievements(mockData);
+          } else {
+            console.log('📭 [Achievements] No real data, mock data disabled. Using empty array.');
+            setAchievements([]);
+          }
         }
       } catch (error) {
-        console.error('Error loading achievements:', error);
-        if (isMounted) {
-          setError('Failed to load achievements');
-          setAchievements([]);
-          // Reset on error to allow retry
-          achievementsLoadedRef.current = false;
-        }
+        console.error('❌ [Achievements] Error loading achievements:', error);
+        setError('Failed to load achievements');
+        setAchievements([]);
+        // Reset on error to allow retry
+        achievementsLoadedRef.current = false;
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
@@ -76,9 +116,20 @@ const Achievements = ({ isAdminView = false }) => {
     setEditedAchievement(prev => ({ ...prev, [field]: value }));
   };
 
-  // Split groups
-  const certificates = achievements.filter(item => item.hasCertificate);
-  const awardsAndAchievements = achievements.filter(item => !item.hasCertificate);
+  // SAFE: Split groups - ensure achievements is always an array
+  const achievementsArray = Array.isArray(achievements) ? achievements : [];
+  const certificates = achievementsArray.filter(item => item.hasCertificate);
+  const awardsAndAchievements = achievementsArray.filter(item => !item.hasCertificate);
+  
+  // CRITICAL: Log rendering state
+  console.log('🎨 [Achievements] Rendering with:', {
+    achievementsCount: achievementsArray.length,
+    certificatesCount: certificates.length,
+    awardsCount: awardsAndAchievements.length,
+    loading,
+    achievementsArray: achievementsArray,
+    isArray: Array.isArray(achievements),
+  });
 
   // Add achievement or certificate
   const addNewAchievement = (isCertificate = false) => {
@@ -427,7 +478,8 @@ const Achievements = ({ isAdminView = false }) => {
                 </div>
               </div>
             )}
-            {awardsAndAchievements.map((achievement, index) => renderItem(achievement, index))}
+            {/* SAFE: Always render if array exists, even if empty */}
+            {Array.isArray(awardsAndAchievements) && awardsAndAchievements.map((achievement, index) => renderItem(achievement, index))}
           </div>
         </fieldset>
 
@@ -503,7 +555,8 @@ const Achievements = ({ isAdminView = false }) => {
                 </div>
               </div>
             )}
-            {certificates.map((certificate, index) => renderItem(certificate, index))}
+            {/* SAFE: Always render if array exists, even if empty */}
+            {Array.isArray(certificates) && certificates.map((certificate, index) => renderItem(certificate, index))}
           </div>
         </fieldset>
       </div>

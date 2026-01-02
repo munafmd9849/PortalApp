@@ -610,7 +610,110 @@ export async function sendGenericNotification(email, subject, message) {
 }
 
 /**
- * Send endorsement request email to teacher
+ * Send endorsement magic link email to teacher
+ * @param {Object} params - Email parameters
+ * @param {string} params.teacherEmail - Teacher email address
+ * @param {string} params.teacherName - Teacher name
+ * @param {string} params.studentName - Student's name
+ * @param {string} params.studentEnrollmentId - Student enrollment ID
+ * @param {string} params.magicLink - Magic link URL
+ * @param {Date} params.expiresAt - Expiration date
+ * @returns {Promise<Object>} Result
+ */
+export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName, studentName, studentEnrollmentId, magicLink, expiresAt }) {
+  try {
+    const subject = `Endorsement Request from ${studentName}`;
+    
+    // Format expiration date
+    const expiresDate = new Date(expiresAt).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Endorsement Request</h2>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #1f2937; font-size: 16px; line-height: 1.6;">Hello ${teacherName || 'there'},</p>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            <strong>${studentName}</strong> (Enrollment: ${studentEnrollmentId || 'N/A'}) has requested an endorsement letter from you for their placement portfolio.
+          </p>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            This endorsement will be used in their resume and placement applications.
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${magicLink}" style="display: inline-block; background: #3b82f6; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+              Write Endorsement
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 25px;">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${magicLink}" style="color: #3b82f6; word-break: break-all;">${magicLink}</a>
+          </p>
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #92400e; font-size: 12px;">
+              <strong>Important:</strong> This link expires on ${expiresDate} (48 hours). Please complete the endorsement before it expires.
+            </p>
+          </div>
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+            <strong>What you'll need to provide:</strong>
+          </p>
+          <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 10px 0;">
+            <li>Your endorsement message</li>
+            <li>Skills you're endorsing (optional)</li>
+            <li>Strength rating (optional)</li>
+          </ul>
+          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 20px;">
+            <strong>No account required.</strong> Simply click the link above to get started.
+          </p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            This is an automated email from PWIOI Placement Portal. If you did not expect this request, please ignore this email.
+          </p>
+        </div>
+      </div>
+    `;
+    
+    const text = `
+Endorsement Request from ${studentName}
+
+${studentName} (Enrollment: ${studentEnrollmentId || 'N/A'}) has requested an endorsement letter from you for their placement portfolio.
+
+This endorsement will be used in their resume and placement applications.
+
+To provide your endorsement, please visit:
+${magicLink}
+
+What you'll need to provide:
+- Your endorsement message
+- Skills you're endorsing (optional)
+- Strength rating (optional)
+
+No account required. Simply click the link above to get started.
+
+IMPORTANT: This link expires on ${expiresDate} (48 hours). Please complete the endorsement before it expires.
+
+This is an automated email from PWIOI Placement Portal.
+    `.trim();
+
+    const result = await sendEmail({ to: teacherEmail, subject, html, text });
+    
+    logger.info(`Endorsement magic link email sent to ${teacherEmail} for student ${studentName}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send endorsement magic link email to ${teacherEmail}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Send endorsement request email to teacher (legacy function - kept for compatibility)
  * @param {string} teacherEmail - Teacher email address
  * @param {string} studentName - Student's name
  * @param {string} endorsementLink - Unique link for endorsement submission

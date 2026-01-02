@@ -1,12 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
   ],
   server: {
     host: 'localhost', // Use localhost instead of 0.0.0.0 to fix HMR WebSocket issues
@@ -30,8 +28,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react-pdf'],
+    force: true, // Force re-optimization
   },
   build: {
     target: 'es2020',
+  },
+  server: {
+    hmr: {
+      overlay: false, // Disable error overlay to prevent blocking
+    },
   },
 });

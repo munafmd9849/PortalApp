@@ -96,7 +96,9 @@ export function AuthProvider({ children }) {
   // Login (replaces signInWithEmailAndPassword)
   const login = async (email, password, selectedRole) => {
     try {
-      const data = await api.login({ email, password, selectedRole });
+      // Convert role to uppercase to match backend expectations
+      const roleUpper = selectedRole ? selectedRole.toUpperCase() : undefined;
+      const data = await api.login({ email, password, selectedRole: roleUpper });
       
       setUser(data.user);
       setRole(data.user.role);
@@ -154,7 +156,9 @@ export function AuthProvider({ children }) {
   // Register (replaces createUserWithEmailAndPassword)
   const registerWithEmail = async ({ email, password, role, profile = {}, verificationToken }) => {
     try {
-      const data = await api.register({ email, password, role, profile, verificationToken });
+      // Convert role to uppercase to match backend expectations
+      const roleUpper = role ? role.toUpperCase() : undefined;
+      const data = await api.register({ email, password, role: roleUpper, profile, verificationToken });
       
       // Store tokens if provided
       if (data.accessToken && data.refreshToken) {

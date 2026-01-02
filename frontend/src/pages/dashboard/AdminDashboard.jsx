@@ -11,6 +11,7 @@ import AdminPanel from '../../components/dashboard/admin/AdminPanel';
 import Notifications from '../../components/dashboard/admin/Notifications';
 import AdminProfile from '../../components/dashboard/admin/AdminProfile';
 import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
+import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import { Home, FilePlus2, Briefcase, ClipboardList, GripVertical, LogOut, Users, Bell, Settings, User, Calendar } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
@@ -51,6 +52,7 @@ export default function AdminDashboard() {
     { id: 'createJob', label: 'Create Job', icon: FilePlus2 },
     { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase },
     { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList },
     { id: 'studentDirectory', label: 'Student Directory', icon: Users },
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase },
@@ -124,6 +126,8 @@ export default function AdminDashboard() {
         return <ManageJobs />;
       case 'scheduleInterview':
         return <ScheduleInterview />;
+      case 'calendar':
+        return <ConnectGoogleCalendar />;
       case 'jobPostingsManager':
         return <JobPostingsManager />;
       case 'studentDirectory':
@@ -141,6 +145,7 @@ export default function AdminDashboard() {
 
     }
   };
+  
 
   return (
     <AdminLayout>

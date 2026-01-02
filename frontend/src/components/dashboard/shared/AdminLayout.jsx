@@ -108,11 +108,11 @@ export default function AdminLayout({ children }) {
       {/* Horizontal Navbar (mirrors DashboardLayout without progress ring and details) */}
       <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
         <div className="w-full px-2 py-1">
-          <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400">
-            <div className="flex justify-between items-center h-20 gap-2 relative">
+          <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400 relative overflow-hidden">
+            <div className="flex justify-between items-center h-23 gap-2 relative z-20">
               {/* Left Side - Admin avatar and name (no progress ring) */}
-              <div className="flex items-center flex-1">
-                {/* Profile Image */}
+              <div className="flex items-center flex-1 z-30">
+                {/* Simple Profile Image (no completion circle) */}
                 <div className="flex-shrink-0">
                   <div
                     className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden"
@@ -172,13 +172,13 @@ export default function AdminLayout({ children }) {
               </div>
 
               {/* Center - PWIOI logo and school-specific motto */}
-              <div className="absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-1">
-                <img src={PWIOILOGO} alt="Brand" className="w-30" />
+              <div className="absolute top-1 start-1/2 -translate-x-1/5 w-fit flex flex-col items-center gap-2 pointer-events-none z-0">
+                <img src={PWIOILOGO} alt="Brand" className="w-20" />
                 <h1 className="text-nowrap text-3xl text-black-300 opacity-90 font-caveat">{getSchoolHeaderText(getUserSchool())}</h1>
               </div>
 
               {/* Right Side - empty (no actions) */}
-              <div className="flex items-center gap-2"></div>
+              <div className="flex items-center gap-2 z-30"></div>
             </div>
           </div>
         </div>
