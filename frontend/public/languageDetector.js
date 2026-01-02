@@ -2,3 +2,5 @@
 // This file is not used by the application
 console.log('Language detector placeholder - not used by application');
 
+
+
