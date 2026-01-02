@@ -57,7 +57,14 @@ export function setCredentials(oauth2Client, tokens) {
  */
 export async function refreshAccessToken(oauth2Client) {
   try {
+    logger.info('Attempting to refresh Google Calendar access token');
     const { credentials } = await oauth2Client.refreshAccessToken();
+    
+    logger.info('Google Calendar access token refreshed successfully', {
+      hasNewAccessToken: !!credentials.access_token,
+      hasNewRefreshToken: !!credentials.refresh_token,
+      expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : null,
+    });
     
     return {
       access_token: credentials.access_token,

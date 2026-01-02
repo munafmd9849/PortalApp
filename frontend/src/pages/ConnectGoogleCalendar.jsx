@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FaGoogle, FaCalendar, FaCheckCircle, FaSpinner } from 'react-icons/fa';
+import { FaGoogle, FaCalendar, FaCheckCircle, FaSpinner, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import CustomCalendar from '../components/calendar/CustomCalendar';
@@ -30,6 +30,7 @@ const ConnectGoogleCalendar = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null); // Error message state
 
   // Check calendar connection status on mount
   useEffect(() => {
@@ -42,7 +43,7 @@ const ConnectGoogleCalendar = () => {
         // Success notification will be shown by toast in parent
         checkCalendarStatus();
       } else if (event.data.type === 'GOOGLE_CALENDAR_ERROR') {
-        alert(`Failed to connect: ${event.data.error || 'Unknown error'}`);
+        setErrorMessage(`Failed to connect: ${event.data.error || 'Unknown error'}`);
         setConnecting(false);
       }
     };
@@ -122,7 +123,7 @@ const ConnectGoogleCalendar = () => {
       }
     } catch (error) {
       console.error('Error disconnecting calendar:', error);
-      alert('Failed to disconnect calendar. Please try again.');
+      setErrorMessage('Failed to disconnect calendar. Please try again.');
     } finally {
       setDisconnecting(false);
     }
@@ -153,7 +154,7 @@ const ConnectGoogleCalendar = () => {
       );
 
       if (!popup) {
-        alert('Popup blocked. Please allow popups for this site.');
+        setErrorMessage('Popup blocked. Please allow popups for this site.');
         setConnecting(false);
         return;
       }
@@ -180,7 +181,7 @@ const ConnectGoogleCalendar = () => {
       }, 300000);
     } catch (error) {
       console.error('Error connecting calendar:', error);
-      alert('Failed to initiate Google Calendar connection. Please try again.');
+      setErrorMessage('Failed to initiate Google Calendar connection. Please try again.');
       setConnecting(false);
     }
   };
@@ -207,7 +208,7 @@ const ConnectGoogleCalendar = () => {
         setEvents([]);
       } else if (error.response?.status === 401) {
         // Authentication failed - need to reconnect
-        alert('Calendar authentication expired. Please reconnect your Google Calendar.');
+        setErrorMessage('Calendar authentication expired. Please reconnect your Google Calendar.');
         setConnected(false);
         checkCalendarStatus(); // Sync status
       } else if (error.response?.status === 400 && error.response?.data?.message?.includes('not connected')) {
@@ -223,9 +224,9 @@ const ConnectGoogleCalendar = () => {
         // Other errors - show message
         const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch calendar events.';
         console.error('Full error:', error.response?.data || error);
-        // Don't show alert for "not connected" as it's handled above
+        // Don't show error for "not connected" as it's handled above
         if (!errorMessage.includes('not connected')) {
-          alert(`Error: ${errorMessage}`);
+          setErrorMessage(`Error: ${errorMessage}`);
         }
       }
     } finally {
@@ -274,6 +275,31 @@ const ConnectGoogleCalendar = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg relative">
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded transition-colors"
+                title="Dismiss"
+              >
+                <FaTimes className="text-red-600 text-sm" />
+              </button>
+              <div className="flex items-start gap-3 pr-6">
+                <FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">{errorMessage}</p>
+                  <button
+                    onClick={() => setErrorMessage(null)}
+                    className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
               <FaCalendar className="text-3xl text-blue-600" />
@@ -314,6 +340,31 @@ const ConnectGoogleCalendar = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Error Message Banner */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg relative shadow-md">
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded transition-colors"
+              title="Dismiss"
+            >
+              <FaTimes className="text-red-600 text-sm" />
+            </button>
+            <div className="flex items-start gap-3 pr-6">
+              <FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">{errorMessage}</p>
+                <button
+                  onClick={() => setErrorMessage(null)}
+                  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -353,38 +404,45 @@ const ConnectGoogleCalendar = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Connection Status - Modern indicator style */}
               {connected ? (
                 <>
                   {hasFullScope === false ? (
-                    <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium" title="Read-only permissions. Reconnect for full access.">
-                      ⚠️ Read-Only
-                    </span>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-sm font-medium text-yellow-800" title="Read-only permissions. Reconnect for full access.">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span>Read-Only</span>
+                    </div>
                   ) : (
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                      Connected
-                    </span>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-300 rounded-lg text-sm font-medium text-green-800">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Connected</span>
+                    </div>
                   )}
                 </>
               ) : (
-                <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
-                  Not Connected
-                </span>
+                <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 rounded-lg text-sm font-medium text-red-800">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span>Not Connected</span>
+                </div>
               )}
+              
+              {/* Action Buttons - Modern button style */}
               <button
                 onClick={checkCalendarStatus}
                 disabled={loadingEvents || disconnecting}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-300 flex items-center gap-2 transition-colors"
+                className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-all font-medium shadow-sm hover:shadow"
                 title="Check connection status"
               >
                 <span>Check Status</span>
               </button>
+              
               {connected && (
                 <>
                   <button
                     onClick={fetchEvents}
                     disabled={loadingEvents || disconnecting}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center gap-2 transition-colors"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-2 transition-all font-medium shadow-md hover:shadow-lg"
                   >
                     {loadingEvents ? (
                       <>
@@ -398,7 +456,7 @@ const ConnectGoogleCalendar = () => {
                   <button
                     onClick={handleDisconnect}
                     disabled={disconnecting}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 flex items-center gap-2 transition-colors"
+                    className="px-4 py-2 bg-white border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-600 disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-all font-medium shadow-sm hover:shadow"
                     title="Disconnect Google Calendar"
                   >
                     {disconnecting ? (
@@ -430,6 +488,40 @@ const ConnectGoogleCalendar = () => {
             }
             setSelectedDate(null);
             setShowEventModal(true);
+          }}
+          onEditEvent={async (event) => {
+            // Check if user has full scope
+            if (hasFullScope === false) {
+              setErrorMessage('Your calendar has read-only permissions. Please disconnect and reconnect with full access to edit events.');
+              return;
+            }
+            // Open edit modal (reuse creation modal with event data)
+            setSelectedDate(new Date(event.start));
+            setShowEventModal(true);
+            // TODO: Pass event data to modal for editing
+          }}
+          onDeleteEvent={async (eventId) => {
+            // Check if user has full scope
+            if (hasFullScope === false) {
+              setErrorMessage('Your calendar has read-only permissions. Please disconnect and reconnect with full access to delete events.');
+              return;
+            }
+            try {
+              await api.delete(`/calendar/events/${eventId}`);
+              fetchEvents(); // Refresh events
+            } catch (error) {
+              console.error('Error deleting event:', error);
+              setErrorMessage(error.response?.data?.message || 'Failed to delete event. Please try again.');
+            }
+          }}
+          onRespondToEvent={async (eventId, responseStatus) => {
+            try {
+              await api.post(`/calendar/events/${eventId}/respond`, { responseStatus });
+              fetchEvents(); // Refresh events
+            } catch (error) {
+              console.error('Error responding to event:', error);
+              setErrorMessage(error.response?.data?.message || 'Failed to respond to event. Please try again.');
+            }
           }}
           userRole={user?.role}
         />

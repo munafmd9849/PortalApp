@@ -393,6 +393,10 @@ export default function ResumePreview({ resumeUrl, resumeData, scale = 1 }) {
                 <InterestsSection items={section.items} template={template} />
               )}
               
+              {section.type === 'endorsements' && (
+                <EndorsementsSection items={section.items} template={template} />
+              )}
+              
               {section.type === 'custom' && (
                 <CustomSection items={section.items} template={template} />
               )}
@@ -695,6 +699,51 @@ function InterestsSection({ items, template }) {
         >
           {item.interest || item.name || 'Interest'}
         </span>
+      ))}
+    </div>
+  );
+}
+
+// Endorsements Section Component
+function EndorsementsSection({ items, template }) {
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  // Limit to max 3 endorsements for resume (ATS-friendly)
+  const displayEndorsements = items.slice(0, 3);
+
+  return (
+    <div className="space-y-4">
+      {displayEndorsements.map((endorsement, index) => (
+        <div key={index} className="border-l-2 pl-4" style={{ borderColor: template.colors.primary }}>
+          <div className="flex justify-between items-start mb-1">
+            <div>
+              <p className="font-semibold text-gray-800">{endorsement.endorserName}</p>
+              <p className="text-sm text-gray-600">
+                {endorsement.endorserRole}
+                {endorsement.organization && `, ${endorsement.organization}`}
+              </p>
+            </div>
+          </div>
+          <p className="text-gray-700 text-sm mt-2 italic">"{endorsement.message}"</p>
+          {endorsement.relatedSkills && endorsement.relatedSkills.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {endorsement.relatedSkills.slice(0, 5).map((skill, idx) => (
+                <span
+                  key={idx}
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{
+                    backgroundColor: `${template.colors.primary}20`,
+                    color: template.colors.primary,
+                  }}
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );

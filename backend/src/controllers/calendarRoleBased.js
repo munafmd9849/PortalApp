@@ -389,3 +389,5 @@ export const getEventDetails = async (req, res) => {
 
 
 
+
+

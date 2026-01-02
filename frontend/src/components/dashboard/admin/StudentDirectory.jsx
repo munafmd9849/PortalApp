@@ -344,6 +344,43 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
 const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStudentUpdate }) => {
   const [isCGPAModalOpen, setIsCGPAModalOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(student);
+  const [profileData, setProfileData] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Load profile data when student changes
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!student?.id || !isOpen) {
+        setProfileData(null);
+        return;
+      }
+
+      try {
+        setLoadingProfile(true);
+        // Check if student object already has endorsementsData
+        if (student.endorsementsData) {
+          const profile = {
+            endorsementsData: student.endorsementsData,
+          };
+          setProfileData(profile);
+        } else {
+          // If student has userId, try to get full profile via API
+          // Note: This might not work if the endpoint requires student role
+          // For now, just set to null and let components handle their own data loading
+          setProfileData(null);
+        }
+      } catch (error) {
+        console.error('Error loading profile data for admin view:', error);
+        setProfileData(null);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    if (isOpen && student?.id) {
+      loadProfileData();
+    }
+  }, [student?.id, student?.endorsementsData, isOpen]);
 
   // Update current student when student prop changes
   React.useEffect(() => {
@@ -564,30 +601,31 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStud
                 </div>
               </div>
             ) : (
-            <div>
-              <DashboardHome
-                studentData={{
-                  ...currentStudent,
-                  ...student,
-                  id: student.id
-                }}
-                jobs={dashboardData.jobs}
-                applications={dashboardData.applications}
-                skillsEntries={dashboardData.skills}
-                loadingJobs={false}
-                loadingApplications={false}
-                loadingSkills={false}
-                handleApplyToJob={handleApplyToJob}
-                hasApplied={hasApplied}
-                applying={{}}
-                hideApplicationTracker={true}
-                hideJobPostings={true}
-                hideFooter={true}
-                isAdminView={true}
-              />
-              {/* Add spacing at bottom after certifications */}
-              <div className="h-12"></div>
-            </div>
+              <div>
+                <DashboardHome
+                  studentData={{
+                    ...currentStudent,
+                    ...student,
+                    id: student.id
+                  }}
+                  jobs={dashboardData.jobs}
+                  applications={dashboardData.applications}
+                  skillsEntries={dashboardData.skills}
+                  loadingJobs={false}
+                  loadingApplications={false}
+                  loadingSkills={false}
+                  handleApplyToJob={handleApplyToJob}
+                  hasApplied={hasApplied}
+                  applying={{}}
+                  hideApplicationTracker={true}
+                  hideJobPostings={true}
+                  hideFooter={true}
+                  isAdminView={true}
+                  profileData={profileData || (student.endorsementsData ? { endorsementsData: student.endorsementsData } : null)}
+                />
+                {/* Add spacing at bottom */}
+                <div className="h-12"></div>
+              </div>
             )}
           </div>
         </div>

@@ -38,6 +38,16 @@ export async function getAuthenticatedCalendarClient(userId, role) {
     throw new Error('Google Calendar not connected');
   }
 
+  // Validate token scope for write operations
+  const hasFullScope = calendarToken.scope?.includes('https://www.googleapis.com/auth/calendar') && 
+                       !calendarToken.scope?.includes('readonly');
+  
+  if (!hasFullScope && (role === 'RECRUITER' || role === 'ADMIN' || role === 'SUPER_ADMIN')) {
+    logger.warn(`User ${userId} (${role}) has read-only calendar scope but attempting write operation`, {
+      scope: calendarToken.scope,
+    });
+  }
+
   const tokens = {
     accessToken: calendarToken.accessToken,
     refreshToken: calendarToken.refreshToken,
@@ -131,6 +141,35 @@ async function getCalendarClientForUser(targetUserId, targetRole) {
  * @param {String} targetRole - Optional: target user role
  * @returns {Promise<Object>} - Created event
  */
+/**
+ * Validate scope for write operations
+ * @param {String} userId - User ID
+ * @param {String} operation - Operation name (create, update, delete)
+ * @returns {Promise<Boolean>} - True if has full scope
+ */
+async function validateWriteScope(userId, operation) {
+  const calendarToken = await prisma.googleCalendarToken.findUnique({
+    where: { userId },
+    select: { scope: true },
+  });
+
+  if (!calendarToken) {
+    return false;
+  }
+
+  const hasFullScope = calendarToken.scope?.includes('https://www.googleapis.com/auth/calendar') && 
+                       !calendarToken.scope?.includes('readonly');
+
+  if (!hasFullScope) {
+    logger.warn(`User ${userId} attempted ${operation} with read-only scope`, {
+      scope: calendarToken.scope,
+      operation,
+    });
+  }
+
+  return hasFullScope;
+}
+
 export async function createEvent(userId, role, eventData, targetUserId = null, targetRole = null) {
   const {
     summary,
@@ -195,6 +234,19 @@ export async function createEvent(userId, role, eventData, targetUserId = null, 
  * @returns {Promise<Object>} - Updated event
  */
 export async function updateEvent(userId, role, eventId, updates, targetUserId = null, targetRole = null) {
+  // Validate scope for write operations
+  const hasFullScope = await validateWriteScope(userId, 'update');
+  if (!hasFullScope) {
+    throw new Error('Calendar has read-only permissions. Please disconnect and reconnect with full access.');
+  }
+
+  logger.info(`Updating calendar event`, {
+    userId,
+    role,
+    eventId,
+    targetUserId,
+    targetRole,
+  });
   // Validate user can edit this event
   await validateEventOwnership(userId, role, eventId, targetUserId, targetRole);
 
@@ -264,6 +316,19 @@ export async function updateEvent(userId, role, eventId, updates, targetUserId =
  * @returns {Promise<void>}
  */
 export async function deleteEvent(userId, role, eventId, targetUserId = null, targetRole = null) {
+  // Validate scope for write operations
+  const hasFullScope = await validateWriteScope(userId, 'delete');
+  if (!hasFullScope) {
+    throw new Error('Calendar has read-only permissions. Please disconnect and reconnect with full access.');
+  }
+
+  logger.info(`Deleting calendar event`, {
+    userId,
+    role,
+    eventId,
+    targetUserId,
+    targetRole,
+  });
   // Validate user can delete this event
   await validateEventOwnership(userId, role, eventId, targetUserId, targetRole);
 

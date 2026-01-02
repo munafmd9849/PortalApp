@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImMail } from 'react-icons/im';
 import { MdEditNote, MdBlock } from 'react-icons/md';
-import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt } from 'react-icons/fa';
+import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes } from 'react-icons/fa';
 import { TbHistoryToggle } from 'react-icons/tb';
 import { subscribeRecruiterDirectory, blockUnblockRecruiter, getRecruiterJobs, getRecruiterHistory, sendEmailToRecruiter, getRecruiterSummary } from '../../../services/recruiters';
 import { useAuth } from '../../../hooks/useAuth';
@@ -994,31 +994,42 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
     }
   }, [isOpen, recruiter]);
   
-  console.log('JobDescriptionModal props:', { isOpen, recruiter, jobs: jobs.length });
   if (!isOpen || !recruiter) return null;
 
+  // Get employment type for display
+  const getEmploymentType = (job) => {
+    if (job.jobType) {
+      return job.jobType === 'Internship' ? 'Internship' : 
+             job.jobType === 'Full-Time' ? 'Full-Time' : 
+             job.jobType;
+    }
+    // Fallback logic
+    if (job.title?.toLowerCase().includes('intern')) return 'Internship';
+    return 'Full-Time';
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+      <div className="bg-gradient-to-br from-orange-50 via-pink-50 to-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-            <FaBriefcase className="w-5 h-5 text-purple-600" />
-            Job Descriptions - {recruiter.companyName}
+        <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Job Descriptions - {recruiter.companyName || 'Unknown'}
           </h2>
           <button
             onClick={onClose}
-            className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-600 rounded-lg transition-all duration-200 border border-gray-200 hover:border-gray-300 font-medium text-sm"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+            title="Close"
           >
-            Close
+            <FaTimes className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <div className="p-6 overflow-y-auto max-h-[calc(85vh-140px)]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <FaSpinner className="animate-spin text-blue-600 mr-3" />
+              <FaSpinner className="animate-spin text-purple-600 mr-3" />
               <span className="text-gray-600">Loading job descriptions...</span>
             </div>
           ) : error ? (
@@ -1026,193 +1037,55 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
               <div className="text-red-600 mb-2">{error}</div>
               <button 
                 onClick={() => window.location.reload()} 
-                className="text-blue-600 hover:text-blue-800 underline"
+                className="text-purple-600 hover:text-purple-800 underline"
               >
                 Try again
               </button>
             </div>
           ) : jobs && jobs.length > 0 ? (
-            <div className="space-y-3">
-              {jobs.map((job, index) => (
-                <div key={job.id || index} className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                  {/* Job Header with Status */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                        {job.jobTitle || 'Job Position'}
-                      </h3>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ml-4 ${
-                      job.status === 'active' || job.status === 'posted' ? 'bg-green-100 text-green-800' : 
-                      job.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {job.status === 'posted' ? 'Active' : (job.status || 'Draft')}
-                    </span>
-                  </div>
-
-                  {/* Use JobInfoDisplay for consistent job field display */}
-                  <JobInfoDisplay 
-                    job={job} 
-                    variant="compact" 
-                    showMetadata={false}
-                    showTargeting={false}
-                  />
-
-                  {/* Additional job-specific fields not in JobInfoDisplay */}
-                  {(job.workMode || job.openings || (job.duration && job.jobType === 'Internship')) && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      {job.workMode && (
-                        <div className="flex items-center text-sm">
-                          <FaBuilding className="text-blue-500 mr-2" />
-                          <span className="font-medium">Work Mode: </span>
-                          <span className="ml-1">{job.workMode}</span>
-                        </div>
-                      )}
-                      {job.openings && (
-                        <div className="flex items-center text-sm">
-                          <FaUsers className="text-purple-500 mr-2" />
-                          <span className="font-medium">Openings: </span>
-                          <span className="ml-1">{job.openings}</span>
-                        </div>
-                      )}
-                      {job.duration && job.jobType === 'Internship' && (
-                        <div className="flex items-center text-sm">
-                          <FaClock className="text-orange-500 mr-2" />
-                          <span className="font-medium">Duration: </span>
-                          <span className="ml-1">{job.duration}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Eligibility Criteria */}
-                  <div className="mb-4">
-                    <h4 className="font-medium text-gray-800 mb-2">Eligibility Criteria:</h4>
-                    <div className="bg-white p-3 rounded border text-sm text-gray-600">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {job.qualification && (
-                          <div><span className="font-medium">Qualification:</span> {job.qualification}</div>
-                        )}
-                        {job.specialization && (
-                          <div><span className="font-medium">Specialization:</span> {job.specialization}</div>
-                        )}
-                        {job.yop && (
-                          <div><span className="font-medium">Year of Passing:</span> {job.yop}</div>
-                        )}
-                        {job.minCgpa && (
-                          <div><span className="font-medium">Min CGPA:</span> {job.minCgpa}</div>
-                        )}
-                        {job.gapAllowed && (
-                          <div><span className="font-medium">Gap Allowed:</span> {job.gapAllowed}</div>
-                        )}
-                        {job.backlogs && (
-                          <div><span className="font-medium">Backlogs:</span> {job.backlogs}</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Drive Details */}
-                  {(job.driveDate || job.driveVenues) && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-800 mb-2">Drive Details:</h4>
-                      <div className="bg-white p-3 rounded border text-sm text-gray-600">
-                        {job.driveDate && (
-                          <div className="mb-1">
-                            <span className="font-medium">Date:</span> {
-                              job.driveDate.toMillis ? 
-                                new Date(job.driveDate.toMillis()).toLocaleDateString() :
-                                new Date(job.driveDate).toLocaleDateString()
-                            }
-                          </div>
-                        )}
-                        {job.driveVenues && job.driveVenues.length > 0 && (
-                          <div>
-                            <span className="font-medium">Venues:</span> {job.driveVenues.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Interview Process */}
-                  {job.interviewRounds && job.interviewRounds.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-800 mb-2">Interview Process:</h4>
-                      <div className="bg-white p-3 rounded border">
-                        {job.interviewRounds.map((round, roundIndex) => (
-                          <div key={roundIndex} className="mb-2 last:mb-0">
-                            <div className="flex items-center text-sm">
-                              <span className="font-medium text-gray-800">{round.title}:</span>
-                              <span className="ml-2 text-gray-600">{round.detail}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Company Links */}
-                  <div className="flex items-center space-x-4 text-sm">
-                    {job.website && (
-                      <a 
-                        href={job.website} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center text-blue-600 hover:text-blue-800"
-                      >
-                        <FaExternalLinkAlt className="mr-1" />
-                        Website
-                      </a>
-                    )}
-                    {job.linkedin && (
-                      <a 
-                        href={job.linkedin} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center text-blue-600 hover:text-blue-800"
-                      >
-                        <FaExternalLinkAlt className="mr-1" />
-                        LinkedIn
-                      </a>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      // Navigate to job detail page in a new tab
-                      const jobId = job.id || job.jobId;
-                      if (jobId) {
-                        window.open(`/admin/job/${jobId}`, '_blank');
-                      }
-                    }}
-                    className="ml-4 p-2 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded-full transition-colors"
-                    title="View Job Description"
+            <div className="space-y-2">
+              {jobs.map((job, index) => {
+                const employmentType = getEmploymentType(job);
+                const jobId = job.id || job.jobId;
+                
+                return (
+                  <div
+                    key={job.id || index}
+                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-200 flex items-center justify-between group"
                   >
-                    <FaEye className="text-lg" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FaBriefcase className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">
+                          {job.jobTitle || job.title || 'Job Position'}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-0.5">
+                          {employmentType}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (jobId) {
+                          window.open(`/admin/job/${jobId}`, '_blank');
+                        }
+                      }}
+                      className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors flex-shrink-0"
+                      title="View Job Description"
+                    >
+                      <FaEye className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <div className="mb-4">
-                <FaBriefcase className="mx-auto h-12 w-12 text-gray-400" />
-              </div>
+            <div className="text-center py-12 text-gray-500">
+              <FaBriefcase className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Job Descriptions Available</h3>
-              <p>This recruiter hasn't posted any job descriptions yet.</p>
+              <p className="text-sm">This recruiter hasn't posted any job descriptions yet.</p>
             </div>
           )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

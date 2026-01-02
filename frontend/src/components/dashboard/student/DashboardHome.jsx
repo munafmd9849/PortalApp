@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import AboutMe from './AboutMe';
 import DashboardStatsSection from './DashboardStatsSection';
@@ -10,7 +10,8 @@ import ProjectsSection from './ProjectsSection';
 import Achievements from './Achievements';
 import Endorsements from './Endorsements';
 import StudentFooter from './StudentFooter';
-import JobDescription from './JobDescription';
+import JobDescriptionModal from './JobDescriptionModal';
+import { getStudentProfile } from '../../../services/students';
 import { 
   Clock,
   AlertCircle,
@@ -18,6 +19,7 @@ import {
   XCircle,
   Loader
 } from 'lucide-react';
+import { mockApplications, mockJobs, shouldUseMockData, mockEducation, mockProjects, mockAchievements, mockCertifications, mockEndorsements } from '../../../utils/mockData';
 
 const DashboardHome = ({ 
   studentData, 
@@ -33,22 +35,116 @@ const DashboardHome = ({
   hideApplicationTracker = false,
   hideJobPostings = false,
   hideFooter = false,
-  isAdminView = false
+  isAdminView = false,
+  profileData: propProfileData = null // Allow passing profile data from parent
 }) => {
   const { user } = useAuth();
   const [error, setError] = useState('');
   const [selectedJob, setSelectedJob] = useState(null);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [profileData, setProfileData] = useState(propProfileData);
+  const [loadingProfile, setLoadingProfile] = useState(!propProfileData);
+
+  // Load profile data to check which sections have data (only if not provided as prop)
+  useEffect(() => {
+    // If profile data is provided as prop (e.g., from admin view), use it
+    if (propProfileData) {
+      setProfileData(propProfileData);
+      setLoadingProfile(false);
+      return;
+    }
+
+    const loadProfileData = async () => {
+      if (!user?.id) {
+        setLoadingProfile(false);
+        return;
+      }
+
+      try {
+        setLoadingProfile(true);
+        const profile = await getStudentProfile(user.id);
+        setProfileData(profile);
+      } catch (error) {
+        console.error('Error loading profile data:', error);
+        setProfileData(null);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    loadProfileData();
+  }, [user?.id, propProfileData]);
+
+  // Check if sections have data (real data OR mock data if enabled)
+  // If profileData is still loading, show all sections (they'll handle their own loading states)
+  // Once loaded, show sections if they have real data OR if mock data is enabled
+  const useMockData = shouldUseMockData();
+  
+  const hasEducation = loadingProfile 
+    ? true // Show while loading
+    : (profileData?.education && Array.isArray(profileData.education) && profileData.education.length > 0) || 
+      (useMockData && mockEducation && mockEducation.length > 0);
+  
+  const hasSkills = loadingProfile 
+    ? true // Show while loading
+    : (profileData?.skills && Array.isArray(profileData.skills) && profileData.skills.length > 0) || 
+      useMockData; // Skills section will use mock data if enabled
+  
+  const hasProjects = loadingProfile 
+    ? true // Show while loading
+    : (profileData?.projects && Array.isArray(profileData.projects) && profileData.projects.length > 0) || 
+      (useMockData && mockProjects && mockProjects.length > 0);
+  
+  const hasAchievements = loadingProfile 
+    ? true // Show while loading
+    : (profileData?.achievements && Array.isArray(profileData.achievements) && profileData.achievements.length > 0) || 
+      (useMockData && mockAchievements && mockAchievements.length > 0);
+  
+  const hasCertifications = loadingProfile 
+    ? true // Show while loading
+    : (profileData?.certifications && Array.isArray(profileData.certifications) && profileData.certifications.length > 0) || 
+      (useMockData && mockCertifications && mockCertifications.length > 0);
+  
+  // Check endorsements - need to parse from endorsementsData
+  // Always show endorsements section if mock data is enabled, since the component handles its own data loading
+  let hasEndorsements = false;
+  if (loadingProfile) {
+    hasEndorsements = true; // Show while loading
+  } else {
+    // Check real data
+    if (profileData?.endorsementsData) {
+      try {
+        const endorsements = typeof profileData.endorsementsData === 'string' 
+          ? JSON.parse(profileData.endorsementsData) 
+          : profileData.endorsementsData;
+        hasEndorsements = Array.isArray(endorsements) && endorsements.length > 0;
+      } catch (e) {
+        console.error('Error parsing endorsementsData:', e);
+      }
+    }
+    // Always show if mock data is enabled (component will handle showing mock data)
+    if (!hasEndorsements && useMockData) {
+      hasEndorsements = true;
+    }
+  }
+
+  // Use mock data if real data is empty and in development mode
+  const displayApplications = (applications && applications.length > 0) 
+    ? applications 
+    : (shouldUseMockData() ? mockApplications : []);
+  const displayJobs = (jobs && jobs.length > 0) 
+    ? jobs 
+    : (shouldUseMockData() ? mockJobs : []);
 
   // Convert studentData props to expected format and calculate stats
   const formattedStudentData = studentData ? {
     id: user?.id,
     ...studentData,
     stats: {
-      applied: applications.length,
-      shortlisted: applications.filter(app => app.status === 'shortlisted').length,
-      interviewed: applications.filter(app => app.status === 'interviewed').length,
-      offers: applications.filter(app => app.status === 'selected' || app.status === 'offered').length
+      applied: displayApplications.length,
+      shortlisted: displayApplications.filter(app => app.status === 'shortlisted').length,
+      interviewed: displayApplications.filter(app => app.status === 'interviewed').length,
+      offers: displayApplications.filter(app => app.status === 'selected' || app.status === 'offered').length
     }
   } : null;
 
@@ -171,7 +267,7 @@ const DashboardHome = ({
       {/* Live Application Tracker Section */}
       {!hideApplicationTracker && (
         <ApplicationTrackerSection 
-          applications={applications} 
+          applications={displayApplications} 
           onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
         />
       )}
@@ -179,7 +275,7 @@ const DashboardHome = ({
       {/* Latest Job Postings Section */}
       {!hideJobPostings && (
         <JobPostingsSection 
-          jobs={jobs} 
+          jobs={displayJobs} 
           onKnowMore={handleKnowMore} 
           onApply={handleApplyToJob}
           hasApplied={hasApplied}
@@ -188,20 +284,34 @@ const DashboardHome = ({
         />
       )}
 
-      {/* Education Section */}
-      <EducationSection isAdminView={isAdminView} />
+      {/* Education Section - Only show if has data */}
+      {hasEducation && (
+        <EducationSection isAdminView={isAdminView} />
+      )}
 
-      {/* Skills Section */}
-      <SkillsSection isAdminView={isAdminView} />
+      {/* Skills Section - Only show if has data */}
+      {hasSkills && (
+        <SkillsSection isAdminView={isAdminView} />
+      )}
 
-      {/* Projects Section */}
-      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
+      {/* Projects Section - Only show if has data */}
+      {hasProjects && (
+        <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
+      )}
 
-      {/* Achievements & Certifications Section */}
-      <Achievements isAdminView={isAdminView} />
+      {/* Achievements & Certifications Section - Only show if has achievements or certifications */}
+      {(hasAchievements || hasCertifications) && (
+        <Achievements isAdminView={isAdminView} />
+      )}
 
-      {/* Endorsements Section */}
-      <Endorsements isAdminView={isAdminView} />
+      {/* Endorsements Section - Only show if has data */}
+      {hasEndorsements && (
+        <Endorsements 
+          isAdminView={isAdminView} 
+          studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
+          profileData={profileData}
+        />
+      )}
 
       {/* Student Footer */}
       {!hideFooter && (
@@ -214,7 +324,7 @@ const DashboardHome = ({
       )}
 
       {/* Job Description Modal */}
-      <JobDescription 
+      <JobDescriptionModal 
         job={selectedJob}
         isOpen={isJobModalOpen}
         onClose={handleCloseJobModal}

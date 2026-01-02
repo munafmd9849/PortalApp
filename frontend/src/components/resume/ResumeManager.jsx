@@ -21,6 +21,7 @@ import {
   checkATSScore, 
   enhanceWithAI 
 } from '../../utils/resumeUtils';
+import api from '../../services/api';
 
 export default function ResumeManager({ onResumeUpdate, userId }) {
   const [resumeInfo, setResumeInfo] = useState({
@@ -125,44 +126,56 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
       setSuccess('');
       setPdfError(false);
 
-      // Create object URL for preview
-      const fileUrl = URL.createObjectURL(file);
+      // Upload to Cloudinary via backend API
+      const response = await api.uploadResume(file, undefined, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      // Response contains: { id, url, fileName, fileSize, title, isDefault, uploadedAt }
+      // The URL is the Cloudinary URL stored in the database
       
-      // Check ATS score
+      // Check ATS score (optional, can be done after upload)
       const atsResult = await checkATSScore(file);
       
-      // Update state with the file info
+      // Update state with the file info from Cloudinary response
       setResumeInfo(prev => ({
         ...prev,
         file,
-        fileName: file.name,
-        fileSize: file.size,
+        fileName: response.fileName || file.name,
+        fileSize: response.fileSize || file.size,
         fileType: file.type,
-        uploadedAt: new Date().toISOString(),
+        uploadedAt: response.uploadedAt || new Date().toISOString(),
         hasResume: true,
         atsScore: atsResult.score,
         atsIssues: atsResult.issues,
-        aiSuggestions: []
+        aiSuggestions: [],
+        url: response.url // Cloudinary URL from backend
       }));
       
-      // Set the PDF URL for preview
-      setPdfUrl(fileUrl);
-      setSuccess('Resume uploaded successfully!');
+      // Use Cloudinary URL for preview (or create object URL as fallback)
+      const previewUrl = response.url || URL.createObjectURL(file);
+      setPdfUrl(previewUrl);
+      setSuccess('Resume uploaded successfully to Cloudinary!');
       
       if (onResumeUpdate) {
         onResumeUpdate({
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type
+          id: response.id,
+          fileName: response.fileName || file.name,
+          fileSize: response.fileSize || file.size,
+          fileType: file.type,
+          url: response.url, // Cloudinary URL
+          uploadedAt: response.uploadedAt,
+          isDefault: response.isDefault
         });
       }
       
     } catch (err) {
-      console.error('Error processing resume:', err);
-      setError('Failed to process resume. Please try again.');
+      console.error('Error uploading resume to Cloudinary:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to upload resume to Cloudinary. Please try again.');
       setPdfError(true);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 

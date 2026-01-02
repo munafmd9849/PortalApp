@@ -26,8 +26,9 @@ export const getOAuthUrl = async (req, res) => {
     const { getOAuthClient } = await import('../utils/googleCalendar.js');
     const oauth2Client = getOAuthClient();
 
+    // Full calendar scope (not readonly) - required for creating events
     const scopes = [
-      'https://www.googleapis.com/auth/calendar.events.readonly', // Readonly scope as per requirements
+      'https://www.googleapis.com/auth/calendar',
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -308,6 +309,9 @@ export const getCalendarEvents = async (req, res) => {
     });
   }
 };
+
+
+
 
 
 

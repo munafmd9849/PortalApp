@@ -216,71 +216,12 @@ export async function blockUnblockRecruiter(recruiterId, blockData, user = null)
  */
 export async function getRecruiterJobs(recruiterEmail) {
   try {
-    // Generate mock jobs for the recruiter
-    const jobTitles = [
-      'Software Engineer', 'Senior Software Engineer', 'Full Stack Developer',
-      'Backend Developer', 'Frontend Developer', 'DevOps Engineer',
-      'Data Engineer', 'Data Scientist', 'Machine Learning Engineer',
-      'QA Engineer', 'Product Manager', 'Business Analyst',
-      'UI/UX Designer', 'System Administrator', 'Cloud Architect'
-    ];
-    
-    const jobTypes = ['Full-Time', 'Internship', 'Part-Time'];
-    const workModes = ['Remote', 'Hybrid', 'On-site'];
-    const statuses = ['posted', 'draft', 'in_review', 'archived'];
-    
-    const numJobs = Math.floor(Math.random() * 15) + 5; // 5-20 jobs
-    const jobs = [];
-    
-    for (let i = 0; i < numJobs; i++) {
-      const daysAgo = Math.floor(Math.random() * 180);
-      const createdAt = new Date();
-      createdAt.setDate(createdAt.getDate() - daysAgo);
-      
-      const jobTitle = jobTitles[Math.floor(Math.random() * jobTitles.length)];
-      const jobType = jobTypes[Math.floor(Math.random() * jobTypes.length)];
-      const workMode = workModes[Math.floor(Math.random() * workModes.length)];
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      
-      jobs.push({
-        id: `job-${i + 1}`,
-        jobTitle: jobTitle,
-        company: recruiterEmail.split('@')[1].split('.')[0],
-        companyLocation: ['Mumbai', 'Bangalore', 'Pune', 'Hyderabad', 'Chennai', 'Noida'][Math.floor(Math.random() * 6)],
-        jobType: jobType,
-        workMode: workMode,
-        status: status,
-        salary: jobType === 'Internship' ? null : `₹${Math.floor(Math.random() * 20) + 8}-${Math.floor(Math.random() * 20) + 15} LPA`,
-        stipend: jobType === 'Internship' ? `₹${Math.floor(Math.random() * 30) + 15}k/month` : null,
-        openings: Math.floor(Math.random() * 10) + 1,
-        duration: jobType === 'Internship' ? `${Math.floor(Math.random() * 6) + 3} months` : null,
-        createdAt: createdAt,
-        responsibilities: `• Build and maintain scalable applications\n• Collaborate with cross-functional teams\n• Write clean, maintainable code\n• Participate in code reviews\n• Troubleshoot and debug applications`,
-        skills: ['JavaScript', 'Python', 'React', 'Node.js', 'SQL', 'AWS'].slice(0, Math.floor(Math.random() * 4) + 3),
-        qualification: 'B.Tech / M.Tech in Computer Science',
-        specialization: 'Computer Science, IT, or related field',
-        yop: '2024, 2025',
-        minCgpa: (7 + Math.random() * 1.5).toFixed(1),
-        gapAllowed: Math.random() > 0.5 ? 'Yes' : 'No',
-        backlogs: Math.random() > 0.7 ? '0' : '1-2',
-        website: `https://${recruiterEmail.split('@')[1]}`,
-        linkedin: `https://linkedin.com/company/${recruiterEmail.split('@')[1].split('.')[0]}`,
-        driveDate: Math.random() > 0.5 ? new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000) : null,
-        driveVenues: Math.random() > 0.5 ? ['Campus A', 'Campus B'] : null,
-        interviewRounds: [
-          { title: 'Online Assessment', detail: 'Technical and Aptitude test' },
-          { title: 'Technical Interview', detail: 'Coding and problem-solving' },
-          { title: 'HR Interview', detail: 'Cultural fit and communication' }
-        ]
-      });
-    }
-    
-    // Sort by creation date (newest first)
-    jobs.sort((a, b) => b.createdAt - a.createdAt);
-    
+    // Call the real API endpoint
+    const jobs = await api.getRecruiterJobs(recruiterEmail);
     return jobs;
   } catch (error) {
     console.error('getRecruiterJobs error:', error);
+    // Return empty array on error instead of throwing
     return [];
   }
 }

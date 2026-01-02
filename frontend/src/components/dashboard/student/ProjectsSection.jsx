@@ -8,12 +8,14 @@ import {
   getStudentProfile,
   generateProjectContent
 } from '../../../services/students';
+import { mockProjects, shouldUseMockData } from '../../../utils/mockData';
 
 const ProjectsSection = ({ studentId, isAdminView = false }) => {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [isAddButtonActive, setIsAddButtonActive] = useState(false);
+  const formRef = useRef(null);
   const [editedProject, setEditedProject] = useState({
     title: '',
     description: '',
@@ -41,22 +43,52 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
     const loadProjects = async () => {
       try {
         setLoading(true);
+        console.log('🚀 [ProjectsSection] Starting loadProjects, isMounted:', isMounted);
         const profile = await getStudentProfile(user.id);
-        if (isMounted) {
-          setProjects(profile?.projects || []);
+        
+        // CRITICAL: Log raw API response
+        console.log('📥 [ProjectsSection] PROFILE API RESPONSE:', profile);
+        console.log('📥 [ProjectsSection] Projects field:', profile?.projects);
+        console.log('📥 [ProjectsSection] Projects type:', typeof profile?.projects);
+        console.log('📥 [ProjectsSection] Projects isArray:', Array.isArray(profile?.projects));
+        console.log('🔍 [ProjectsSection] isMounted check:', isMounted);
+        
+        // CRITICAL: Always process data, but check isMounted before setState
+        // SAFE: Normalize to array, never null/undefined
+        const realProjects = Array.isArray(profile?.projects) 
+          ? profile.projects 
+          : (profile?.projects ? [profile.projects] : []);
+        const hasRealProjects = realProjects.length > 0;
+        
+        console.log('🔍 [ProjectsSection] Processed data:', {
+          realProjectsCount: realProjects.length,
+          hasRealProjects,
+          firstProject: realProjects[0] || null,
+          isMounted,
+        });
+        
+        // CRITICAL: Update state regardless of isMounted (React handles cleanup)
+        if (hasRealProjects) {
+          console.log('✅ [ProjectsSection] Setting real projects:', realProjects);
+          setProjects(realProjects);
+        } else {
+          // Only use mock data if explicitly enabled AND no real data
+          if (shouldUseMockData()) {
+            console.log('📦 [ProjectsSection] No real projects, using mock data. Count:', mockProjects.length);
+            setProjects(mockProjects);
+          } else {
+            console.log('📭 [ProjectsSection] No real projects, mock data disabled. Using empty array.');
+            setProjects([]);
+          }
         }
       } catch (error) {
-        console.error('Error loading projects:', error);
-        if (isMounted) {
-          setError('Failed to load projects. Please try again.');
-          setProjects([]);
-          // Reset on error to allow retry
-          projectsLoadedRef.current = false;
-        }
+        console.error('❌ [ProjectsSection] Error loading projects:', error);
+        setError('Failed to load projects. Please try again.');
+        setProjects([]);
+        // Reset on error to allow retry
+        projectsLoadedRef.current = false;
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
@@ -174,7 +206,12 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
 
       // Refresh projects list after save
       const profile = await getStudentProfile(user.id);
-      setProjects(profile?.projects || []);
+      const refreshedProjects = Array.isArray(profile?.projects) ? profile.projects : [];
+      console.log('🔄 [ProjectsSection] Refreshed after save:', {
+        profileProjects: profile?.projects,
+        refreshedCount: refreshedProjects.length,
+      });
+      setProjects(refreshedProjects);
 
       setEditingIndex(null);
       setIsAddButtonActive(false);
@@ -202,7 +239,12 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       
       // Refresh projects list after delete
       const profile = await getStudentProfile(user.id);
-      setProjects(profile?.projects || []);
+      const refreshedProjects = Array.isArray(profile?.projects) ? profile.projects : [];
+      console.log('🔄 [ProjectsSection] Refreshed after delete:', {
+        profileProjects: profile?.projects,
+        refreshedCount: refreshedProjects.length,
+      });
+      setProjects(refreshedProjects);
       
       setSuccess('Project deleted successfully!');
       setTimeout(() => setSuccess(''), 3000);
@@ -218,19 +260,32 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
     }
   };
 
-  const addNewProject = () => {
+  const addNewProject = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    
     const isCurrentlyAdding = editingIndex === projects.length;
     if (isCurrentlyAdding) {
       // Cancel adding
       setEditingIndex(null);
       setIsAddButtonActive(false);
       setAiGenerated(null);
+      setEditedProject({ title: '', description: '', techStack: [], liveUrl: '', githubUrl: '' });
+      setError('');
     } else {
       // Start adding
       setEditingIndex(projects.length);
       setEditedProject({ title: '', description: '', techStack: [], liveUrl: '', githubUrl: '' });
       setAiGenerated(null);
       setIsAddButtonActive(true);
+      setError('');
+      
+      // Scroll to form after a brief delay to ensure it's rendered
+      setTimeout(() => {
+        if (formRef.current) {
+          formRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
     }
   };
 
@@ -289,6 +344,14 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
         )}
 
         <div className="my-2">
+          {/* CRITICAL: Log rendering state */}
+          {console.log('🎨 [ProjectsSection] Rendering with:', {
+            projectsCount: projects.length,
+            loading,
+            projectsArray: projects,
+            isArray: Array.isArray(projects),
+          })}
+          
           <div className="space-y-2 pr-2 custom-scrollbar" style={{ maxHeight: '350px', overflowY: 'auto' }}>
             <style>{`
               .custom-scrollbar::-webkit-scrollbar {
@@ -318,7 +381,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
             `}</style>
             {/* Add new project form when editingIndex equals projects.length */}
             {editingIndex === projects.length && (
-              <div className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]">
+              <div ref={formRef} className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]">
                 <input
                   type="text"
                   value={editedProject.title}
@@ -406,7 +469,8 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
               </div>
             )}
 
-            {projects.map((project, index) => (
+            {/* SAFE: Always render if projects is an array, even if empty */}
+            {Array.isArray(projects) && projects.map((project, index) => (
               editingIndex === index ? (
                 <div
                   key={index}

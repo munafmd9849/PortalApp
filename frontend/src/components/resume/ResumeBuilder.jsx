@@ -75,6 +75,7 @@ const ResumeBuilder = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [generatingAndSaving, setGeneratingAndSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -108,6 +109,7 @@ const ResumeBuilder = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+  const [showResumesModal, setShowResumesModal] = useState(false);
 
   // Load resumes
   const loadResumes = async () => {
@@ -538,12 +540,21 @@ const ResumeBuilder = () => {
       return;
     }
 
+    // Validate file before upload
+    const validation = validateResumeFile(resumeFile);
+    if (!validation.valid) {
+      setError(validation.errors[0] || 'Invalid file. Please select a PDF file under 10MB.');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+
     try {
       setUploading(true);
       setError('');
       setSuccess('');
 
-      const result = await api.uploadResume(resumeFile, (progress) => {
+      // Pass undefined for title (optional) and progress callback
+      const result = await api.uploadResume(resumeFile, undefined, (progress) => {
         setUploadProgress(progress);
       });
 
@@ -553,13 +564,28 @@ const ResumeBuilder = () => {
       setSuccess('Resume uploaded successfully!');
       setResumeFile(null);
       setUploadProgress(0);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload resume. Please try again.');
+      let errorMessage = 'Failed to upload resume. Please try again.';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.response?.status === 400) {
+        errorMessage = 'Bad Request: Please ensure the file is a valid PDF under 5MB.';
+      }
+      
+      setError(errorMessage);
       setTimeout(() => setError(''), 5000);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -612,7 +638,156 @@ const ResumeBuilder = () => {
     }
   };
 
-  // Export PDF
+  // Save all resume data
+  const handleSaveAll = async () => {
+    if (!user?.id) return;
+    try {
+      setSaving(true);
+      setError('');
+      setSuccess('');
+
+      // Save personal info
+      await updateStudentProfile(user.id, personalInfo);
+      
+      // Reload profile to get latest data
+      const profile = await getStudentProfile(user.id);
+      if (profile) {
+        setStudent(profile);
+      }
+
+      setSuccess('All resume data saved successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Save all error:', err);
+      setError('Failed to save. Please try again.');
+      setTimeout(() => setError(''), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Generate PDF and auto-upload to resume manager
+  const handleGeneratePDFAndSave = async () => {
+    if (!user?.id) return;
+    try {
+      setGeneratingAndSaving(true);
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Not authenticated. Please login again.');
+      }
+
+      // Generate PDF using html2pdf.js
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById('resume-preview');
+      
+      if (!element) {
+        throw new Error('Resume preview element not found. Please go to Preview section first.');
+      }
+
+      const opt = {
+        margin: 0.5,
+        filename: `Resume_${student?.fullName || user.id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          letterRendering: true
+        },
+        jsPDF: { 
+          unit: 'in', 
+          format: 'letter', 
+          orientation: 'portrait' 
+        }
+      };
+
+      // Generate PDF blob using html2pdf.js
+      // html2pdf.js returns a promise, so we need to use .then() or wrap it properly
+      const pdfBlob = await new Promise((resolve, reject) => {
+        html2pdf()
+          .set(opt)
+          .from(element)
+          .outputPdf('blob')
+          .then((blob) => {
+            if (!blob || blob.size === 0) {
+              reject(new Error('Generated PDF is empty. Please check your resume content.'));
+              return;
+            }
+            resolve(blob);
+          })
+          .catch((err) => {
+            console.error('PDF generation error:', err);
+            reject(new Error('Failed to generate PDF. Please try again.'));
+          });
+      });
+      
+      console.log('✅ PDF blob generated:', { size: pdfBlob.size, type: pdfBlob.type });
+      
+      // Validate blob
+      if (!pdfBlob || pdfBlob.size === 0) {
+        throw new Error('Generated PDF is empty. Please check your resume content.');
+      }
+      
+      // Create a File object from the blob
+      const pdfFile = new File(
+        [pdfBlob], 
+        `Resume_${student?.fullName || user.id}_${Date.now()}.pdf`,
+        { type: 'application/pdf' }
+      );
+      
+      console.log('✅ PDF file created:', { name: pdfFile.name, size: pdfFile.size, type: pdfFile.type });
+
+      // Upload to resume manager
+      setSuccess('Uploading resume...');
+      const resumeTitle = `Resume - ${student?.fullName || 'My Resume'}`;
+      
+      console.log('📤 Uploading resume:', {
+        fileName: pdfFile.name,
+        fileSize: pdfFile.size,
+        fileType: pdfFile.type,
+        title: resumeTitle
+      });
+      
+      // Check file size (5MB limit)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (pdfFile.size > maxSize) {
+        throw new Error(`File size (${(pdfFile.size / 1024 / 1024).toFixed(2)}MB) exceeds the 5MB limit. Please reduce the content.`);
+      }
+      
+      await api.uploadResume(pdfFile, resumeTitle, (progress) => {
+        console.log('Upload progress:', progress);
+      });
+
+      setSuccess('Resume generated and saved successfully! You can now use it when applying to jobs.');
+      setTimeout(() => setSuccess(''), 5000);
+
+    } catch (err) {
+      console.error('❌ Generate and save PDF error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      });
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to generate and save PDF. Please try again.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      
+      setError(errorMessage);
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setGeneratingAndSaving(false);
+    }
+  };
+
+  // Export PDF (download only)
   const handleExportPDF = async () => {
     if (!user?.id) return;
     try {
@@ -869,25 +1044,44 @@ const ResumeBuilder = () => {
       {/* Build Resume Mode - Section Tabs */}
       {activeMode === 'buildResume' && (
         <div className="bg-white rounded-xl border-2 border-gray-200 p-3 shadow-sm">
-          <div className="flex gap-2">
-            {buildSections.map((section) => {
-              const Icon = section.icon;
-              const isActive = activeSection === section.id;
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all font-medium cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{section.label}</span>
-                </button>
-              );
-            })}
+          <div className="flex gap-2 items-center">
+            <div className="flex gap-2 flex-1">
+              {buildSections.map((section) => {
+                const Icon = section.icon;
+                const isActive = activeSection === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-sm font-medium cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
+                    }`}
+                  >
+                    <Icon size={14} />
+                    <span>{section.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => {
+                loadResumes();
+                setShowResumesModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium shadow-md hover:shadow-lg"
+              title="View Saved Resumes"
+            >
+              <FileText size={18} />
+              <span className="hidden sm:inline">View Saved Resumes</span>
+              <span className="sm:hidden">Resumes</span>
+              {resumes.length > 0 && (
+                <span className="bg-white text-green-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {resumes.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       )}
@@ -1736,23 +1930,62 @@ const ResumeBuilder = () => {
                   </div>
                   Resume Preview
                 </h3>
-                <button
-                  onClick={handleExportPDF}
-                  disabled={exporting}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-lg hover:shadow-xl transition-all"
-                >
-                  {exporting ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      <span>Generating PDF...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={18} />
-                      <span>Export as PDF</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                    className="flex items-center gap-2 bg-gray-600 text-white px-5 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all"
+                    title="Save all resume data"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        <span>Save All</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleGeneratePDFAndSave}
+                    disabled={generatingAndSaving || exporting}
+                    className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all"
+                    title="Generate PDF and save it to your resume manager for job applications"
+                  >
+                    {generatingAndSaving ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        <span>Generating & Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={18} />
+                        <span>Generate & Save</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={exporting || generatingAndSaving}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-lg hover:shadow-xl transition-all"
+                    title="Download PDF to your computer"
+                  >
+                    {exporting ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        <span>Generating PDF...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={18} />
+                        <span>Export as PDF</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50">
@@ -1834,7 +2067,7 @@ const ResumeBuilder = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <a
-                          href={resume.fileUrl}
+                          href={resume.fileUrl || resume.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all cursor-pointer text-sm font-medium"
@@ -2008,6 +2241,112 @@ const ResumeBuilder = () => {
               fileName: null,
               uploadedAt: null
             }} userId={user?.id} />
+          </div>
+        </div>
+      )}
+
+      {/* View Saved Resumes Modal */}
+      {showResumesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowResumesModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
+              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <FileText size={24} className="text-blue-600" />
+                </div>
+                Saved Resumes ({resumes.length})
+              </h3>
+              <button
+                onClick={() => setShowResumesModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Close"
+              >
+                <X size={24} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              {resumes.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileX size={64} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600 text-lg mb-2">No resumes saved yet</p>
+                  <p className="text-gray-500 text-sm mb-6">Upload a resume to get started</p>
+                  <button
+                    onClick={() => {
+                      setShowResumesModal(false);
+                      setActiveMode('uploadResume');
+                    }}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Upload Resume
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {resumes.map((resume) => (
+                    <div key={resume.id} className="bg-gray-50 border-2 border-gray-200 rounded-lg p-5 hover:border-blue-300 transition-all">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="bg-blue-100 p-3 rounded-lg flex-shrink-0">
+                            <FileText size={24} className="text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-gray-900 text-lg mb-1 truncate">{resume.fileName || 'Resume'}</h4>
+                            <div className="flex items-center gap-3 text-sm text-gray-600 flex-wrap">
+                              {resume.fileSize && (
+                                <span className="flex items-center gap-1">
+                                  <FileText size={14} />
+                                  {formatFileSize(resume.fileSize)}
+                                </span>
+                              )}
+                              {resume.uploadedAt && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar size={14} />
+                                  Uploaded: {new Date(resume.uploadedAt).toLocaleDateString()}
+                                </span>
+                              )}
+                              {resume.isDefault && (
+                                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            {resume.title && (
+                              <p className="text-sm text-gray-700 mt-1">{resume.title}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <a
+                            href={resume.fileUrl || resume.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg"
+                          >
+                            <Eye size={18} />
+                            View
+                          </a>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Are you sure you want to delete this resume?')) {
+                                await handleDeleteResume(resume.id);
+                                if (resumes.length === 1) {
+                                  setShowResumesModal(false);
+                                }
+                              }
+                            }}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                          >
+                            <Trash2 size={18} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

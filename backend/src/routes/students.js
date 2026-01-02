@@ -8,22 +8,9 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import * as studentController from '../controllers/students.js';
 import * as resumeController from '../controllers/resume.js';
-import multer from 'multer';
+import { uploadProfileImage, uploadResume } from '../middleware/upload.js';
 
 const router = express.Router({ mergeParams: true });
-
-// Configure multer for memory storage (for S3 upload)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed'), false);
-    }
-  },
-});
 
 // All routes require authentication
 router.use(authenticate);
@@ -69,28 +56,48 @@ router.post('/achievements', studentController.addAchievement);
 router.put('/achievements/:achievementId', studentController.updateAchievement);
 router.delete('/achievements/:achievementId', studentController.deleteAchievement);
 
-// Resume management
-router.post('/resume', (req, res, next) => {
-  upload.single('resume')(req, res, (err) => {
-    if (err) {
-      // Handle multer errors
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ error: 'File size exceeds 10MB limit' });
-        }
-        return res.status(400).json({ error: `Upload error: ${err.message}` });
-      }
-      // Handle file filter errors
-      if (err.message === 'Only PDF files are allowed') {
-        return res.status(400).json({ error: 'Only PDF files are allowed' });
-      }
-      return res.status(400).json({ error: err.message || 'File upload error' });
-    }
-    next();
-  });
-}, studentController.uploadResume);
-router.get('/resumes', studentController.getResumes);
-router.delete('/resumes/:resumeId', studentController.deleteResume);
+// Profile Image Upload (Cloudinary)
+// POST /api/students/profile-image
+// Auth: Student only
+router.post('/profile-image', 
+  requireRole(['STUDENT']), // Students only
+  uploadProfileImage, // Multer middleware for Cloudinary
+  studentController.uploadProfileImage
+);
+
+// Resume management (Cloudinary)
+// POST /api/students/resume
+// Body: { title } (optional)
+// Auth: Student only
+router.post('/resume', 
+  requireRole(['STUDENT']), // Students only
+  uploadResume, // Multer middleware for Cloudinary
+  studentController.uploadResumeCloudinary
+);
+
+// Get all resumes
+// GET /api/students/resumes
+// Auth: Student only (can view own resumes)
+router.get('/resumes', 
+  requireRole(['STUDENT']),
+  studentController.getResumes
+);
+
+// Set default resume
+// PATCH /api/students/resume/:resumeId/default
+// Auth: Student only
+router.patch('/resume/:resumeId/default',
+  requireRole(['STUDENT']),
+  studentController.setDefaultResume
+);
+
+// Delete resume
+// DELETE /api/students/resume/:resumeId
+// Auth: Student only
+router.delete('/resume/:resumeId',
+  requireRole(['STUDENT']),
+  studentController.deleteResume
+);
 
 // Admin route - Get all students (must be last to avoid route conflicts)
 router.get('/', requireRole(['ADMIN']), studentController.getAllStudents);

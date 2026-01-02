@@ -15,7 +15,7 @@ import { getAuthenticatedCalendarClient, createEvent as createCalendarEventServi
  */
 export const getCalendarStatus = async (req, res) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
@@ -87,7 +87,7 @@ export const getCalendarStatus = async (req, res) => {
  */
 export const getOAuthUrl = async (req, res) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
@@ -104,6 +104,12 @@ export const getOAuthUrl = async (req, res) => {
       prompt: 'consent', // Force consent to get refresh token
       state: req.user.id, // Pass user ID for security
       response_type: 'code',
+    });
+
+    logger.info('OAuth URL generated', {
+      userId: req.user.id,
+      role: req.user.role,
+      scope: scopes.join(', '),
     });
 
     res.json({ url: authUrl });
@@ -127,13 +133,15 @@ export const getOAuthUrl = async (req, res) => {
  * Returns: { events: [...] }
  */
 export const getCalendarEvents = async (req, res) => {
+  // Define userId and role outside try block so they're available in catch block
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+  
+  const userId = req.user.id;
+  const role = req.user.role || 'STUDENT';
+  
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    const userId = req.user.id;
-    const role = req.user.role;
 
     // Check if calendar is connected first (quick check) and get email
     const user = await prisma.user.findUnique({
@@ -209,8 +217,8 @@ export const getCalendarEvents = async (req, res) => {
     logger.error('Error fetching calendar events:', {
       error: error.message,
       stack: error.stack,
-      userId,
-      role,
+      userId: userId || req.user?.id || 'unknown',
+      role: role || req.user?.role || 'unknown',
     });
     
     // Handle "not connected" error gracefully
@@ -415,13 +423,375 @@ export const createCalendarEvent = async (req, res) => {
 };
 
 /**
+ * PUT /api/calendar/events/:eventId
+ * Update a calendar event
+ * 
+ * Role-based permissions:
+ * - STUDENT: Cannot update (403 Forbidden)
+ * - RECRUITER: Can only update own events
+ * - ADMIN: Can update any event
+ * 
+ * Request body:
+ * {
+ *   title: string (optional)
+ *   description: string (optional)
+ *   start: ISO string (optional)
+ *   end: ISO string (optional)
+ *   location: string (optional)
+ *   attendeesEmails: string[] (optional)
+ * }
+ * 
+ * Returns: { event: {...} }
+ */
+export const updateCalendarEvent = async (req, res) => {
+  const userId = req.user?.id;
+  const role = req.user?.role;
+  const eventId = req.params.eventId;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Role-based permission check
+    if (role === 'STUDENT') {
+      return res.status(403).json({
+        error: 'Students cannot update events',
+        message: 'Students have read-only access to calendar events',
+      });
+    }
+
+    const { title, description, start, end, location, attendeesEmails } = req.body;
+
+    // Validate dates if provided
+    if (start) {
+      const startDate = new Date(start);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({
+          error: 'Invalid date format',
+          message: 'start must be a valid ISO date string',
+        });
+      }
+    }
+
+    if (end) {
+      const endDate = new Date(end);
+      if (isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          error: 'Invalid date format',
+          message: 'end must be a valid ISO date string',
+        });
+      }
+    }
+
+    if (start && end) {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (endDate <= startDate) {
+        return res.status(400).json({
+          error: 'Invalid date range',
+          message: 'end date must be after start date',
+        });
+      }
+    }
+
+    // Validate and filter attendees
+    let validAttendees = [];
+    if (attendeesEmails && Array.isArray(attendeesEmails)) {
+      validAttendees = attendeesEmails
+        .filter(email => email && typeof email === 'string' && email.trim().length > 0)
+        .map(email => email.trim().toLowerCase());
+    }
+
+    // Prepare update object
+    const updates = {};
+    if (title) updates.summary = title;
+    if (description !== undefined) updates.description = description || '';
+    if (start) updates.start = new Date(start).toISOString();
+    if (end) updates.end = new Date(end).toISOString();
+    if (location !== undefined) updates.location = location || '';
+    if (validAttendees.length > 0) updates.attendees = validAttendees;
+
+    // Update event using service
+    const { updateEvent } = await import('../services/calendarServiceEnhanced.js');
+    const updatedEvent = await updateEvent(
+      userId,
+      role,
+      eventId,
+      updates,
+      null, // targetUserId (not used for self-update)
+      null  // targetRole (not used for self-update)
+    );
+
+    logger.info(`Updated calendar event ${eventId} by user ${userId} (role: ${role})`);
+
+    res.json({
+      event: {
+        id: updatedEvent.id,
+        title: updatedEvent.summary,
+        description: updatedEvent.description,
+        start: updatedEvent.start,
+        end: updatedEvent.end,
+        location: updatedEvent.location,
+        attendees: updatedEvent.attendees,
+        htmlLink: updatedEvent.htmlLink,
+        hangoutLink: updatedEvent.hangoutLink,
+      },
+    });
+  } catch (error) {
+    logger.error('Error updating calendar event:', {
+      error: error.message,
+      stack: error.stack,
+      userId: userId || 'unknown',
+      role: role || 'unknown',
+      eventId,
+    });
+
+    // Handle "not connected" error
+    if (error.message?.includes('not connected')) {
+      return res.status(400).json({
+        error: 'Google Calendar not connected',
+        message: 'Please connect your Google Calendar first',
+      });
+    }
+
+    // Handle ownership/permission errors
+    if (error.message?.includes('can only edit') || error.message?.includes('cannot edit')) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        message: error.message,
+      });
+    }
+
+    // Handle event not found
+    if (error.message?.includes('not found') || error.message?.includes('access denied')) {
+      return res.status(404).json({
+        error: 'Event not found',
+        message: 'The event does not exist or you do not have permission to access it',
+      });
+    }
+
+    // Handle Google API errors
+    if (error.response?.data) {
+      logger.error('Google Calendar API error:', error.response.data);
+      return res.status(500).json({
+        error: 'Google Calendar API error',
+        message: error.response.data.error?.message || error.message,
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to update calendar event',
+      message: error.message || 'Unknown error occurred',
+    });
+  }
+};
+
+/**
+ * DELETE /api/calendar/events/:eventId
+ * Delete a calendar event
+ * 
+ * Role-based permissions:
+ * - STUDENT: Cannot delete (403 Forbidden)
+ * - RECRUITER: Can only delete own events
+ * - ADMIN: Can delete any event
+ * 
+ * Returns: { message: "Event deleted successfully" }
+ */
+export const deleteCalendarEvent = async (req, res) => {
+  const userId = req.user?.id;
+  const role = req.user?.role;
+  const eventId = req.params.eventId;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Role-based permission check
+    if (role === 'STUDENT') {
+      return res.status(403).json({
+        error: 'Students cannot delete events',
+        message: 'Students have read-only access to calendar events',
+      });
+    }
+
+    // Delete event using service
+    const { deleteEvent } = await import('../services/calendarServiceEnhanced.js');
+    await deleteEvent(
+      userId,
+      role,
+      eventId,
+      null, // targetUserId (not used for self-delete)
+      null  // targetRole (not used for self-delete)
+    );
+
+    logger.info(`Deleted calendar event ${eventId} by user ${userId} (role: ${role})`);
+
+    res.json({
+      message: 'Event deleted successfully',
+    });
+  } catch (error) {
+    logger.error('Error deleting calendar event:', {
+      error: error.message,
+      stack: error.stack,
+      userId: userId || 'unknown',
+      role: role || 'unknown',
+      eventId,
+    });
+
+    // Handle "not connected" error
+    if (error.message?.includes('not connected')) {
+      return res.status(400).json({
+        error: 'Google Calendar not connected',
+        message: 'Please connect your Google Calendar first',
+      });
+    }
+
+    // Handle ownership/permission errors
+    if (error.message?.includes('can only') || error.message?.includes('cannot')) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        message: error.message,
+      });
+    }
+
+    // Handle event not found
+    if (error.message?.includes('not found') || error.message?.includes('access denied')) {
+      return res.status(404).json({
+        error: 'Event not found',
+        message: 'The event does not exist or you do not have permission to access it',
+      });
+    }
+
+    // Handle Google API errors
+    if (error.response?.data) {
+      logger.error('Google Calendar API error:', error.response.data);
+      return res.status(500).json({
+        error: 'Google Calendar API error',
+        message: error.response.data.error?.message || error.message,
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to delete calendar event',
+      message: error.message || 'Unknown error occurred',
+    });
+  }
+};
+
+/**
+ * POST /api/calendar/events/:eventId/respond
+ * Respond to a calendar event (accept/decline/tentative)
+ * 
+ * Role-based permissions:
+ * - STUDENT: Can respond to events
+ * - RECRUITER: Cannot respond (403 Forbidden)
+ * - ADMIN: Cannot respond (403 Forbidden)
+ * 
+ * Request body:
+ * {
+ *   responseStatus: 'accepted' | 'declined' | 'tentative'
+ * }
+ * 
+ * Returns: { event: {...} }
+ */
+export const respondToCalendarEvent = async (req, res) => {
+  const userId = req.user?.id;
+  const role = req.user?.role;
+  const eventId = req.params.eventId;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Role-based permission check
+    if (role !== 'STUDENT') {
+      return res.status(403).json({
+        error: 'Only students can respond to events',
+        message: 'Recruiters and admins cannot respond to events',
+      });
+    }
+
+    const { responseStatus } = req.body;
+
+    if (!responseStatus) {
+      return res.status(400).json({
+        error: 'Missing required field',
+        message: 'responseStatus is required',
+      });
+    }
+
+    if (!['accepted', 'declined', 'tentative'].includes(responseStatus)) {
+      return res.status(400).json({
+        error: 'Invalid response status',
+        message: 'responseStatus must be one of: accepted, declined, tentative',
+      });
+    }
+
+    // Respond to event using service
+    const { respondToEvent } = await import('../services/calendarServiceEnhanced.js');
+    const updatedEvent = await respondToEvent(userId, role, eventId, responseStatus);
+
+    logger.info(`User ${userId} ${responseStatus} event ${eventId}`);
+
+    res.json({
+      event: {
+        id: updatedEvent.id,
+        attendees: updatedEvent.attendees,
+      },
+      message: `Event ${responseStatus} successfully`,
+    });
+  } catch (error) {
+    logger.error('Error responding to calendar event:', {
+      error: error.message,
+      stack: error.stack,
+      userId: userId || 'unknown',
+      role: role || 'unknown',
+      eventId,
+    });
+
+    // Handle "not connected" error
+    if (error.message?.includes('not connected')) {
+      return res.status(400).json({
+        error: 'Google Calendar not connected',
+        message: 'Please connect your Google Calendar first',
+      });
+    }
+
+    // Handle "not an attendee" error
+    if (error.message?.includes('not an attendee')) {
+      return res.status(403).json({
+        error: 'Not an attendee',
+        message: 'You are not an attendee of this event',
+      });
+    }
+
+    // Handle Google API errors
+    if (error.response?.data) {
+      logger.error('Google Calendar API error:', error.response.data);
+      return res.status(500).json({
+        error: 'Google Calendar API error',
+        message: error.response.data.error?.message || error.message,
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to respond to calendar event',
+      message: error.message || 'Unknown error occurred',
+    });
+  }
+};
+
+/**
  * DELETE /api/calendar/disconnect
  * Disconnect Google Calendar by deleting tokens
  * Returns: { message: "Google Calendar disconnected successfully" }
  */
 export const disconnectCalendar = async (req, res) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 

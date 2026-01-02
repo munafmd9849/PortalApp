@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
-import JobDescription from '../../components/dashboard/student/JobDescription';
+import JobDescriptionModal from '../../components/dashboard/student/JobDescriptionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -14,6 +14,7 @@ import { getStudentApplications, applyToJob, subscribeStudentApplications, getSt
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import api from '../../services/api';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import CustomDropdown from '../../components/common/CustomDropdown';
@@ -63,7 +64,8 @@ import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
 import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
-import StudentCalendar from '../../components/dashboard/student/StudentCalendar';
+import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
+import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
 
 const normalizeProfileSnapshot = (profile = {}) => ({
   fullName: profile.fullName || '',
@@ -453,7 +455,8 @@ export default function StudentDashboard() {
         setGithubUrl(profileData.githubUrl || profileData.github || '');
         setYoutubeUrl(profileData.youtubeUrl || profileData.youtube || '');
         setInstagramUrl(profileData.instagramUrl || profileData.instagram || '');
-        setProfilePhoto(profileData.profilePhoto || '');
+        // Profile photo can be from user.profilePhoto (old) or student.profileImageUrl (new Cloudinary)
+        setProfilePhoto(profileData.profileImageUrl || profileData.profilePhoto || '');
         setJobFlexibility(profileData.jobFlexibility || '');
         
         // Parse otherProfiles from JSON string if it exists
@@ -738,7 +741,7 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToJobs', handleNavigateToJobs);
     window.addEventListener('navigateToApplications', handleNavigateToApplications);
 
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'resume', 'editProfile'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile'].includes(tab)) {
       const isRefresh = window.performance.navigation?.type === 1 ||
         window.performance.getEntriesByType('navigation')[0]?.type === 'reload';
 
@@ -1108,7 +1111,8 @@ export default function StudentDashboard() {
         setGithubUrl(updatedProfile.githubUrl || updatedProfile.github || '');
         setYoutubeUrl(updatedProfile.youtubeUrl || updatedProfile.youtube || '');
         setInstagramUrl(updatedProfile.instagramUrl || updatedProfile.instagram || '');
-        setProfilePhoto(updatedProfile.profilePhoto || '');
+        // Profile photo can be from user.profilePhoto (old) or student.profileImageUrl (new Cloudinary)
+        setProfilePhoto(updatedProfile.profileImageUrl || updatedProfile.profilePhoto || '');
         setJobFlexibility(updatedProfile.jobFlexibility || '');
         
         // Parse otherProfiles
@@ -1219,6 +1223,7 @@ export default function StudentDashboard() {
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
+    { id: 'endorsements', label: 'Endorsements', icon: Mail },
     { id: 'editProfile', label: 'Edit Profile', icon: SquarePen },
     { id: 'raiseQuery', label: 'Raise Query', icon: AlertCircle },
   ];
@@ -1668,7 +1673,7 @@ export default function StudentDashboard() {
       case 'calendar':
         return (
           <ErrorBoundary>
-            <StudentCalendar applications={applications} jobs={jobs} />
+            <ConnectGoogleCalendar />
           </ErrorBoundary>
         );
 
@@ -2054,6 +2059,13 @@ export default function StudentDashboard() {
       case 'resources':
         return <Resources />;
 
+      case 'endorsements':
+        return (
+          <ErrorBoundary>
+            <EndorsementManagement />
+          </ErrorBoundary>
+        );
+
       case 'editProfile':
         return (
           <div className="space-y-6">
@@ -2087,14 +2099,49 @@ export default function StudentDashboard() {
                         <Camera size={24} className="text-white" />
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (e) => setProfilePhoto(e.target.result);
-                              reader.readAsDataURL(file);
+                            if (!file) return;
+
+                            // Validate file
+                            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                            const maxSize = 2 * 1024 * 1024; // 2MB
+
+                            if (!allowedTypes.includes(file.type)) {
+                              setAlertMessage('Only JPG, PNG, and WebP images are allowed');
+                              setAlertType('error');
+                              setShowFloatingAlert(true);
+                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              return;
+                            }
+
+                            if (file.size > maxSize) {
+                              setAlertMessage('File size must be less than 2MB');
+                              setAlertType('error');
+                              setShowFloatingAlert(true);
+                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              return;
+                            }
+
+                            try {
+                              // Upload to Cloudinary
+                              const response = await api.uploadProfileImage(file);
+                              
+                              // Update profile photo state with Cloudinary URL
+                              setProfilePhoto(response.profileImage.url);
+                              
+                              setAlertMessage('Profile image uploaded successfully!');
+                              setAlertType('success');
+                              setShowFloatingAlert(true);
+                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                            } catch (err) {
+                              console.error('Error uploading profile image:', err);
+                              setAlertMessage(err.response?.data?.error || err.message || 'Failed to upload profile image');
+                              setAlertType('error');
+                              setShowFloatingAlert(true);
+                              setTimeout(() => setShowFloatingAlert(false), 3000);
                             }
                           }}
                         />
@@ -3035,7 +3082,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Job Description Modal */}
-      <JobDescription 
+      <JobDescriptionModal 
         job={selectedJob}
         isOpen={isJobModalOpen}
         onClose={handleCloseJobModal}
@@ -3100,12 +3147,15 @@ export default function StudentDashboard() {
                             </div>
                             <div>
                               <span className="text-sm font-medium text-gray-700 block">
-                                {resume.fileName || resume.name || 'Resume'}
+                                {resume.title || resume.fileName || resume.name || 'Resume'}
                               </span>
                               {resume.uploadedAt && (
                                 <span className="text-xs text-gray-500">
                                   Uploaded {new Date(resume.uploadedAt).toLocaleDateString()}
                                 </span>
+                              )}
+                              {resume.isDefault && (
+                                <span className="text-xs text-blue-600 font-medium ml-2">(Default)</span>
                               )}
                             </div>
                           </div>

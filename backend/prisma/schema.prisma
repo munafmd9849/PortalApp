@@ -16,42 +16,42 @@ datasource db {
 // ============================================================================
 
 model User {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  passwordHash      String   // Hashed password (replaces Firebase Auth)
-  role              String   @default("STUDENT") // UserRole: STUDENT, RECRUITER, ADMIN, SUPER_ADMIN
-  status            String   @default("PENDING") // UserStatus: ACTIVE, PENDING, REJECTED, BLOCKED
-  emailVerified     Boolean  @default(false)
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String // Hashed password (replaces Firebase Auth)
+  role              String    @default("STUDENT") // UserRole: STUDENT, RECRUITER, ADMIN, SUPER_ADMIN
+  status            String    @default("PENDING") // UserStatus: ACTIVE, PENDING, REJECTED, BLOCKED
+  emailVerified     Boolean   @default(false)
   emailVerifiedAt   DateTime?
-  recruiterVerified Boolean  @default(false) // For recruiter role
-  
+  recruiterVerified Boolean   @default(false) // For recruiter role
+
   // Profile fields (varies by role)
-  displayName       String?
-  profilePhoto      String?  // S3 URL
-  
+  displayName  String?
+  profilePhoto String? // S3 URL
+
   // Block info (stored as JSON string for SQLite)
-  blockInfo         String?    // { type, endDate, reason, notes, blockedBy, blockedAt } as JSON string
-  
+  blockInfo String? // { type, endDate, reason, notes, blockedBy, blockedAt } as JSON string
+
   // Google Calendar integration
   googleCalendarConnected Boolean @default(false)
-  
+
   // Timestamps
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastLoginAt       DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Relations
-  student           Student?
-  recruiter         Recruiter?
-  admin             Admin?
-  
+  student   Student?
+  recruiter Recruiter?
+  admin     Admin?
+
   // Auth relations
-  refreshTokens     RefreshToken[]
-  notifications     Notification[]
-  queries           StudentQuery[]
-  adminRequests     AdminRequest[]
+  refreshTokens       RefreshToken[]
+  notifications       Notification[]
+  queries             StudentQuery[]
+  adminRequests       AdminRequest[]
   googleCalendarToken GoogleCalendarToken?
-  
+
   @@index([email])
   @@index([role, status])
   @@map("users")
@@ -67,9 +67,9 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
@@ -78,12 +78,12 @@ model RefreshToken {
 model OTP {
   id        String   @id @default(uuid())
   email     String
-  otp       String   // 6-digit OTP
+  otp       String // 6-digit OTP
   purpose   String   @default("VERIFY_EMAIL") // VERIFY_EMAIL, RESET_PASSWORD, etc.
   expiresAt DateTime
   isUsed    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@index([email, purpose, isUsed])
   @@index([expiresAt])
   @@map("otps")
@@ -94,72 +94,80 @@ model OTP {
 // ============================================================================
 
 model Student {
-  id           String  @id @default(uuid())
-  userId       String  @unique
-  
+  id     String @id @default(uuid())
+  userId String @unique
+
   // Basic Info
   fullName     String
   email        String  @unique
   phone        String
-  enrollmentId String? @unique  // Optional during registration, user provides it later
+  enrollmentId String? @unique // Optional during registration, user provides it later
   cgpa         Float?
-  
+
   // Academic Info
-  batch        String  // e.g., "25-29"
-  center       String  // e.g., "BANGALORE", "NOIDA"
-  school       String  // e.g., "SOT", "SOM", "SOH"
-  
+  batch  String // e.g., "25-29"
+  center String // e.g., "BANGALORE", "NOIDA"
+  school String // e.g., "SOT", "SOM", "SOH"
+
   // Profile
-  bio          String?
-  headline     String?
-  summary      String?  // Professional summary for resume
-  city         String?
-  stateRegion  String?
+  bio            String?
+  headline       String?
+  summary        String? // Professional summary for resume
+  city           String?
+  stateRegion    String?
   jobFlexibility String?
-  
+
+  // Profile Image (Cloudinary)
+  profileImageUrl      String? // Cloudinary URL
+  profileImagePublicId String? // Cloudinary public_id for deletion
+
   // Social Profiles
-  linkedin     String?
-  githubUrl    String?
-  youtubeUrl   String?
-  leetcode     String?
-  codeforces   String?
-  gfg          String?
-  hackerrank   String?
-  otherProfiles String?  // JSON string: [{platformName: string, profileId: string}]
-  
+  linkedin      String?
+  githubUrl     String?
+  youtubeUrl    String?
+  leetcode      String?
+  codeforces    String?
+  gfg           String?
+  hackerrank    String?
+  otherProfiles String? // JSON string: [{platformName: string, profileId: string}]
+
   // Resume
-  resumeUrl    String?  // S3 URL
-  resumeFileName String?
+  resumeUrl        String? // S3 URL
+  resumeFileName   String?
   resumeUploadedAt DateTime?
-  
+
   // Statistics
   statsApplied     Int @default(0)
   statsShortlisted Int @default(0)
   statsInterviewed Int @default(0)
   statsOffers      Int @default(0)
-  
+
   // Email preferences
   emailNotificationsDisabled Boolean @default(false)
-  
+
+  // Endorsements (stored as JSON string for SQLite compatibility - magic link system)
+  endorsementsData String? // JSON array: [{ endorserName, endorserEmail, endorserRole, organization, message, relatedSkills, verified, submittedAt }]
+
   // Timestamps
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications Application[]
-  skills       Skill[]
-  education    Education[]
-  projects     Project[]
-  experiences  Experience[]
-  achievements Achievement[]
-  certifications Certification[]
-  jobTracking  JobTracking[]
-  codingProfiles CodingProfile[]
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications         Application[]
+  skills               Skill[]
+  education            Education[]
+  projects             Project[]
+  experiences          Experience[]
+  achievements         Achievement[]
+  certifications       Certification[]
+  jobTracking          JobTracking[]
+  codingProfiles       CodingProfile[]
   interviewEvaluations InterviewEvaluation[]
-  resumeFiles  StudentResumeFile[]
-  endorsements Endorsement[]
-  
+  resumeFiles          StudentResumeFile[]
+  endorsements         Endorsement[] // Legacy endorsement system (query-based)
+  endorsementTokens    EndorsementToken[]
+
   @@index([center, batch])
   @@index([school, batch])
   @@index([emailNotificationsDisabled, createdAt])
@@ -174,9 +182,9 @@ model Skill {
   rating    Int      @default(1) // 1-5
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, skillName])
   @@index([studentId, skillName])
   @@map("skills")
@@ -194,9 +202,9 @@ model Education {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, endYear(sort: Desc)])
   @@map("education")
 }
@@ -207,61 +215,61 @@ model Experience {
   studentId   String
   title       String
   company     String
-  start       String   // Start date (e.g., "2023-01" or "Jan 2023")
-  end         String?  // End date (null for current position)
+  start       String // Start date (e.g., "2023-01" or "Jan 2023")
+  end         String? // End date (null for current position)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, start(sort: Desc)])
   @@map("experiences")
 }
 
 // Projects
 model Project {
-  id              String   @id @default(uuid())
-  studentId       String
-  title           String
-  description     String?
-  technologies    String // Array of technologies (stored as JSON string)
-  githubUrl       String?
-  liveUrl         String?
+  id               String   @id @default(uuid())
+  studentId        String
+  title            String
+  description      String?
+  technologies     String // Array of technologies (stored as JSON string)
+  githubUrl        String?
+  liveUrl          String?
   // AI-generated fields
-  ai_summary      String?  // AI-generated professional summary
-  ai_bullets      String?  // AI-generated bullet points (stored as JSON array string)
+  ai_summary       String? // AI-generated professional summary
+  ai_bullets       String? // AI-generated bullet points (stored as JSON array string)
   skills_extracted String? // AI-extracted skills (stored as JSON array string)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, createdAt(sort: Desc)])
   @@map("projects")
 }
 
 // Achievements
 model Achievement {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   studentId      String
   title          String
   description    String?
   date           DateTime?
-  hasCertificate Boolean  @default(false)
+  hasCertificate Boolean   @default(false)
   certificateUrl String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, createdAt(sort: Desc)])
   @@map("achievements")
 }
 
 // Certifications (separate from achievements for clarity)
 model Certification {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   studentId      String
   title          String
   description    String?
@@ -269,27 +277,27 @@ model Certification {
   expiryDate     DateTime?
   certificateUrl String?
   issuer         String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, issuedDate(sort: Desc)])
   @@map("certifications")
 }
 
 // Coding Profiles
 model CodingProfile {
-  id        String   @id @default(uuid())
-  studentId String
-  platform  String   // 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'github', 'linkedin', 'youtube'
+  id         String   @id @default(uuid())
+  studentId  String
+  platform   String // 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'github', 'linkedin', 'youtube'
   profileUrl String
-  username  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  username   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, platform])
   @@index([studentId, platform])
   @@map("coding_profiles")
@@ -302,16 +310,16 @@ model CodingProfile {
 model Company {
   id          String   @id @default(uuid())
   name        String   @unique
-  logo        String?  // S3 URL
+  logo        String? // S3 URL
   website     String?
   location    String?
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  jobs        Job[]
-  recruiters  Recruiter[]
-  
+
+  jobs       Job[]
+  recruiters Recruiter[]
+
   @@index([name])
   @@map("companies")
 }
@@ -321,26 +329,26 @@ model Company {
 // ============================================================================
 
 model Recruiter {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  
+  id     String @id @default(uuid())
+  userId String @unique
+
   // Company info (can be null if not linked to company)
-  companyId       String?
-  companyName     String?  // If not in companies table
-  location        String?
-  
+  companyId   String?
+  companyName String? // If not in companies table
+  location    String?
+
   // Additional info
-  relationshipType String?  // 'Partner Company', etc.
-  zone            String?   // 'North Zone', etc.
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  relationshipType String? // 'Partner Company', etc.
+  zone             String? // 'North Zone', etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company         Company? @relation(fields: [companyId], references: [id])
-  jobs            Job[]
-  
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id])
+  jobs    Job[]
+
   @@index([userId])
   @@map("recruiters")
 }
@@ -350,71 +358,71 @@ model Recruiter {
 // ============================================================================
 
 model Job {
-  id                String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Basic Info
-  jobTitle          String
-  description       String   
-  requirements      String // Array of requirements (stored as JSON string)
-  requiredSkills    String // Array of skills (stored as JSON string)
-  
+  jobTitle       String
+  description    String
+  requirements   String // Array of requirements (stored as JSON string)
+  requiredSkills String // Array of skills (stored as JSON string)
+
   // Company & Recruiter
-  companyId         String?
-  recruiterId       String?
-  companyName       String?  // Fallback if companyId is null
-  
+  companyId   String?
+  recruiterId String?
+  companyName String? // Fallback if companyId is null
+
   // Compensation
-  salary            String?  // Can be number or range string
-  ctc               String?
-  salaryRange       String?
-  
+  salary      String? // Can be number or range string
+  ctc         String?
+  salaryRange String?
+
   // Location & Dates
-  location          String?
-  companyLocation   String?
-  driveDate         DateTime?
+  location            String?
+  companyLocation     String?
+  driveDate           DateTime?
   applicationDeadline DateTime?
-  
+
   // Job Details
-  jobType           String?  // 'Full-time', 'Internship', etc.
-  experienceLevel   String?
-  driveVenues       String // Array of venue strings (stored as JSON string)
-  
+  jobType         String? // 'Full-time', 'Internship', etc.
+  experienceLevel String?
+  driveVenues     String // Array of venue strings (stored as JSON string)
+
   // SPOCs (Single Point of Contact) (stored as JSON string)
-  spocs             String     // Array of { fullName, email, phone } as JSON string
-  
+  spocs String // Array of { fullName, email, phone } as JSON string
+
   // Status
-  status            String   @default("DRAFT") // JobStatus: DRAFT, IN_REVIEW, POSTED, ACTIVE, ARCHIVED, REJECTED
-  isActive          Boolean  @default(false)
-  isPosted          Boolean  @default(false)
-  
+  status   String  @default("DRAFT") // JobStatus: DRAFT, IN_REVIEW, POSTED, ACTIVE, ARCHIVED, REJECTED
+  isActive Boolean @default(false)
+  isPosted Boolean @default(false)
+
   // Targeting (stored as JSON strings)
-  targetSchools     String // Array of schools or ["ALL"] (stored as JSON string)
-  targetCenters     String // Array of centers or ["ALL"] (stored as JSON string)
-  targetBatches     String // Array of batches or ["ALL"] (stored as JSON string)
-  
+  targetSchools String // Array of schools or ["ALL"] (stored as JSON string)
+  targetCenters String // Array of centers or ["ALL"] (stored as JSON string)
+  targetBatches String // Array of batches or ["ALL"] (stored as JSON string)
+
   // Approval/Rejection
-  submittedAt       DateTime?
-  postedAt          DateTime?
-  postedBy          String?  // Admin user ID
-  approvedAt        DateTime?
-  approvedBy        String?  // Admin user ID
-  rejectedAt        DateTime?
-  rejectedBy        String?  // Admin user ID
-  rejectionReason   String?  
-  archivedAt        DateTime?
-  archivedBy        String?  // Admin user ID
-  
+  submittedAt     DateTime?
+  postedAt        DateTime?
+  postedBy        String? // Admin user ID
+  approvedAt      DateTime?
+  approvedBy      String? // Admin user ID
+  rejectedAt      DateTime?
+  rejectedBy      String? // Admin user ID
+  rejectionReason String?
+  archivedAt      DateTime?
+  archivedBy      String? // Admin user ID
+
   // Timestamps
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  company           Company?     @relation(fields: [companyId], references: [id])
-  recruiter         Recruiter?   @relation(fields: [recruiterId], references: [id])
-  applications      Application[]
-  jobTracking       JobTracking[]
-  interviews        Interview[]
-  
+  company      Company?      @relation(fields: [companyId], references: [id])
+  recruiter    Recruiter?    @relation(fields: [recruiterId], references: [id])
+  applications Application[]
+  jobTracking  JobTracking[]
+  interviews   Interview[]
+
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
   @@index([recruiterId, createdAt(sort: Desc)])
@@ -426,19 +434,19 @@ model Job {
 
 // Job Tracking (tracks which students have seen/available jobs)
 model JobTracking {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   studentId String
   jobId     String
-  isNew     Boolean  @default(true)
-  viewed    Boolean  @default(false)
+  isNew     Boolean   @default(true)
+  viewed    Boolean   @default(false)
   viewedAt  DateTime?
-  applied   Boolean  @default(false)
+  applied   Boolean   @default(false)
   appliedAt DateTime?
-  createdAt DateTime @default(now())
-  
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
+  createdAt DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, jobId])
   @@index([studentId, createdAt(sort: Desc)])
   @@index([jobId])
@@ -451,25 +459,25 @@ model JobTracking {
 // ============================================================================
 
 model Application {
-  id            String   @id @default(uuid())
-  studentId     String
-  jobId         String
-  companyId     String?
-  
-  status        String @default("APPLIED") // ApplicationStatus: APPLIED, SHORTLISTED, INTERVIEWED, OFFERED, SELECTED, REJECTED, JOB_REMOVED
-  appliedDate   DateTime @default(now()) // Date only (YYYY-MM-DD)
+  id        String  @id @default(uuid())
+  studentId String
+  jobId     String
+  companyId String?
+
+  status        String    @default("APPLIED") // ApplicationStatus: APPLIED, SHORTLISTED, INTERVIEWED, OFFERED, SELECTED, REJECTED, JOB_REMOVED
+  appliedDate   DateTime  @default(now()) // Date only (YYYY-MM-DD)
   interviewDate DateTime?
-  
+
   // Additional notes
-  notes         String?  
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, jobId]) // One application per student per job
   @@index([studentId, appliedDate(sort: Desc)])
   @@index([studentId, createdAt(sort: Desc)])
@@ -485,22 +493,22 @@ model Application {
 // ============================================================================
 
 model Resume {
-  id           String   @id @default(uuid())
-  userId       String
-  resumeId     String   @default("default") // For multiple resumes
-  
+  id       String @id @default(uuid())
+  userId   String
+  resumeId String @default("default") // For multiple resumes
+
   // Content
-  originalText String    @default("")
-  enhancedText String    @default("")
-  previewMode  String   @default("original") // 'original' | 'enhanced'
-  
+  originalText String @default("")
+  enhancedText String @default("")
+  previewMode  String @default("original") // 'original' | 'enhanced'
+
   // File info
-  fileUrl      String?  // S3 URL
-  fileName     String?
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  fileUrl  String? // S3 URL
+  fileName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([userId, resumeId])
   @@index([userId, resumeId])
   @@map("resumes")
@@ -508,21 +516,27 @@ model Resume {
 
 // Student Resume Files - for storing multiple uploaded resume PDFs
 model StudentResumeFile {
-  id           String   @id @default(uuid())
-  studentId    String
-  userId       String   // For easier querying
-  
-  // File info
-  fileUrl      String   // S3 URL
-  fileName     String
-  fileSize     Int?     // Size in bytes
-  
-  uploadedAt   DateTime @default(now())
-  
+  id        String @id @default(uuid())
+  studentId String
+  userId    String // For easier querying
+
+  // File info (Cloudinary)
+  fileUrl  String // Cloudinary URL
+  fileName String
+  fileSize Int? // Size in bytes
+  publicId String // Cloudinary public_id for deletion
+  title    String? // Optional title for the resume
+
+  // Default resume flag (only ONE can be true per student)
+  isDefault Boolean @default(false)
+
+  uploadedAt DateTime @default(now())
+
   // Relations
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, uploadedAt(sort: Desc)])
+  @@index([studentId, isDefault])
   @@index([userId, uploadedAt(sort: Desc)])
   @@map("student_resume_files")
 }
@@ -532,17 +546,17 @@ model StudentResumeFile {
 // ============================================================================
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   title     String
-  body      String   
-  data      String     @default("{}") // Type-specific data (stored as JSON string)
-  isRead    Boolean  @default(false)
+  body      String
+  data      String    @default("{}") // Type-specific data (stored as JSON string)
+  isRead    Boolean   @default(false)
   readAt    DateTime?
-  createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@map("notifications")
@@ -550,17 +564,17 @@ model Notification {
 
 // Email Notifications Queue
 model EmailNotification {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   jobId      String?
   userId     String?
-  status     String @default("PENDING") // EmailStatus: PENDING, SENT, FAILED
+  status     String    @default("PENDING") // EmailStatus: PENDING, SENT, FAILED
   recipients String // Array of email addresses (stored as JSON string)
   subject    String?
-  body       String?  
-  error      String?  
+  body       String?
+  error      String?
   sentAt     DateTime?
-  createdAt  DateTime @default(now())
-  
+  createdAt  DateTime  @default(now())
+
   @@index([status, createdAt])
   @@index([jobId, createdAt(sort: Desc)])
   @@map("email_notifications")
@@ -573,21 +587,21 @@ model EmailNotification {
 // ============================================================================
 
 model StudentQuery {
-  id        String   @id @default(uuid())
-  studentId String
-  type      String   @default("question")
-  subject   String
-  message   String   
-  status    String @default("OPEN") // QueryStatus: OPEN, RESOLVED, CLOSED
-  metadata  String?  @default("{}")
-  response  String?  
+  id          String    @id @default(uuid())
+  studentId   String
+  type        String    @default("question")
+  subject     String
+  message     String
+  status      String    @default("OPEN") // QueryStatus: OPEN, RESOLVED, CLOSED
+  metadata    String?   @default("{}")
+  response    String?
   respondedBy String? // Admin user ID
   respondedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  user      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([studentId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
   @@map("student_queries")
@@ -596,36 +610,76 @@ model StudentQuery {
 // QueryStatus: "OPEN", "RESOLVED", "CLOSED"
 
 // ============================================================================
-// ENDORSEMENTS
+// ENDORSEMENTS (Magic Link Based)
 // ============================================================================
 
 model Endorsement {
-  id              String   @id @default(uuid())
-  studentId       String
-  queryId         String?  // Associated query ID if created from query
-  teacherEmail    String
-  token           String   @unique // Unique token for endorsement link
-  status          String   @default("PENDING") // EndorsementStatus: PENDING, COMPLETED, EXPIRED
-  
-  // Teacher response data
-  teacherName     String?
-  teacherMessage  String?
-  signatureData   String?  // Base64 encoded signature image
-  
-  // Request metadata
-  studentMessage  String?  // Optional message from student
-  requestedAt     DateTime @default(now())
-  completedAt     DateTime?
-  expiresAt       DateTime
-  
+  id           String  @id @default(uuid())
+  studentId    String
+  tokenId      String? @unique // Link to EndorsementToken (for tracking) - unique for one-to-one relation
+
+  // Endorser Information (REQUIRED)
+  endorserName        String   // REQUIRED - Name of endorser
+  endorserEmail       String   // FROM TOKEN (READ ONLY) - Email from token
+  endorserRole        String   // REQUIRED - Professor, Manager, Mentor, etc.
+  organization        String   // REQUIRED - Organization name
+
+  // Relationship & Context
+  relationship        String   // REQUIRED - Professor / Manager / Mentor / Guide
+  context             String?  // OPTIONAL - Course / Project / Internship / etc.
+
+  // Endorsement Content
+  message             String   // REQUIRED - Endorsement message (10-2000 chars)
+  skills              String   @default("[]") // JSON array of skills (stored as string for SQLite)
+  skillRatings        String?  // JSON object: { skill: rating } (optional)
+
+  // Rating
+  overallRating       Int?     // OPTIONAL - Overall rating (1-5)
+
+  // Consent & Verification
+  consent             Boolean  @default(false) // REQUIRED - Must be true
+  verified            Boolean  @default(true)  // Verified via secure token
+
+  // Timestamps
+  createdAt           DateTime @default(now())
+  submittedAt         DateTime @default(now())
+
   // Relations
-  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
-  @@index([token])
-  @@index([studentId, requestedAt(sort: Desc)])
-  @@index([status, expiresAt])
-  @@index([teacherEmail])
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  token   EndorsementToken? @relation(fields: [tokenId], references: [id])
+
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([endorserEmail])
+  @@index([consent])
   @@map("endorsements")
+}
+
+// Endorsement Token Model (for magic link system)
+model EndorsementToken {
+  id        String    @id @default(uuid())
+  studentId String
+  email     String // Teacher/endorser email
+  token     String    @unique // Cryptographically secure token
+  expiresAt DateTime // 48 hours from creation
+  used      Boolean   @default(false) // Single-use token
+  usedAt    DateTime?
+  ipAddress String? // IP address when token was used (for security logging)
+  createdAt DateTime  @default(now())
+
+  // Request metadata
+  teacherName  String? // Optional: teacher name from request
+  teacherRole  String? // Optional: Professor, Mentor, Panelist, etc.
+  organization String? // Optional: organization name
+
+  // Relations
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  endorsement Endorsement? // One-to-one: token can create one endorsement
+
+  @@index([token])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([email])
+  @@index([used, expiresAt])
+  @@map("endorsement_tokens")
 }
 
 // EndorsementStatus: "PENDING", "COMPLETED", "EXPIRED"
@@ -635,19 +689,19 @@ model Endorsement {
 // ============================================================================
 
 model AdminRequest {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String
   email       String
-  reason      String?  
-  status      String @default("PENDING") // RequestStatus: PENDING, APPROVED, REJECTED
-  requestedAt DateTime @default(now())
+  reason      String?
+  status      String    @default("PENDING") // RequestStatus: PENDING, APPROVED, REJECTED
+  requestedAt DateTime  @default(now())
   approvedAt  DateTime?
-  approvedBy  String?  // Admin user ID
+  approvedBy  String? // Admin user ID
   rejectedAt  DateTime?
-  rejectedBy  String?  // Admin user ID
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  rejectedBy  String? // Admin user ID
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([status, requestedAt(sort: Desc)])
   @@map("admin_requests")
 }
@@ -664,9 +718,9 @@ model Admin {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("admins")
 }
@@ -676,17 +730,17 @@ model Admin {
 // ============================================================================
 
 model GoogleCalendarToken {
-  id           String   @id @default(uuid())
-  userId       String   @unique
+  id           String    @id @default(uuid())
+  userId       String    @unique
   accessToken  String
   refreshToken String?
   expiryDate   DateTime?
   scope        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("google_calendar_tokens")
 }
@@ -696,29 +750,29 @@ model GoogleCalendarToken {
 // ============================================================================
 
 model Interview {
-  id                String   @id @default(uuid())
-  jobId             String
-  companyId         String?
-  status            String   @default("ONGOING") // InterviewStatus: ONGOING, COMPLETED, CANCELLED
-  currentRound      String?  // Name of the current round
-  rounds            String   @default("[]") // JSON array of rounds: [{ name, criteria, status }]
-  
+  id           String  @id @default(uuid())
+  jobId        String
+  companyId    String?
+  status       String  @default("ONGOING") // InterviewStatus: ONGOING, COMPLETED, CANCELLED
+  currentRound String? // Name of the current round
+  rounds       String  @default("[]") // JSON array of rounds: [{ name, criteria, status }]
+
   // Statistics
-  totalCandidates   Int      @default(0)
-  doneCandidates    Int      @default(0)
-  pendingCandidates Int      @default(0)
-  selectedCandidates Int     @default(0)
-  onHoldCandidates  Int      @default(0)
-  
+  totalCandidates    Int @default(0)
+  doneCandidates     Int @default(0)
+  pendingCandidates  Int @default(0)
+  selectedCandidates Int @default(0)
+  onHoldCandidates   Int @default(0)
+
   // Timestamps
-  startedAt         DateTime @default(now())
-  completedAt       DateTime?
-  
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
   // Relations
-  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  evaluations       InterviewEvaluation[]
-  activities        InterviewActivity[]
-  
+  job         Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  evaluations InterviewEvaluation[]
+  activities  InterviewActivity[]
+
   @@unique([jobId])
   @@index([status, startedAt(sort: Desc)])
   @@index([jobId])
@@ -732,14 +786,14 @@ model InterviewEvaluation {
   roundName   String
   marks       Float?
   remarks     String?
-  status      String?  // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
-  evaluatedBy String?  // User ID of the evaluator
+  status      String? // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
+  evaluatedBy String? // User ID of the evaluator
   evaluatedAt DateTime @default(now())
-  
+
   // Relations
-  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@unique([interviewId, studentId, roundName])
   @@index([interviewId, roundName])
   @@index([studentId])
@@ -751,14 +805,14 @@ model InterviewActivity {
   interviewId  String
   studentId    String?
   roundName    String?
-  activityType String   // ActivityType: EVALUATION, ROUND_STARTED, ROUND_COMPLETED, SESSION_ENDED
+  activityType String // ActivityType: EVALUATION, ROUND_STARTED, ROUND_COMPLETED, SESSION_ENDED
   message      String
-  performedBy  String?  // User ID
+  performedBy  String? // User ID
   createdAt    DateTime @default(now())
-  
+
   // Relations
-  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
-  
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
   @@index([interviewId, createdAt(sort: Desc)])
   @@map("interview_activities")
 }

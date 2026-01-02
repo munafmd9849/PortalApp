@@ -9,6 +9,7 @@ import {
   deleteEducationArray,
   getStudentProfile
 } from '../../../services/students';
+import { mockEducation, shouldUseMockData } from '../../../utils/mockData';
 
 const EducationSection = ({ isAdminView = false }) => {
   const { user } = useAuth();
@@ -44,22 +45,70 @@ const EducationSection = ({ isAdminView = false }) => {
     const loadEducation = async () => {
       try {
         setLoading(true);
+        console.log('🚀 [EducationSection] Starting loadEducation, isMounted:', isMounted);
         const profile = await getStudentProfile(user.id);
-        if (isMounted) {
-          setEducationEntries(profile?.education || []);
+        
+        // CRITICAL: Log raw API response
+        console.log('📥 [EducationSection] PROFILE API RESPONSE:', profile);
+        console.log('📥 [EducationSection] Education field:', profile?.education);
+        console.log('📥 [EducationSection] Education type:', typeof profile?.education);
+        console.log('📥 [EducationSection] Education isArray:', Array.isArray(profile?.education));
+        console.log('🔍 [EducationSection] isMounted check:', isMounted);
+        
+        // CRITICAL: Always process data, React handles cleanup
+        const rawEducation = Array.isArray(profile?.education) 
+          ? profile.education 
+          : (profile?.education ? [profile.education] : []);
+        
+        // Map backend fields to frontend fields
+        // Backend: institution, degree, endYear, cgpa
+        // Frontend: institute, branch, yop, scoreType, score
+        const mappedEducation = rawEducation.map(edu => ({
+          ...edu,
+          institute: edu.institution || edu.institute || '',
+          branch: edu.degree || edu.branch || '',
+          yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
+          scoreType: edu.cgpa ? 'CGPA' : 'Percentage',
+          score: edu.cgpa ? String(edu.cgpa) : (edu.score || ''),
+          // Preserve original fields for compatibility
+          institution: edu.institution,
+          degree: edu.degree,
+          endYear: edu.endYear,
+          cgpa: edu.cgpa,
+        }));
+        
+        const hasRealEducation = mappedEducation.length > 0;
+        
+        console.log('🔍 [EducationSection] Processed data:', {
+          rawCount: rawEducation.length,
+          mappedCount: mappedEducation.length,
+          hasRealEducation,
+          firstEducation: mappedEducation[0] || null,
+          isMounted,
+        });
+        
+        // CRITICAL: Update state regardless of isMounted (React handles cleanup)
+        if (hasRealEducation) {
+          console.log('✅ [EducationSection] Setting real education:', mappedEducation);
+          setEducationEntries(mappedEducation);
+        } else {
+          // Only use mock data if explicitly enabled AND no real data
+          if (shouldUseMockData()) {
+            console.log('📦 [EducationSection] No real education, using mock data. Count:', mockEducation.length);
+            setEducationEntries(mockEducation);
+          } else {
+            console.log('📭 [EducationSection] No real education, mock data disabled. Using empty array.');
+            setEducationEntries([]);
+          }
         }
       } catch (error) {
-        console.error('Error loading education:', error);
-        if (isMounted) {
-          setError('Failed to load education data. Please try again.');
-          setEducationEntries([]);
-          // Reset on error to allow retry
-          educationLoadedRef.current = false;
-        }
+        console.error('❌ [EducationSection] Error loading education:', error);
+        setError('Failed to load education data. Please try again.');
+        setEducationEntries([]);
+        // Reset on error to allow retry
+        educationLoadedRef.current = false;
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
@@ -100,14 +149,17 @@ const EducationSection = ({ isAdminView = false }) => {
   };
 
   const handleEditClick = (education) => {
+    // Map backend fields to frontend form fields
+    // Backend: institution, degree, endYear, cgpa
+    // Frontend: institute, branch, yop, scoreType, score
     setCurrentEdu({
-      institute: education.institute || '',
+      institute: education.institution || education.institute || '',
       city: education.city || '',
       state: education.state || '',
-      branch: education.branch || '',
-      yop: education.yop || '',
-      scoreType: education.scoreType || 'CGPA',
-      score: education.score || ''
+      branch: education.degree || education.branch || '',
+      yop: education.endYear ? String(education.endYear) : (education.yop || ''),
+      scoreType: education.cgpa ? 'CGPA' : (education.scoreType || 'CGPA'),
+      score: education.cgpa ? String(education.cgpa) : (education.score || '')
     });
     setEditingId(education.id);
     setShowForm(true);
@@ -127,7 +179,12 @@ const EducationSection = ({ isAdminView = false }) => {
       
       // Refresh education list after delete
       const profile = await getStudentProfile(user.id);
-      setEducationEntries(profile?.education || []);
+      const refreshedEducation = Array.isArray(profile?.education) ? profile.education : [];
+      console.log('🔄 [EducationSection] Refreshed after delete:', {
+        profileEducation: profile?.education,
+        refreshedCount: refreshedEducation.length,
+      });
+      setEducationEntries(refreshedEducation);
       
       setSuccess('Education record deleted successfully!');
       setTimeout(() => setSuccess(''), 3000);
@@ -158,17 +215,26 @@ const EducationSection = ({ isAdminView = false }) => {
       setLoading(true);
       setError('');
       
+      // Map frontend fields to backend schema
+      // Backend expects: institution, degree, endYear, cgpa
+      // Frontend uses: institute, branch, yop, scoreType/score
       const eduData = {
-        institute: currentEdu.institute,
-        city: currentEdu.city,
-        state: currentEdu.state,
-        branch: currentEdu.branch,
-        yop: currentEdu.yop,
-        scoreType: currentEdu.scoreType,
-        score: currentEdu.score
+        institution: currentEdu.institute, // Map institute -> institution
+        degree: currentEdu.branch || currentEdu.institute, // Map branch -> degree (fallback to institute)
+        endYear: currentEdu.yop ? parseInt(currentEdu.yop) : null, // Map yop -> endYear (convert to int)
+        cgpa: currentEdu.scoreType === 'CGPA' && currentEdu.score 
+          ? parseFloat(currentEdu.score) 
+          : (currentEdu.scoreType === 'Percentage' && currentEdu.score 
+            ? parseFloat(currentEdu.score) / 10 // Convert percentage to CGPA (rough conversion)
+            : null),
+        // Note: city, state, description are not in backend schema, so we skip them
+        // If you need them, add them to the Prisma schema first
       };
       
-      console.log('Saving education data:', eduData);
+      console.log('💾 [EducationSection] Saving education data:', {
+        original: currentEdu,
+        mapped: eduData,
+      });
       
       if (editingId) {
         // Update existing education
@@ -182,7 +248,12 @@ const EducationSection = ({ isAdminView = false }) => {
       
       // Refresh education list after save
       const profile = await getStudentProfile(user.id);
-      setEducationEntries(profile?.education || []);
+      const refreshedEducation = Array.isArray(profile?.education) ? profile.education : [];
+      console.log('🔄 [EducationSection] Refreshed after save:', {
+        profileEducation: profile?.education,
+        refreshedCount: refreshedEducation.length,
+      });
+      setEducationEntries(refreshedEducation);
       
       // Reset form
       setShowForm(false);
@@ -200,11 +271,29 @@ const EducationSection = ({ isAdminView = false }) => {
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.error('Error saving education:', error);
+      console.error('❌ [EducationSection] Error saving education:', error);
+      console.error('❌ [EducationSection] Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response,
+        code: error.code,
+        stack: error.stack,
+      });
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to save education. Please try again.';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       if (error.code === 'permission-denied') {
         setError('You do not have permission to save education data. Please contact support.');
       } else {
-        setError('Failed to save education. Please try again.');
+        setError(errorMessage);
       }
     } finally {
       setLoading(false);

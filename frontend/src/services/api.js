@@ -164,7 +164,23 @@ async function apiRequest(endpoint, options = {}) {
       throw error;
     }
 
-    return response.json();
+    const data = await response.json();
+    
+    // CRITICAL: Log profile API responses for debugging
+    if (endpoint.includes('/students/profile')) {
+      console.log('📥 [API] Profile response received:', {
+        endpoint,
+        hasProjects: Array.isArray(data?.projects),
+        projectsCount: data?.projects?.length || 0,
+        hasAchievements: Array.isArray(data?.achievements),
+        achievementsCount: data?.achievements?.length || 0,
+        hasCertifications: Array.isArray(data?.certifications),
+        certificationsCount: data?.certifications?.length || 0,
+        fullResponse: data,
+      });
+    }
+    
+    return data;
   } catch (error) {
     // Re-throw if it's already our custom error
     if (error.isNetworkError || error.response || error.status) {
@@ -375,7 +391,58 @@ export const api = {
     method: 'DELETE',
   }),
   
-  uploadResume: (file, onProgress) => uploadFile('/students/resume', file, 'resume', onProgress),
+  // Cloudinary Uploads
+  uploadProfileImage: (file, onProgress) => uploadFile('/students/profile-image', file, 'profileImage', onProgress),
+  uploadResume: (file, title, onProgress) => {
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append('resume', file);
+    if (title) {
+      formData.append('title', title);
+    }
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress((e.loaded / e.total) * 100);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200 || xhr.status === 201) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          let errorMessage = `Upload failed: ${xhr.statusText}`;
+          try {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.error) {
+              errorMessage = errorResponse.error;
+            }
+          } catch (e) {
+            // If parsing fails, use default message
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.open('POST', `${API_BASE_URL}/students/resume`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
+    });
+  },
+  getResumes: () => apiRequest('/students/resumes'),
+  setDefaultResume: (resumeId) => apiRequest(`/students/resume/${resumeId}/default`, {
+    method: 'PATCH',
+  }),
+  deleteResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`, {
+    method: 'DELETE',
+  }),
 
   // Jobs
   getTargetedJobs: () => apiRequest('/jobs/targeted'),
@@ -418,8 +485,9 @@ export const api = {
   getStudentApplications: () => apiRequest('/applications/student'),
   
   getStudentInterviewHistory: () => apiRequest('/applications/student/interview-history'),
-  applyToJob: (jobId) => apiRequest(`/applications/jobs/${jobId}`, {
+  applyToJob: (jobId, applicationData = {}) => apiRequest(`/applications/jobs/${jobId}`, {
     method: 'POST',
+    body: JSON.stringify(applicationData),
   }),
   updateApplicationStatus: (applicationId, status, interviewDate) => apiRequest(`/applications/${applicationId}/status`, {
     method: 'PATCH',
@@ -450,8 +518,20 @@ export const api = {
     body: JSON.stringify(payload),
   }),
 
-  // Endorsements
+  // Endorsements (Magic Link System)
+  requestEndorsement: (data) => apiRequest('/endorsements/request', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   getStudentEndorsements: () => apiRequest('/endorsements/student'),
+  deleteEndorsementRequest: (tokenId) => apiRequest(`/endorsements/request/${tokenId}`, {
+    method: 'DELETE',
+  }),
+  getEndorsementByToken: (token) => apiRequest(`/endorsements/${token}`),
+  submitEndorsement: (token, data) => apiRequest(`/endorsements/submit/${token}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 
   // Admin Requests
   createAdminRequest: (data) => apiRequest('/admin-requests', {
@@ -479,6 +559,14 @@ export const api = {
   summarizeSearchResults: (results) => apiRequest('/search/summarize', {
     method: 'POST',
     body: JSON.stringify({ results }),
+  }),
+
+  // Recruiters (Admin)
+  getRecruiterDirectory: () => apiRequest('/recruiters/directory'),
+  getRecruiterJobs: (email) => apiRequest(`/recruiters/${encodeURIComponent(email)}/jobs`),
+  blockUnblockRecruiter: (recruiterId, data) => apiRequest(`/recruiters/${recruiterId}/block`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   }),
 
   // Utility

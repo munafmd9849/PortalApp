@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { deleteJob, subscribeJobs, postJob } from '../../../services/jobs';
 import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin } from 'lucide-react';
-import JobDescription from '../student/JobDescription';
+import JobDescriptionModal from '../student/JobDescriptionModal';
 import { useToast } from '../../ui/Toast';
 
 export default function ManageJobs() {
@@ -997,7 +997,7 @@ export default function ManageJobs() {
 
                         {/* Modal directly integrated - only renders when this specific job is being viewed */}
                         {viewingJob?.id === job.id && (
-                          <JobDescription
+                          <JobDescriptionModal
                             job={viewingJob}
                             isOpen={true}
                             onClose={() => setViewingJob(null)}

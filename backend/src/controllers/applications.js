@@ -414,6 +414,13 @@ export async function applyToJob(req, res) {
   try {
     const { jobId } = req.params;
     const userId = req.userId;
+    const { resumeId } = req.body; // Get resumeId from request body
+
+    console.log('📝 [applyToJob] Application request:', {
+      jobId,
+      userId,
+      resumeId,
+    });
 
     // Get student
     const student = await prisma.student.findUnique({
@@ -437,6 +444,27 @@ export async function applyToJob(req, res) {
 
     if (existing) {
       return res.status(400).json({ error: 'Already applied to this job' });
+    }
+
+    // Validate resumeId if provided
+    if (resumeId) {
+      const resume = await prisma.studentResumeFile.findUnique({
+        where: { id: resumeId },
+        select: { studentId: true },
+      });
+
+      if (!resume) {
+        return res.status(404).json({ error: 'Resume not found' });
+      }
+
+      if (resume.studentId !== student.id) {
+        return res.status(403).json({ error: 'Resume does not belong to this student' });
+      }
+
+      console.log('✅ [applyToJob] Resume validated:', {
+        resumeId,
+        studentId: resume.studentId,
+      });
     }
 
     // Get job with full details for email
@@ -471,15 +499,25 @@ export async function applyToJob(req, res) {
       },
     });
 
-    // Create application
+    // Create application with resumeId (store in notes field for now, or extend schema later)
+    // Note: To properly store resumeId, we'd need to add a resumeId field to Application model
+    // For now, we'll store it in the notes field as JSON
+    const applicationData = {
+      studentId: student.id,
+      jobId,
+      companyId: job.companyId,
+      status: 'APPLIED',
+      appliedDate: new Date(),
+      notes: resumeId ? JSON.stringify({ resumeId }) : null, // Store resumeId in notes for now
+    };
+
     const application = await prisma.application.create({
-      data: {
-        studentId: student.id,
-        jobId,
-        companyId: job.companyId,
-        status: 'APPLIED',
-        appliedDate: new Date(),
-      },
+      data: applicationData,
+    });
+
+    console.log('✅ [applyToJob] Application created:', {
+      applicationId: application.id,
+      resumeId,
     });
 
     // Update student stats

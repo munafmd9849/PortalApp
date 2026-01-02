@@ -8,8 +8,11 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
   const getCompanyLogoUrl = (companyName) => {
     if (!companyName) return null;
     
+    // Ensure companyName is a string
+    const nameStr = typeof companyName === 'string' ? companyName : (companyName?.name || String(companyName));
+    
     // Clean company name for URL
-    const cleanName = companyName.toLowerCase()
+    const cleanName = nameStr.toLowerCase()
       .replace(/\s+/g, '')
       .replace(/[^a-z0-9]/g, '');
     
@@ -41,7 +44,9 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
 
   // Get company initial for fallback
   const getCompanyInitial = (companyName) => {
-    return companyName ? companyName.charAt(0).toUpperCase() : '?';
+    if (!companyName) return '?';
+    const nameStr = typeof companyName === 'string' ? companyName : (companyName?.name || String(companyName));
+    return nameStr.charAt(0).toUpperCase();
   };
 
   // Get company color for fallback avatar
@@ -56,7 +61,9 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
       'bg-gradient-to-r from-teal-500 to-cyan-600',
       'bg-gradient-to-r from-orange-500 to-red-600',
     ];
-    const index = companyName ? companyName.length % colors.length : 0;
+    if (!companyName) return colors[0];
+    const nameStr = typeof companyName === 'string' ? companyName : (companyName?.name || String(companyName));
+    const index = nameStr.length % colors.length;
     return colors[index];
   };
 
@@ -146,7 +153,13 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
 
               {/* Job Listings - Latest 5 jobs */}
               {displayJobs.slice(0, 5).map((job) => {
-                const companyName = job.company || job.companyName || 'Unknown Company';
+                // Handle both object and string company formats
+                let companyName = 'Unknown Company';
+                if (job.company) {
+                  companyName = typeof job.company === 'string' ? job.company : (job.company.name || 'Unknown Company');
+                } else if (job.companyName) {
+                  companyName = job.companyName;
+                }
 
                 return (
                   <div
