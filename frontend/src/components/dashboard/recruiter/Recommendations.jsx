@@ -131,7 +131,19 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">CGPA</label>
-                  <p className="text-gray-800">{studentData.cgpa || 'N/A'}</p>
+                  <p className="text-gray-800">
+                    {studentData.cgpa 
+                      ? (() => {
+                          // Ensure CGPA is displayed with exactly 2 decimal places
+                          const cgpaStr = String(studentData.cgpa);
+                          if (cgpaStr.includes('.')) {
+                            const parts = cgpaStr.split('.');
+                            return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+                          }
+                          return cgpaStr + '.00';
+                        })()
+                      : 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Batch</label>
@@ -411,7 +423,26 @@ const Recommendations = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.school}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.center}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{student.cgpa}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                      {student.cgpa 
+                        ? (() => {
+                            // Ensure CGPA is displayed with exactly 2 decimal places
+                            const cgpaStr = String(student.cgpa);
+                            if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+                              return cgpaStr;
+                            } else if (/^\d+$/.test(cgpaStr)) {
+                              return cgpaStr + '.00';
+                            } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                              const parts = cgpaStr.split('.');
+                              return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                            }
+                            return cgpaStr;
+                          })()
+                        : 'N/A'}
+                            return cgpaStr + '.00';
+                          })()
+                        : 'N/A'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {student.source === 'recommended' ? (
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">

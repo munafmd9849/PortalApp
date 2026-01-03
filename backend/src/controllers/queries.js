@@ -140,9 +140,60 @@ export async function createStudentQuery(req, res) {
     const normalizedType = normalizeType(type);
     const referenceId = buildReferenceId();
 
+    // Validate CGPA if provided (for CGPA update queries)
+    let validatedCgpa = null;
+    if (normalizedType === 'cgpa' && cgpa) {
+      const cgpaStr = String(cgpa).trim();
+      // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
+      const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+      
+      if (!cgpaRegex.test(cgpaStr)) {
+        // Check if user entered value without 2 decimals
+        if (/^\d+$/.test(cgpaStr)) {
+          return res.status(400).json({ 
+            error: 'Enter CGPA with 2 decimals (e.g., 9.00). Values like 9 or 9.0 are not accepted.' 
+          });
+        } else if (/^\d+\.\d?$/.test(cgpaStr)) {
+          return res.status(400).json({ 
+            error: 'Enter CGPA with 2 decimals (e.g., 9.00). Values like 9.0 are not accepted.' 
+          });
+        } else {
+          return res.status(400).json({ 
+            error: 'Invalid CGPA format. CGPA must be between 0.00 and 10.00 with exactly 2 decimal places (e.g., 9.00, 8.75)' 
+          });
+        }
+      }
+      
+      // Validate range without using parseFloat to avoid rounding errors
+      const parts = cgpaStr.split('.');
+      const integerPart = parseInt(parts[0], 10);
+      const decimalPart = parseInt(parts[1], 10);
+      
+      if (isNaN(integerPart) || isNaN(decimalPart)) {
+        return res.status(400).json({ 
+          error: 'Invalid CGPA format' 
+        });
+      }
+      
+      if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+        return res.status(400).json({ 
+          error: 'CGPA must be between 0.00 and 10.00' 
+        });
+      }
+      
+      if (integerPart < 0) {
+        return res.status(400).json({ 
+          error: 'CGPA must be between 0.00 and 10.00' 
+        });
+      }
+      
+      // Store as string to preserve exact decimal value
+      validatedCgpa = cgpaStr;
+    }
+
     const metadata = {
       referenceId,
-      cgpa: cgpa ?? null,
+      cgpa: validatedCgpa,
       startDate: startDate || null,
       endDate: endDate || null,
       timeSlot: timeSlot || null,

@@ -5,6 +5,7 @@
  */
 
 import prisma from '../config/database.js';
+import { Prisma } from '@prisma/client';
 import { uploadToS3, deleteFromS3 } from '../config/s3.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
@@ -272,7 +273,7 @@ export async function updateStudentProfile(req, res) {
         if (typeof value === 'string') {
           value = value.trim();
           const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
-                                 'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank'];
+                                 'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
           if (value === '' && optionalFields.includes(mappedKey)) {
             cleanData[mappedKey] = null;
             return;
@@ -280,10 +281,94 @@ export async function updateStudentProfile(req, res) {
           if (value === '') {
             return;
           }
+          
+          // Special handling for CGPA: preserve exact decimal value without rounding
+          if (mappedKey === 'cgpa') {
+            // If value is empty string, set to null (optional field)
+            if (value === '') {
+              cleanData[mappedKey] = null;
+              return;
+            }
+            
+            // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
+            const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+            if (!cgpaRegex.test(value)) {
+              // Try to auto-format if it's a valid number without proper format
+              const numValue = parseFloat(value);
+              if (!isNaN(numValue) && numValue >= 0 && numValue <= 10) {
+                // Auto-format to 2 decimal places
+                const formatted = numValue.toFixed(2);
+                if (cgpaRegex.test(formatted)) {
+                  cleanData[mappedKey] = new Prisma.Decimal(formatted);
+                  return;
+                }
+              }
+              console.warn(`Invalid CGPA format: ${value}. Expected format: 0.00-10.00 with exactly 2 decimal places (e.g., 9.00, 8.75).`);
+              return; // Skip invalid CGPA values
+            }
+            
+            // Validate range without using parseFloat to avoid rounding errors
+            const parts = value.split('.');
+            const integerPart = parseInt(parts[0], 10);
+            const decimalPart = parseInt(parts[1], 10);
+            
+            if (isNaN(integerPart) || isNaN(decimalPart)) {
+              console.warn(`Invalid CGPA format: ${value}. Expected format: 0.00-10.00 with exactly 2 decimal places.`);
+              return;
+            }
+            
+            if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+              console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+              return; // Skip out-of-range values
+            }
+            
+            if (integerPart < 0) {
+              console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+              return; // Skip out-of-range values
+            }
+            
+            // Store as Decimal (Prisma will handle conversion)
+            // Use the exact string value to avoid floating point precision issues
+            cleanData[mappedKey] = new Prisma.Decimal(value);
+            return;
+          }
+          
           if (urlFields.includes(mappedKey) && !value.startsWith('http://') && !value.startsWith('https://')) {
             value = 'https://' + value;
           }
           cleanData[mappedKey] = value;
+        } else if (mappedKey === 'cgpa' && (typeof value === 'number' || value instanceof Number)) {
+          // Handle CGPA as number: convert to string with exactly 2 decimal places, then to Decimal
+          const cgpaStr = value.toFixed(2);
+          
+          // Validate format has exactly 2 decimal places
+          const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+          if (!cgpaRegex.test(cgpaStr)) {
+            console.warn(`Invalid CGPA format from number: ${value}. Converted to ${cgpaStr} but format is invalid.`);
+            return;
+          }
+          
+          // Validate range without using parseFloat to avoid rounding errors
+          const parts = cgpaStr.split('.');
+          const integerPart = parseInt(parts[0], 10);
+          const decimalPart = parseInt(parts[1], 10);
+          
+          if (isNaN(integerPart) || isNaN(decimalPart)) {
+            console.warn(`Invalid CGPA format from number: ${value}.`);
+            return;
+          }
+          
+          if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+            console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+            return;
+          }
+          
+          if (integerPart < 0) {
+            console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+            return;
+          }
+          
+          cleanData[mappedKey] = new Prisma.Decimal(cgpaStr);
         } else {
           cleanData[mappedKey] = value;
         }
@@ -386,7 +471,7 @@ export async function updateStudentProfile(req, res) {
         
         // For empty strings in optional fields, set to null (skip for required fields)
         const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 
-                               'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank'];
+                               'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
         
         if (value === '' && optionalFields.includes(mappedKey)) {
           cleanData[mappedKey] = null;
@@ -398,12 +483,40 @@ export async function updateStudentProfile(req, res) {
           return;
         }
         
+        // Special handling for CGPA: preserve exact decimal value without rounding
+        if (mappedKey === 'cgpa') {
+          // Validate CGPA format: 0.00 to 10.00 with exactly 2 decimal places
+          const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+          if (!cgpaRegex.test(value)) {
+            console.warn(`Invalid CGPA format: ${value}. Expected format: 0.00-10.00 with 2 decimal places.`);
+            return; // Skip invalid CGPA values
+          }
+          const numValue = parseFloat(value);
+          if (isNaN(numValue) || numValue < 0 || numValue > 10) {
+            console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+            return; // Skip out-of-range values
+          }
+          // Store as Decimal (Prisma will handle conversion)
+          // Use the exact string value to avoid floating point precision issues
+          cleanData[mappedKey] = new Prisma.Decimal(value);
+          return;
+        }
+        
         // Normalize URLs (only for URL fields with non-empty values)
         if (urlFields.includes(mappedKey) && !value.startsWith('http://') && !value.startsWith('https://')) {
           value = 'https://' + value;
         }
         
         cleanData[mappedKey] = value;
+      } else if (mappedKey === 'cgpa' && (typeof value === 'number' || value instanceof Number)) {
+        // Handle CGPA as number: convert to string with 2 decimal places, then to Decimal
+        const cgpaStr = value.toFixed(2);
+        const numValue = parseFloat(cgpaStr);
+        if (isNaN(numValue) || numValue < 0 || numValue > 10) {
+          console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
+          return;
+        }
+        cleanData[mappedKey] = new Prisma.Decimal(cgpaStr);
       } else {
         // Non-string values (numbers, booleans, etc.)
         cleanData[mappedKey] = value;
@@ -573,10 +686,23 @@ export async function addOrUpdateSkill(req, res) {
     const student = await prisma.student.findUnique({
       where: { userId },
       select: { id: true },
+      include: {
+        skills: true, // Get existing skills to check count
+      },
     });
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Check if this is a new skill (not updating existing)
+    const existingSkill = student.skills.find(s => s.skillName === skillName);
+    
+    // If adding a new skill (not updating), check the limit
+    if (!existingSkill && student.skills.length >= 8) {
+      return res.status(400).json({ 
+        error: 'Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.' 
+      });
     }
 
     const skill = await prisma.skill.upsert({
@@ -597,6 +723,12 @@ export async function addOrUpdateSkill(req, res) {
     res.json(skill);
   } catch (error) {
     console.error('Add/update skill error:', error);
+    
+    // Handle Prisma unique constraint error (if skill already exists with different casing)
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'A skill with this name already exists.' });
+    }
+    
     res.status(500).json({ error: 'Failed to update skill' });
   }
 }
@@ -933,7 +1065,23 @@ export async function uploadProfileImage(req, res) {
     const userId = req.userId;
     const file = req.file; // From multer middleware
 
+    console.log('📥 [Controller] Upload profile image request:', {
+      userId,
+      hasFile: !!file,
+      fileDetails: file ? {
+        fieldname: file.fieldname,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path,
+        url: file.url,
+        secure_url: file.secure_url,
+        public_id: file.public_id,
+      } : null,
+    });
+
     if (!file) {
+      console.error('❌ [Controller] No file in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
@@ -943,16 +1091,34 @@ export async function uploadProfileImage(req, res) {
     });
 
     if (!student) {
+      console.error('❌ [Controller] Student not found for userId:', userId);
       return res.status(404).json({ error: 'Student not found' });
     }
 
     // Check if file was uploaded to Cloudinary (multer-storage-cloudinary)
-    if (!file.path || !file.public_id) {
-      return res.status(400).json({ error: 'File upload failed. Please try again.' });
-    }
-
+    // CloudinaryStorage returns: secure_url, url, public_id, format, width, height, etc.
     const newImageUrl = file.secure_url || file.url;
     const newPublicId = file.public_id;
+    
+    console.log('📥 [Controller] Cloudinary upload result:', {
+      hasSecureUrl: !!file.secure_url,
+      hasUrl: !!file.url,
+      hasPublicId: !!file.public_id,
+      imageUrl: newImageUrl,
+      publicId: newPublicId,
+    });
+
+    if (!newImageUrl || !newPublicId) {
+      console.error('❌ [Controller] File upload incomplete:', {
+        hasSecureUrl: !!file.secure_url,
+        hasUrl: !!file.url,
+        hasPublicId: !!file.public_id,
+        fileKeys: Object.keys(file),
+      });
+      return res.status(500).json({ 
+        error: 'File upload failed. Cloudinary did not return a valid URL or public ID. Please try again.' 
+      });
+    }
 
     // If existing profile image → delete old one from Cloudinary
     if (student.profileImagePublicId) {

@@ -74,7 +74,20 @@ const normalizeProfileSnapshot = (profile = {}) => ({
   enrollmentId: profile.enrollmentId || '',
   cgpa:
     profile.cgpa !== undefined && profile.cgpa !== null
-      ? String(profile.cgpa)
+      ? (() => {
+          // Always format to 2 decimal places for display
+          const cgpaStr = String(profile.cgpa);
+          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+            return cgpaStr; // Already in correct format
+          } else if (/^\d+$/.test(cgpaStr)) {
+            return cgpaStr + '.00'; // Integer -> add .00
+          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+            // Has decimal but not 2 places
+            const parts = cgpaStr.split('.');
+            return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+          }
+          return cgpaStr;
+        })()
       : '',
   batch: profile.batch || '',
   center: profile.center || '',
@@ -439,7 +452,23 @@ export default function StudentDashboard() {
         setEmail(profileData.email || '');
         setPhone(profileData.phone || '');
         setEnrollmentId(profileData.enrollmentId || '');
-        setCgpa(profileData.cgpa?.toString?.() || '');
+        // Format CGPA to always show 2 decimal places
+        const cgpaValue = profileData.cgpa;
+        if (cgpaValue) {
+          const cgpaStr = String(cgpaValue);
+          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+            setCgpa(cgpaStr);
+          } else if (/^\d+$/.test(cgpaStr)) {
+            setCgpa(cgpaStr + '.00');
+          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+            const parts = cgpaStr.split('.');
+            setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
+          } else {
+            setCgpa(cgpaStr);
+          }
+        } else {
+          setCgpa('');
+        }
         setBatch(profileData.batch || ''); // No default - must be set
         setCenter(profileData.center || ''); // No default - must be set
         setSchool(profileData.school || ''); // No default - must be set
@@ -829,9 +858,46 @@ export default function StudentDashboard() {
     return str.trim().charAt(0).toUpperCase() + str.trim().slice(1).toLowerCase();
   };
 
-  const validateCGPA = (cgpa) => {
-    const cgpaNum = parseFloat(cgpa);
-    return !isNaN(cgpaNum) && cgpaNum >= 0.0 && cgpaNum <= 10.0;
+  const validateCGPA = (cgpa, allowPartial = false) => {
+    if (!cgpa || cgpa.trim() === '') return false;
+    const cgpaStr = String(cgpa).trim();
+    
+    // If allowPartial is true, accept integers and partial decimals during typing
+    if (allowPartial) {
+      // Accept integers (0-10)
+      if (/^(10|[0-9])$/.test(cgpaStr)) {
+        return true;
+      }
+      // Accept partial decimals (e.g., 8., 8.0, 8.5)
+      if (/^(10|[0-9])\.[0-9]{0,2}$/.test(cgpaStr)) {
+        // Check if the value is within range
+        const numValue = parseFloat(cgpaStr);
+        if (!isNaN(numValue) && numValue >= 0 && numValue <= 10) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Strict validation: must be in format 0.00 to 10.00 with exactly 2 decimal places
+    const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+    if (!cgpaRegex.test(cgpaStr)) {
+      return false;
+    }
+    // Validate range without using parseFloat to avoid rounding errors
+    const parts = cgpaStr.split('.');
+    const integerPart = parseInt(parts[0], 10);
+    const decimalPart = parseInt(parts[1], 10);
+    if (isNaN(integerPart) || isNaN(decimalPart)) {
+      return false;
+    }
+    if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+      return false;
+    }
+    if (integerPart < 0) {
+      return false;
+    }
+    return true;
   };
 
   const validateURL = (url) => {
@@ -1002,8 +1068,14 @@ export default function StudentDashboard() {
         }
         break;
       case 'cgpa':
-        if (value && !validateCGPA(value)) {
-          errors.cgpa = 'CGPA must be between 0 and 10';
+        if (value) {
+          // During typing, allow partial values (e.g., "8", "8.", "8.0", "8.5")
+          // On blur/submit, require exact format (e.g., "8.00")
+          if (!validateCGPA(value, true)) {
+            errors.cgpa = 'CGPA must be between 0.00 and 10.00';
+          } else {
+            delete errors.cgpa;
+          }
         } else {
           delete errors.cgpa;
         }
@@ -1048,12 +1120,44 @@ export default function StudentDashboard() {
     try {
       setSaving(true);
       
+      // Format CGPA to exactly 2 decimal places if provided - NO ROUNDING
+      let formattedCgpa = null;
+      if (cgpa && cgpa.trim() !== '') {
+        const cgpaStr = String(cgpa).trim();
+        
+        // If already in correct format (e.g., 9.00, 8.75), use as-is
+        if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+          formattedCgpa = cgpaStr;
+        } else if (/^\d+$/.test(cgpaStr)) {
+          // Integer like "9" -> "9.00" (no rounding, just add .00)
+          const integerPart = parseInt(cgpaStr, 10);
+          if (integerPart >= 0 && integerPart <= 10) {
+            formattedCgpa = cgpaStr + '.00';
+          }
+        } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+          // Has decimal part - preserve exact value, pad to 2 decimals
+          const parts = cgpaStr.split('.');
+          const integerPart = parseInt(parts[0], 10);
+          const decimalPart = parts[1].substring(0, 2).padEnd(2, '0');
+          
+          // Validate range
+          if (integerPart >= 0 && integerPart <= 10) {
+            if (integerPart === 10 && parseInt(decimalPart, 10) > 0) {
+              formattedCgpa = '10.00'; // Cap at 10.00
+            } else {
+              formattedCgpa = parts[0] + '.' + decimalPart;
+            }
+          }
+        }
+      }
+
       const profileData = {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         enrollmentId: enrollmentId.trim(),
-        cgpa: cgpa ? Number(cgpa) : null,
+        // Send CGPA with exactly 2 decimal places or null
+        cgpa: formattedCgpa,
         batch,
         center,
         bio: bio.trim(),
@@ -1095,7 +1199,23 @@ export default function StudentDashboard() {
         setEmail(updatedProfile.email || '');
         setPhone(updatedProfile.phone || '');
         setEnrollmentId(updatedProfile.enrollmentId || '');
-        setCgpa(updatedProfile.cgpa?.toString?.() || '');
+        // Format CGPA to always show 2 decimal places
+        const cgpaValue = updatedProfile.cgpa;
+        if (cgpaValue) {
+          const cgpaStr = String(cgpaValue);
+          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+            setCgpa(cgpaStr);
+          } else if (/^\d+$/.test(cgpaStr)) {
+            setCgpa(cgpaStr + '.00');
+          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+            const parts = cgpaStr.split('.');
+            setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
+          } else {
+            setCgpa(cgpaStr);
+          }
+        } else {
+          setCgpa('');
+        }
         setBatch(updatedProfile.batch || '');
         setCenter(updatedProfile.center || '');
         setSchool(updatedProfile.school || '');
@@ -1697,197 +1817,310 @@ export default function StudentDashboard() {
         const pastRecords = interviewHistory.filter(app => app.interviewHistory?.hasInterview);
 
         return (
-          <div className="space-y-6">
-            {/* Application Summary - At Top */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6">
-              <h3 className="text-lg font-semibold text-blue-900 mb-4">Application Summary</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="text-2xl font-bold text-blue-600">{totalApplied}</div>
-                  <div className="text-sm text-blue-700 mt-1">Total Applied</div>
+          <div className="space-y-8">
+            {/* Enhanced Application Summary - Muted Colors - Compact Size */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 via-gray-50 to-blue-50 rounded-xl shadow-lg border border-gray-200 p-5">
+              {/* Subtle background pattern */}
+              <div className="absolute inset-0 opacity-5">
+                <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-200 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-200 rounded-full blur-3xl"></div>
+              </div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-1">Application Dashboard</h3>
+                    <p className="text-sm text-gray-600">Track your job application journey</p>
+                  </div>
+                  <div className="hidden md:block">
+                    <Briefcase className="w-10 h-10 text-gray-300" />
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="text-2xl font-bold text-yellow-600">{shortlisted}</div>
-                  <div className="text-sm text-yellow-700 mt-1">Shortlisted</div>
-                </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="text-2xl font-bold text-purple-600">{interviewed}</div>
-                  <div className="text-sm text-purple-700 mt-1">Interviewed</div>
-                </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="text-2xl font-bold text-green-600">{offers}</div>
-                  <div className="text-sm text-green-700 mt-1">Offers</div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="group bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200 hover:border-blue-400 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="p-1.5 bg-blue-200 rounded-lg">
+                        <ClipboardList className="w-4 h-4 text-blue-700" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-700 mb-0.5">{totalApplied}</div>
+                    <div className="text-xs text-blue-600 font-medium">Total Applied</div>
+                  </div>
+                  
+                  <div className="group bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200 hover:border-yellow-400 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="p-1.5 bg-yellow-200 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-yellow-700" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-yellow-700 mb-0.5">{shortlisted}</div>
+                    <div className="text-xs text-yellow-600 font-medium">Shortlisted</div>
+                  </div>
+                  
+                  <div className="group bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-200 hover:border-purple-400 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="p-1.5 bg-purple-200 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-purple-700" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-purple-700 mb-0.5">{interviewed}</div>
+                    <div className="text-xs text-purple-600 font-medium">Interviewed</div>
+                  </div>
+                  
+                  <div className="group bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200 hover:border-green-400 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="p-1.5 bg-green-200 rounded-lg">
+                        <Award className="w-4 h-4 text-green-700" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-green-700 mb-0.5">{offers}</div>
+                    <div className="text-xs text-green-600 font-medium">Offers</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* View Toggle */}
+            {/* Enhanced View Toggle */}
             <div className="flex justify-center">
-              <div className="bg-white rounded-sm p-1 shadow-sm border border-gray-200 inline-flex">
+              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-2 shadow-xl border border-gray-200/50 inline-flex gap-2">
                 <button
                   onClick={() => setApplicationsView('current')}
-                  className={`px-6 py-3 rounded-md font-medium transition-all duration-200 ${
+                  className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                     applicationsView === 'current' 
-                      ? 'bg-yellow-200 text-black shadow-md' 
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
                 >
+                  <Briefcase className="w-5 h-5" />
                   Current Applications
                 </button>
                 <button
                   onClick={() => setApplicationsView('past')}
-                  className={`px-6 py-3 rounded-md font-medium transition-all duration-200 flex items-center ${
+                  className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                     applicationsView === 'past' 
-                      ? 'bg-yellow-500 text-white shadow-md' 
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
                 >
-                  <ClipboardList className="mr-2 w-4 h-4" />
+                  <ClipboardList className="w-5 h-5" />
                   Past Applications
                 </button>
               </div>
             </div>
 
             {applicationsView === 'past' ? (
-              /* Past Applications View */
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Past Applications</h2>
-                <p className="text-sm text-gray-600 mb-6">Your interview history and results</p>
+              /* Enhanced Past Applications View */
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-slate-100 via-gray-50 to-purple-50 rounded-2xl shadow-lg border border-gray-200 p-6">
+                  <h2 className="text-3xl font-bold text-gray-800 mb-2">Past Applications</h2>
+                  <p className="text-gray-600">Your interview history and results</p>
+                </div>
                 
                 {loadingInterviewHistory ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader className="animate-spin h-8 w-8 text-blue-600" />
-                    <span className="ml-2 text-gray-600">Loading interview history...</span>
+                  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-lg">
+                    <Loader className="animate-spin h-12 w-12 text-purple-600 mb-4" />
+                    <span className="text-gray-600 text-lg font-medium">Loading interview history...</span>
                   </div>
                 ) : pastRecords.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-gray-500 text-lg">No past interview records found</p>
-                    <p className="text-gray-400 text-sm">Your completed interview records will appear here.</p>
+                  <div className="text-center py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg border border-gray-200">
+                    <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full mb-6">
+                      <ClipboardList className="w-12 h-12 text-purple-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-2">No Past Records</h3>
+                    <p className="text-gray-500 text-lg mb-1">Your completed interview records will appear here.</p>
+                    <p className="text-gray-400 text-sm">Keep applying and attending interviews to build your history!</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {pastRecords.map((record) => {
+                  <div className="space-y-6">
+                    {pastRecords.map((record, index) => {
                       const history = record.interviewHistory;
-                      const bgColor = history.isCracked 
-                        ? 'from-green-50 to-green-100' 
-                        : history.isRejected 
-                        ? 'from-yellow-50 to-yellow-100' 
-                        : 'from-gray-50 to-gray-100';
+                      const isCracked = history.isCracked;
+                      const isRejected = history.isRejected;
                       
                       return (
                         <div
                           key={record.id}
-                          className={`p-6 rounded-xl bg-gradient-to-r ${bgColor} hover:shadow-lg transition-all duration-200 border ${
-                            history.isCracked ? 'border-green-200' : history.isRejected ? 'border-yellow-200' : 'border-gray-200'
-                          }`}
+                          className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                          style={{ animationDelay: `${index * 100}ms` }}
                         >
-                          {/* Header Row */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center">
-                              <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 rounded-lg mr-4 flex items-center justify-center`}>
-                                <span className="text-white font-bold text-lg">
-                                  {getCompanyInitial(record.company?.name)}
-                                </span>
+                          {/* Gradient accent bar */}
+                          <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
+                            isCracked ? 'from-green-500 to-emerald-500' :
+                            isRejected ? 'from-red-500 to-rose-500' :
+                            'from-gray-400 to-gray-500'
+                          }`}></div>
+                          
+                          <div className="p-8">
+                            {/* Enhanced Header Row */}
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+                              <div className="flex items-center gap-4">
+                                <div className={`${getCompanyColor(record.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
+                                  <span className="text-white font-bold text-2xl">
+                                    {getCompanyInitial(record.company?.name)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
+                                    {record.job?.jobTitle || 'Unknown Position'}
+                                  </h3>
+                                  <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
+                                    <Building2 className="w-4 h-4" />
+                                    {record.company?.name || 'Unknown Company'}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <h3 className="text-xl font-bold text-gray-900">
-                                  {record.job?.jobTitle || 'Unknown Position'}
-                                </h3>
-                                <p className="text-lg font-semibold text-gray-700">
-                                  {record.company?.name || 'Unknown Company'}
+                              <div className="flex items-center gap-3">
+                                {isCracked && (
+                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
+                                    <CheckCircle className="w-5 h-5" />
+                                    Cracked
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
+                                    <XCircle className="w-5 h-5" />
+                                    Rejected
+                                  </span>
+                                )}
+                                {!isCracked && !isRejected && (
+                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
+                                    <Clock className="w-5 h-5" />
+                                    Pending
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Enhanced Interview Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Trophy className="w-5 h-5 text-blue-600" />
+                                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
+                                </div>
+                                <p className="text-lg font-bold text-gray-800">
+                                  {history.lastRoundReached || 'Not evaluated'}
+                                </p>
+                              </div>
+                              <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <ClipboardList className="w-5 h-5 text-purple-600" />
+                                  <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
+                                </div>
+                                <p className="text-lg font-bold text-gray-800">
+                                  {history.rounds?.length || 0} rounds
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              {history.isCracked && (
-                                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-200 text-green-800">
-                                  <CheckCircle className="w-4 h-4 mr-1" />
-                                  Cracked
-                                </span>
-                              )}
-                              {history.isRejected && (
-                                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-yellow-200 text-yellow-800">
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  Rejected
-                                </span>
-                              )}
-                            </div>
-                          </div>
 
-                          {/* Interview Details */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className="bg-white/50 p-3 rounded-lg">
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Round Reached</p>
-                              <p className="text-sm font-semibold text-gray-800">
-                                {history.lastRoundReached || 'Not evaluated'}
-                              </p>
-                            </div>
-                            <div className="bg-white/50 p-3 rounded-lg">
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total Rounds</p>
-                              <p className="text-sm font-semibold text-gray-800">
-                                {history.rounds?.length || 0} rounds
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Rounds Progress */}
-                          {history.rounds && history.rounds.length > 0 && (
-                            <div className="mt-4 bg-white/50 p-4 rounded-lg">
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Interview Rounds</p>
-                              <div className="space-y-2">
-                                {history.rounds.map((round, index) => {
-                                  const wasReached = history.roundsReached?.includes(round.name);
-                                  const evaluation = history.evaluations?.find(e => e.roundName === round.name);
-                                  
-                                  return (
-                                    <div
-                                      key={index}
-                                      className={`flex items-center justify-between p-2 rounded ${
-                                        wasReached 
-                                          ? evaluation?.status === 'SELECTED'
-                                            ? 'bg-green-100 border border-green-300'
-                                            : evaluation?.status === 'REJECTED'
-                                            ? 'bg-red-100 border border-red-300'
-                                            : 'bg-blue-100 border border-blue-300'
-                                          : 'bg-gray-100 border border-gray-200'
-                                      }`}
-                                    >
-                                      <div className="flex items-center">
-                                        <span className="font-medium text-sm text-gray-800">
-                                          {round.name || `Round ${index + 1}`}
-                                        </span>
-                                        {wasReached && evaluation?.marks !== null && (
-                                          <span className="ml-2 text-xs text-gray-600">
-                                            ({evaluation.marks}/100)
-                                          </span>
-                                        )}
+                            {/* Enhanced Rounds Progress */}
+                            {history.rounds && history.rounds.length > 0 && (
+                              <div className="mb-6 bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <ClipboardList className="w-5 h-5 text-indigo-600" />
+                                  <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
+                                </div>
+                                <div className="space-y-3">
+                                  {history.rounds.map((round, index) => {
+                                    const wasReached = history.roundsReached?.includes(round.name);
+                                    const evaluation = history.evaluations?.find(e => e.roundName === round.name);
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                                          wasReached 
+                                            ? evaluation?.status === 'SELECTED'
+                                              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
+                                              : evaluation?.status === 'REJECTED'
+                                              ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
+                                              : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
+                                            : 'bg-white border-gray-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          {(() => {
+                                            // Different colors for each round number - always show colors
+                                            const roundColors = [
+                                              'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
+                                              'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
+                                              'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
+                                              'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
+                                              'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
+                                              'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
+                                              'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
+                                              'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
+                                            ];
+                                            const roundNotReachedColors = [
+                                              'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
+                                              'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
+                                              'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
+                                              'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
+                                              'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
+                                              'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
+                                              'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
+                                              'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
+                                            ];
+                                            const roundNumber = index + 1;
+                                            const colorIndex = (roundNumber - 1) % roundColors.length;
+                                            const baseColor = roundColors[colorIndex];
+                                            const mutedColor = roundNotReachedColors[colorIndex];
+                                            
+                                            return (
+                                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${
+                                                wasReached ? baseColor : mutedColor + ' opacity-75'
+                                              }`}>
+                                                <span className="text-lg">{roundNumber}</span>
+                                              </div>
+                                            );
+                                          })()}
+                                          <div>
+                                            <span className="font-semibold text-base text-gray-800 block">
+                                              {round.name || `Round ${index + 1}`}
+                                            </span>
+                                            {wasReached && evaluation?.marks !== null && (
+                                              <span className="text-xs text-gray-600 mt-1 block">
+                                                Score: {evaluation.marks}/100
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {wasReached && (
+                                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
+                                              evaluation?.status === 'SELECTED'
+                                                ? 'bg-green-200 text-green-800'
+                                                : evaluation?.status === 'REJECTED'
+                                                ? 'bg-red-200 text-red-800'
+                                                : 'bg-blue-200 text-blue-800'
+                                            }`}>
+                                              {evaluation?.status || 'Evaluated'}
+                                            </span>
+                                          )}
+                                          {!wasReached && (
+                                            <span className="text-xs font-medium text-gray-400 px-3 py-1.5 bg-gray-100 rounded-full">
+                                              Not reached
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                      {wasReached && (
-                                        <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                          evaluation?.status === 'SELECTED'
-                                            ? 'bg-green-200 text-green-800'
-                                            : evaluation?.status === 'REJECTED'
-                                            ? 'bg-red-200 text-red-800'
-                                            : 'bg-blue-200 text-blue-800'
-                                        }`}>
-                                          {evaluation?.status || 'Evaluated'}
-                                        </span>
-                                      )}
-                                      {!wasReached && (
-                                        <span className="text-xs text-gray-400">Not reached</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Enhanced Applied Date */}
+                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                              <div className="p-2 bg-blue-100 rounded-lg">
+                                <Calendar className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 font-medium">Applied Date</p>
+                                <p className="font-semibold text-gray-800">{formatDate(record.appliedDate)}</p>
                               </div>
                             </div>
-                          )}
-
-                          {/* Applied Date */}
-                          <div className="mt-4 flex items-center text-sm text-gray-600">
-                            <Calendar className="w-4 h-4 mr-2" />
-                            <span className="font-medium">Applied: {formatDate(record.appliedDate)}</span>
                           </div>
                         </div>
                       );
@@ -1896,158 +2129,210 @@ export default function StudentDashboard() {
                 )}
               </div>
             ) : (
-              /* Current Applications View */
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Current Applications</h2>
-              
-              {loadingApplications ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader className="animate-spin h-8 w-8 text-blue-600" />
-                  <span className="ml-2 text-gray-600">Loading applications...</span>
-                </div>
-              ) : !applications || applications.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-500 text-lg">No applications found</p>
-                  <p className="text-gray-400 text-sm">Start applying to jobs to track your applications here!</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Application Cards with Full Job Details */}
-                  {applications.map((application) => (
-                    <div
-                      key={application.id}
-                      className={`p-6 rounded-xl bg-gradient-to-r ${getRowBgColor(application.status)} hover:shadow-lg transition-all duration-200 border border-gray-100`}
-                    >
-                      {/* Header Row */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center">
-                          <div className={`${getCompanyColor(application.company?.name)} w-12 h-12 rounded-lg mr-4 flex items-center justify-center`}>
-                            <span className="text-white font-bold text-lg">
-                              {getCompanyInitial(application.company?.name)}
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900">
-                              {application.job?.jobTitle || 'Unknown Position'}
-                            </h3>
-                            <p className="text-lg font-semibold text-gray-700">
-                              {application.company?.name || 'Unknown Company'}
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(application.status)}`}>
-                          {getStatusIcon(application.status)}
-                          {application.status === 'job_removed'
-                            ? 'Job Removed'
-                            : application.status
-                            ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
-                            : 'Unknown'}
-                        </span>
-                      </div>
-
-                      {/* Job Details Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                        <div className="bg-white/50 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Location</p>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {application.job?.location || 'Not specified'}
-                          </p>
-                        </div>
-                        <div className="bg-white/50 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Experience</p>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {application.job?.experienceLevel || 'Not specified'}
-                          </p>
-                        </div>
-                        <div className="bg-white/50 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Job Type</p>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {application.job?.jobType || 'Not specified'}
-                          </p>
-                        </div>
-                        <div className="bg-white/50 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Salary</p>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {application.job?.salaryRange || 'Not disclosed'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Application Timeline */}
-                      <div className="flex items-center justify-between text-sm text-gray-600 bg-white/30 p-3 rounded-lg">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          <span className="font-medium">Applied: {formatDate(application.appliedDate)}</span>
-                        </div>
-                        {application.interviewDate && (
-                          <div className="flex items-center">
-                            <Clock className="w-4 h-4 mr-2" />
-                            <span className="font-medium">Interview: {formatDate(application.interviewDate)}</span>
-                          </div>
-                        )}
-                        {application.job?.deadline && (
-                          <div className="flex items-center">
-                            <AlertCircle className="w-4 h-4 mr-2" />
-                            <span className="font-medium">Deadline: {formatDate(application.job.deadline)}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Job Description Preview */}
-                      {application.job?.description && (
-                        <div className="mt-4 bg-white/30 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Job Description</p>
-                          <p className="text-sm text-gray-700 line-clamp-2">
-                            {application.job.description.length > 150 
-                              ? `${application.job.description.substring(0, 150)}...` 
-                              : application.job.description}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Skills Required */}
-                      {(() => {
-                        // Parse requiredSkills - it might be a JSON string or array
-                        let skills = [];
-                        if (application.job?.requiredSkills) {
-                          try {
-                            if (typeof application.job.requiredSkills === 'string') {
-                              skills = JSON.parse(application.job.requiredSkills);
-                            } else if (Array.isArray(application.job.requiredSkills)) {
-                              skills = application.job.requiredSkills;
-                            }
-                          } catch (e) {
-                            // If parsing fails, try to split by comma or treat as single skill
-                            if (typeof application.job.requiredSkills === 'string') {
-                              skills = application.job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
-                            }
-                          }
-                        }
+              /* Enhanced Current Applications View */
+              <div className="space-y-6">
+                {loadingApplications ? (
+                  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-lg">
+                    <Loader className="animate-spin h-12 w-12 text-indigo-600 mb-4" />
+                    <span className="text-gray-600 text-lg font-medium">Loading your applications...</span>
+                  </div>
+                ) : !applications || applications.length === 0 ? (
+                  <div className="text-center py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg border border-gray-200">
+                    <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full mb-6">
+                      <ClipboardList className="w-12 h-12 text-indigo-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-2">No Applications Yet</h3>
+                    <p className="text-gray-500 text-lg mb-1">Start your job search journey today!</p>
+                    <p className="text-gray-400 text-sm">Browse available jobs and apply to track your progress here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Enhanced Application Cards */}
+                    {applications.map((application, index) => (
+                      <div
+                        key={application.id}
+                        className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        {/* Gradient accent bar */}
+                        <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
+                          application.status?.toLowerCase() === 'applied' ? 'from-blue-500 to-cyan-500' :
+                          application.status?.toLowerCase() === 'shortlisted' ? 'from-yellow-500 to-amber-500' :
+                          application.status?.toLowerCase() === 'interviewed' ? 'from-purple-500 to-pink-500' :
+                          application.status?.toLowerCase() === 'offered' || application.status?.toLowerCase() === 'selected' ? 'from-green-500 to-emerald-500' :
+                          application.status?.toLowerCase() === 'rejected' ? 'from-red-500 to-rose-500' :
+                          'from-gray-400 to-gray-500'
+                        }`}></div>
                         
-                        return skills.length > 0 ? (
-                          <div className="mt-4">
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Required Skills</p>
-                            <div className="flex flex-wrap gap-2">
-                              {skills.slice(0, 6).map((skill, index) => (
-                                <span
-                                  key={index}
-                                  className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
-                                >
-                                  {skill}
+                        <div className="p-8">
+                          {/* Enhanced Header Row */}
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className={`${getCompanyColor(application.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
+                                <span className="text-white font-bold text-2xl">
+                                  {getCompanyInitial(application.company?.name)}
                                 </span>
-                              ))}
-                              {skills.length > 6 && (
-                                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                                  +{skills.length - 6} more
-                                </span>
+                              </div>
+                              <div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">
+                                  {application.job?.jobTitle || 'Unknown Position'}
+                                </h3>
+                                <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
+                                  <Building2 className="w-4 h-4" />
+                                  {application.company?.name || 'Unknown Company'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.status)}`}>
+                                {getStatusIcon(application.status)}
+                                {application.status === 'job_removed'
+                                  ? 'Job Removed'
+                                  : application.status
+                                  ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                                  : 'Unknown'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Enhanced Job Details Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <MapPin className="w-4 h-4 text-blue-600" />
+                                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Location</p>
+                              </div>
+                              <p className="text-base font-bold text-gray-800">
+                                {application.job?.location || 'Not specified'}
+                              </p>
+                            </div>
+                            <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Briefcase className="w-4 h-4 text-purple-600" />
+                                <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Experience</p>
+                              </div>
+                              <p className="text-base font-bold text-gray-800">
+                                {application.job?.experienceLevel || 'Not specified'}
+                              </p>
+                            </div>
+                            <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock className="w-4 h-4 text-green-600" />
+                                <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Job Type</p>
+                              </div>
+                              <p className="text-base font-bold text-gray-800">
+                                {application.job?.jobType || 'Not specified'}
+                              </p>
+                            </div>
+                            <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Award className="w-4 h-4 text-amber-600" />
+                                <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Salary</p>
+                              </div>
+                              <p className="text-base font-bold text-gray-800">
+                                {application.job?.salaryRange || 'Not disclosed'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Enhanced Application Timeline */}
+                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-xl border border-gray-200 mb-6">
+                            <div className="flex flex-wrap items-center gap-6 text-sm">
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                  <Calendar className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500 font-medium">Applied</p>
+                                  <p className="font-semibold text-gray-800">{formatDate(application.appliedDate)}</p>
+                                </div>
+                              </div>
+                              {application.interviewDate && (
+                                <div className="flex items-center gap-2 text-gray-700">
+                                  <div className="p-2 bg-purple-100 rounded-lg">
+                                    <Clock className="w-4 h-4 text-purple-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-gray-500 font-medium">Interview</p>
+                                    <p className="font-semibold text-gray-800">{formatDate(application.interviewDate)}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {application.job?.deadline && (
+                                <div className="flex items-center gap-2 text-gray-700">
+                                  <div className="p-2 bg-red-100 rounded-lg">
+                                    <AlertCircle className="w-4 h-4 text-red-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-gray-500 font-medium">Deadline</p>
+                                    <p className="font-semibold text-gray-800">{formatDate(application.job.deadline)}</p>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           </div>
-                        ) : null;
-                      })()}
-                    </div>
-                  ))}
+
+                          {/* Enhanced Job Description Preview */}
+                          {application.job?.description && (
+                            <div className="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100">
+                              <div className="flex items-center gap-2 mb-3">
+                                <FileText className="w-5 h-5 text-indigo-600" />
+                                <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
+                              </div>
+                              <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
+                                {application.job.description.length > 200 
+                                  ? `${application.job.description.substring(0, 200)}...` 
+                                  : application.job.description}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Enhanced Skills Required */}
+                          {(() => {
+                            // Parse requiredSkills - it might be a JSON string or array
+                            let skills = [];
+                            if (application.job?.requiredSkills) {
+                              try {
+                                if (typeof application.job.requiredSkills === 'string') {
+                                  skills = JSON.parse(application.job.requiredSkills);
+                                } else if (Array.isArray(application.job.requiredSkills)) {
+                                  skills = application.job.requiredSkills;
+                                }
+                              } catch (e) {
+                                // If parsing fails, try to split by comma or treat as single skill
+                                if (typeof application.job.requiredSkills === 'string') {
+                                  skills = application.job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
+                                }
+                              }
+                            }
+                            
+                            return skills.length > 0 ? (
+                              <div className="mb-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Code2 className="w-5 h-5 text-indigo-600" />
+                                  <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Required Skills</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {skills.slice(0, 8).map((skill, index) => (
+                                    <span
+                                      key={index}
+                                      className="px-4 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-sm font-semibold rounded-full border border-indigo-200 hover:from-indigo-200 hover:to-purple-200 transition-all duration-200 shadow-sm"
+                                    >
+                                      {skill}
+                                    </span>
+                                  ))}
+                                  {skills.length > 8 && (
+                                    <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-semibold rounded-full border border-gray-200">
+                                      +{skills.length - 8} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                      </div>
+                    ))}
 
                 </div>
               )}
@@ -2138,10 +2423,19 @@ export default function StudentDashboard() {
                               setTimeout(() => setShowFloatingAlert(false), 3000);
                             } catch (err) {
                               console.error('Error uploading profile image:', err);
-                              setAlertMessage(err.response?.data?.error || err.message || 'Failed to upload profile image');
+                              // Extract error message from various error formats
+                              let errorMessage = 'Failed to upload profile image';
+                              if (err.message) {
+                                errorMessage = err.message;
+                              } else if (err.response?.data?.error) {
+                                errorMessage = err.response.data.error;
+                              } else if (err.response?.error) {
+                                errorMessage = err.response.error;
+                              }
+                              setAlertMessage(errorMessage);
                               setAlertType('error');
                               setShowFloatingAlert(true);
-                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              setTimeout(() => setShowFloatingAlert(false), 5000);
                             }
                           }}
                         />
@@ -2260,17 +2554,69 @@ export default function StudentDashboard() {
                         CGPA
                       </label>
                       <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="10"
+                        type="text"
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your CGPA"
+                        placeholder="Enter your CGPA (e.g., 9.00, 8.75)"
                         value={cgpa}
                         onChange={(e) => {
-                          setCgpa(e.target.value);
-                          validateField('cgpa', e.target.value);
+                          let value = e.target.value;
+                          // Allow only numbers and one decimal point
+                          value = value.replace(/[^0-9.]/g, '');
+                          // Ensure only one decimal point
+                          const parts = value.split('.');
+                          if (parts.length > 2) {
+                            value = parts[0] + '.' + parts.slice(1).join('');
+                          }
+                          // Limit to 5 characters (e.g., 10.00)
+                          if (value.length > 5) {
+                            value = value.substring(0, 5);
+                          }
+                          setCgpa(value);
+                          // Only validate if value is clearly invalid (out of range)
+                          // Allow partial input during typing (e.g., "8", "8.", "8.0")
+                          if (value) {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue) && (numValue < 0 || numValue > 10)) {
+                              validateField('cgpa', value);
+                            } else {
+                              // Clear error if value is valid or partial
+                              setValidationErrors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.cgpa;
+                                return newErrors;
+                              });
+                            }
+                          } else {
+                            // Clear error if empty
+                            setValidationErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.cgpa;
+                              return newErrors;
+                            });
+                          }
                         }}
+                        onBlur={(e) => {
+                          // On blur, format to exactly 2 decimal places and validate
+                          const value = e.target.value.trim();
+                          if (value) {
+                            let formattedValue = value;
+                            if (/^\d+$/.test(value)) {
+                              // Integer like "9" -> "9.00"
+                              formattedValue = value + '.00';
+                            } else if (/^\d+\.\d*$/.test(value)) {
+                              // Has decimal point
+                              const parts = value.split('.');
+                              const integerPart = parts[0];
+                              const decimalPart = (parts[1] || '').substring(0, 2).padEnd(2, '0');
+                              formattedValue = integerPart + '.' + decimalPart;
+                            }
+                            setCgpa(formattedValue);
+                            // Validate the formatted value
+                            validateField('cgpa', formattedValue);
+                          }
+                        }}
+                        pattern="^(10\.00|[0-9]\.[0-9]{2})$"
+                        maxLength="5"
                       />
                       {validationErrors.cgpa && (
                         <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>

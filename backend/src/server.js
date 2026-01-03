@@ -24,11 +24,11 @@ import queryRoutes from './routes/queries.js';
 import adminRequestRoutes from './routes/adminRequests.js';
 import recruiterRoutes from './routes/recruiters.js';
 import contactRoutes from './routes/contact.js';
-import searchRoutes from './routes/search.js';
 import interviewRoutes from './routes/interviews.js';
 import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
 import calendarRoutes from './routes/calendar.js';
 import endorsementRoutes from './routes/endorsements.js';
+import placementRoutes from './routes/placement.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -132,24 +132,28 @@ app.use('/api/queries', queryRoutes);
 app.use('/api/admin-requests', adminRequestRoutes);
 app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/search', searchRoutes);
 app.use('/api/admin/interview', interviewRoutes);
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
 app.use('/api/calendar', calendarRoutes); // New unified calendar routes
 app.use('/api/endorsements', endorsementRoutes);
+app.use('/api/placement', placementRoutes);
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code
+// CRITICAL: Use secure handler with email validation
 // Support both old and new callback paths for compatibility
 app.get('/auth/google/calendar/callback', async (req, res) => {
-  const { handleOAuthCallback } = await import('./controllers/calendarOAuth.js');
+  // Use secure handler with email validation (googleCalendarConnect.js)
+  const { handleOAuthCallback } = await import('./controllers/googleCalendarConnect.js');
   return handleOAuthCallback(req, res);
 });
 
 // Legacy callback route (for backward compatibility)
 // If Google Cloud Console is configured with /auth/google/callback
+// CRITICAL: Use secure handler with email validation
 app.get('/auth/google/callback', async (req, res) => {
-  const { handleOAuthCallback } = await import('./controllers/calendarOAuth.js');
+  // Use secure handler with email validation (googleCalendarConnect.js)
+  const { handleOAuthCallback } = await import('./controllers/googleCalendarConnect.js');
   return handleOAuthCallback(req, res);
 });
 

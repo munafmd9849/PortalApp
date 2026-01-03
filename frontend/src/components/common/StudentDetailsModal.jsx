@@ -152,7 +152,19 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">CGPA</label>
-                  <p className="text-gray-800">{studentData.cgpa || 'N/A'}</p>
+                  <p className="text-gray-800">
+                    {studentData.cgpa 
+                      ? (() => {
+                          // Ensure CGPA is displayed with exactly 2 decimal places
+                          const cgpaStr = String(studentData.cgpa);
+                          if (cgpaStr.includes('.')) {
+                            const parts = cgpaStr.split('.');
+                            return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+                          }
+                          return cgpaStr + '.00';
+                        })()
+                      : 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Batch</label>
@@ -311,6 +323,7 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
 };
 
 export default StudentDetailsModal;
+
 
 
 

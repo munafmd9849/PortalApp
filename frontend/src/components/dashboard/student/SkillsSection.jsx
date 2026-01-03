@@ -91,6 +91,13 @@ const SkillsSection = ({ isAdminView = false }) => {
   }, [user?.id]);
 
   const handleAddClick = () => {
+    // Check if student already has 8 skills (maximum limit)
+    if (skills.length >= 8) {
+      setError('Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    
     if (showForm && editingIndex === null) {
       // Cancel adding
       setShowForm(false);
@@ -162,6 +169,12 @@ const SkillsSection = ({ isAdminView = false }) => {
       return;
     }
     
+    // Check if adding a new skill (not editing) and limit is reached
+    if (editingIndex === null && skills.length >= 8) {
+      setError('Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError('');
@@ -186,7 +199,9 @@ const SkillsSection = ({ isAdminView = false }) => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error saving skill:', error);
-      if (error.code === 'permission-denied') {
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+      } else if (error.code === 'permission-denied') {
         setError('You do not have permission to save skills. Please contact support.');
       } else {
         setError('Failed to save skill. Please try again.');
@@ -241,23 +256,29 @@ const SkillsSection = ({ isAdminView = false }) => {
         <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
 
           <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
-            Skills
+            Skills {skills.length > 0 && <span className="text-sm text-gray-500">({skills.length}/8)</span>}
           </legend>
 
           <div className="flex items-center justify-end mb-1 mr-[-1%]">
             <div className="flex gap-2">
               <button
                 onClick={handleAddClick}
-                disabled={isAdminView}
+                disabled={isAdminView || skills.length >= 8}
                 aria-label="Add new skill"
                 className={`rounded-full p-2 shadow transition ${
-                  isAdminView 
+                  isAdminView || skills.length >= 8
                     ? 'bg-gray-400 cursor-not-allowed opacity-60' 
                     : isAddButtonActive 
                     ? 'bg-[#5e9ad6] hover:bg-[#4a7bb8]' 
                     : 'bg-[#8ec5ff] hover:bg-[#5e9ad6]'
                 }`}
-                title={isAdminView ? 'Admin view - cannot add skills' : 'Add new skill'}
+                title={
+                  isAdminView 
+                    ? 'Admin view - cannot add skills' 
+                    : skills.length >= 8
+                    ? 'Maximum limit reached (8 skills). Delete a skill to add a new one.'
+                    : 'Add new skill'
+                }
               >
                 <Plus size={18} className="text-white" />
               </button>

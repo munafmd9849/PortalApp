@@ -266,14 +266,43 @@ const JobContent = React.memo(({
   const skillsRequired = useMemo(() => {
     const skills = displayJob.skills;
     
+    // If it's already an array, return it
     if (Array.isArray(skills) && skills.length > 0) {
-      return skills;
+      // Filter out any stringified arrays and flatten if needed
+      return skills.flatMap(skill => {
+        if (typeof skill === 'string' && skill.trim().startsWith('[') && skill.trim().endsWith(']')) {
+          // It's a JSON string array, parse it
+          try {
+            const parsed = JSON.parse(skill);
+            return Array.isArray(parsed) ? parsed : [skill];
+          } catch {
+            return [skill];
+          }
+        }
+        return [skill];
+      }).filter(skill => skill && skill.toString().trim().length > 0);
     }
     
+    // If it's a string, check if it's a JSON array
     if (typeof skills === 'string' && skills.trim()) {
-      return skills
+      const trimmed = skills.trim();
+      
+      // Check if it's a JSON array string like ["java", "python"]
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter(skill => skill && skill.toString().trim().length > 0);
+          }
+        } catch {
+          // Not valid JSON, fall through to string splitting
+        }
+      }
+      
+      // Split by common delimiters
+      return trimmed
         .split(/[,;•\n\r]/)
-        .map(skill => skill.trim())
+        .map(skill => skill.trim().replace(/^["']|["']$/g, '')) // Remove quotes
         .filter(skill => skill.length > 0);
     }
     
@@ -842,18 +871,26 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
     <div>
       <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Required Skills</h3>
       <div className="flex flex-wrap gap-3">
-        {skillsRequired.map((skill, index) => (
-          <span 
-            key={index} 
-            className="group relative px-4 py-2 rounded-xl text-sm font-bold text-blue-700 border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 transition-all duration-300 hover:scale-110 hover:shadow-xl cursor-pointer overflow-hidden"
-            style={{
-              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.2)',
-            }}
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-            <span className="relative z-10">{skill}</span>
-          </span>
-        ))}
+        {skillsRequired.map((skill, index) => {
+          // Ensure skill is displayed as a string, not as an array or object
+          const skillText = typeof skill === 'string' 
+            ? skill 
+            : (Array.isArray(skill) 
+              ? skill.join(', ') 
+              : String(skill || ''));
+          return (
+            <span 
+              key={index} 
+              className="group relative px-4 py-2 rounded-xl text-sm font-bold text-blue-700 border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 transition-all duration-300 hover:scale-110 hover:shadow-xl cursor-pointer overflow-hidden"
+              style={{
+                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.2)',
+              }}
+            >
+              <span className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              <span className="relative z-10">{skillText}</span>
+            </span>
+          );
+        })}
       </div>
     </div>
 

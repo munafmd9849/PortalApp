@@ -1,78 +1,100 @@
 import React, { useState } from 'react';
-import { FaSearch, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaSearch, FaChevronDown, FaChevronUp, FaMagic } from 'react-icons/fa';
 import api from '../../../services/api';
 
 export default function PlacementResources() {
   const [query, setQuery] = useState('');
-  const [summary, setSummary] = useState('');
-  const [results, setResults] = useState([]);
+  const [guidance, setGuidance] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    summary: true,
+    keyTopics: true,
+    recommendedResources: true,
+    practiceSuggestions: true,
+    nextSteps: true,
+  });
 
-  const getHostname = (url = '') => {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return url;
-    }
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
   };
 
-  const handleSearch = async (e) => {
+  const handleGenerate = async (e) => {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) {
-      setError('Please enter a topic to search.');
+      setError('Please enter a topic or question.');
+      return;
+    }
+
+    if (trimmed.length < 2) {
+      setError('Query must be at least 2 characters long.');
+      return;
+    }
+
+    if (trimmed.length > 500) {
+      setError('Query is too long. Maximum 500 characters allowed.');
       return;
     }
 
     setLoading(true);
     setError(null);
     setHasSearched(true);
-    setSummary('');
-    setResults([]);
+    setGuidance(null);
 
     try {
-      // Step 1: Search DuckDuckGo
-      const searchData = await api.searchWeb(trimmed);
-      const searchResults = searchData.results || [];
-      
-      if (searchResults.length === 0) {
-        setError('No results found. Try a different search query.');
-        setLoading(false);
-        return;
-      }
-
-      setResults(searchResults);
-
-      // Step 2: Generate AI summary (if OpenAI is configured)
-      try {
-        const summaryData = await api.summarizeSearchResults(searchResults);
-        setSummary(summaryData.summary || '');
-      } catch (summaryError) {
-        console.warn('Summary generation failed, continuing without summary:', summaryError);
-        // Continue without summary - not a critical error
-        setSummary('');
-      }
+      console.log('Requesting placement guidance for:', trimmed);
+      const response = await api.getPlacementGuidance(trimmed);
+      console.log('Placement guidance response:', response);
+      setGuidance(response);
     } catch (err) {
-      console.error('Search failed:', err);
+      console.error('AI guidance generation failed:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response,
+        status: err.status,
+        isNetworkError: err.isNetworkError,
+      });
       
-      // Provide more helpful error messages
-      let errorMessage = 'Search failed. Try again later.';
+      let errorMessage = 'Failed to generate guidance. Please try again later.';
       
-      if (err.response?.details) {
-        if (err.response.details.includes('temporarily unavailable')) {
-          errorMessage = 'Search service is temporarily unavailable. Please try again in a moment.';
+      // Check for network errors first
+      if (err.isNetworkError) {
+        errorMessage = err.message || 'Cannot connect to server. Please check if the backend is running.';
+      } 
+      // Check for API response errors
+      else if (err.response) {
+        // API error structure: err.response.data contains the error object
+        const errorData = err.response.data || err.response;
+        const errorText = errorData.error || errorData.message || '';
+        
+        if (errorText.includes('Rate limit') || errorText.includes('Rate limit exceeded')) {
+          errorMessage = errorData.message || 'You have exceeded the request limit. Please try again later.';
+        } else if (errorText.includes('quota') || errorText.includes('unavailable')) {
+          errorMessage = errorData.message || 'AI service is temporarily unavailable. Please try again later.';
+        } else if (errorText.includes('timeout')) {
+          errorMessage = errorData.message || 'Request timed out. Please try again.';
+        } else if (errorText.includes('not available') || errorText.includes('not configured')) {
+          errorMessage = errorData.message || 'AI service is not configured. Please contact support.';
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
         } else {
-          errorMessage = err.response.error || errorMessage;
+          errorMessage = `Error: ${err.status || 'Unknown'} - ${errorText || err.message}`;
         }
-      } else if (err.message) {
+      } 
+      // Check for error message
+      else if (err.message) {
         errorMessage = err.message;
       }
       
       setError(errorMessage);
-      setSummary('');
-      setResults([]);
+      setGuidance(null);
     } finally {
       setLoading(false);
     }
@@ -87,97 +109,243 @@ export default function PlacementResources() {
               Placement resources
             </p>
             <h1 className="text-3xl font-bold text-slate-900 mt-2">
-              Search smarter. Prepare faster
+              AI-Powered Placement Guidance
             </h1>
             <p className="text-slate-600 mt-2">
-              Get trusted resources from the web for any topic you&apos;re preparing.
+              Get personalized, structured guidance for any placement topic. Powered by Google AI.
             </p>
           </header>
 
-          <form onSubmit={handleSearch} className="relative">
+          <form onSubmit={handleGenerate} className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <FaSearch className="h-5 w-5 text-gray-400" />
+              <FaMagic className="h-5 w-5 text-blue-400" />
             </div>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g., How to prepare for DSA interviews?"
               className="w-full pl-12 pr-32 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900"
+              maxLength={500}
             />
             <button
               type="submit"
-              className="absolute inset-y-2 right-2 px-5 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+              className="absolute inset-y-2 right-2 px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:from-blue-700 hover:to-indigo-700 transition-all"
               disabled={loading}
             >
-              {loading ? 'Searching...' : 'Search'}
+              {loading ? 'Generating...' : 'Generate'}
             </button>
           </form>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+          
           {!error && loading && (
-            <p className="mt-2 text-sm text-blue-600 font-medium">Searching the web…</p>
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <p className="text-sm text-blue-700 font-medium">
+                Generating AI-powered guidance...
+              </p>
+            </div>
           )}
         </section>
 
         {!hasSearched && (
           <div className="bg-white rounded-3xl border border-dashed border-slate-200 p-10 text-center text-slate-500">
-            <FaSearch className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-            <p className="text-lg font-medium">Search for any placement topic to get started.</p>
+            <FaMagic className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+            <p className="text-lg font-medium">Ask any placement-related question</p>
             <p className="text-sm mt-2 text-slate-400">
-              You&apos;ll receive curated links and a summary to help you prepare.
+              Get structured guidance with key topics, resources, practice suggestions, and actionable next steps.
             </p>
           </div>
         )}
 
-        {hasSearched && !loading && !error && (
-          <>
-            <section className="bg-white rounded-3xl shadow-lg border border-slate-100 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold uppercase tracking-wider">
-                  Summary
-                </span>
-                <p className="text-sm text-slate-500">Key insights from search results</p>
-              </div>
-              {summary ? (
-                <article className="prose prose-sm text-slate-700 max-w-none whitespace-pre-line">
-                  {summary}
-                </article>
-              ) : (
-                <p className="text-slate-500">Summary unavailable. Review the links below.</p>
-              )}
-            </section>
+        {hasSearched && !loading && !error && guidance && (
+          <div className="space-y-4">
+            {/* AI Summary Section */}
+            {guidance.summary && (
+              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('summary')}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold uppercase tracking-wider">
+                      AI Summary
+                    </span>
+                    <p className="text-sm text-slate-500">Overview of the topic</p>
+                  </div>
+                  {expandedSections.summary ? (
+                    <FaChevronUp className="text-slate-400" />
+                  ) : (
+                    <FaChevronDown className="text-slate-400" />
+                  )}
+                </button>
+                {expandedSections.summary && (
+                  <div className="px-6 pb-6">
+                    <p className="text-slate-700 leading-relaxed">{guidance.summary}</p>
+                  </div>
+                )}
+              </section>
+            )}
 
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold text-slate-900">Top resources</h2>
-              {results.length === 0 ? (
-                <p className="text-slate-500 text-sm">No resources found for this query.</p>
-              ) : (
-                results.map((result, index) => (
-                  <a
-                    key={`${result.url}-${index}`}
-                    href={result.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">
-                          {getHostname(result.url)}
-                        </p>
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          {result.title || 'Untitled resource'}
-                        </h3>
-                        <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                          {result.snippet || 'No description provided.'}
-                        </p>
-                      </div>
-                      <FaExternalLinkAlt className="text-slate-400 mt-1" />
-                    </div>
-                  </a>
-                ))
-              )}
-            </section>
-          </>
+            {/* Key Topics Section */}
+            {guidance.keyTopics && guidance.keyTopics.length > 0 && (
+              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('keyTopics')}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold uppercase tracking-wider">
+                      Key Topics
+                    </span>
+                    <p className="text-sm text-slate-500">
+                      {guidance.keyTopics.length} topic{guidance.keyTopics.length !== 1 ? 's' : ''} to prepare
+                    </p>
+                  </div>
+                  {expandedSections.keyTopics ? (
+                    <FaChevronUp className="text-slate-400" />
+                  ) : (
+                    <FaChevronDown className="text-slate-400" />
+                  )}
+                </button>
+                {expandedSections.keyTopics && (
+                  <div className="px-6 pb-6">
+                    <ul className="space-y-2">
+                      {guidance.keyTopics.map((topic, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <span className="text-purple-600 mt-1">•</span>
+                          <span className="text-slate-700">{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Recommended Resources Section */}
+            {guidance.recommendedResources && guidance.recommendedResources.length > 0 && (
+              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('recommendedResources')}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold uppercase tracking-wider">
+                      Recommended Resources
+                    </span>
+                    <p className="text-sm text-slate-500">
+                      {guidance.recommendedResources.length} resource{guidance.recommendedResources.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  {expandedSections.recommendedResources ? (
+                    <FaChevronUp className="text-slate-400" />
+                  ) : (
+                    <FaChevronDown className="text-slate-400" />
+                  )}
+                </button>
+                {expandedSections.recommendedResources && (
+                  <div className="px-6 pb-6">
+                    <ul className="space-y-2">
+                      {guidance.recommendedResources.map((resource, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <span className="text-green-600 mt-1">•</span>
+                          <span className="text-slate-700">{resource}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Practice Suggestions Section */}
+            {guidance.practiceSuggestions && guidance.practiceSuggestions.length > 0 && (
+              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('practiceSuggestions')}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-yellow-50 text-yellow-700 text-xs font-semibold uppercase tracking-wider">
+                      Practice Suggestions
+                    </span>
+                    <p className="text-sm text-slate-500">
+                      {guidance.practiceSuggestions.length} suggestion{guidance.practiceSuggestions.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  {expandedSections.practiceSuggestions ? (
+                    <FaChevronUp className="text-slate-400" />
+                  ) : (
+                    <FaChevronDown className="text-slate-400" />
+                  )}
+                </button>
+                {expandedSections.practiceSuggestions && (
+                  <div className="px-6 pb-6">
+                    <ul className="space-y-2">
+                      {guidance.practiceSuggestions.map((suggestion, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <span className="text-yellow-600 mt-1">•</span>
+                          <span className="text-slate-700">{suggestion}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Next Steps Section */}
+            {guidance.nextSteps && guidance.nextSteps.length > 0 && (
+              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('nextSteps')}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold uppercase tracking-wider">
+                      Next Steps
+                    </span>
+                    <p className="text-sm text-slate-500">
+                      {guidance.nextSteps.length} actionable step{guidance.nextSteps.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  {expandedSections.nextSteps ? (
+                    <FaChevronUp className="text-slate-400" />
+                  ) : (
+                    <FaChevronDown className="text-slate-400" />
+                  )}
+                </button>
+                {expandedSections.nextSteps && (
+                  <div className="px-6 pb-6">
+                    <ul className="space-y-2">
+                      {guidance.nextSteps.map((step, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <span className="text-indigo-600 mt-1">{index + 1}.</span>
+                          <span className="text-slate-700">{step}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Rate Limit Info */}
+            {guidance.rateLimit && (
+              <div className="text-center text-xs text-slate-400 mt-4">
+                {guidance.rateLimit.remaining > 0 ? (
+                  <p>You have {guidance.rateLimit.remaining} request{guidance.rateLimit.remaining !== 1 ? 's' : ''} remaining this hour.</p>
+                ) : (
+                  <p>Rate limit reached. Please try again later.</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

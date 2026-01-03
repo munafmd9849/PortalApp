@@ -6,7 +6,7 @@
 
 import prisma from '../config/database.js';
 import logger from '../config/logger.js';
-import { getOAuthClient, exchangeCodeForTokens } from '../utils/googleCalendar.js';
+import { getOAuthClient, exchangeCodeForTokens, revokeGoogleToken, getGoogleUserInfo } from '../utils/googleCalendar.js';
 import { getAuthenticatedCalendarClient } from '../services/calendarServiceEnhanced.js';
 
 /**
@@ -22,13 +22,16 @@ export const getOAuthUrl = async (req, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Generate OAuth URL with readonly scope and user ID in state
+    // Generate OAuth URL with required scopes and user ID in state
     const { getOAuthClient } = await import('../utils/googleCalendar.js');
     const oauth2Client = getOAuthClient();
 
-    // Full calendar scope (not readonly) - required for creating events
+    // Required scopes:
+    // 1. Calendar scope - required for creating/reading calendar events
+    // 2. UserInfo email scope - required for email verification (to ensure user connects with registered email)
     const scopes = [
       'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/userinfo.email', // Required for email verification
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -53,171 +56,591 @@ export const getOAuthUrl = async (req, res) => {
 
 /**
  * GET /auth/google/callback
- * Handles OAuth callback, exchanges code for tokens, stores in DB
- * Responds with HTML script to close popup and notify parent window
+ * PRODUCTION-GRADE OAuth callback handler
+ * 
+ * Flow:
+ * 1. Validate input (code, state)
+ * 2. Exchange code for tokens
+ * 3. Fetch Google UserInfo (email, verified_email)
+ * 4. Validate email match (atomic)
+ * 5. Save tokens ONLY if validation passes
+ * 6. Send structured response to frontend
+ * 7. Close popup ONLY after message sent
+ * 
+ * Backend is SINGLE SOURCE OF TRUTH for success/failure
  */
 export const handleOAuthCallback = async (req, res) => {
+  // Track OAuth flow start
+  logger.info('OAuth callback started', {
+    hasCode: !!req.query.code,
+    hasState: !!req.query.state,
+    timestamp: new Date().toISOString(),
+  });
+
+  let result = {
+    status: 'FAILED',
+    reason: null,
+    calendarEmail: null,
+    error: null,
+  };
+
   try {
     const { code, state } = req.query;
 
+    // STEP 1: Validate input
     if (!code) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener.postMessage({ type: 'GOOGLE_CALENDAR_ERROR', error: 'No authorization code received' }, '*');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'No authorization code received';
+      logger.warn('OAuth callback failed: No code', {
+        reason: result.reason,
+      });
+      return sendOAuthResponse(res, result);
     }
 
-    // Get user ID from state
     const userId = state;
-
     if (!userId) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener.postMessage({ type: 'GOOGLE_CALENDAR_ERROR', error: 'Invalid state parameter' }, '*');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'Invalid state parameter';
+      logger.warn('OAuth callback failed: No state', {
+        reason: result.reason,
+      });
+      return sendOAuthResponse(res, result);
     }
 
-    // Verify user exists
+    // STEP 2: Verify user exists
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        student: true,
-        recruiter: true,
+      select: {
+        id: true,
+        email: true,
+        role: true,
       },
     });
 
     if (!user) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener.postMessage({ type: 'GOOGLE_CALENDAR_ERROR', error: 'User not found' }, '*');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'User not found';
+      logger.warn('OAuth callback failed: User not found', {
+        userId,
+        reason: result.reason,
+      });
+      return sendOAuthResponse(res, result);
     }
 
-    // Exchange code for tokens
-    const tokens = await exchangeCodeForTokens(code);
+    // Get registered email and validate it exists
+    const registeredEmail = (user.email || '').toLowerCase().trim();
+    
+    if (!registeredEmail || registeredEmail.length === 0) {
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'User account does not have a registered email address. Please contact support.';
+      logger.error('OAuth callback: User has no registered email', {
+        userId: user.id,
+        role: user.role,
+        userEmail: user.email,
+      });
+      return sendOAuthResponse(res, result);
+    }
+    
+    logger.info('OAuth callback: User found', {
+      userId: user.id,
+      role: user.role,
+      registeredEmail,
+      registeredEmailLength: registeredEmail.length,
+    });
 
-    // Save tokens based on user role
-    if (user.role === 'STUDENT' && user.student) {
-      await prisma.student.update({
-        where: { id: user.student.id },
-        data: {
-          googleCalendarConnected: true,
-          googleCalendarAccessToken: tokens.access_token,
-          googleCalendarRefreshToken: tokens.refresh_token,
-          googleCalendarExpiryDate: tokens.expiry_date,
-          googleCalendarScope: tokens.scope,
-        },
+    // STEP 3: Exchange code for tokens
+    let tokens;
+    try {
+      tokens = await exchangeCodeForTokens(code);
+      logger.info('OAuth callback: Token exchange successful', {
+        userId: user.id,
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
       });
-      logger.info(`Google Calendar connected for student ${user.student.id}`);
-    } else if (user.role === 'RECRUITER' && user.recruiter) {
-      await prisma.recruiter.update({
-        where: { id: user.recruiter.id },
-        data: {
-          googleCalendarConnected: true,
-          googleCalendarAccessToken: tokens.access_token,
-          googleCalendarRefreshToken: tokens.refresh_token,
-          googleCalendarExpiryDate: tokens.expiry_date,
-          googleCalendarScope: tokens.scope,
-        },
+    } catch (tokenError) {
+      logger.error('OAuth callback: Token exchange failed', {
+        userId: user.id,
+        error: tokenError.message,
       });
-      logger.info(`Google Calendar connected for recruiter ${user.recruiter.id}`);
-    } else if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
-      await prisma.googleCalendarToken.upsert({
-        where: { userId: user.id },
-        update: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiryDate: tokens.expiry_date,
-          scope: tokens.scope,
-        },
-        create: {
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = tokenError.message || 'Failed to exchange authorization code';
+      return sendOAuthResponse(res, result);
+    }
+
+    // STEP 4: Fetch Google UserInfo (email, verified_email)
+    // Note: exchangeCodeForTokens already fetches email, but we fetch again here
+    // to ensure we have the most up-to-date information and to validate the token works
+    let googleEmail = null;
+    let verifiedEmail = false;
+
+    // First, try to use email from token exchange if available
+    if (tokens.email) {
+      googleEmail = tokens.email.toLowerCase().trim();
+      verifiedEmail = tokens.verified_email === true;
+      logger.info('OAuth callback: Using email from token exchange', {
+        userId: user.id,
+        googleEmail,
+        verifiedEmail,
+      });
+    }
+
+    // Always fetch fresh UserInfo to ensure accuracy and validate token
+    try {
+      const userInfo = await getGoogleUserInfo(tokens.access_token);
+      const fetchedEmail = userInfo.email?.toLowerCase().trim() || null;
+      const fetchedVerified = userInfo.verified_email === true;
+
+      // Use fetched email if available, otherwise fall back to token email
+      if (fetchedEmail) {
+        googleEmail = fetchedEmail;
+        verifiedEmail = fetchedVerified;
+        logger.info('OAuth callback: UserInfo fetched successfully', {
           userId: user.id,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiryDate: tokens.expiry_date,
-          scope: tokens.scope,
-        },
+          googleEmail,
+          verifiedEmail,
+          fromTokenExchange: !!tokens.email,
+        });
+      } else if (!googleEmail) {
+        // No email from either source
+        throw new Error('Email not available from Google UserInfo API');
+      }
+    } catch (userInfoError) {
+      logger.error('OAuth callback: UserInfo fetch failed', {
+        userId: user.id,
+        registeredEmail,
+        error: userInfoError.message,
+        errorStack: userInfoError.stack,
+        hasAccessToken: !!tokens.access_token,
+        tokenLength: tokens.access_token?.length,
+        emailFromToken: tokens.email,
       });
-      logger.info(`Google Calendar connected for admin ${user.id}`);
-    } else {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener.postMessage({ type: 'GOOGLE_CALENDAR_ERROR', error: 'Role not supported' }, '*');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+
+      // If we have email from token exchange, use it but log warning
+      if (tokens.email) {
+        googleEmail = tokens.email.toLowerCase().trim();
+        verifiedEmail = tokens.verified_email === true;
+        logger.warn('OAuth callback: Using email from token exchange due to UserInfo fetch failure', {
+          userId: user.id,
+          googleEmail,
+          verifiedEmail,
+          userInfoError: userInfoError.message,
+        });
+      } else {
+        // No email from either source - must fail
+        // Revoke token since we can't verify email
+        if (tokens.access_token) {
+          try {
+            await revokeGoogleToken(tokens.access_token);
+            logger.info('OAuth callback: Token revoked due to UserInfo failure', {
+              userId: user.id,
+            });
+          } catch (revokeError) {
+            logger.warn('OAuth callback: Failed to revoke token', {
+              userId: user.id,
+              error: revokeError.message,
+            });
+          }
+        }
+        result.reason = 'EMAIL_NOT_RETURNED';
+        result.error = `Could not verify Google account email: ${userInfoError.message}`;
+        return sendOAuthResponse(res, result);
+      }
     }
 
-    // Success - send HTML that closes popup and notifies parent
-    res.send(`
-      <html>
-        <head>
-          <title>Calendar Connected</title>
-        </head>
-        <body>
-          <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif;">
-            <div style="text-align: center;">
-              <h2 style="color: #4CAF50;">✓ Google Calendar Connected!</h2>
-              <p>This window will close automatically...</p>
-            </div>
-          </div>
-          <script>
-            // Notify parent window
-            if (window.opener) {
-              window.opener.postMessage({ type: 'GOOGLE_CALENDAR_CONNECTED' }, '*');
-            }
-            // Close popup after short delay
-            setTimeout(() => {
-              window.close();
-            }, 1500);
-          </script>
-        </body>
-      </html>
-    `);
+    // Final validation: ensure we have an email
+    if (!googleEmail) {
+      logger.error('OAuth callback: No email available from any source', {
+        userId: user.id,
+        registeredEmail,
+        hasTokenEmail: !!tokens.email,
+        hasAccessToken: !!tokens.access_token,
+      });
+      if (tokens.access_token) {
+        try {
+          await revokeGoogleToken(tokens.access_token);
+        } catch (revokeError) {
+          logger.warn('OAuth callback: Failed to revoke token', {
+            userId: user.id,
+            error: revokeError.message,
+          });
+        }
+      }
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'Google account email is not available. Please ensure your Google account has a verified email address.';
+      return sendOAuthResponse(res, result);
+    }
+
+    // STEP 5: ATOMIC EMAIL VALIDATION
+    // CRITICAL: Ensure both emails are properly normalized for comparison
+    // Normalize registered email (defensive - should already be normalized)
+    const normalizedRegisteredEmail = (user.email || '').toLowerCase().trim();
+    
+    // Normalize Google email (defensive - should already be normalized)
+    const normalizedGoogleEmail = (googleEmail || '').toLowerCase().trim();
+
+    // Log validation attempt with raw values for debugging
+    logger.info('OAuth callback: Email validation', {
+      userId: user.id,
+      registeredEmailRaw: user.email,
+      registeredEmailNormalized: normalizedRegisteredEmail,
+      googleEmailRaw: googleEmail,
+      googleEmailNormalized: normalizedGoogleEmail,
+      verifiedEmail,
+      emailMatch: normalizedRegisteredEmail === normalizedGoogleEmail,
+      registeredEmailLength: normalizedRegisteredEmail.length,
+      googleEmailLength: normalizedGoogleEmail.length,
+    });
+
+    // CRITICAL: Validate registered email exists
+    if (!normalizedRegisteredEmail || normalizedRegisteredEmail.length === 0) {
+      logger.error('OAuth callback: Email validation failed - no registered email', {
+        userId: user.id,
+        userEmail: user.email,
+      });
+      if (tokens.access_token) {
+        await revokeGoogleToken(tokens.access_token);
+      }
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'User account does not have a registered email address';
+      return sendOAuthResponse(res, result);
+    }
+
+    // CRITICAL: Validate Google email exists
+    if (!normalizedGoogleEmail || normalizedGoogleEmail.length === 0) {
+      logger.warn('OAuth callback: Email validation failed - no Google email', {
+        userId: user.id,
+        registeredEmail: normalizedRegisteredEmail,
+      });
+      if (tokens.access_token) {
+        await revokeGoogleToken(tokens.access_token);
+      }
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'Google account email not available';
+      return sendOAuthResponse(res, result);
+    }
+
+    // Validate email is verified (warning only - some accounts may not have this flag)
+    if (!verifiedEmail) {
+      logger.warn('OAuth callback: Email not verified by Google', {
+        userId: user.id,
+        registeredEmail: normalizedRegisteredEmail,
+        googleEmail: normalizedGoogleEmail,
+      });
+      // Note: We still proceed but log warning
+      // Some Google accounts may not have verified_email flag set
+    }
+
+    // CRITICAL: Validate email match - STRICT COMPARISON
+    // This is the security gate - emails MUST match exactly
+    const emailsMatch = normalizedRegisteredEmail === normalizedGoogleEmail;
+    
+    if (!emailsMatch) {
+      // SECURITY: Email mismatch - REVOKE TOKEN IMMEDIATELY
+      logger.warn('SECURITY: OAuth callback: Email mismatch - REVOKING TOKEN', {
+        userId: user.id,
+        role: user.role,
+        registeredEmail: normalizedRegisteredEmail,
+        googleEmail: normalizedGoogleEmail,
+        verifiedEmail,
+        action: 'BLOCKED_AND_REVOKED',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Revoke token immediately
+      if (tokens.access_token) {
+        await revokeGoogleToken(tokens.access_token);
+        logger.info('OAuth callback: Token revoked due to email mismatch', {
+          userId: user.id,
+        });
+      }
+
+      // Cleanup: Delete any existing tokens
+      try {
+        await prisma.googleCalendarToken.deleteMany({
+          where: { userId: user.id },
+        });
+      } catch (deleteError) {
+        logger.warn('OAuth callback: Error deleting existing tokens:', deleteError);
+      }
+
+      // Ensure user is NOT connected
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleCalendarConnected: false,
+            connectedGoogleEmail: null,
+          },
+        });
+      } catch (updateError) {
+        logger.warn('OAuth callback: Error updating user status:', updateError);
+      }
+
+      result.reason = 'EMAIL_MISMATCH';
+      result.error = `Please connect the Google account associated with your registered email (${normalizedRegisteredEmail}). The Google account you used (${normalizedGoogleEmail}) does not match.`;
+      result.calendarEmail = normalizedGoogleEmail;
+      return sendOAuthResponse(res, result);
+    }
+
+    // FINAL SECURITY CHECK: Double-verify emails match before saving
+    // This is a redundant check to ensure no bypass occurred
+    if (normalizedRegisteredEmail !== normalizedGoogleEmail) {
+      logger.error('SECURITY BREACH: Email validation bypass detected!', {
+        userId: user.id,
+        registeredEmail: normalizedRegisteredEmail,
+        googleEmail: normalizedGoogleEmail,
+        action: 'BLOCKED_AND_REVOKED',
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Revoke token immediately
+      if (tokens.access_token) {
+        await revokeGoogleToken(tokens.access_token);
+      }
+      
+      // Cleanup
+      await prisma.googleCalendarToken.deleteMany({
+        where: { userId: user.id },
+      });
+      
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleCalendarConnected: false,
+          connectedGoogleEmail: null,
+        },
+      });
+      
+      result.reason = 'EMAIL_MISMATCH';
+      result.error = `Security validation failed: Email mismatch detected. Registered: ${normalizedRegisteredEmail}, Google: ${normalizedGoogleEmail}`;
+      return sendOAuthResponse(res, result);
+    }
+
+    // STEP 6: VALIDATION PASSED - Save tokens atomically
+    // ONLY reached if emails match exactly
+    // Use transaction to ensure atomicity
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Save tokens
+        await tx.googleCalendarToken.upsert({
+          where: { userId: user.id },
+          update: {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiryDate: tokens.expiry_date,
+            scope: tokens.scope,
+            connectedGoogleEmail: normalizedGoogleEmail,
+          },
+          create: {
+            userId: user.id,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiryDate: tokens.expiry_date,
+            scope: tokens.scope,
+            connectedGoogleEmail: normalizedGoogleEmail,
+          },
+        });
+
+        // Update user connection status
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            googleCalendarConnected: true,
+            connectedGoogleEmail: normalizedGoogleEmail,
+          },
+        });
+      });
+
+      logger.info('OAuth callback: SUCCESS - Calendar connected', {
+        userId: user.id,
+        role: user.role,
+        registeredEmail: normalizedRegisteredEmail,
+        googleEmail: normalizedGoogleEmail,
+        emailMatch: true,
+        timestamp: new Date().toISOString(),
+      });
+
+      result.status = 'SUCCESS';
+      result.calendarEmail = normalizedGoogleEmail;
+      return sendOAuthResponse(res, result);
+    } catch (saveError) {
+      logger.error('OAuth callback: Failed to save tokens', {
+        userId: user.id,
+        error: saveError.message,
+        stack: saveError.stack,
+      });
+      // Revoke token since save failed
+      if (tokens.access_token) {
+        await revokeGoogleToken(tokens.access_token);
+      }
+      result.reason = 'EMAIL_NOT_RETURNED';
+      result.error = 'Failed to save calendar connection';
+      return sendOAuthResponse(res, result);
+    }
   } catch (error) {
-    logger.error('Error in Google OAuth callback:', error);
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener.postMessage({ 
-              type: 'GOOGLE_CALENDAR_ERROR', 
-              error: '${error.message || 'Failed to connect calendar'}' 
-            }, '*');
-            window.close();
-          </script>
-          <p>Authorization failed. This window will close automatically.</p>
-        </body>
-      </html>
-    `);
+    logger.error('OAuth callback: Unexpected error', {
+      error: error.message,
+      stack: error.stack,
+      result,
+    });
+    result.reason = 'EMAIL_NOT_RETURNED';
+    result.error = error.message || 'Failed to connect calendar';
+    return sendOAuthResponse(res, result);
   }
 };
+
+/**
+ * Send structured OAuth response to frontend
+ * ONLY called after ALL validation is complete
+ * 
+ * @param {Object} res - Express response object
+ * @param {Object} result - { status: 'SUCCESS'|'FAILED', reason: string, calendarEmail: string, error: string }
+ */
+function sendOAuthResponse(res, result) {
+  const { status, reason, calendarEmail, error } = result;
+
+  // Get frontend origin for postMessage security
+  const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendOriginUrl = new URL(frontendOrigin);
+  const allowedOrigin = `${frontendOriginUrl.protocol}//${frontendOriginUrl.host}`;
+
+  // Build structured message
+  const message = {
+    type: 'GOOGLE_CALENDAR_RESULT',
+    status, // 'SUCCESS' or 'FAILED'
+    reason, // 'EMAIL_MISMATCH' | 'EMAIL_NOT_VERIFIED' | 'EMAIL_NOT_RETURNED' | null
+    calendarEmail, // Google email (if available)
+    error, // Error message (if failed)
+  };
+
+  // Generate HTML response
+  // CRITICAL: Only send postMessage AFTER all validation
+  // CRITICAL: Only close popup AFTER postMessage is sent
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${status === 'SUCCESS' ? 'Calendar Connected' : 'Connection Failed'}</title>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: ${status === 'SUCCESS' ? '#f0f9ff' : '#fef2f2'};
+          }
+          .container {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 500px;
+            margin: 20px;
+          }
+          .success { color: #10b981; }
+          .error { color: #ef4444; }
+          .warning { color: #f59e0b; }
+          h2 { margin: 0 0 20px 0; font-size: 24px; }
+          p { margin: 10px 0; color: #666; line-height: 1.6; }
+          .email-box {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+            border-left: 4px solid ${status === 'SUCCESS' ? '#10b981' : '#ef4444'};
+          }
+          .email-box strong { color: #374151; }
+          .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${status === 'SUCCESS' ? `
+            <h2 class="success">✓ Google Calendar Connected!</h2>
+            <p>Your calendar has been successfully connected.</p>
+            ${calendarEmail ? `
+              <div class="email-box">
+                <p><strong>Connected Email:</strong> ${calendarEmail}</p>
+              </div>
+            ` : ''}
+            <p style="font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
+            <div class="spinner"></div>
+          ` : `
+            <h2 class="error">⚠️ Connection Failed</h2>
+            <p>${error || 'Failed to connect Google Calendar'}</p>
+            ${reason === 'EMAIL_MISMATCH' && calendarEmail ? `
+              <div class="email-box">
+                <p><strong>Google Account Used:</strong> ${calendarEmail}</p>
+                <p style="margin-top: 10px; font-size: 14px;">Please use the same email address you registered with.</p>
+              </div>
+            ` : ''}
+            <p style="font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
+            <div class="spinner"></div>
+          `}
+        </div>
+        <script>
+          (function() {
+            // CRITICAL: Only send postMessage AFTER page loads
+            // CRITICAL: Validate window.opener exists
+            if (!window.opener) {
+              console.error('OAuth callback: window.opener not available');
+              return;
+            }
+
+            // Wait for page to fully load before sending message
+            window.addEventListener('load', function() {
+              // Small delay to ensure message is received
+              setTimeout(function() {
+                try {
+                  // Send structured response
+                  const message = ${JSON.stringify(message)};
+                  
+                  // Use specific origin for security (fallback to * for development)
+                  const targetOrigin = '${allowedOrigin}';
+                  window.opener.postMessage(message, targetOrigin);
+                  
+                  console.log('OAuth callback: Message sent', message);
+                  
+                  // CRITICAL: Only close popup AFTER message is sent
+                  // Give frontend time to receive message
+                  setTimeout(function() {
+                    window.close();
+                  }, 500);
+                } catch (err) {
+                  console.error('OAuth callback: Error sending message', err);
+                  // Still try to close after error
+                  setTimeout(function() {
+                    window.close();
+                  }, 1000);
+                }
+              }, 100);
+            });
+          })();
+        </script>
+      </body>
+    </html>
+  `;
+
+  res.send(html);
+}
 
 /**
  * GET /api/google/calendar/status
@@ -233,28 +656,30 @@ export const getCalendarStatus = async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
 
-    let connected = false;
+    // Use unified GoogleCalendarToken model
+    const token = await prisma.googleCalendarToken.findUnique({
+      where: { userId },
+      select: {
+        connectedGoogleEmail: true,
+      },
+    });
 
-    if (role === 'STUDENT') {
-      const student = await prisma.student.findUnique({
-        where: { userId },
-        select: { googleCalendarConnected: true },
-      });
-      connected = !!student?.googleCalendarConnected;
-    } else if (role === 'RECRUITER') {
-      const recruiter = await prisma.recruiter.findUnique({
-        where: { userId },
-        select: { googleCalendarConnected: true },
-      });
-      connected = !!recruiter?.googleCalendarConnected;
-    } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
-      const token = await prisma.googleCalendarToken.findUnique({
-        where: { userId },
-      });
-      connected = !!token;
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        googleCalendarConnected: true,
+        connectedGoogleEmail: true,
+        email: true,
+      },
+    });
 
-    res.json({ connected });
+    const connected = !!(user?.googleCalendarConnected && token);
+
+    res.json({ 
+      connected,
+      connectedGoogleEmail: token?.connectedGoogleEmail || user?.connectedGoogleEmail || null,
+      registeredEmail: user?.email || null,
+    });
   } catch (error) {
     logger.error('Error checking calendar status:', error);
     res.status(500).json({

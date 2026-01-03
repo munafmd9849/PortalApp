@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { subscribeJobs } from '../../../services/jobs';
 import { API_BASE_URL } from '../../../config/api';
 import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle } from 'lucide-react';
-import JobDetailsView from '../student/JobDetailsView';
+import JobDescriptionModal from '../student/JobDescriptionModal';
 import { useToast } from '../../ui/Toast';
 
 export default function ScheduleInterview() {
@@ -103,32 +103,11 @@ export default function ScheduleInterview() {
 
   // Handle start interview session
   const handleStartInterview = async (jobId) => {
-    // Navigate IMMEDIATELY - don't wait for API call
-    // Use jobId as interviewId for now - the page will handle fetching the real data
-    const interviewPath = `/admin/interview-session/${jobId}`;
-    
-    console.log('=== Navigating to Interview Session IMMEDIATELY ===');
-    console.log('Job ID:', jobId);
-    console.log('Interview Path:', interviewPath);
-    
-    // Navigate FIRST using React Router - this is client-side, NO server connection needed
-    // This will work even if backend is completely down
-    navigate(interviewPath, { replace: false });
-    console.log('✅ Navigated successfully using React Router');
-    
-    // Now try to start the interview session in the background (non-blocking)
-    // The InterviewSessionPage will handle displaying data whether API succeeds or fails
     setStartingInterview(prev => new Set([...prev, jobId]));
     
     try {
       const token = localStorage.getItem('accessToken');
       const apiUrl = `${API_BASE_URL}/admin/interview/${jobId}/start`;
-      
-      console.log('Starting interview session API call for job:', jobId);
-      
-      // Create AbortController for timeout (AbortSignal.timeout not available in all browsers)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -136,30 +115,28 @@ export default function ScheduleInterview() {
           'Content-Type': 'application/json',
           ...(token && { Authorization: `Bearer ${token}` }),
         },
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
 
-      if (response && response.ok) {
-        const data = await response.json();
-        const realInterviewId = data.interview?.id || data.id;
-        console.log('Interview session started successfully. Interview ID:', realInterviewId);
-        
-        // If we got a different interview ID, update the URL
-        if (realInterviewId && realInterviewId !== jobId) {
-          const correctPath = `/admin/interview-session/${realInterviewId}`;
-          navigate(correctPath, { replace: true });
-          console.log('Updated URL to correct interview ID:', correctPath);
-        }
-      } else {
-        console.warn('API call failed, but page should still work with fallback data');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to start interview session');
       }
+
+      const data = await response.json();
+      const interviewId = data.interview?.id || data.id;
+      
+      if (!interviewId) {
+        throw new Error('Interview ID not returned from server');
+      }
+      
+      // Navigate to interview session page with the correct interview ID
+      navigate(`/admin/interview-session/${interviewId}`, { replace: false });
+      
+      toast.success('Interview session started successfully');
     } catch (error) {
-      // API call failed - that's OK, page will use fallback data
-      console.warn('API call failed (backend may be down), but navigation already completed:', error.message);
+      console.error('Error starting interview session:', error);
+      toast.error(error.message || 'Failed to start interview session');
     } finally {
-      // Reset loading state
       setStartingInterview(prev => {
         const newSet = new Set(prev);
         newSet.delete(jobId);
@@ -328,26 +305,6 @@ export default function ScheduleInterview() {
                         >
                           <View className="w-4 h-4" />
                         </button>
-
-                        {/* Job Description Modal */}
-                        {viewingJob?.id === job.id && (
-                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                              <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-slate-900">Job Description</h3>
-                                <button
-                                  onClick={() => setViewingJob(null)}
-                                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                  <span className="text-2xl">&times;</span>
-                                </button>
-                              </div>
-                              <div className="p-6">
-                                <JobDetailsView job={job} />
-                              </div>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -357,6 +314,13 @@ export default function ScheduleInterview() {
           })
         )}
       </div>
+
+      {/* Job Description Modal - Shared modal for all jobs */}
+      <JobDescriptionModal
+        job={viewingJob}
+        isOpen={!!viewingJob}
+        onClose={() => setViewingJob(null)}
+      />
     </div>
   );
 }

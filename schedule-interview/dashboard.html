@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Dashboard - Interview Management System</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Dashboard Container */
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .page-header p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        /* Interviews Table */
+        .interviews-table {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .table-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        th {
+            padding: 1.25rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        th:hover {
+            background: #f1f5f9;
+        }
+        th.sortable::after {
+            content: ' ↕';
+            opacity: 0.5;
+            font-size: 0.75rem;
+        }
+        th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+            color: #667eea;
+        }
+        th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+            color: #667eea;
+        }
+        td {
+            padding: 1.25rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            color: #334155;
+        }
+        tbody tr {
+            transition: all 0.2s;
+        }
+        tbody tr:hover {
+            background: #f8fafc;
+            transform: scale(1.01);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 0.375rem 0.875rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-scheduled {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .status-ongoing {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-completed {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .btn-secondary:hover {
+            background: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem;
+            }
+            table {
+                font-size: 0.875rem;
+            }
+            th, td {
+                padding: 0.75rem 0.5rem;
+            }
+            .action-buttons {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>📊 Interview Dashboard</h1>
+            <p>Manage and monitor all interview sessions</p>
+        </div>
+
+        <!-- Interviews Table -->
+        <div class="interviews-table">
+            <div class="table-header">
+                Scheduled Interviews
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="jobTitle" onclick="sortTable('jobTitle')">Job Title</th>
+                        <th class="sortable" data-sort="company" onclick="sortTable('company')">Company</th>
+                        <th class="sortable" data-sort="date" onclick="sortTable('date')">Date</th>
+                        <th class="sortable" data-sort="totalCandidates" onclick="sortTable('totalCandidates')">Total Candidates</th>
+                        <th class="sortable" data-sort="status" onclick="sortTable('status')">Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="interviewsTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * MOCK BACKEND DATA
+         * In production, this would be fetched from an API
+         */
+        let mockInterviews = [
+            {
+                id: 'int-001',
+                jobTitle: 'Full Stack Developer',
+                company: 'Tech Corp',
+                date: '2026-01-15',
+                totalCandidates: 25,
+                status: 'scheduled'
+            },
+            {
+                id: 'int-002',
+                jobTitle: 'Data Scientist',
+                company: 'AI Solutions',
+                date: '2026-01-18',
+                totalCandidates: 18,
+                status: 'ongoing'
+            },
+            {
+                id: 'int-003',
+                jobTitle: 'DevOps Engineer',
+                company: 'Cloud Systems',
+                date: '2026-01-20',
+                totalCandidates: 12,
+                status: 'completed'
+            },
+            {
+                id: 'int-004',
+                jobTitle: 'Frontend Developer',
+                company: 'Web Innovations',
+                date: '2026-01-22',
+                totalCandidates: 30,
+                status: 'scheduled'
+            },
+            {
+                id: 'int-005',
+                jobTitle: 'Backend Developer',
+                company: 'Server Tech',
+                date: '2026-01-25',
+                totalCandidates: 20,
+                status: 'ongoing'
+            }
+        ];
+
+        // Sorting state
+        let sortColumn = null;
+        let sortDirection = 'asc';
+
+        /**
+         * INITIALIZE DASHBOARD
+         */
+        function init() {
+            renderInterviewsTable();
+        }
+
+        /**
+         * RENDER INTERVIEWS TABLE
+         * Populates the table with interview data
+         */
+        function renderInterviewsTable() {
+            const tbody = document.getElementById('interviewsTableBody');
+            tbody.innerHTML = '';
+
+            if (mockInterviews.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No interviews scheduled</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            mockInterviews.forEach(interview => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${interview.jobTitle}</strong></td>
+                    <td>${interview.company}</td>
+                    <td>${formatDate(interview.date)}</td>
+                    <td><strong>${interview.totalCandidates}</strong></td>
+                    <td><span class="status-badge status-${interview.status}">${interview.status}</span></td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-primary" onclick="startInterviewSession('${interview.id}')">
+                                Start Session
+                            </button>
+                            <button class="btn btn-secondary" onclick="viewCandidates('${interview.id}')">
+                                View Candidates
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            updateSortIndicators();
+        }
+
+        /**
+         * START INTERVIEW SESSION
+         * Updates interview status and navigates to session page
+         */
+        function startInterviewSession(interviewId) {
+            const interview = mockInterviews.find(i => i.id === interviewId);
+            if (!interview) {
+                alert('Interview not found');
+                return;
+            }
+
+            // Update status: scheduled → ongoing
+            if (interview.status === 'scheduled') {
+                interview.status = 'ongoing';
+            }
+            
+            // Store in sessionStorage for next page
+            sessionStorage.setItem('currentInterview', JSON.stringify(interview));
+            
+            // Redirect to interview session page
+            window.location.href = 'session.html';
+        }
+
+        /**
+         * VIEW CANDIDATES
+         * Navigates to interview session page to view candidates
+         */
+        function viewCandidates(interviewId) {
+            const interview = mockInterviews.find(i => i.id === interviewId);
+            if (!interview) {
+                alert('Interview not found');
+                return;
+            }
+
+            // Store in sessionStorage
+            sessionStorage.setItem('currentInterview', JSON.stringify(interview));
+            
+            // Redirect to session page
+            window.location.href = 'session.html';
+        }
+
+        /**
+         * SORT TABLE
+         * Handles column sorting functionality
+         */
+        function sortTable(column) {
+            // Toggle sort direction if same column
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+
+            // Sort the data
+            mockInterviews.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+
+                // Handle date sorting
+                if (column === 'date') {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+
+                // Handle numeric sorting
+                if (column === 'totalCandidates') {
+                    aVal = Number(aVal);
+                    bVal = Number(bVal);
+                }
+
+                // Handle string sorting
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+
+                if (sortDirection === 'asc') {
+                    return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+                } else {
+                    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+                }
+            });
+
+            renderInterviewsTable();
+        }
+
+        /**
+         * UPDATE SORT INDICATORS
+         * Updates visual indicators for sorted columns
+         */
+        function updateSortIndicators() {
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.dataset.sort === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        /**
+         * FORMAT DATE
+         * Formats date string to readable format
+         */
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>
+

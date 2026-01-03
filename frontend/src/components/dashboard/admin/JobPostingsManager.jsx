@@ -14,7 +14,7 @@ import {
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
 import CustomDropdown from '../../common/CustomDropdown';
-import JobDetailsModal from '../../common/JobDetailsModal';
+import JobDetailsModal from '../../common/JobDetailsModal.jsx';
 import { 
   FaSearch, 
   FaFilter, 
@@ -542,18 +542,6 @@ export default function JobPostingsManager() {
         text: 'text-amber-700',
         border: 'border-amber-200',
         label: 'IN REVIEW'
-      },
-      accepted: {
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
-        text: 'text-green-700',
-        border: 'border-green-200',
-        label: 'ACCEPTED'
-      },
-      approved: {
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
-        text: 'text-green-700',
-        border: 'border-green-200',
-        label: 'ACCEPTED'
       },
       draft: { 
         bg: 'bg-gradient-to-r from-yellow-50 to-orange-50', 

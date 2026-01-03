@@ -206,7 +206,25 @@ export async function createEvent(userId, role, eventData, targetUserId = null, 
     meetLink
   );
 
-  logger.info(`Created calendar event for user ${userId} (role: ${role})`);
+  // Log event creation with attendee details for debugging
+  logger.info(`Created calendar event for user ${userId} (role: ${role})`, {
+    eventId: event.id,
+    eventTitle: event.summary,
+    attendeeCount: attendees.length,
+    attendees: attendees,
+    hasAttendees: attendees.length > 0,
+    sendUpdates: attendees.length > 0 ? 'all' : 'none',
+    eventLink: event.htmlLink,
+  });
+
+  // If there are attendees, log a warning if invitations might not be visible to students
+  if (attendees.length > 0) {
+    logger.info(`Event created with ${attendees.length} attendee(s). Invitations sent via Google Calendar.`, {
+      eventId: event.id,
+      attendees: attendees,
+      note: 'Students should see this event in their calendar if they have Google Calendar connected and invitations are accepted/auto-added.',
+    });
+  }
 
   return {
     id: event.id,

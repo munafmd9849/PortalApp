@@ -13,17 +13,28 @@
  * 8. Role-based event creation (RECRUITER/ADMIN only)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FaGoogle, FaCalendar, FaCheckCircle, FaSpinner, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ui/Toast';
 import CustomCalendar from '../components/calendar/CustomCalendar';
 import EventCreationModal from '../components/calendar/EventCreationModal';
 
+// Simple logger for frontend
+const logger = {
+  info: (msg, data) => console.log(`[Calendar] ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`[Calendar] ${msg}`, data || ''),
+  error: (msg, data) => console.error(`[Calendar] ${msg}`, data || ''),
+};
+
 const ConnectGoogleCalendar = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [connected, setConnected] = useState(null); // null = checking, true/false = status
   const [hasFullScope, setHasFullScope] = useState(null); // null = unknown, true/false = scope status
+  const [connectedGoogleEmail, setConnectedGoogleEmail] = useState(null); // Connected Google email
+  const [registeredEmail, setRegisteredEmail] = useState(null); // User's registered email
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -31,20 +42,72 @@ const ConnectGoogleCalendar = () => {
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null); // Error message state
+  const popupTimeoutRef = useRef(null); // Store timeout reference for cleanup
 
   // Check calendar connection status on mount
   useEffect(() => {
     checkCalendarStatus();
     
-    // Listen for popup messages
+    // Listen for popup messages - HANDLE STRUCTURED RESPONSE
     const handleMessage = (event) => {
-      // In production, verify event.origin for security
-      if (event.data.type === 'GOOGLE_CALENDAR_CONNECTED') {
-        // Success notification will be shown by toast in parent
+      // Verify message type
+      if (event.data.type !== 'GOOGLE_CALENDAR_RESULT') {
+        return; // Ignore other messages
+      }
+
+      const result = event.data;
+      
+      // Clear timeout when message is received
+      if (popupTimeoutRef.current) {
+        clearTimeout(popupTimeoutRef.current);
+        popupTimeoutRef.current = null;
+      }
+      
+      setConnecting(false);
+
+      // Backend is SINGLE SOURCE OF TRUTH - only trust structured response
+      if (result.status === 'SUCCESS') {
+        // SUCCESS: Calendar connected
+        logger.info('Calendar connection successful', {
+          calendarEmail: result.calendarEmail,
+        });
+        
+        // Show success notification
+        if (toast) {
+          toast.success('Google Calendar connected successfully!', 'Success');
+        }
+        
+        // Refresh calendar status
         checkCalendarStatus();
-      } else if (event.data.type === 'GOOGLE_CALENDAR_ERROR') {
-        setErrorMessage(`Failed to connect: ${event.data.error || 'Unknown error'}`);
-        setConnecting(false);
+        
+        // Clear any previous errors
+        setErrorMessage(null);
+      } else if (result.status === 'FAILED') {
+        // FAILURE: Show exact error from backend
+        let errorMsg = result.error || 'Failed to connect Google Calendar';
+        
+        if (result.reason === 'EMAIL_MISMATCH') {
+          errorMsg = `Calendar connection failed. Use your registered email.\n\n` +
+            `Google Account Used: ${result.calendarEmail || 'N/A'}\n\n` +
+            `Please connect using the same email address you used to register.`;
+        } else if (result.reason === 'EMAIL_NOT_VERIFIED') {
+          errorMsg = `Google account email is not verified. Please verify your email with Google and try again.`;
+        } else if (result.reason === 'EMAIL_NOT_RETURNED') {
+          errorMsg = result.error || 'Could not verify Google account email. Please try again.';
+        }
+        
+        setErrorMessage(errorMsg);
+        
+        // CRITICAL: DO NOT mark calendar as connected
+        setConnected(false);
+        setHasFullScope(null);
+        setConnectedGoogleEmail(null);
+        
+        logger.warn('Calendar connection failed', {
+          reason: result.reason,
+          error: result.error,
+          calendarEmail: result.calendarEmail,
+        });
       }
     };
 
@@ -74,8 +137,12 @@ const ConnectGoogleCalendar = () => {
       const response = await api.get('/calendar/status');
       const isConnected = response.data.connected;
       const scopeStatus = response.data.hasFullScope;
+      const googleEmail = response.data.connectedGoogleEmail;
+      const regEmail = response.data.registeredEmail;
       setConnected(isConnected);
       setHasFullScope(scopeStatus);
+      setConnectedGoogleEmail(googleEmail || null);
+      setRegisteredEmail(regEmail || user?.email || null);
       
       // If status says connected but we get errors, there might be a sync issue
       if (isConnected) {
@@ -159,26 +226,32 @@ const ConnectGoogleCalendar = () => {
         return;
       }
 
-      // Poll for popup to close
-      const checkPopup = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkPopup);
-          setConnecting(false);
-          // Check status after popup closes (in case message didn't work)
-          setTimeout(() => {
-            checkCalendarStatus();
-          }, 1000);
-        }
-      }, 500);
+      // Note: We do NOT poll for popup.closed due to Cross-Origin-Opener-Policy (COOP)
+      // When the popup navigates to Google OAuth (different origin), checking popup.closed
+      // triggers COOP warnings. We rely entirely on postMessage for communication.
+      // The message handler will set connecting to false when OAuth completes.
 
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        if (!popup.closed) {
-          popup.close();
-          clearInterval(checkPopup);
-          setConnecting(false);
+      // Clear any existing timeout
+      if (popupTimeoutRef.current) {
+        clearTimeout(popupTimeoutRef.current);
+        popupTimeoutRef.current = null;
+      }
+
+      // Timeout after 5 minutes - attempt to close popup if still open
+      // This is a safety fallback in case postMessage fails
+      popupTimeoutRef.current = setTimeout(() => {
+        try {
+          // Try to close popup - may fail due to COOP, which is fine
+          if (popup) {
+            popup.close();
+          }
+        } catch (error) {
+          // COOP error is expected and harmless
         }
-      }, 300000);
+        setConnecting(false);
+        setErrorMessage('Connection timeout. Please try again.');
+        popupTimeoutRef.current = null;
+      }, 300000); // 5 minutes
     } catch (error) {
       console.error('Error connecting calendar:', error);
       setErrorMessage('Failed to initiate Google Calendar connection. Please try again.');
@@ -305,9 +378,14 @@ const ConnectGoogleCalendar = () => {
               <FaCalendar className="text-3xl text-blue-600" />
             </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Connect Google Calendar</h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-2">
               Connect your Google Calendar to view and manage your events in one place.
             </p>
+            {registeredEmail && (
+              <p className="text-sm text-gray-500">
+                <span className="font-medium">Important:</span> You must connect using the same email address you registered with: <span className="font-semibold text-gray-700">{registeredEmail}</span>
+              </p>
+            )}
           </div>
 
           <button
@@ -378,6 +456,14 @@ const ConnectGoogleCalendar = () => {
                   ? 'View your calendar events. Students have read-only access.'
                   : 'View and manage your calendar events.'}
               </p>
+              {connectedGoogleEmail && (
+                <div className="mt-2 text-sm text-gray-500">
+                  <span className="font-medium">Connected Google Account:</span> {connectedGoogleEmail}
+                  {registeredEmail && registeredEmail.toLowerCase() !== connectedGoogleEmail.toLowerCase() && (
+                    <span className="ml-2 text-yellow-600">⚠️</span>
+                  )}
+                </div>
+              )}
               {connected && hasFullScope === false && (
                 <div className="mt-3 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
                   <div className="flex items-start gap-3">

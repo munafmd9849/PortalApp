@@ -230,7 +230,17 @@ const ResumeBuilder = () => {
         institution: newEducation.institution.trim(),
         startYear: newEducation.startYear ? parseInt(newEducation.startYear, 10) : null,
         endYear: newEducation.endYear ? parseInt(newEducation.endYear, 10) : null,
-        cgpa: newEducation.cgpa ? parseFloat(newEducation.cgpa) : null,
+        // Preserve CGPA as string to avoid floating point rounding
+        // Backend will validate and convert to Decimal
+        cgpa: newEducation.cgpa ? (() => {
+          const cgpaStr = String(newEducation.cgpa).trim();
+          // Ensure it has 2 decimal places
+          if (cgpaStr.includes('.')) {
+            const parts = cgpaStr.split('.');
+            return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+          }
+          return cgpaStr + '.00';
+        })() : null,
       };
       await addEducationArray(user.id, educationData);
       const profile = await getStudentProfile(user.id);
@@ -256,7 +266,17 @@ const ResumeBuilder = () => {
         institution: editingEducation.institution.trim(),
         startYear: editingEducation.startYear ? parseInt(editingEducation.startYear, 10) : null,
         endYear: editingEducation.endYear ? parseInt(editingEducation.endYear, 10) : null,
-        cgpa: editingEducation.cgpa ? parseFloat(editingEducation.cgpa) : null,
+        // Preserve CGPA as string to avoid floating point rounding
+        // Backend will validate and convert to Decimal
+        cgpa: editingEducation.cgpa ? (() => {
+          const cgpaStr = String(editingEducation.cgpa).trim();
+          // Ensure it has 2 decimal places
+          if (cgpaStr.includes('.')) {
+            const parts = cgpaStr.split('.');
+            return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+          }
+          return cgpaStr + '.00';
+        })() : null,
       };
       await updateEducationArray(user.id, eduId, educationData);
       const profile = await getStudentProfile(user.id);
