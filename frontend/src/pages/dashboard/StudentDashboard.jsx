@@ -677,6 +677,7 @@ export default function StudentDashboard() {
     setIsResumeModalOpen(false);
     setPendingJob(null);
     setActiveTab('resume');
+    navigate('/student?tab=resume', { replace: true });
   };
 
   const hasApplied = (jobId) => {
@@ -762,15 +763,29 @@ export default function StudentDashboard() {
   useEffect(() => {
     const tab = searchParams.get('tab');
 
-    const handleEditProfileClick = () => setActiveTab('editProfile');
-    const handleNavigateToJobs = () => setActiveTab('jobs');
-    const handleNavigateToApplications = () => setActiveTab('applications');
+    const handleEditProfileClick = () => {
+      setActiveTab('editProfile');
+      navigate('/student?tab=editProfile', { replace: true });
+    };
+    const handleNavigateToJobs = () => {
+      setActiveTab('jobs');
+      navigate('/student?tab=jobs', { replace: true });
+    };
+    const handleNavigateToApplications = () => {
+      setActiveTab('applications');
+      navigate('/student?tab=applications', { replace: true });
+    };
+    const handleNavigateToQuery = () => {
+      setActiveTab('raiseQuery');
+      navigate('/student?tab=raiseQuery', { replace: true });
+    };
 
     window.addEventListener('editProfileClicked', handleEditProfileClick);
     window.addEventListener('navigateToJobs', handleNavigateToJobs);
     window.addEventListener('navigateToApplications', handleNavigateToApplications);
+    window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
       const isRefresh = window.performance.navigation?.type === 1 ||
         window.performance.getEntriesByType('navigation')[0]?.type === 'reload';
 
@@ -780,7 +795,8 @@ export default function StudentDashboard() {
         setActiveTab('dashboard');
         navigate('/student', { replace: true });
       }
-    } else {
+    } else if (tab === null || tab === '') {
+      // Only reset to dashboard if there's no tab parameter at all
       setActiveTab('dashboard');
     }
 
@@ -788,6 +804,7 @@ export default function StudentDashboard() {
       window.removeEventListener('editProfileClicked', handleEditProfileClick);
       window.removeEventListener('navigateToJobs', handleNavigateToJobs);
       window.removeEventListener('navigateToApplications', handleNavigateToApplications);
+      window.removeEventListener('navigateToQuery', handleNavigateToQuery);
     };
   }, [searchParams, navigate]);
 
@@ -1292,6 +1309,7 @@ export default function StudentDashboard() {
         setShowFloatingAlert(false);
         setAlertMessage(null);
         setActiveTab('dashboard');
+        navigate('/student', { replace: true });
       }, 3000);
     } catch (err) {
       console.error('Failed to save profile', err);
@@ -1388,6 +1406,14 @@ export default function StudentDashboard() {
     // Clear alert when switching tabs
     setShowFloatingAlert(false);
     setAlertMessage(null);
+    // Update URL to reflect the current tab
+    if (tabId === 'dashboard') {
+      // Remove tab parameter for dashboard (default view)
+      navigate('/student', { replace: true });
+    } else {
+      // Update URL with current tab
+      navigate(`/student?tab=${tabId}`, { replace: true });
+    }
   };
 
   const handleSkillClick = (skillId) => {
@@ -1664,7 +1690,10 @@ export default function StudentDashboard() {
                     </p>
                   </div>
                   <button
-                    onClick={() => setActiveTab('editProfile')}
+                    onClick={() => {
+                      setActiveTab('editProfile');
+                      navigate('/student?tab=editProfile', { replace: true });
+                    }}
                     className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium cursor-pointer"
                   >
                     Complete Profile Now

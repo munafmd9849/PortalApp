@@ -439,9 +439,6 @@ const Recommendations = () => {
                             return cgpaStr;
                           })()
                         : 'N/A'}
-                            return cgpaStr + '.00';
-                          })()
-                        : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {student.source === 'recommended' ? (

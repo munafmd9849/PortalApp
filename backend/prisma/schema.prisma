@@ -770,6 +770,9 @@ model Interview {
   // Creator
   createdBy String? // User ID of the admin who created the interview
 
+  // Session Token (for token-based access without login)
+  sessionToken String? @unique // Unique token for session access
+
   // Timestamps
   startedAt   DateTime  @default(now())
   completedAt DateTime?
@@ -783,6 +786,7 @@ model Interview {
   @@index([status, startedAt(sort: Desc)])
   @@index([jobId])
   @@index([createdBy])
+  @@index([sessionToken])
   @@map("interviews")
 }
 

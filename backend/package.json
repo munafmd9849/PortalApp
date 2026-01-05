@@ -14,7 +14,8 @@
     "db:mock-resumes": "node scripts/insertMockResumes.js",
     "db:mock-jobs": "node scripts/insertMockJobs.js",
     "worker": "node src/workers/index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:google-ai": "node test-google-ai.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.490.0",

@@ -19,9 +19,9 @@ GEMINI_API_KEY=your_api_key_here
 GOOGLE_GEMINI_API_KEY=your_api_key_here
 
 # Google AI Model Name (REQUIRED - no default)
-GOOGLE_AI_MODEL=gemini-1.5-flash
+GOOGLE_AI_MODEL=gemini-2.5-flash
 # OR (for backward compatibility)
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ### Optional Variables
@@ -39,9 +39,9 @@ GOOGLE_AI_TEMPERATURE=0.7
 
 The model name is **completely configurable** via environment variables. Common models include:
 
-- `gemini-1.5-flash` (recommended - fast and free tier friendly)
+- `gemini-2.5-flash` (recommended - latest, fast and efficient)
+- `gemini-1.5-flash` (previous version, still supported)
 - `gemini-1.5-pro` (higher quality, slower)
-- `gemini-2.0-flash` (newer, may require v1 API)
 - `gemini-2.5-flash` (newer, may require v1 API)
 
 **Note:** Model availability depends on your Google AI API access level and API version.
@@ -104,7 +104,7 @@ To change the AI model, **only update the environment variable**:
 
 ```bash
 # Change model
-export GOOGLE_AI_MODEL=gemini-1.5-pro
+export GOOGLE_AI_MODEL=gemini-2.5-flash
 
 # Restart the server
 npm run dev

@@ -25,6 +25,7 @@ import adminRequestRoutes from './routes/adminRequests.js';
 import recruiterRoutes from './routes/recruiters.js';
 import contactRoutes from './routes/contact.js';
 import interviewRoutes from './routes/interviews.js';
+import interviewTokenRoutes from './routes/interviewToken.js';
 import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
 import calendarRoutes from './routes/calendar.js';
 import endorsementRoutes from './routes/endorsements.js';
@@ -38,6 +39,14 @@ const __dirname = dirname(__filename);
 
 // Load .env file from the backend root directory (parent of src/)
 dotenv.config({ path: join(__dirname, '../.env') });
+
+// DEBUG: Verify .env loading for Google AI
+console.log('🔍 [DEBUG] Environment Variables Check:');
+console.log('  - GOOGLE_AI_API_KEY:', process.env.GOOGLE_AI_API_KEY ? `${process.env.GOOGLE_AI_API_KEY.substring(0, 10)}...${process.env.GOOGLE_AI_API_KEY.substring(process.env.GOOGLE_AI_API_KEY.length - 5)} (${process.env.GOOGLE_AI_API_KEY.length} chars)` : '❌ NOT SET');
+console.log('  - GOOGLE_AI_MODEL:', process.env.GOOGLE_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash (default)');
+console.log('  - GOOGLE_AI_MAX_TOKENS:', process.env.GOOGLE_AI_MAX_TOKENS || '2048 (default)');
+console.log('  - GOOGLE_AI_TEMPERATURE:', process.env.GOOGLE_AI_TEMPERATURE || '0.7 (default)');
+console.log('  - AI_ENABLED:', process.env.AI_ENABLED !== 'false' ? 'true' : 'false');
 
 const app = express();
 const server = http.createServer(app);
@@ -133,6 +142,7 @@ app.use('/api/admin-requests', adminRequestRoutes);
 app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin/interview', interviewRoutes);
+app.use('/api/interview', interviewTokenRoutes); // Token-based interview routes (no auth required)
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
 app.use('/api/calendar', calendarRoutes); // New unified calendar routes
 app.use('/api/endorsements', endorsementRoutes);
@@ -157,6 +167,14 @@ app.get('/auth/google/callback', async (req, res) => {
   return handleOAuthCallback(req, res);
 });
 
+// Additional callback route for /api/calendar/oauth/callback
+// This handles redirects from Google Cloud Console if configured with this path
+app.get('/api/calendar/oauth/callback', async (req, res) => {
+  // Use secure handler with email validation (googleCalendarConnect.js)
+  const { handleOAuthCallback } = await import('./controllers/googleCalendarConnect.js');
+  return handleOAuthCallback(req, res);
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
@@ -173,7 +191,14 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  console.log(`[404] Route not found: ${req.method} ${req.originalUrl}`);
+  console.log(`[404] Available routes: /api/calendar/oauth-url, /auth/google/callback, /auth/google/calendar/callback`);
+  res.status(404).json({ 
+    error: 'Route not found',
+    method: req.method,
+    path: req.originalUrl,
+    suggestion: 'Check if the route exists and if you are authenticated (for protected routes)'
+  });
 });
 
 // Start server

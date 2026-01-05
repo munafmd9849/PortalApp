@@ -4,6 +4,7 @@
  */
 
 import prisma from '../config/database.js';
+import { generateSessionToken } from '../utils/sessionToken.js';
 
 /**
  * Start or resume an interview session for a job
@@ -30,6 +31,14 @@ export const startInterviewSession = async (req, res) => {
     });
 
     if (interview) {
+      // Generate token if it doesn't exist
+      if (!interview.sessionToken) {
+        interview = await prisma.interview.update({
+          where: { id: interview.id },
+          data: { sessionToken: generateSessionToken() },
+        });
+      }
+      
       // Resume existing session
       return res.json({
         message: 'Interview session resumed',
@@ -44,6 +53,7 @@ export const startInterviewSession = async (req, res) => {
           pendingCandidates: interview.pendingCandidates,
           selectedCandidates: interview.selectedCandidates,
           onHoldCandidates: interview.onHoldCandidates,
+          sessionToken: interview.sessionToken,
           startedAt: interview.startedAt,
           job: {
             jobTitle: job.jobTitle,
@@ -66,6 +76,9 @@ export const startInterviewSession = async (req, res) => {
       { name: 'HR Round', status: 'pending', order: 3 },
     ];
 
+    // Generate session token
+    const sessionToken = generateSessionToken();
+
     // Create new interview session
     interview = await prisma.interview.create({
       data: {
@@ -80,6 +93,7 @@ export const startInterviewSession = async (req, res) => {
         selectedCandidates: 0,
         onHoldCandidates: 0,
         createdBy: userId,
+        sessionToken, // Add session token
       },
     });
 
@@ -107,6 +121,7 @@ export const startInterviewSession = async (req, res) => {
         pendingCandidates: interview.pendingCandidates,
         selectedCandidates: interview.selectedCandidates,
         onHoldCandidates: interview.onHoldCandidates,
+        sessionToken: interview.sessionToken,
         startedAt: interview.startedAt,
         job: {
           jobTitle: job.jobTitle,
@@ -266,10 +281,17 @@ export const startAssessment = async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    // Validate interview status
-    if (interview.status !== 'ONGOING') {
-      return res.status(400).json({ error: 'Interview session is not ongoing' });
+    // Validate interview status - allow ONGOING or any non-terminal status
+    const normalizedStatus = interview.status?.toUpperCase();
+    if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'CANCELLED') {
+      return res.status(400).json({ 
+        error: `Interview session has ended. Current status: ${interview.status}`,
+        currentStatus: interview.status
+      });
     }
+    
+    // If status is not set or is something unexpected, default to allowing it (for flexibility)
+    // This handles cases where status might be null, undefined, or a different value
 
     let rounds = JSON.parse(interview.rounds || '[]');
     const roundIndex = rounds.findIndex((r) => r.name === roundName);

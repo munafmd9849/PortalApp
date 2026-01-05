@@ -568,9 +568,9 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  getPlacementGuidance: (query, context = 'placement_resources') => apiRequest('/placement/ai', {
+  getPlacementGuidance: (topic) => apiRequest('/placement/ai', {
     method: 'POST',
-    body: JSON.stringify({ query, context }),
+    body: JSON.stringify({ topic }),
   }),
 
   // Recruiters (Admin)
