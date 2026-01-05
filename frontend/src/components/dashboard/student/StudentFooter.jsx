@@ -1,11 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import brandLogo from '../../../assets/images/brand_logo.webp';
 // Placement Policy Google Doc
 const policyDoc = 'https://docs.google.com/document/d/1yEH5gMSux0cCf8UmS1d4p1GpZvL-nRzQHLutu8MrZoY/edit?usp=sharing';
 
 const StudentFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam, onPlacementPolicy }) => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const linkedinLink = "https://www.linkedin.com/school/pw-ioi/";
     const instagramLink = "https://www.instagram.com/pw_ioi/";
     const youtubeLink = "https://www.youtube.com/@PW-IOI";
@@ -74,7 +76,17 @@ const StudentFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam, onPlacementP
                         href="#"
                         onClick={(e) => {
                             e.preventDefault();
-                            navigate('/query');
+                            // If already on student page, dispatch custom event to switch tab
+                            // Otherwise navigate to student page with query param
+                            if (location.pathname === '/student') {
+                                // Dispatch custom event that StudentDashboard listens to
+                                window.dispatchEvent(new CustomEvent('navigateToQuery'));
+                                // Also update URL to keep it in sync
+                                setSearchParams({ tab: 'raiseQuery' }, { replace: false });
+                            } else {
+                                // Not on student page, navigate there
+                                navigate('/student?tab=raiseQuery');
+                            }
                         }}
                         className="text-gray-400 no-underline mb-3 relative inline-block transition-all duration-300 pl-0 hover:text-white hover:pl-5 before:content-['→'] before:absolute before:left-[-20px] before:opacity-0 before:transition-all before:duration-300 hover:before:opacity-100 hover:before:left-0 text-left cursor-pointer"
                     >

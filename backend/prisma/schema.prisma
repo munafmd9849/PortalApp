@@ -34,6 +34,7 @@ model User {
 
   // Google Calendar integration
   googleCalendarConnected Boolean @default(false)
+  connectedGoogleEmail    String? // Email of the connected Google Calendar account (must match user.email)
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -99,10 +100,10 @@ model Student {
 
   // Basic Info
   fullName     String
-  email        String  @unique
+  email        String   @unique
   phone        String
-  enrollmentId String? @unique // Optional during registration, user provides it later
-  cgpa         Float?
+  enrollmentId String?  @unique // Optional during registration, user provides it later
+  cgpa         Decimal? // Stored as Decimal type (SQLite uses TEXT for Decimal, preserves precision)
 
   // Academic Info
   batch  String // e.g., "25-29"
@@ -198,7 +199,7 @@ model Education {
   institution String
   startYear   Int?
   endYear     Int?
-  cgpa        Float?
+  cgpa        Decimal? // Stored as Decimal type (SQLite uses TEXT for Decimal, preserves precision)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -614,38 +615,38 @@ model StudentQuery {
 // ============================================================================
 
 model Endorsement {
-  id           String  @id @default(uuid())
-  studentId    String
-  tokenId      String? @unique // Link to EndorsementToken (for tracking) - unique for one-to-one relation
+  id        String  @id @default(uuid())
+  studentId String
+  tokenId   String? @unique // Link to EndorsementToken (for tracking) - unique for one-to-one relation
 
   // Endorser Information (REQUIRED)
-  endorserName        String   // REQUIRED - Name of endorser
-  endorserEmail       String   // FROM TOKEN (READ ONLY) - Email from token
-  endorserRole        String   // REQUIRED - Professor, Manager, Mentor, etc.
-  organization        String   // REQUIRED - Organization name
+  endorserName  String // REQUIRED - Name of endorser
+  endorserEmail String // FROM TOKEN (READ ONLY) - Email from token
+  endorserRole  String // REQUIRED - Professor, Manager, Mentor, etc.
+  organization  String // REQUIRED - Organization name
 
   // Relationship & Context
-  relationship        String   // REQUIRED - Professor / Manager / Mentor / Guide
-  context             String?  // OPTIONAL - Course / Project / Internship / etc.
+  relationship String // REQUIRED - Professor / Manager / Mentor / Guide
+  context      String? // OPTIONAL - Course / Project / Internship / etc.
 
   // Endorsement Content
-  message             String   // REQUIRED - Endorsement message (10-2000 chars)
-  skills              String   @default("[]") // JSON array of skills (stored as string for SQLite)
-  skillRatings        String?  // JSON object: { skill: rating } (optional)
+  message      String // REQUIRED - Endorsement message (10-2000 chars)
+  skills       String  @default("[]") // JSON array of skills (stored as string for SQLite)
+  skillRatings String? // JSON object: { skill: rating } (optional)
 
   // Rating
-  overallRating       Int?     // OPTIONAL - Overall rating (1-5)
+  overallRating Int? // OPTIONAL - Overall rating (1-5)
 
   // Consent & Verification
-  consent             Boolean  @default(false) // REQUIRED - Must be true
-  verified            Boolean  @default(true)  // Verified via secure token
+  consent  Boolean @default(false) // REQUIRED - Must be true
+  verified Boolean @default(true) // Verified via secure token
 
   // Timestamps
-  createdAt           DateTime @default(now())
-  submittedAt         DateTime @default(now())
+  createdAt   DateTime @default(now())
+  submittedAt DateTime @default(now())
 
   // Relations
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   token   EndorsementToken? @relation(fields: [tokenId], references: [id])
 
   @@index([studentId, createdAt(sort: Desc)])
@@ -672,7 +673,7 @@ model EndorsementToken {
   organization String? // Optional: organization name
 
   // Relations
-  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   endorsement Endorsement? // One-to-one: token can create one endorsement
 
   @@index([token])
@@ -730,18 +731,20 @@ model Admin {
 // ============================================================================
 
 model GoogleCalendarToken {
-  id           String    @id @default(uuid())
-  userId       String    @unique
-  accessToken  String
-  refreshToken String?
-  expiryDate   DateTime?
-  scope        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  accessToken          String
+  refreshToken         String?
+  expiryDate           DateTime?
+  scope                String?
+  connectedGoogleEmail String? // Email of the connected Google Calendar account (for verification)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([connectedGoogleEmail])
   @@map("google_calendar_tokens")
 }
 
@@ -755,7 +758,7 @@ model Interview {
   companyId    String?
   status       String  @default("ONGOING") // InterviewStatus: ONGOING, COMPLETED, CANCELLED
   currentRound String? // Name of the current round
-  rounds       String  @default("[]") // JSON array of rounds: [{ name, criteria, status }]
+  rounds       String  @default("[]") // JSON array of rounds: [{ name, criteria, status, order }]
 
   // Statistics
   totalCandidates    Int @default(0)
@@ -763,6 +766,12 @@ model Interview {
   pendingCandidates  Int @default(0)
   selectedCandidates Int @default(0)
   onHoldCandidates   Int @default(0)
+
+  // Creator
+  createdBy String? // User ID of the admin who created the interview
+
+  // Session Token (for token-based access without login)
+  sessionToken String? @unique // Unique token for session access
 
   // Timestamps
   startedAt   DateTime  @default(now())
@@ -776,6 +785,8 @@ model Interview {
   @@unique([jobId])
   @@index([status, startedAt(sort: Desc)])
   @@index([jobId])
+  @@index([createdBy])
+  @@index([sessionToken])
   @@map("interviews")
 }
 
@@ -805,8 +816,9 @@ model InterviewActivity {
   interviewId  String
   studentId    String?
   roundName    String?
-  activityType String // ActivityType: EVALUATION, ROUND_STARTED, ROUND_COMPLETED, SESSION_ENDED
+  activityType String // ActivityType: SESSION_STARTED, ROUND_STARTED, EVALUATION, SESSION_ENDED
   message      String
+  metadata     String? // JSON string for additional data: { candidateId, roundName, status, etc. }
   performedBy  String? // User ID
   createdAt    DateTime @default(now())
 
@@ -814,5 +826,6 @@ model InterviewActivity {
   interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 
   @@index([interviewId, createdAt(sort: Desc)])
+  @@index([activityType])
   @@map("interview_activities")
 }

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Session - In Progress</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header fade-in">
+      <h1>🎯 Interview Session</h1>
+      <p class="subtitle" id="roundSubtitle">Conducting interview</p>
+    </div>
+
+    <div id="loadingState" class="card">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading session...</p>
+      </div>
+    </div>
+
+    <div id="sessionContent" style="display: none;">
+      <!-- Session Info -->
+      <div class="card">
+        <div class="session-info">
+          <div class="session-info-item">
+            <span class="session-info-label">Round:</span>
+            <span class="session-info-value" id="roundName">-</span>
+          </div>
+          <div class="session-info-item">
+            <span class="session-info-label">Mode:</span>
+            <span class="session-info-value" id="interviewMode">-</span>
+          </div>
+          <div class="session-info-item">
+            <span class="session-info-label">Interviewer:</span>
+            <span class="session-info-value" id="interviewerName">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timer -->
+      <div class="card">
+        <div class="timer" id="timer">00:00:00</div>
+        <div class="text-center">
+          <button class="btn btn-secondary" onclick="resetTimer()">Reset Timer</button>
+        </div>
+      </div>
+
+      <!-- Candidate Card -->
+      <div class="card fade-in">
+        <h2 class="card-title">👤 Candidate Information</h2>
+        <div class="candidate-card" id="candidateCard">
+          <div class="candidate-header">
+            <div>
+              <div class="candidate-name" id="candidateName">Loading...</div>
+              <div class="candidate-id" id="candidateId">-</div>
+            </div>
+          </div>
+          <div class="session-info">
+            <div class="session-info-item">
+              <span class="session-info-label">Email:</span>
+              <span class="session-info-value" id="candidateEmail">-</span>
+            </div>
+            <div class="session-info-item">
+              <span class="session-info-label">Resume:</span>
+              <span class="session-info-value">
+                <a href="#" id="candidateResume" target="_blank">View Resume</a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Round Objectives -->
+      <div class="card fade-in">
+        <h2 class="card-title">🎯 Round Objectives</h2>
+        <p id="roundDescription" style="color: #666; line-height: 1.8;">-</p>
+      </div>
+
+      <!-- Feedback Form -->
+      <div class="card fade-in">
+        <h2 class="card-title">📝 Interview Feedback</h2>
+        <form id="feedbackForm">
+          <!-- Rating -->
+          <div class="form-group">
+            <label>Overall Rating <span class="required">*</span></label>
+            <div class="rating-group">
+              <button type="button" class="rating-btn" data-rating="1" onclick="selectRating(1)">1 - Poor</button>
+              <button type="button" class="rating-btn" data-rating="2" onclick="selectRating(2)">2 - Fair</button>
+              <button type="button" class="rating-btn" data-rating="3" onclick="selectRating(3)">3 - Good</button>
+              <button type="button" class="rating-btn" data-rating="4" onclick="selectRating(4)">4 - Very Good</button>
+              <button type="button" class="rating-btn" data-rating="5" onclick="selectRating(5)">5 - Excellent</button>
+            </div>
+            <input type="hidden" id="rating" name="rating" required>
+          </div>
+
+          <!-- Recommendation -->
+          <div class="form-group">
+            <label>Recommendation <span class="required">*</span></label>
+            <div class="recommendation-group">
+              <label class="recommendation-option" onclick="selectRecommendation('SELECTED', this)">
+                <input type="radio" name="recommendation" value="SELECTED" required>
+                <span>Selected - Proceed to next round</span>
+              </label>
+              <label class="recommendation-option" onclick="selectRecommendation('ON_HOLD', this)">
+                <input type="radio" name="recommendation" value="ON_HOLD" required>
+                <span>On Hold - Review later</span>
+              </label>
+              <label class="recommendation-option" onclick="selectRecommendation('REJECTED', this)">
+                <input type="radio" name="recommendation" value="REJECTED" required>
+                <span>Rejected - Do not proceed</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label for="notes">Interview Notes</label>
+            <textarea 
+              id="notes" 
+              name="notes" 
+              placeholder="Enter your interview notes, observations, and feedback..."
+              rows="8"
+            ></textarea>
+            <div class="help-text">Your notes are private and will not be visible to other interviewers</div>
+          </div>
+
+          <div class="alert alert-info">
+            <strong>Privacy:</strong> Your feedback is submitted independently. Other interviewers cannot see your evaluation.
+          </div>
+
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+              Submit Feedback
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="session-mock-api.js"></script>
+  <script>
+    let sessionData = null;
+    let interviewerData = null;
+    let candidateData = null;
+    let timerStartTime = null;
+    let timerInterval = null;
+    let selectedRating = null;
+
+    // Load data
+    interviewerData = JSON.parse(sessionStorage.getItem('interviewerData') || '{}');
+    
+    if (!interviewerData.sessionId) {
+      alert('No session data found. Redirecting to join page.');
+      window.location.href = 'interviewer-join.html';
+      return;
+    }
+
+    function loadSession() {
+      sessionData = window.MockAPI.getSession(interviewerData.sessionId);
+      
+      if (!sessionData) {
+        alert('Session not found.');
+        window.location.href = 'interviewer-join.html';
+        return;
+      }
+
+      if (sessionData.status !== 'active') {
+        alert('Session is not active yet.');
+        window.location.href = 'interviewer-waiting-room.html';
+        return;
+      }
+
+      // Find interviewer
+      const interviewer = sessionData.interviewers.find(inv => inv.id === interviewerData.interviewerId);
+      if (!interviewer) {
+        alert('Interviewer not found in session.');
+        return;
+      }
+
+      // Get assigned candidate
+      if (!interviewer.assignedCandidateId) {
+        alert('No candidate assigned yet.');
+        return;
+      }
+
+      candidateData = sessionData.candidates.find(c => c.id === interviewer.assignedCandidateId);
+      if (!candidateData) {
+        alert('Candidate not found.');
+        return;
+      }
+
+      // Display data
+      document.getElementById('roundName').textContent = sessionData.roundName;
+      document.getElementById('interviewMode').textContent = 
+        sessionData.mode === 'panel' ? 'Panel Interview' : 'Parallel Interview';
+      document.getElementById('interviewerName').textContent = interviewerData.name;
+      document.getElementById('roundSubtitle').textContent = `Round: ${sessionData.roundName}`;
+      
+      // Display candidate
+      document.getElementById('candidateName').textContent = candidateData.name;
+      document.getElementById('candidateId').textContent = `Enrollment ID: ${candidateData.enrollmentId}`;
+      document.getElementById('candidateEmail').textContent = candidateData.email;
+      document.getElementById('candidateResume').href = candidateData.resume;
+
+      // Get round description (mock)
+      const roundDescription = `Evaluate the candidate's performance in ${sessionData.roundName.toLowerCase()}. 
+      Assess technical skills, communication, problem-solving abilities, and cultural fit.`;
+      document.getElementById('roundDescription').textContent = roundDescription;
+
+      // Check if feedback already submitted
+      if (interviewer.feedbackSubmitted) {
+        document.getElementById('feedbackForm').innerHTML = `
+          <div class="alert alert-success">
+            <strong>Feedback Submitted:</strong> Your feedback has been submitted and locked. 
+            You cannot modify it.
+          </div>
+        `;
+      }
+
+      // Show content
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('sessionContent').style.display = 'block';
+
+      // Start timer
+      startTimer();
+    }
+
+    function startTimer() {
+      timerStartTime = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+      updateTimer();
+    }
+
+    function updateTimer() {
+      if (!timerStartTime) return;
+      
+      const elapsed = Date.now() - timerStartTime;
+      const hours = Math.floor(elapsed / 3600000);
+      const minutes = Math.floor((elapsed % 3600000) / 60000);
+      const seconds = Math.floor((elapsed % 60000) / 1000);
+
+      const timeString = 
+        String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(seconds).padStart(2, '0');
+      
+      document.getElementById('timer').textContent = timeString;
+    }
+
+    function resetTimer() {
+      if (confirm('Reset the timer?')) {
+        timerStartTime = Date.now();
+        updateTimer();
+      }
+    }
+
+    function selectRating(rating) {
+      selectedRating = rating;
+      document.getElementById('rating').value = rating;
+      
+      // Update button styles
+      document.querySelectorAll('.rating-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        if (parseInt(btn.dataset.rating) === rating) {
+          btn.classList.add('selected');
+        }
+      });
+    }
+
+    function selectRecommendation(value, element) {
+      // Update radio button
+      document.querySelector(`input[value="${value}"]`).checked = true;
+      
+      // Update visual selection
+      document.querySelectorAll('.recommendation-option').forEach(opt => {
+        opt.classList.remove('selected');
+      });
+      element.classList.add('selected');
+    }
+
+    // Handle form submission
+    document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const formData = new FormData(this);
+      const rating = formData.get('rating');
+      const recommendation = formData.get('recommendation');
+      const notes = formData.get('notes');
+
+      if (!rating || !recommendation) {
+        alert('Please provide both rating and recommendation.');
+        return;
+      }
+
+      const feedback = {
+        rating: parseInt(rating),
+        recommendation: recommendation,
+        notes: notes || '',
+      };
+
+      const result = window.MockAPI.submitFeedback(
+        sessionData.id,
+        interviewerData.interviewerId,
+        feedback
+      );
+
+      if (result.success) {
+        alert('Feedback submitted successfully!');
+        document.getElementById('feedbackForm').innerHTML = `
+          <div class="alert alert-success">
+            <strong>Feedback Submitted:</strong> Your feedback has been recorded. 
+            Thank you for your evaluation.
+          </div>
+        `;
+        
+        // Stop timer
+        if (timerInterval) {
+          clearInterval(timerInterval);
+        }
+      } else {
+        alert('Failed to submit feedback: ' + result.error);
+      }
+    });
+
+    // Initial load
+    loadSession();
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+    });
+  </script>
+</body>
+</html>
+

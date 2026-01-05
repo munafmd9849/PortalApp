@@ -64,9 +64,32 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
     }
 
     if (formData.cgpa.trim()) {
-      const cgpaValue = parseFloat(formData.cgpa);
-      if (isNaN(cgpaValue) || cgpaValue < 0 || cgpaValue > 10) {
-        newErrors.cgpa = 'CGPA must be between 0 and 10';
+      const cgpaStr = formData.cgpa.trim();
+      // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
+      const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+      
+      if (!cgpaRegex.test(cgpaStr)) {
+        // Check if user entered value without 2 decimals (e.g., 9, 9.0, 9.5)
+        if (/^\d+$/.test(cgpaStr)) {
+          newErrors.cgpa = 'Enter CGPA with 2 decimals (e.g., 9.00)';
+        } else if (/^\d+\.\d?$/.test(cgpaStr)) {
+          newErrors.cgpa = 'Enter CGPA with 2 decimals (e.g., 9.00)';
+        } else {
+          newErrors.cgpa = 'CGPA must be between 0.00 and 10.00 with exactly 2 decimal places (e.g., 9.00, 8.75)';
+        }
+      } else {
+        // Validate range without using parseFloat to avoid rounding errors
+        const parts = cgpaStr.split('.');
+        const integerPart = parseInt(parts[0], 10);
+        const decimalPart = parseInt(parts[1], 10);
+        
+        if (isNaN(integerPart) || isNaN(decimalPart)) {
+          newErrors.cgpa = 'Invalid CGPA format';
+        } else if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+          newErrors.cgpa = 'CGPA must be between 0.00 and 10.00';
+        } else if (integerPart < 0) {
+          newErrors.cgpa = 'CGPA must be between 0.00 and 10.00';
+        }
       }
     } else {
       newErrors.cgpa = 'CGPA is required';
@@ -239,7 +262,26 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
 
   React.useEffect(() => {
     if (student && isOpen) {
-      setCgpa(student.cgpa || '');
+      // Format CGPA to always show 2 decimal places when loading
+      const cgpaValue = student.cgpa;
+      if (cgpaValue) {
+        const cgpaStr = String(cgpaValue);
+        // If it's already in format like "9.00", use as-is
+        if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+          setCgpa(cgpaStr);
+        } else if (/^\d+$/.test(cgpaStr)) {
+          // Integer like "9" -> "9.00"
+          setCgpa(cgpaStr + '.00');
+        } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+          // Has decimal but not 2 places
+          const parts = cgpaStr.split('.');
+          setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
+        } else {
+          setCgpa(cgpaStr);
+        }
+      } else {
+        setCgpa('');
+      }
       setError('');
     }
   }, [student, isOpen]);
@@ -248,16 +290,63 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
     e.preventDefault();
     setError('');
 
-    // Validate CGPA
-    const cgpaValue = parseFloat(cgpa);
-    if (isNaN(cgpaValue) || cgpaValue < 0 || cgpaValue > 10) {
-      setError('CGPA must be between 0 and 10');
-      return;
+    // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
+    const cgpaStr = String(cgpa).trim();
+    if (cgpaStr) {
+      const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+      
+      if (!cgpaRegex.test(cgpaStr)) {
+        // Check if user entered value without 2 decimals (e.g., 9, 9.0, 9.5)
+        if (/^\d+$/.test(cgpaStr)) {
+          setError('Enter CGPA with 2 decimals (e.g., 9.00)');
+        } else if (/^\d+\.\d?$/.test(cgpaStr)) {
+          setError('Enter CGPA with 2 decimals (e.g., 9.00)');
+        } else {
+          setError('CGPA must be between 0.00 and 10.00 with exactly 2 decimal places (e.g., 9.00, 8.75)');
+        }
+        return;
+      }
+      
+      // Validate range without using parseFloat to avoid rounding errors
+      const parts = cgpaStr.split('.');
+      const integerPart = parseInt(parts[0], 10);
+      const decimalPart = parseInt(parts[1], 10);
+      
+      if (isNaN(integerPart) || isNaN(decimalPart)) {
+        setError('Invalid CGPA format');
+        return;
+      } else if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+        setError('CGPA must be between 0.00 and 10.00');
+        return;
+      } else if (integerPart < 0) {
+        setError('CGPA must be between 0.00 and 10.00');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      await onSave(student.id, { cgpa: cgpaValue.toString() });
+      // Format CGPA to exactly 2 decimal places without rounding
+      let formattedCgpa = null;
+      if (cgpaStr) {
+        // If already in correct format (e.g., 9.00), use as-is
+        if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+          formattedCgpa = cgpaStr;
+        } else {
+          // Format to 2 decimal places without rounding
+          const parts = cgpaStr.split('.');
+          if (parts.length === 1) {
+            // Integer like "9" -> "9.00"
+            formattedCgpa = parts[0] + '.00';
+          } else {
+            // Has decimal part
+            const integerPart = parts[0];
+            const decimalPart = parts[1].substring(0, 2).padEnd(2, '0');
+            formattedCgpa = integerPart + '.' + decimalPart;
+          }
+        }
+      }
+      await onSave(student.id, { cgpa: formattedCgpa });
       onClose();
     } catch (err) {
       console.error('Error updating CGPA:', err);
@@ -300,20 +389,58 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
               CGPA <span className="text-red-500">*</span>
             </label>
             <input
-              type="number"
+              type="text"
               value={cgpa}
-              onChange={(e) => setCgpa(e.target.value)}
-              min="0"
-              max="10"
-              step="0.01"
-              placeholder="Enter CGPA (0-10)"
+              onChange={(e) => {
+                // Enforce exactly 2 decimal places
+                const value = e.target.value;
+                const sanitized = value.replace(/[^0-9.]/g, '');
+                const parts = sanitized.split('.');
+                let finalValue = parts[0] || '';
+                
+                // If user has typed a decimal point, ensure we format to 2 decimal places
+                if (parts.length > 1) {
+                  const decimals = parts.slice(1).join('').substring(0, 2);
+                  // Always show 2 decimal places if decimal point is present
+                  finalValue += '.' + decimals.padEnd(2, '0');
+                }
+                
+                // Ensure value doesn't exceed 10.00
+                if (finalValue) {
+                  const numValue = parseFloat(finalValue);
+                  if (!isNaN(numValue) && numValue > 10) {
+                    finalValue = '10.00';
+                  } else if (!isNaN(numValue) && numValue < 0) {
+                    finalValue = '0.00';
+                  }
+                }
+                
+                setCgpa(finalValue);
+              }}
+              onBlur={(e) => {
+                // On blur, ensure exactly 2 decimal places if value exists
+                const value = e.target.value.trim();
+                if (value && !value.includes('.')) {
+                  // If user entered integer (e.g., 9), format to 9.00
+                  setCgpa(value + '.00');
+                } else if (value && value.includes('.')) {
+                  const parts = value.split('.');
+                  if (parts[1] && parts[1].length < 2) {
+                    // If user entered 9.0 or 9.5, pad to 2 decimals
+                    setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0'));
+                  }
+                }
+              }}
+              placeholder="Enter CGPA (e.g., 9.00, 8.75)"
+              pattern="^(10\.00|[0-9]\.[0-9]{2})$"
+              maxLength="5"
               className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 error ? 'border-red-500' : 'border-gray-300'
               }`}
               required
             />
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-            <p className="text-xs text-gray-500 mt-1">Enter a value between 0 and 10</p>
+            <p className="text-xs text-gray-500 mt-1">Format: Must have exactly 2 decimals (e.g., 9.00, 8.75). Values like 9 or 9.0 are not accepted.</p>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -546,7 +673,20 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData, onStud
                         <span className="font-medium text-gray-700">ID:</span> {currentStudent?.enrollmentId || student?.enrollmentId || 'N/A'}
                       </div>
                       <div>
-                        <span className="font-medium text-gray-700">CGPA:</span> {currentStudent?.cgpa || student?.cgpa || 'N/A'}
+                        <span className="font-medium text-gray-700">CGPA:</span> {(() => {
+                          const cgpaValue = currentStudent?.cgpa || student?.cgpa;
+                          if (!cgpaValue) return 'N/A';
+                          const cgpaStr = String(cgpaValue);
+                          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+                            return cgpaStr;
+                          } else if (/^\d+$/.test(cgpaStr)) {
+                            return cgpaStr + '.00';
+                          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                            const parts = cgpaStr.split('.');
+                            return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                          }
+                          return cgpaStr;
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -860,8 +1000,31 @@ export default function StudentDirectory() {
     const matchesCenter = filters.center ? student.center === filters.center : true;
     const matchesSchool = filters.school ? student.school === filters.school : true;
     const matchesStatus = filters.status ? student.status === filters.status : true;
-    const matchesMinCgpa = filters.minCgpa ? parseFloat(student.cgpa || 0) >= parseFloat(filters.minCgpa) : true;
-    const matchesMaxCgpa = filters.maxCgpa ? parseFloat(student.cgpa || 0) <= parseFloat(filters.maxCgpa) : true;
+    // Compare CGPA values using string comparison when possible to avoid rounding errors
+    const matchesMinCgpa = filters.minCgpa ? (() => {
+      const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
+      const minCgpa = String(filters.minCgpa).trim();
+      // Normalize both to 2 decimal places for comparison
+      const studentParts = studentCgpa.includes('.') ? studentCgpa.split('.') : [studentCgpa, '00'];
+      const minParts = minCgpa.includes('.') ? minCgpa.split('.') : [minCgpa, '00'];
+      const studentInt = parseInt(studentParts[0] || '0', 10);
+      const studentDec = parseInt((studentParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
+      const minInt = parseInt(minParts[0] || '0', 10);
+      const minDec = parseInt((minParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
+      return studentInt > minInt || (studentInt === minInt && studentDec >= minDec);
+    })() : true;
+    const matchesMaxCgpa = filters.maxCgpa ? (() => {
+      const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
+      const maxCgpa = String(filters.maxCgpa).trim();
+      // Normalize both to 2 decimal places for comparison
+      const studentParts = studentCgpa.includes('.') ? studentCgpa.split('.') : [studentCgpa, '00'];
+      const maxParts = maxCgpa.includes('.') ? maxCgpa.split('.') : [maxCgpa, '00'];
+      const studentInt = parseInt(studentParts[0] || '0', 10);
+      const studentDec = parseInt((studentParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
+      const maxInt = parseInt(maxParts[0] || '0', 10);
+      const maxDec = parseInt((maxParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
+      return studentInt < maxInt || (studentInt === maxInt && studentDec <= maxDec);
+    })() : true;
 
     return (
       matchesSearch &&
@@ -1650,7 +1813,23 @@ export default function StudentDirectory() {
                             <FaGraduationCap className="w-4 h-4 text-green-600" />
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-gray-900">{student.cgpa || 'N/A'}</div>
+                            <div className="text-sm font-semibold text-gray-900">
+                              {student.cgpa 
+                                ? (() => {
+                                    // Ensure CGPA is displayed with exactly 2 decimal places
+                                    const cgpaStr = String(student.cgpa);
+                                    if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+                                      return cgpaStr;
+                                    } else if (/^\d+$/.test(cgpaStr)) {
+                                      return cgpaStr + '.00';
+                                    } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                                      const parts = cgpaStr.split('.');
+                                      return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                                    }
+                                    return cgpaStr;
+                                  })()
+                                : 'N/A'}
+                            </div>
                           </div>
                         </div>
                       </td>

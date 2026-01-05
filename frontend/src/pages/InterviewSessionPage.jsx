@@ -206,7 +206,9 @@ const InterviewSessionPage = () => {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({
+          action: 'update',
           roundName: roundName,
+          newRoundName: roundName,
           criteria: criteriaText
         }),
       });
@@ -287,6 +289,37 @@ const InterviewSessionPage = () => {
     setCriteriaText('');
   };
 
+  const handleEndSession = async () => {
+    if (!window.confirm('Are you sure you want to end this interview session? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to end session');
+      }
+
+      const data = await response.json();
+      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.totalCandidates}\n- Done: ${data.summary.doneCandidates}\n- Selected: ${data.summary.selectedCandidates}\n- On Hold: ${data.summary.onHoldCandidates}\n- Rejected: ${data.summary.rejectedCandidates}`);
+      
+      // Reload interview data to show completed status
+      window.location.reload();
+    } catch (error) {
+      console.error('Error ending session:', error);
+      alert(`Failed to end session: ${error.message}`);
+    }
+  };
+
   const handleStartAssessment = async (roundName) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -299,20 +332,14 @@ const InterviewSessionPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start assessment');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to start assessment');
       }
 
       const data = await response.json();
       
-      // Update local state
-      setInterviewData(prev => ({
-        ...prev,
-        rounds: prev.rounds.map(r => 
-          r.name === roundName ? { ...r, status: 'ongoing' } : r
-        )
-      }));
-
-      alert(`Assessment started for ${roundName}`);
+      // Redirect to assessment page
+      navigate(`/admin/assessment/${interviewId}/${encodeURIComponent(roundName)}`);
     } catch (error) {
       console.error('Error starting assessment:', error);
       alert(`Failed to start assessment: ${error.message}`);
@@ -334,8 +361,9 @@ const InterviewSessionPage = () => {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({
-          roundName: newRoundName,
-          criteria: newRoundCriteria || 'Assessment criteria'
+          action: 'create',
+          newRoundName: newRoundName.trim(),
+          criteria: newRoundCriteria || ''
         }),
       });
 
@@ -464,12 +492,24 @@ const InterviewSessionPage = () => {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => window.close()}
-              className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Close Tab
-            </button>
+            <div className="flex items-center gap-3">
+              {interviewData.status === 'ongoing' && (
+                <button
+                  onClick={handleEndSession}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  End Session
+                </button>
+              )}
+              <button
+                onClick={() => navigate('/admin?tab=scheduleInterview')}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -695,17 +735,39 @@ const InterviewSessionPage = () => {
                     )}
                   </div>
 
-                  {/* Start Assessment Button - Only show when not editing */}
-                  {editingRound !== round.id && (
+                  {/* Start Assessment Button - Only show for pending rounds when not editing */}
+                  {editingRound !== round.id && round.status === 'pending' && (
                     <div className="md:col-span-1 flex items-center justify-end pr-2">
                       <button
                         onClick={() => handleStartAssessment(round.name)}
-                        className="rounded-full p-2 shadow transition bg-green-600 hover:bg-green-700 flex items-center justify-center"
-                        title="Start Assessment"
+                        disabled={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)}
+                        className={`rounded-full p-2 shadow transition flex items-center justify-center ${
+                          interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-green-600 hover:bg-green-700'
+                        }`}
+                        title={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name) 
+                          ? 'Another round is currently ongoing' 
+                          : 'Start Assessment'}
                         aria-label="Start Assessment"
                       >
                         <PlayCircle size={18} className="text-white" />
                       </button>
+                    </div>
+                  )}
+                  
+                  {/* Status Badge for ongoing/completed rounds */}
+                  {editingRound !== round.id && round.status !== 'pending' && (
+                    <div className="md:col-span-1 flex items-center justify-end pr-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        round.status === 'ongoing' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : round.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {round.status === 'ongoing' ? 'Ongoing' : round.status === 'completed' ? 'Completed' : 'Pending'}
+                      </span>
                     </div>
                   )}
                 </div>
