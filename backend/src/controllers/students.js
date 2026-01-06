@@ -1095,8 +1095,8 @@ export async function uploadProfileImage(req, res) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Check if file was uploaded to Cloudinary (multer-storage-cloudinary)
-    // CloudinaryStorage returns: secure_url, url, public_id, format, width, height, etc.
+    // Check if file was uploaded to Cloudinary (manual upload via uploadToCloudinary)
+    // Manual upload returns: secure_url, url, public_id, bytes, etc.
     const newImageUrl = file.secure_url || file.url;
     const newPublicId = file.public_id;
     
@@ -1180,8 +1180,18 @@ export async function uploadResumeCloudinary(req, res) {
     }
 
     // Check if file was uploaded to Cloudinary
-    if (!file.path || !file.public_id) {
-      return res.status(400).json({ error: 'File upload failed. Please try again.' });
+    // With manual upload, we check for secure_url and public_id
+    if (!file.secure_url || !file.public_id) {
+      console.error('❌ [Resume Upload] Missing Cloudinary data:', {
+        hasSecureUrl: !!file.secure_url,
+        hasPublicId: !!file.public_id,
+        hasUrl: !!file.url,
+        hasPath: !!file.path,
+        fileKeys: Object.keys(file),
+      });
+      return res.status(400).json({ 
+        error: 'File upload failed. Cloudinary upload did not complete successfully. Please try again.' 
+      });
     }
 
     const fileUrl = file.secure_url || file.url;
