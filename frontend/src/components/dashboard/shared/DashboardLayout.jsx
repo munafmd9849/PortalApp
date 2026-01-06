@@ -152,7 +152,8 @@ export default function DashboardLayout({ children }) {
     svgSize: 80,   // SVG container size (imageSize * 4)
     circleRadius: 36, // Circle radius (imageSize * 1.8)
     strokeWidth: 4,   // Circle stroke width
-    iconSize: 8       // User icon size (imageSize * 0.42)
+    iconSize: 8,       // User icon size (imageSize * 0.42)
+    profileImageSize: 64 // Profile image should fit inside the ring (circleRadius * 2 - strokeWidth * 2)
   };
 
   return (
@@ -167,12 +168,13 @@ export default function DashboardLayout({ children }) {
               {/* Left Side - Student Details */}
               <div className="flex items-center flex-1">
                 {/* Profile Image with Completion Indicator */}
-                <div className="flex-shrink-0 relative">
-                  {/* SVG Circle Progress */}
+                <div className="flex-shrink-0 relative" style={{ width: `${profileConfig.svgSize}px`, height: `${profileConfig.svgSize}px` }}>
+                  {/* SVG Circle Progress - positioned behind the profile image */}
                   <svg
                     className="absolute inset-0 transform -rotate-90"
                     width={profileConfig.svgSize}
                     height={profileConfig.svgSize}
+                    style={{ zIndex: 1 }}
                   >
                     {/* Background circle */}
                     <circle
@@ -198,12 +200,16 @@ export default function DashboardLayout({ children }) {
                     />
                   </svg>
 
-                  {/* Profile Image */}
+                  {/* Profile Image - centered inside the ring */}
                   <div
-                    className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden"
+                    className="absolute bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden"
                     style={{
-                      width: `${profileConfig.imageSize * 0.25}rem`,
-                      height: `${profileConfig.imageSize * 0.25}rem`
+                      width: `${profileConfig.profileImageSize}px`,
+                      height: `${profileConfig.profileImageSize}px`,
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 2
                     }}
                   >
                     {profileImageSrc ? (
@@ -268,7 +274,20 @@ export default function DashboardLayout({ children }) {
                       <span className="font-medium text-gray-700 ">ID:</span> {loading ? 'Loading...' : (studentProfile?.enrollmentId || 'Click edit to set')}
                     </div>
                     <div>
-                      <span className="font-medium text-gray-700">CGPA:</span> {loading ? 'Loading...' : (studentProfile?.cgpa || 'Click edit to set')}
+                      <span className="font-medium text-gray-700">CGPA:</span> {loading ? 'Loading...' : (() => {
+                        const cgpaValue = studentProfile?.cgpa;
+                        if (!cgpaValue) return 'Click edit to set';
+                        const cgpaStr = String(cgpaValue);
+                        if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+                          return cgpaStr;
+                        } else if (/^\d+$/.test(cgpaStr)) {
+                          return cgpaStr + '.00';
+                        } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                          const parts = cgpaStr.split('.');
+                          return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                        }
+                        return cgpaStr;
+                      })()}
                     </div>
                   </div>
                 </div>

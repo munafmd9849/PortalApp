@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Start Interview Session - Admin</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header fade-in">
+      <h1>🚀 Start Interview Session</h1>
+      <p class="subtitle">Configure and start a new interview session for a specific round</p>
+    </div>
+
+    <div class="card fade-in">
+      <h2 class="card-title">📋 Session Configuration</h2>
+
+      <form id="sessionForm">
+        <!-- Job Selection -->
+        <div class="form-group">
+          <label for="jobSelect">
+            Job Posting <span class="required">*</span>
+          </label>
+          <select id="jobSelect" name="jobId" required>
+            <option value="">-- Select Job Posting --</option>
+          </select>
+          <div class="help-text">Select the job posting for this interview session</div>
+        </div>
+
+        <!-- Round Selection -->
+        <div class="form-group">
+          <label for="roundSelect">
+            Interview Round <span class="required">*</span>
+          </label>
+          <select id="roundSelect" name="roundId" required disabled>
+            <option value="">-- Select Round --</option>
+          </select>
+          <div class="help-text">Select one round only. Each session is for a single round.</div>
+        </div>
+
+        <!-- Interview Mode -->
+        <div class="form-group">
+          <label for="interviewMode">
+            Interview Mode <span class="required">*</span>
+          </label>
+          <select id="interviewMode" name="mode" required>
+            <option value="">-- Select Mode --</option>
+            <option value="panel">Panel Interview (Multiple interviewers → One candidate)</option>
+            <option value="parallel">Parallel Interview (Same round → Different candidates)</option>
+          </select>
+          <div class="help-text">
+            <strong>Panel:</strong> All interviewers evaluate the same candidate together.<br>
+            <strong>Parallel:</strong> Each interviewer evaluates different candidates simultaneously.
+          </div>
+        </div>
+
+        <!-- Max Interviewers -->
+        <div class="form-group">
+          <label for="maxInterviewers">
+            Maximum Interviewers <span class="required">*</span>
+          </label>
+          <input 
+            type="number" 
+            id="maxInterviewers" 
+            name="maxInterviewers" 
+            min="1" 
+            max="20" 
+            value="5" 
+            required
+          >
+          <div class="help-text">Maximum number of interviewers allowed to join this session</div>
+        </div>
+
+        <!-- Session Expiry -->
+        <div class="form-group">
+          <label for="expiryMinutes">
+            Session Expiry Time (minutes) <span class="required">*</span>
+          </label>
+          <input 
+            type="number" 
+            id="expiryMinutes" 
+            name="expiryMinutes" 
+            min="30" 
+            max="480" 
+            value="120" 
+            required
+          >
+          <div class="help-text">Session will expire after this duration (30-480 minutes)</div>
+        </div>
+
+        <div class="alert alert-warning">
+          <strong>🔒 Security Notice:</strong> Session access will be logged. Share join links only with authorized interviewers.
+        </div>
+
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary btn-block">
+            ✨ Start Interview Session
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="session-mock-api.js"></script>
+  <script>
+    // Load mock jobs
+    const jobs = window.MockAPI.getMockJobs();
+    const jobSelect = document.getElementById('jobSelect');
+    
+    jobs.forEach(job => {
+      const option = document.createElement('option');
+      option.value = job.id;
+      option.textContent = `${job.title} - ${job.company}`;
+      jobSelect.appendChild(option);
+    });
+
+    // Load rounds when job is selected
+    jobSelect.addEventListener('change', function() {
+      const roundSelect = document.getElementById('roundSelect');
+      roundSelect.innerHTML = '<option value="">-- Select Round --</option>';
+      
+      if (this.value) {
+        const rounds = window.MockAPI.getMockRounds(this.value);
+        rounds.forEach(round => {
+          const option = document.createElement('option');
+          option.value = round.id;
+          option.textContent = `${round.name} - ${round.description}`;
+          roundSelect.appendChild(option);
+        });
+        roundSelect.disabled = false;
+      } else {
+        roundSelect.disabled = true;
+      }
+    });
+
+    // Handle form submission
+    document.getElementById('sessionForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Check if MockAPI is available
+      if (!window.MockAPI || !window.MockAPI.createSession) {
+        alert('Error: MockAPI not loaded. Please refresh the page.');
+        console.error('MockAPI not available:', window.MockAPI);
+        return;
+      }
+
+      const formData = new FormData(this);
+      const config = {
+        mode: formData.get('mode'),
+        maxInterviewers: parseInt(formData.get('maxInterviewers')),
+        expiryMinutes: parseInt(formData.get('expiryMinutes')),
+      };
+
+      console.log('Creating session with config:', config);
+      console.log('Job ID:', formData.get('jobId'));
+      console.log('Round ID:', formData.get('roundId'));
+
+      const result = window.MockAPI.createSession(
+        formData.get('jobId'),
+        formData.get('roundId'),
+        config
+      );
+
+      console.log('Session created result:', result);
+      
+      // Wait a moment for save to complete, then verify
+      setTimeout(() => {
+        const mockSessions = localStorage.getItem('mockSessions');
+        if (mockSessions) {
+          const parsed = JSON.parse(mockSessions);
+          console.log('✓ mockSessions found in localStorage after creation');
+          console.log('✓ Storage keys:', Object.keys(parsed));
+          console.log('✓ Session code in storage:', result.sessionCode in parsed);
+          console.log('✓ Session ID in storage:', result.sessionId in parsed);
+        } else {
+          console.error('✗ ERROR: mockSessions NOT found in localStorage after creation!');
+          console.error('This means the session will not be available on the join page!');
+        }
+      }, 200);
+
+      if (!result || !result.sessionId || !result.sessionCode) {
+        alert('Error: Failed to create session. Please try again.');
+        console.error('Invalid session result:', result);
+        return;
+      }
+
+      // Verify session was saved to mockSessions storage
+      console.log('Verifying session was saved to mockSessions...');
+      const mockSessions = sessionStorage.getItem('mockSessions');
+      console.log('mockSessions in storage:', mockSessions);
+      if (mockSessions) {
+        const parsed = JSON.parse(mockSessions);
+        console.log('Parsed mockSessions:', parsed);
+        console.log('Session code in storage:', parsed[result.sessionCode]);
+        console.log('Session ID in storage:', parsed[result.sessionId]);
+      } else {
+        console.warn('WARNING: mockSessions not found in storage after creation!');
+      }
+
+      // Store session data in sessionStorage
+      const sessionData = {
+        sessionId: result.sessionId,
+        sessionCode: result.sessionCode,
+        secureJoinLink: result.secureJoinLink || '',
+      };
+      
+      console.log('Storing session data:', sessionData);
+      
+      try {
+        sessionStorage.setItem('createdSession', JSON.stringify(sessionData));
+        
+        // Verify storage immediately
+        const stored = sessionStorage.getItem('createdSession');
+        console.log('Stored data verification:', stored);
+        
+        if (!stored) {
+          alert('Error: Failed to save session data. Please try again.');
+          return;
+        }
+
+        // Parse and verify stored data
+        const parsed = JSON.parse(stored);
+        console.log('Parsed stored data:', parsed);
+        
+        if (!parsed.sessionId || !parsed.sessionCode) {
+          alert('Error: Session data incomplete. Please try again.');
+          return;
+        }
+
+        // Small delay to ensure storage is committed
+        setTimeout(() => {
+          // Redirect to session created page
+          window.location.href = 'session-created.html';
+        }, 100);
+      } catch (error) {
+        console.error('Error storing session data:', error);
+        alert('Error: Failed to save session data. Please try again.');
+      }
+    });
+  </script>
+</body>
+</html>
+

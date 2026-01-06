@@ -141,7 +141,8 @@ const ExcelUploader = ({ onJobSelected }) => {
         const percent = parseFloat(percentMatch[1]);
         // Convert percentage to CGPA (rough formula: CGPA = (Percentage - 10) / 10)
         const cgpa = Math.max(0, Math.min(10, (percent - 10) / 10));
-        return String(cgpa.toFixed(1));
+        // Format to exactly 2 decimal places
+        return String(cgpa.toFixed(2));
       }
     }
     
@@ -151,7 +152,8 @@ const ExcelUploader = ({ onJobSelected }) => {
       const cgpa = parseFloat(cgpaMatch[1]);
       // Ensure it's within valid CGPA range (0-10)
       if (cgpa >= 0 && cgpa <= 10) {
-        return String(cgpa);
+        // Format to exactly 2 decimal places
+        return String(cgpa.toFixed(2));
       }
     }
     

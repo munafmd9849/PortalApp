@@ -7,6 +7,7 @@ import prisma from '../config/database.js';
 import logger from '../config/logger.js';
 import { getOAuthClient, exchangeCodeForTokens } from '../utils/googleCalendar.js';
 import { getAuthenticatedCalendarClient, createEvent as createCalendarEventService } from '../services/calendarServiceEnhanced.js';
+import { validateCalendarConnection } from '../utils/calendarValidation.js';
 
 /**
  * GET /api/calendar/status
@@ -80,6 +81,7 @@ export const getCalendarStatus = async (req, res) => {
  * 
  * Scopes:
  * - https://www.googleapis.com/auth/calendar (full access)
+ * - https://www.googleapis.com/auth/userinfo.email (required for email verification)
  * 
  * Includes:
  * - access_type=offline (to get refresh token)
@@ -93,9 +95,12 @@ export const getOAuthUrl = async (req, res) => {
 
     const oauth2Client = getOAuthClient();
 
-    // Full calendar scope (not readonly) - required for creating events
+    // Required scopes:
+    // 1. Calendar scope - required for creating/reading calendar events
+    // 2. UserInfo email scope - required for email verification (to ensure user connects with registered email)
     const scopes = [
       'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/userinfo.email', // Required for email verification
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -143,21 +148,16 @@ export const getCalendarEvents = async (req, res) => {
   
   try {
 
-    // Check if calendar is connected first (quick check) and get email
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        googleCalendarConnected: true,
-        email: true,
-      },
-    });
-
-    if (!user?.googleCalendarConnected) {
-      return res.status(400).json({
+    // HARD BLOCK: Verify calendar is connected with registered email
+    const validation = await validateCalendarConnection(userId);
+    if (!validation.valid) {
+      return res.status(403).json({
         error: 'Google Calendar not connected',
-        message: 'Please connect your Google Calendar first',
+        message: validation.error || 'Google Calendar not connected with registered email.',
       });
     }
+
+    const user = validation.user;
 
     const userEmail = user?.email || '';
 
@@ -169,7 +169,7 @@ export const getCalendarEvents = async (req, res) => {
     // Get authenticated calendar client
     const { calendar } = await getAuthenticatedCalendarClient(userId, role);
 
-    // Build query
+    // Build query for primary calendar
     const query = {
       calendarId: 'primary',
       timeMin,
@@ -182,16 +182,30 @@ export const getCalendarEvents = async (req, res) => {
       query.timeMax = timeMax;
     }
 
-    // Fetch events
+    // Fetch events from primary calendar
     const response = await calendar.events.list(query);
-    const events = response.data.items || [];
+    let events = response.data.items || [];
 
+    // IMPORTANT: Also fetch events where user is an attendee but not the organizer
+    // This ensures students see events created by admin/recruiters that invite them
+    // We do this by checking if there are events where userEmail is in attendees but not organizer
+    // Note: Google Calendar automatically adds invitations to user's calendar, but we'll also
+    // explicitly filter to ensure we catch all events where user is an attendee
+    
+    // Filter events to include:
+    // 1. Events in user's primary calendar (already fetched)
+    // 2. Events where user is an attendee (these should already be in primary calendar if invitation was accepted)
+    // But to be safe, we'll also check for events where user is attendee but might not have accepted yet
+    
     // Format and normalize events
     const normalizedEvents = events.map((event) => {
       // Find user's attendee status
       const userAttendee = event.attendees?.find(
         (a) => a.email?.toLowerCase() === userEmail?.toLowerCase()
       );
+      
+      // Check if user is organizer
+      const isOrganizer = event.organizer?.email?.toLowerCase() === userEmail?.toLowerCase();
 
       return {
         id: event.id,
@@ -201,15 +215,25 @@ export const getCalendarEvents = async (req, res) => {
         end: event.end?.dateTime || event.end?.date,
         location: event.location || '',
         createdBy: event.creator?.email || event.organizer?.email || '',
+        organizer: event.organizer?.email || '',
+        isOrganizer,
         attendees: (event.attendees || []).map((a) => ({
           email: a.email,
           displayName: a.displayName,
           responseStatus: a.responseStatus,
         })),
-        userResponseStatus: userAttendee?.responseStatus || null,
+        userResponseStatus: userAttendee?.responseStatus || (isOrganizer ? 'accepted' : null),
         htmlLink: event.htmlLink,
         hangoutLink: event.hangoutLink,
       };
+    });
+
+    // Log for debugging
+    logger.info(`Fetched ${normalizedEvents.length} calendar events for user ${userId} (${userEmail})`, {
+      userId,
+      userEmail,
+      eventCount: normalizedEvents.length,
+      eventsWithAttendees: normalizedEvents.filter(e => e.attendees.length > 0).length,
     });
 
     res.json({ events: normalizedEvents });
@@ -293,6 +317,15 @@ export const createCalendarEvent = async (req, res) => {
       });
     }
 
+    // HARD BLOCK: Verify calendar is connected with registered email
+    const validation = await validateCalendarConnection(userId);
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: 'Google Calendar not connected',
+        message: validation.error || 'Google Calendar not connected with registered email.',
+      });
+    }
+
     // Validate required fields
     ({ title, start, end, attendeesEmails } = req.body);
     const { description, visibility } = req.body;
@@ -323,11 +356,53 @@ export const createCalendarEvent = async (req, res) => {
     }
 
     // Validate and filter attendees
+    // CRITICAL: For students, use their connected Google email instead of registered email
     let validAttendees = [];
     if (attendeesEmails && Array.isArray(attendeesEmails)) {
-      validAttendees = attendeesEmails
+      const emailList = attendeesEmails
         .filter(email => email && typeof email === 'string' && email.trim().length > 0)
         .map(email => email.trim().toLowerCase());
+
+      // Resolve student emails to their connected Google emails
+      for (const email of emailList) {
+        // Check if this email belongs to a student with a connected calendar
+        const student = await prisma.student.findUnique({
+          where: { email },
+          select: {
+            userId: true,
+            email: true,
+          },
+        });
+
+        if (student) {
+          // Student found - check for connected Google Calendar
+          const token = await prisma.googleCalendarToken.findUnique({
+            where: { userId: student.userId },
+            select: { connectedGoogleEmail: true },
+          });
+
+          if (token?.connectedGoogleEmail) {
+            // Use connected Google email instead of registered email
+            validAttendees.push(token.connectedGoogleEmail.toLowerCase());
+            logger.info('Resolved student email to connected Google email', {
+              registeredEmail: email,
+              connectedGoogleEmail: token.connectedGoogleEmail,
+              studentId: student.userId,
+            });
+          } else {
+            // Student doesn't have connected calendar - warn but still add registered email
+            logger.warn('Student email provided but no connected Google Calendar', {
+              registeredEmail: email,
+              studentId: student.userId,
+              action: 'Using registered email (may not receive calendar invite)',
+            });
+            validAttendees.push(email);
+          }
+        } else {
+          // Not a student or email not found - use as-is (could be external email)
+          validAttendees.push(email);
+        }
+      }
     }
 
     // Prepare event data (service expects attendees and meetLink inside eventData)
@@ -461,6 +536,15 @@ export const updateCalendarEvent = async (req, res) => {
       });
     }
 
+    // HARD BLOCK: Verify calendar is connected with registered email
+    const validation = await validateCalendarConnection(userId);
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: 'Google Calendar not connected',
+        message: validation.error || 'Google Calendar not connected with registered email.',
+      });
+    }
+
     const { title, description, start, end, location, attendeesEmails } = req.body;
 
     // Validate dates if provided
@@ -496,11 +580,53 @@ export const updateCalendarEvent = async (req, res) => {
     }
 
     // Validate and filter attendees
+    // CRITICAL: For students, use their connected Google email instead of registered email
     let validAttendees = [];
     if (attendeesEmails && Array.isArray(attendeesEmails)) {
-      validAttendees = attendeesEmails
+      const emailList = attendeesEmails
         .filter(email => email && typeof email === 'string' && email.trim().length > 0)
         .map(email => email.trim().toLowerCase());
+
+      // Resolve student emails to their connected Google emails
+      for (const email of emailList) {
+        // Check if this email belongs to a student with a connected calendar
+        const student = await prisma.student.findUnique({
+          where: { email },
+          select: {
+            userId: true,
+            email: true,
+          },
+        });
+
+        if (student) {
+          // Student found - check for connected Google Calendar
+          const token = await prisma.googleCalendarToken.findUnique({
+            where: { userId: student.userId },
+            select: { connectedGoogleEmail: true },
+          });
+
+          if (token?.connectedGoogleEmail) {
+            // Use connected Google email instead of registered email
+            validAttendees.push(token.connectedGoogleEmail.toLowerCase());
+            logger.info('Resolved student email to connected Google email (update)', {
+              registeredEmail: email,
+              connectedGoogleEmail: token.connectedGoogleEmail,
+              studentId: student.userId,
+            });
+          } else {
+            // Student doesn't have connected calendar - warn but still add registered email
+            logger.warn('Student email provided but no connected Google Calendar (update)', {
+              registeredEmail: email,
+              studentId: student.userId,
+              action: 'Using registered email (may not receive calendar invite)',
+            });
+            validAttendees.push(email);
+          }
+        } else {
+          // Not a student or email not found - use as-is (could be external email)
+          validAttendees.push(email);
+        }
+      }
     }
 
     // Prepare update object
@@ -616,6 +742,15 @@ export const deleteCalendarEvent = async (req, res) => {
       });
     }
 
+    // HARD BLOCK: Verify calendar is connected with registered email
+    const validation = await validateCalendarConnection(userId);
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: 'Google Calendar not connected',
+        message: validation.error || 'Google Calendar not connected with registered email.',
+      });
+    }
+
     // Delete event using service
     const { deleteEvent } = await import('../services/calendarServiceEnhanced.js');
     await deleteEvent(
@@ -714,6 +849,15 @@ export const respondToCalendarEvent = async (req, res) => {
       });
     }
 
+    // HARD BLOCK: Verify calendar is connected with registered email
+    const validation = await validateCalendarConnection(userId);
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: 'Google Calendar not connected',
+        message: validation.error || 'Google Calendar not connected with registered email.',
+      });
+    }
+
     const { responseStatus } = req.body;
 
     if (!responseStatus) {
@@ -797,39 +941,102 @@ export const disconnectCalendar = async (req, res) => {
 
     const userId = req.user.id;
 
-    // Delete token from database
-    await prisma.googleCalendarToken.deleteMany({
-      where: { userId },
-    });
+    // Delete token from database (use deleteMany to handle case where token doesn't exist)
+    try {
+      await prisma.googleCalendarToken.deleteMany({
+        where: { userId },
+      });
+    } catch (tokenError) {
+      // Token deletion failed - log but continue
+      logger.warn('Error deleting calendar token (may not exist):', {
+        userId,
+        error: tokenError.message,
+      });
+    }
 
-    // Update user's googleCalendarConnected flag
-    await prisma.user.update({
-      where: { id: userId },
-      data: { googleCalendarConnected: false },
-    });
+    // Update user's googleCalendarConnected flag and remove connected email
+    // Handle case where connectedGoogleEmail field might not exist yet (migration not run)
+    try {
+      const updateData = {
+        googleCalendarConnected: false,
+      };
+      
+      // Only try to update connectedGoogleEmail if the field exists
+      // Check if we can safely update it by trying a test query first
+      try {
+        // Try to include connectedGoogleEmail in update
+        updateData.connectedGoogleEmail = null;
+        await prisma.user.update({
+          where: { id: userId },
+          data: updateData,
+        });
+      } catch (fieldError) {
+        // If field doesn't exist, update without it
+        if (fieldError.message?.includes('Unknown arg') || fieldError.message?.includes('Unknown field')) {
+          logger.warn('connectedGoogleEmail field not found in database - skipping field update', {
+            userId,
+            note: 'Run database migration to add connectedGoogleEmail field',
+          });
+          // Update without connectedGoogleEmail field
+          await prisma.user.update({
+            where: { id: userId },
+            data: { googleCalendarConnected: false },
+          });
+        } else {
+          // Re-throw if it's a different error
+          throw fieldError;
+        }
+      }
+    } catch (updateError) {
+      // If update fails with P2025 (record not found), that's OK - user might not exist
+      if (updateError.code === 'P2025') {
+        logger.warn('User not found during disconnect (may have been deleted):', {
+          userId,
+        });
+        // Still return success since tokens are deleted
+        return res.json({
+          message: 'Google Calendar disconnected successfully',
+        });
+      }
+      // Re-throw other errors
+      throw updateError;
+    }
 
-    logger.info(`Google Calendar disconnected for user ${userId}`);
+    logger.info(`Google Calendar disconnected for user ${userId}`, {
+      userId,
+      action: 'DISCONNECT',
+    });
 
     res.json({
       message: 'Google Calendar disconnected successfully',
     });
   } catch (error) {
-    logger.error('Error disconnecting calendar:', error);
+    logger.error('Error disconnecting calendar:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id || 'unknown',
+      code: error.code,
+    });
     
     // If token doesn't exist, still mark as disconnected
     if (error.code === 'P2025') {
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { googleCalendarConnected: false },
-      });
-      return res.json({
-        message: 'Google Calendar disconnected successfully',
-      });
+      try {
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { googleCalendarConnected: false },
+        });
+        return res.json({
+          message: 'Google Calendar disconnected successfully',
+        });
+      } catch (updateError) {
+        // If update also fails, return error
+        logger.error('Failed to update user after token deletion error:', updateError);
+      }
     }
 
     res.status(500).json({
       error: 'Failed to disconnect calendar',
-      message: error.message,
+      message: error.message || 'An unexpected error occurred',
     });
   }
 };

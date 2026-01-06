@@ -84,7 +84,9 @@ function buildPayload(formData) {
   };
 
   if (payload.type === QUERY_TYPES.CGPA_UPDATE) {
-    payload.cgpa = formData.cgpa ? Number(formData.cgpa) : null;
+    // Preserve CGPA as string to avoid floating point rounding
+    // Backend will validate and convert to Decimal
+    payload.cgpa = formData.cgpa ? String(formData.cgpa).trim() : null;
   }
 
   if (payload.type === QUERY_TYPES.CALENDAR_BLOCK) {

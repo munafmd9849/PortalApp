@@ -34,7 +34,69 @@ export const validateStudentProfile = [
   body('center').isIn(['BANGALORE', 'NOIDA', 'LUCKNOW', 'PUNE', 'PATNA', 'INDORE'])
     .withMessage('Valid center is required'),
   body('batch').matches(/^\d{2}-\d{2}$/).withMessage('Batch must be in format YY-YY (e.g., 25-29)'),
-  body('cgpa').optional().isFloat({ min: 0, max: 10 }).withMessage('CGPA must be between 0 and 10'),
+  // CGPA validation: must be between 0.00 and 10.00 with EXACTLY 2 decimal places
+  body('cgpa')
+    .optional()
+    .customSanitizer((value) => {
+      // Auto-format CGPA to 2 decimal places if it's a valid number
+      if (value === null || value === undefined || value === '') {
+        return null; // Optional field
+      }
+      
+      const strValue = String(value).trim();
+      if (strValue === '') {
+        return null;
+      }
+      
+      // Try to parse as number and format to 2 decimal places
+      const numValue = parseFloat(strValue);
+      if (!isNaN(numValue) && numValue >= 0 && numValue <= 10) {
+        return numValue.toFixed(2);
+      }
+      
+      // If already in correct format, return as-is
+      const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+      if (cgpaRegex.test(strValue)) {
+        return strValue;
+      }
+      
+      // Return original value if can't format (will be caught by validation)
+      return strValue;
+    })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // Optional field
+      }
+      
+      // Convert to string to check decimal places
+      const strValue = String(value).trim();
+      // Check format: 0.00 to 10.00 with exactly 2 decimal places
+      const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+      
+      if (!cgpaRegex.test(strValue)) {
+        throw new Error('CGPA must be between 0.00 and 10.00 with exactly 2 decimal places (e.g., 9.00, 8.75)');
+      }
+      
+      // Validate range without using parseFloat to avoid rounding errors
+      const parts = strValue.split('.');
+      const integerPart = parseInt(parts[0], 10);
+      const decimalPart = parseInt(parts[1], 10);
+      
+      if (isNaN(integerPart) || isNaN(decimalPart)) {
+        throw new Error('Invalid CGPA format');
+      }
+      
+      if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+        throw new Error('CGPA must be between 0.00 and 10.00');
+      }
+      
+      if (integerPart < 0) {
+        throw new Error('CGPA must be between 0.00 and 10.00');
+      }
+      
+      return true;
+    })
+    .withMessage('CGPA must be between 0.00 and 10.00 with exactly 2 decimal places'),
   handleValidationErrors,
 ];
 

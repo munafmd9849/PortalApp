@@ -1,11 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
   ],
+  // Server configuration - merged into single object to avoid duplicate key warnings
   server: {
     host: 'localhost', // Use localhost instead of 0.0.0.0 to fix HMR WebSocket issues
     port: 5173,
@@ -16,6 +23,7 @@ export default defineConfig({
       protocol: 'ws',
       host: 'localhost',
       port: 5173,
+      overlay: false, // Disable error overlay to prevent blocking
     },
     watch: {
       usePolling: false,
@@ -23,19 +31,15 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      'react-pdf': 'react-pdf/dist/esm/entry.webpack5',
+      // Use absolute path for react-pdf to avoid duplicate module warnings
+      'react-pdf': path.resolve(__dirname, 'node_modules/react-pdf/dist/esm/entry.webpack5'),
     },
   },
   optimizeDeps: {
-    include: ['react-pdf'],
-    force: true, // Force re-optimization
+    // Exclude react-pdf from optimizeDeps since we're using alias with absolute path
+    exclude: ['react-pdf'],
   },
   build: {
     target: 'es2020',
-  },
-  server: {
-    hmr: {
-      overlay: false, // Disable error overlay to prevent blocking
-    },
   },
 });

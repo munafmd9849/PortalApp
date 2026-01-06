@@ -222,10 +222,25 @@ const EducationSection = ({ isAdminView = false }) => {
         institution: currentEdu.institute, // Map institute -> institution
         degree: currentEdu.branch || currentEdu.institute, // Map branch -> degree (fallback to institute)
         endYear: currentEdu.yop ? parseInt(currentEdu.yop) : null, // Map yop -> endYear (convert to int)
+        // Preserve CGPA as string to avoid floating point rounding
+        // For CGPA: use exact value; for Percentage: convert and format to 2 decimal places
         cgpa: currentEdu.scoreType === 'CGPA' && currentEdu.score 
-          ? parseFloat(currentEdu.score) 
+          ? (() => {
+              const cgpaStr = String(currentEdu.score).trim();
+              // Ensure it has 2 decimal places
+              if (cgpaStr.includes('.')) {
+                const parts = cgpaStr.split('.');
+                return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+              }
+              return cgpaStr + '.00';
+            })()
           : (currentEdu.scoreType === 'Percentage' && currentEdu.score 
-            ? parseFloat(currentEdu.score) / 10 // Convert percentage to CGPA (rough conversion)
+            ? (() => {
+                // Convert percentage to CGPA and format to 2 decimal places
+                const percent = parseFloat(currentEdu.score);
+                const cgpa = (percent / 10).toFixed(2);
+                return cgpa;
+              })()
             : null),
         // Note: city, state, description are not in backend schema, so we skip them
         // If you need them, add them to the Prisma schema first

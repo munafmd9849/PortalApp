@@ -220,17 +220,34 @@ async function uploadFile(endpoint, file, fieldName = 'file', onProgress) {
 
     xhr.addEventListener('load', () => {
       if (xhr.status === 200 || xhr.status === 201) {
-        resolve(JSON.parse(xhr.responseText));
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          reject(new Error('Invalid response from server'));
+        }
       } else {
         // Try to parse error response body
-        let errorMessage = `Upload failed: ${xhr.statusText}`;
+        let errorMessage = `Upload failed: ${xhr.statusText || 'Bad Request'}`;
         try {
-          const errorResponse = JSON.parse(xhr.responseText);
-          if (errorResponse.error) {
-            errorMessage = errorResponse.error;
+          if (xhr.responseText) {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.error) {
+              errorMessage = errorResponse.error;
+            } else if (errorResponse.message) {
+              errorMessage = errorResponse.message;
+            }
           }
         } catch (e) {
-          // If parsing fails, use default message
+          // If parsing fails, try to get status text
+          if (xhr.status === 400) {
+            errorMessage = 'Bad Request: Please check the file format and size (max 2MB for images)';
+          } else if (xhr.status === 401) {
+            errorMessage = 'Unauthorized: Please log in again';
+          } else if (xhr.status === 413) {
+            errorMessage = 'File too large: Maximum size is 2MB';
+          } else if (xhr.status >= 500) {
+            errorMessage = 'Server error: Please try again later';
+          }
         }
         reject(new Error(errorMessage));
       }
@@ -551,14 +568,9 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  searchWeb: (query) => {
-    const params = new URLSearchParams({ query });
-    return apiRequest(`/search?${params.toString()}`);
-  },
-
-  summarizeSearchResults: (results) => apiRequest('/search/summarize', {
+  getPlacementGuidance: (topic) => apiRequest('/placement/ai', {
     method: 'POST',
-    body: JSON.stringify({ results }),
+    body: JSON.stringify({ topic }),
   }),
 
   // Recruiters (Admin)

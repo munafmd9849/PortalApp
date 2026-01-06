@@ -4,6 +4,7 @@
  */
 
 import prisma from '../config/database.js';
+import { generateSessionToken } from '../utils/sessionToken.js';
 
 /**
  * Start or resume an interview session for a job
@@ -30,6 +31,14 @@ export const startInterviewSession = async (req, res) => {
     });
 
     if (interview) {
+      // Generate token if it doesn't exist
+      if (!interview.sessionToken) {
+        interview = await prisma.interview.update({
+          where: { id: interview.id },
+          data: { sessionToken: generateSessionToken() },
+        });
+      }
+      
       // Resume existing session
       return res.json({
         message: 'Interview session resumed',
@@ -44,6 +53,7 @@ export const startInterviewSession = async (req, res) => {
           pendingCandidates: interview.pendingCandidates,
           selectedCandidates: interview.selectedCandidates,
           onHoldCandidates: interview.onHoldCandidates,
+          sessionToken: interview.sessionToken,
           startedAt: interview.startedAt,
           job: {
             jobTitle: job.jobTitle,
@@ -59,12 +69,15 @@ export const startInterviewSession = async (req, res) => {
       include: { student: true },
     });
 
-    // Create default rounds
+    // Create default rounds with order field
     const defaultRounds = [
-      { name: 'Technical Round 1', criteria: 'Technical skills assessment', status: 'pending' },
-      { name: 'Technical Round 2', criteria: 'Advanced technical evaluation', status: 'pending' },
-      { name: 'HR Round', criteria: 'Cultural fit and communication', status: 'pending' },
+      { name: 'Technical Round 1', status: 'pending', order: 1 },
+      { name: 'Technical Round 2', status: 'pending', order: 2 },
+      { name: 'HR Round', status: 'pending', order: 3 },
     ];
+
+    // Generate session token
+    const sessionToken = generateSessionToken();
 
     // Create new interview session
     interview = await prisma.interview.create({
@@ -72,13 +85,15 @@ export const startInterviewSession = async (req, res) => {
         jobId,
         companyId: job.companyId,
         status: 'ONGOING',
-        currentRound: defaultRounds[0]?.name,
+        currentRound: null, // No round started initially
         rounds: JSON.stringify(defaultRounds),
         totalCandidates: applications.length,
         pendingCandidates: applications.length,
         doneCandidates: 0,
         selectedCandidates: 0,
         onHoldCandidates: 0,
+        createdBy: userId,
+        sessionToken, // Add session token
       },
     });
 
@@ -88,6 +103,7 @@ export const startInterviewSession = async (req, res) => {
         interviewId: interview.id,
         activityType: 'SESSION_STARTED',
         message: `Interview session started for ${job.jobTitle}`,
+        metadata: JSON.stringify({ jobId, jobTitle: job.jobTitle, totalCandidates: applications.length }),
         performedBy: userId,
       },
     });
@@ -105,6 +121,7 @@ export const startInterviewSession = async (req, res) => {
         pendingCandidates: interview.pendingCandidates,
         selectedCandidates: interview.selectedCandidates,
         onHoldCandidates: interview.onHoldCandidates,
+        sessionToken: interview.sessionToken,
         startedAt: interview.startedAt,
         job: {
           jobTitle: job.jobTitle,
@@ -189,22 +206,46 @@ export const updateInterviewRound = async (req, res) => {
       if (!newRoundName) {
         return res.status(400).json({ error: 'Round name is required' });
       }
+      
+      // Check if round name already exists
+      if (rounds.some(r => r.name === newRoundName)) {
+        return res.status(400).json({ error: 'Round name already exists' });
+      }
+      
+      // Get next order number
+      const maxOrder = rounds.length > 0 ? Math.max(...rounds.map(r => r.order || 0)) : 0;
+      
       rounds.push({
         name: newRoundName,
-        criteria: criteria || '',
         status: 'pending',
+        order: maxOrder + 1,
       });
+      
+      // Sort rounds by order
+      rounds.sort((a, b) => (a.order || 0) - (b.order || 0));
     } else if (action === 'update') {
       // Update existing round
       const roundIndex = rounds.findIndex((r) => r.name === roundName);
       if (roundIndex === -1) {
         return res.status(404).json({ error: 'Round not found' });
       }
-      if (newRoundName) {
-        rounds[roundIndex].name = newRoundName;
+      
+      // Cannot edit completed rounds
+      if (rounds[roundIndex].status === 'completed') {
+        return res.status(400).json({ error: 'Cannot edit a completed round' });
       }
-      if (criteria !== undefined) {
-        rounds[roundIndex].criteria = criteria;
+      
+      // Cannot edit ongoing round name (only status changes allowed)
+      if (rounds[roundIndex].status === 'ongoing' && newRoundName && newRoundName !== roundName) {
+        return res.status(400).json({ error: 'Cannot rename an ongoing round' });
+      }
+      
+      if (newRoundName && newRoundName !== roundName) {
+        // Check if new name already exists
+        if (rounds.some(r => r.name === newRoundName && r.name !== roundName)) {
+          return res.status(400).json({ error: 'Round name already exists' });
+        }
+        rounds[roundIndex].name = newRoundName;
       }
     }
 
@@ -240,6 +281,18 @@ export const startAssessment = async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
+    // Validate interview status - allow ONGOING or any non-terminal status
+    const normalizedStatus = interview.status?.toUpperCase();
+    if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'CANCELLED') {
+      return res.status(400).json({ 
+        error: `Interview session has ended. Current status: ${interview.status}`,
+        currentStatus: interview.status
+      });
+    }
+    
+    // If status is not set or is something unexpected, default to allowing it (for flexibility)
+    // This handles cases where status might be null, undefined, or a different value
+
     let rounds = JSON.parse(interview.rounds || '[]');
     const roundIndex = rounds.findIndex((r) => r.name === roundName);
 
@@ -247,7 +300,24 @@ export const startAssessment = async (req, res) => {
       return res.status(404).json({ error: 'Round not found' });
     }
 
-    rounds[roundIndex].status = 'ongoing';
+    // Check if another round is ongoing
+    const ongoingRound = rounds.find((r) => r.status === 'ongoing');
+    if (ongoingRound && ongoingRound.name !== roundName) {
+      return res.status(400).json({ 
+        error: `Cannot start ${roundName}. ${ongoingRound.name} is currently ongoing.` 
+      });
+    }
+
+    // Cannot start completed rounds
+    if (rounds[roundIndex].status === 'completed') {
+      return res.status(400).json({ error: 'Cannot start a completed round' });
+    }
+
+    // Set selected round to ongoing, mark others as not ongoing
+    rounds = rounds.map((r, idx) => ({
+      ...r,
+      status: idx === roundIndex ? 'ongoing' : (r.status === 'ongoing' ? 'pending' : r.status),
+    }));
 
     await prisma.interview.update({
       where: { id: interviewId },
@@ -264,6 +334,7 @@ export const startAssessment = async (req, res) => {
         roundName,
         activityType: 'ROUND_STARTED',
         message: `Assessment started for ${roundName}`,
+        metadata: JSON.stringify({ roundName, roundOrder: rounds[roundIndex].order }),
         performedBy: userId,
       },
     });
@@ -312,22 +383,37 @@ export const getRoundCandidates = async (req, res) => {
       },
     });
 
-    // For rounds after the first, only show selected candidates from previous rounds
+    // For rounds after the first, only show SELECTED candidates from previous round
+    // Backend-enforced filtering - critical for data consistency
     if (currentRoundIndex > 0) {
-      const previousRoundNames = rounds.slice(0, currentRoundIndex).map((r) => r.name);
+      // Get the immediate previous round (not all previous rounds)
+      const previousRound = rounds[currentRoundIndex - 1];
       
-      // Get evaluations for previous rounds
+      // Validate round order - ensure we're not skipping rounds
+      // Check if previous round is completed or ongoing
+      if (previousRound.status !== 'completed' && previousRound.status !== 'ongoing') {
+        return res.status(400).json({ 
+          error: `Previous round "${previousRound.name}" must be completed before starting this round` 
+        });
+      }
+      
+      // Get evaluations for the immediate previous round with status = SELECTED
       const previousEvaluations = await prisma.interviewEvaluation.findMany({
         where: {
           interviewId,
-          roundName: { in: previousRoundNames },
-          status: 'SELECTED',
+          roundName: previousRound.name,
+          status: 'SELECTED', // Only SELECTED candidates proceed
         },
         select: { studentId: true },
       });
 
       const selectedStudentIds = new Set(previousEvaluations.map((e) => e.studentId));
+      
+      // Filter applications to only include selected candidates
       applications = applications.filter((app) => selectedStudentIds.has(app.studentId));
+      
+      // REJECTED candidates never appear again (enforced)
+      // ON_HOLD candidates only appear if explicitly selected later (not in this flow)
     }
 
     // Get evaluations for current round
@@ -351,10 +437,12 @@ export const getRoundCandidates = async (req, res) => {
           email: app.student.email,
           enrollmentId: app.student.enrollmentId,
         },
-        marks: evaluation?.marks || null,
-        remarks: evaluation?.remarks || null,
-        status: evaluation?.status || null,
-        evaluatedAt: evaluation?.evaluatedAt || null,
+        evaluation: evaluation ? {
+          marks: evaluation.marks,
+          remarks: evaluation.remarks,
+          status: evaluation.status,
+          evaluatedAt: evaluation.evaluatedAt,
+        } : null,
       };
     });
 
@@ -379,7 +467,26 @@ export const evaluateCandidate = async (req, res) => {
       return res.status(400).json({ error: 'Round name is required' });
     }
 
-    // Upsert evaluation
+    // Validate status
+    const validStatuses = ['SELECTED', 'REJECTED', 'ON_HOLD', 'PENDING'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    // Validate remarks for REJECTED or ON_HOLD (required)
+    if ((status === 'REJECTED' || status === 'ON_HOLD') && (!remarks || remarks.trim().length === 0)) {
+      return res.status(400).json({ error: 'Remarks are required for REJECTED or ON_HOLD status' });
+    }
+
+    // Validate marks range if provided
+    if (marks !== undefined && marks !== null) {
+      const marksNum = parseFloat(marks);
+      if (isNaN(marksNum) || marksNum < 0 || marksNum > 100) {
+        return res.status(400).json({ error: 'Marks must be a number between 0 and 100' });
+      }
+    }
+
+    // Upsert evaluation using composite unique key
     const evaluation = await prisma.interviewEvaluation.upsert({
       where: {
         interviewId_studentId_roundName: {
@@ -389,8 +496,8 @@ export const evaluateCandidate = async (req, res) => {
         },
       },
       update: {
-        marks: marks !== undefined ? parseFloat(marks) : undefined,
-        remarks: remarks !== undefined ? remarks : undefined,
+        marks: marks !== undefined && marks !== null ? parseFloat(marks) : undefined,
+        remarks: remarks !== undefined ? remarks.trim() : undefined,
         status: status || undefined,
         evaluatedBy: userId,
         evaluatedAt: new Date(),
@@ -399,26 +506,35 @@ export const evaluateCandidate = async (req, res) => {
         interviewId,
         studentId,
         roundName,
-        marks: marks !== undefined ? parseFloat(marks) : undefined,
-        remarks: remarks || null,
-        status: status || null,
+        marks: marks !== undefined && marks !== null ? parseFloat(marks) : null,
+        remarks: remarks ? remarks.trim() : null,
+        status: status || 'PENDING',
         evaluatedBy: userId,
       },
     });
 
-    // Update interview statistics
+    // Update interview statistics for CURRENT ROUND only
     const interview = await prisma.interview.findUnique({
       where: { id: interviewId },
     });
 
-    const evaluations = await prisma.interviewEvaluation.findMany({
-      where: { interviewId, roundName },
+    // Get all evaluations for current round
+    const currentRoundEvaluations = await prisma.interviewEvaluation.findMany({
+      where: { 
+        interviewId, 
+        roundName, // Current round only
+      },
     });
 
-    const doneCount = evaluations.filter((e) => e.marks !== null || e.status).length;
-    const selectedCount = evaluations.filter((e) => e.status === 'SELECTED').length;
-    const onHoldCount = evaluations.filter((e) => e.status === 'ON_HOLD').length;
+    // Calculate statistics for current round
+    const doneCount = currentRoundEvaluations.filter((e) => 
+      e.status && e.status !== 'PENDING' && (e.marks !== null || e.remarks)
+    ).length;
+    
+    const selectedCount = currentRoundEvaluations.filter((e) => e.status === 'SELECTED').length;
+    const onHoldCount = currentRoundEvaluations.filter((e) => e.status === 'ON_HOLD').length;
 
+    // Update interview statistics
     await prisma.interview.update({
       where: { id: interviewId },
       data: {
@@ -429,7 +545,7 @@ export const evaluateCandidate = async (req, res) => {
       },
     });
 
-    // Log activity
+    // Log activity with metadata
     await prisma.interviewActivity.create({
       data: {
         interviewId,
@@ -437,13 +553,31 @@ export const evaluateCandidate = async (req, res) => {
         roundName,
         activityType: 'EVALUATION',
         message: `Candidate ${status || 'evaluated'} in ${roundName}`,
+        metadata: JSON.stringify({ 
+          studentId, 
+          roundName, 
+          status: status || 'PENDING',
+          marks: marks !== undefined ? parseFloat(marks) : null,
+        }),
         performedBy: userId,
+      },
+    });
+
+    // Get updated statistics
+    const updatedInterview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: {
+        doneCandidates: true,
+        selectedCandidates: true,
+        onHoldCandidates: true,
+        pendingCandidates: true,
       },
     });
 
     res.json({
       message: 'Evaluation saved successfully',
       evaluation,
+      stats: updatedInterview,
     });
   } catch (error) {
     console.error('Error evaluating candidate:', error);
@@ -490,18 +624,19 @@ export const endInterviewSession = async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    // Update current round status
+    // Update current round status - mark any ongoing round as completed
     let rounds = JSON.parse(interview.rounds || '[]');
-    const currentRoundIndex = rounds.findIndex((r) => r.name === interview.currentRound);
-    if (currentRoundIndex !== -1) {
-      rounds[currentRoundIndex].status = 'completed';
-    }
+    rounds = rounds.map((r) => ({
+      ...r,
+      status: r.status === 'ongoing' ? 'completed' : r.status,
+    }));
 
     // Update interview status
     await prisma.interview.update({
       where: { id: interviewId },
       data: {
         status: 'COMPLETED',
+        currentRound: null, // Clear current round
         completedAt: new Date(),
         rounds: JSON.stringify(rounds),
       },
@@ -513,6 +648,11 @@ export const endInterviewSession = async (req, res) => {
         interviewId,
         activityType: 'SESSION_ENDED',
         message: 'Interview session ended',
+        metadata: JSON.stringify({ 
+          totalCandidates: interview.totalCandidates,
+          selectedCandidates: interview.selectedCandidates,
+          onHoldCandidates: interview.onHoldCandidates,
+        }),
         performedBy: userId,
       },
     });

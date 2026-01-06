@@ -77,11 +77,11 @@ const Assessment = () => {
       loadCandidates();
       loadActivities();
       
-      // Set up polling for real-time updates
+      // Set up polling for real-time updates (every 5 seconds as per requirements)
       activitiesIntervalRef.current = setInterval(() => {
         loadActivities();
         loadCandidates();
-      }, 3000); // Poll every 3 seconds
+      }, 5000); // Poll every 5 seconds
     }
 
     return () => {
@@ -183,6 +183,21 @@ const Assessment = () => {
   const handleSaveEvaluation = async (candidate) => {
     if (!candidate) return;
 
+    // Validate remarks for REJECTED or ON_HOLD
+    if ((editingStatus === 'REJECTED' || editingStatus === 'ON_HOLD') && (!editingRemarks || editingRemarks.trim().length === 0)) {
+      alert('Remarks are required for REJECTED or ON_HOLD status');
+      return;
+    }
+
+    // Validate marks range if provided
+    if (editingMarks && editingMarks.trim() !== '') {
+      const marksNum = parseFloat(editingMarks);
+      if (isNaN(marksNum) || marksNum < 0 || marksNum > 100) {
+        alert('Marks must be a number between 0 and 100');
+        return;
+      }
+    }
+
     try {
       setSavingEvaluation(true);
       const token = localStorage.getItem('accessToken');
@@ -194,14 +209,15 @@ const Assessment = () => {
         },
         body: JSON.stringify({
           roundName: roundName,
-          marks: editingMarks ? parseFloat(editingMarks) : null,
-          remarks: editingRemarks,
+          marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
+          remarks: editingRemarks.trim() || null,
           status: editingStatus
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save evaluation');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to save evaluation');
       }
 
       // Reload candidates to reflect changes
@@ -385,22 +401,33 @@ const Assessment = () => {
               {activities.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">No activities yet</p>
               ) : (
-                activities.slice(0, 5).map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-shrink-0 mt-1">
-                      {activity.activityType === 'EVALUATION_COMPLETED' && <CheckCircle className="w-4 h-4 text-green-600" />}
-                      {activity.activityType === 'ROUND_STARTED' && <Clock className="w-4 h-4 text-blue-600" />}
-                      {activity.activityType === 'ROUND_ENDED' && <XCircle className="w-4 h-4 text-red-600" />}
-                      {activity.activityType === 'STATUS_CHANGED' && <AlertCircle className="w-4 h-4 text-yellow-600" />}
+                activities.slice(0, 5).map((activity) => {
+                  // Determine icon based on activity type
+                  let icon = <Clock className="w-4 h-4 text-gray-600" />;
+                  if (activity.activityType === 'EVALUATION') {
+                    icon = <CheckCircle className="w-4 h-4 text-green-600" />;
+                  } else if (activity.activityType === 'ROUND_STARTED') {
+                    icon = <Clock className="w-4 h-4 text-blue-600" />;
+                  } else if (activity.activityType === 'SESSION_ENDED') {
+                    icon = <XCircle className="w-4 h-4 text-red-600" />;
+                  } else if (activity.activityType === 'SESSION_STARTED') {
+                    icon = <CheckCircle className="w-4 h-4 text-green-600" />;
+                  }
+
+                  return (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-shrink-0 mt-1">
+                        {icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900">{activity.message}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(activity.createdAt).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900">{activity.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(activity.createdAt).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -416,6 +443,8 @@ const Assessment = () => {
               <thead className="bg-gray-100 sticky top-0">
                 <tr>
                   <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Name</th>
+                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Email</th>
+                  <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Enrollment ID</th>
                   <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Batch</th>
                   <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Marks</th>
                   <th className="p-3 text-left font-medium text-gray-700 uppercase tracking-wider border-r border-gray-300">Remarks</th>
@@ -426,7 +455,7 @@ const Assessment = () => {
               <tbody className="divide-y divide-gray-200">
                 {candidates.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="p-8 text-center text-gray-500">
+                    <td colSpan="8" className="p-8 text-center text-gray-500">
                       No candidates found for this round
                     </td>
                   </tr>
@@ -435,6 +464,12 @@ const Assessment = () => {
                     <tr key={candidate.student.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3 text-gray-800 font-medium border-r border-gray-200">
                         {candidate.student.fullName || candidate.student.user?.displayName || 'N/A'}
+                      </td>
+                      <td className="p-3 text-gray-600 border-r border-gray-200 text-xs">
+                        {candidate.student.email || 'N/A'}
+                      </td>
+                      <td className="p-3 text-gray-600 border-r border-gray-200">
+                        {candidate.student.enrollmentId || 'N/A'}
                       </td>
                       <td className="p-3 text-gray-600 border-r border-gray-200">{candidate.student.batch || 'N/A'}</td>
                       <td className="p-3 border-r border-gray-200">

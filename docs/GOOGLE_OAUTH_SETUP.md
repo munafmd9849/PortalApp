@@ -1,68 +1,144 @@
-# Google OAuth Redirect URI Setup Guide
+# Google OAuth Setup Guide - Fix "Access Blocked" Error
 
-## Error: redirect_uri_mismatch
+## Problem
+When trying to connect Google Calendar, you see:
+```
+Access blocked: Assignment Tracker has not completed the Google verification process
+Error 403: access_denied
+```
 
-This error occurs when the redirect URI in your OAuth request doesn't match what's configured in Google Cloud Console.
+This happens because the Google OAuth app is in **"Testing"** mode and only approved test users can access it.
 
-## Current Configuration
+## Solution Options
 
-Your backend is using:
-- **Default:** `http://localhost:3000/auth/google/callback`
-- **From .env:** `GOOGLE_REDIRECT_URI` (if set)
+### Option 1: Add Test Users (Quick Fix - Recommended for Development)
 
-## How to Fix
+1. **Go to Google Cloud Console**
+   - Visit: https://console.cloud.google.com/
+   - Select your project (the one with your OAuth credentials)
 
-### Step 1: Check Your Current Redirect URI
+2. **Navigate to OAuth Consent Screen**
+   - Go to: **APIs & Services** → **OAuth consent screen**
+   - Or direct link: https://console.cloud.google.com/apis/credentials/consent
 
-The redirect URI is defined in:
-- `backend/src/utils/googleCalendar.js` (line 16)
-- Environment variable: `GOOGLE_REDIRECT_URI`
+3. **Add Test Users**
+   - Scroll down to **"Test users"** section
+   - Click **"+ ADD USERS"**
+   - Add the email addresses that need access:
+     - `charansai07136@gmail.com`
+     - Any other student/admin/recruiter emails that will use the calendar
+   - Click **"ADD"**
 
-### Step 2: Add Redirect URI to Google Cloud Console
+4. **Save Changes**
+   - The changes take effect immediately
+   - Users can now connect their Google Calendar
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Select your project
-3. Navigate to **APIs & Services** → **Credentials**
-4. Click on your **OAuth 2.0 Client ID**
-5. Under **Authorized redirect URIs**, add:
-   - For local development: `http://localhost:3000/auth/google/callback`
-   - For production: `https://yourdomain.com/auth/google/callback`
+### Option 2: Change to Internal (Google Workspace Only)
 
-### Step 3: Update Environment Variable (Optional)
+If you're using Google Workspace (not personal Gmail):
 
-If you want to use a different redirect URI, set it in `backend/.env`:
+1. **Go to OAuth Consent Screen**
+   - https://console.cloud.google.com/apis/credentials/consent
+
+2. **Change User Type**
+   - Change from **"External"** to **"Internal"**
+   - This allows all users in your Google Workspace to access the app
+   - **Note:** This only works if all users are in the same Google Workspace domain
+
+### Option 3: Publish the App (For Production)
+
+**⚠️ Warning:** Publishing requires Google verification, which can take weeks.
+
+1. **Go to OAuth Consent Screen**
+   - https://console.cloud.google.com/apis/credentials/consent
+
+2. **Complete Required Fields**
+   - App name: "PWIOI Placement Portal" (or your app name)
+   - User support email: Your email
+   - Developer contact information: Your email
+   - App domain (if applicable)
+   - Privacy policy URL (required for production)
+   - Terms of service URL (required for production)
+
+3. **Add Scopes**
+   - Ensure these scopes are added:
+     - `https://www.googleapis.com/auth/calendar`
+     - `https://www.googleapis.com/auth/calendar.events`
+
+4. **Submit for Verification**
+   - Click **"PUBLISH APP"**
+   - Google will review your app (can take 1-4 weeks)
+   - Once approved, all users can access it
+
+## Quick Fix Steps (Recommended)
+
+**For immediate access, use Option 1:**
+
+1. Open: https://console.cloud.google.com/apis/credentials/consent
+2. Scroll to **"Test users"**
+3. Click **"+ ADD USERS"**
+4. Add: `charansai07136@gmail.com`
+5. Click **"ADD"**
+6. Try connecting Google Calendar again
+
+## Verify Your OAuth Credentials
+
+Make sure these are set in your `.env` file:
 
 ```env
+GOOGLE_CLIENT_ID=your-client-id-here
+GOOGLE_CLIENT_SECRET=your-client-secret-here
 GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
 ```
 
-### Step 4: Restart Backend Server
+## Find Your OAuth Credentials
 
-After updating Google Cloud Console:
-```bash
-cd backend
-npm run dev
-```
+1. Go to: https://console.cloud.google.com/apis/credentials
+2. Find your **OAuth 2.0 Client ID**
+3. Copy the **Client ID** and **Client Secret**
 
-## Important Notes
+## Common Issues
 
-1. **Exact Match Required**: The redirect URI must match EXACTLY (including http/https, port, path)
-2. **No Trailing Slash**: Don't add trailing slashes
-3. **Multiple URIs**: You can add multiple redirect URIs (one per line)
-4. **Save Changes**: Make sure to click "Save" in Google Cloud Console
+### Issue: "Redirect URI mismatch"
+- **Fix:** Ensure `GOOGLE_REDIRECT_URI` in `.env` matches the **Authorized redirect URIs** in Google Cloud Console
+- Go to: https://console.cloud.google.com/apis/credentials
+- Click on your OAuth 2.0 Client ID
+- Add your redirect URI to **Authorized redirect URIs**
 
-## Common Redirect URIs
+### Issue: "Invalid client"
+- **Fix:** Check that `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are correct in `.env`
+- Make sure there are no extra spaces or quotes
 
-- **Local Development**: `http://localhost:3000/auth/google/callback`
-- **Production**: `https://yourdomain.com/auth/google/callback`
-- **Custom Port**: `http://localhost:5173/auth/google/callback` (if using different port)
+### Issue: "Access denied" even after adding test user
+- **Fix:** 
+  - Wait 1-2 minutes for changes to propagate
+  - Clear browser cache and cookies
+  - Try in incognito/private mode
+  - Make sure you're using the exact email address that was added
 
-## Verify
+## Testing
 
-After adding the redirect URI:
-1. Wait 1-2 minutes for changes to propagate
-2. Try the OAuth flow again
-3. The error should be resolved
+After adding test users:
 
+1. **Restart your backend server** (if running)
+2. **Try connecting Google Calendar again**
+3. **Check backend logs** for any OAuth errors
+
+## Production Deployment
+
+For production, you'll need to:
+
+1. **Publish the app** (Option 3 above)
+2. **Add production redirect URIs**:
+   - `https://yourdomain.com/auth/google/callback`
+   - Update `GOOGLE_REDIRECT_URI` in production `.env`
+3. **Complete Google verification** (can take weeks)
+
+## Support
+
+If issues persist:
+1. Check Google Cloud Console for error details
+2. Review backend logs for OAuth errors
+3. Verify all environment variables are set correctly
 
 

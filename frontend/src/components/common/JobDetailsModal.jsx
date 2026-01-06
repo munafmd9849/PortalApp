@@ -11,6 +11,8 @@ import JobInfoDisplay from './JobInfoDisplay';
 /**
  * Shared Job Details Modal Component
  * Used for admin job moderation with approve/reject/archive actions
+ * 
+ * @component
  */
 const JobDetailsModal = ({ 
   isOpen, 
@@ -100,6 +102,7 @@ const JobDetailsModal = ({
 };
 
 export default JobDetailsModal;
+
 
 
 

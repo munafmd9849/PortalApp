@@ -94,10 +94,42 @@ const StudentQuerySystem = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+    
+    // Special handling for CGPA: enforce exactly 2 decimal places
+    if (name === 'cgpa') {
+      // Allow only numbers and one decimal point
+      const sanitized = value.replace(/[^0-9.]/g, '');
+      // Ensure only one decimal point
+      const parts = sanitized.split('.');
+      let finalValue = parts[0] || '';
+      
+      // If user has typed a decimal point, ensure we format to 2 decimal places
+      if (parts.length > 1) {
+        const decimals = parts.slice(1).join('').substring(0, 2);
+        // Always show 2 decimal places if decimal point is present
+        finalValue += '.' + decimals.padEnd(2, '0');
+      }
+      
+      // Ensure value doesn't exceed 10.00
+      if (finalValue) {
+        const numValue = parseFloat(finalValue);
+        if (!isNaN(numValue) && numValue > 10) {
+          finalValue = '10.00';
+        } else if (!isNaN(numValue) && numValue < 0) {
+          finalValue = '0.00';
+        }
+      }
+      
+      setFormData({
+        ...formData,
+        [name]: finalValue
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
     
     // Clear error when user starts typing
     if (formErrors[name]) {
@@ -170,8 +202,38 @@ const StudentQuerySystem = () => {
     }
 
     if (activeTab === 'cgpa') {
-      if (!formData.cgpa || formData.cgpa < 0 || formData.cgpa > 10) {
-        errors.cgpa = 'Please enter a valid CGPA between 0 and 10';
+      const cgpaValue = formData.cgpa;
+      if (!cgpaValue || cgpaValue.trim() === '') {
+        errors.cgpa = 'CGPA is required';
+      } else {
+        // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
+        const cgpaStr = String(cgpaValue).trim();
+        const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
+        
+        // Check if it's a valid format with exactly 2 decimal places
+        if (!cgpaRegex.test(cgpaStr)) {
+          // Check if user entered value without 2 decimals (e.g., 9, 9.0, 9.5)
+          if (/^\d+$/.test(cgpaStr)) {
+            errors.cgpa = 'Enter CGPA with 2 decimals (e.g., 9.00)';
+          } else if (/^\d+\.\d?$/.test(cgpaStr)) {
+            errors.cgpa = 'Enter CGPA with 2 decimals (e.g., 9.00)';
+          } else {
+            errors.cgpa = 'CGPA must be between 0.00 and 10.00 with exactly 2 decimal places (e.g., 9.00, 8.75)';
+          }
+        } else {
+          // Validate range without using parseFloat to avoid rounding errors
+          const parts = cgpaStr.split('.');
+          const integerPart = parseInt(parts[0], 10);
+          const decimalPart = parseInt(parts[1], 10);
+          
+          if (isNaN(integerPart) || isNaN(decimalPart)) {
+            errors.cgpa = 'Invalid CGPA format';
+          } else if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
+            errors.cgpa = 'CGPA must be between 0.00 and 10.00';
+          } else if (integerPart < 0) {
+            errors.cgpa = 'CGPA must be between 0.00 and 10.00';
+          }
+        }
       }
       if (!formData.proof) {
         errors.proof = 'Proof document is required';
@@ -620,17 +682,37 @@ const StudentQuerySystem = () => {
                         <span className="text-red-500 ml-1">*</span>
                       </label>
                       <input
-                        type="number"
+                        type="text"
                         name="cgpa"
                         value={formData.cgpa}
                         onChange={handleInputChange}
-                        min="0"
-                        max="10"
-                        step="0.01"
-                        placeholder="Enter your updated CGPA"
+                        onBlur={(e) => {
+                          // On blur, ensure exactly 2 decimal places if value exists
+                          const value = e.target.value.trim();
+                          if (value && !value.includes('.')) {
+                            // If user entered integer (e.g., 9), format to 9.00
+                            setFormData({
+                              ...formData,
+                              cgpa: value + '.00'
+                            });
+                          } else if (value && value.includes('.')) {
+                            const parts = value.split('.');
+                            if (parts[1] && parts[1].length < 2) {
+                              // If user entered 9.0 or 9.5, pad to 2 decimals
+                              setFormData({
+                                ...formData,
+                                cgpa: parts[0] + '.' + parts[1].padEnd(2, '0')
+                              });
+                            }
+                          }
+                        }}
+                        placeholder="Enter CGPA (e.g., 9.00, 8.75)"
+                        pattern="^(10\.00|[0-9]\.[0-9]{2})$"
+                        maxLength="5"
                         className={`w-full px-4 py-3 border ${formErrors.cgpa ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200`}
                         required
                       />
+                      <p className="text-xs text-gray-500 mt-1">Format: Must have exactly 2 decimals (e.g., 9.00, 8.75). Values like 9 or 9.0 are not accepted.</p>
                       {formErrors.cgpa && <p className="text-red-500 text-sm mt-1">{formErrors.cgpa}</p>}
                     </div>
                     <div>

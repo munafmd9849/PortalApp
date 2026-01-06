@@ -1,16 +1,11 @@
 /**
  * AI Service
  * Handles LLM calls for resume content generation
- * Supports Gemini API and local LLM fallback
+ * Uses centralized AI abstraction layer
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Initialize Gemini client if API key is available
-let genAI = null;
-if (process.env.GEMINI_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-}
+import { generateAIContent } from './ai/index.js';
+import { AI_CONFIG } from '../config/ai.config.js';
 
 /**
  * Generate project content using AI
@@ -22,28 +17,14 @@ if (process.env.GEMINI_API_KEY) {
  */
 export async function generateProjectContent({ title, description, techStack = [] }) {
   try {
-    // If Gemini is available, use it
-    if (genAI) {
-      return await generateWithGemini({ title, description, techStack });
+    // Check if AI is available
+    if (!AI_CONFIG.enabled || !AI_CONFIG.google.apiKey) {
+      console.warn('AI service not configured, using fallback generation');
+      return await generateFallback({ title, description, techStack });
     }
-    
-    // Fallback to local LLM or mock generation
-    console.warn('GEMINI_API_KEY not set, using fallback generation');
-    return await generateFallback({ title, description, techStack });
-  } catch (error) {
-    console.error('AI generation error:', error);
-    // Return fallback on error
-    return await generateFallback({ title, description, techStack });
-  }
-}
 
-/**
- * Generate content using Google Gemini
- */
-async function generateWithGemini({ title, description, techStack }) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-  
-  const prompt = `You are a resume content generator. 
+    // Use AI abstraction layer
+    const prompt = `You are a resume content generator. 
 
 Given a project's title, raw student description, and tech stack:
 
@@ -64,13 +45,18 @@ Return JSON with:
 
 Return ONLY valid JSON, no markdown, no code blocks.`;
 
-  try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const aiResponse = await generateAIContent(prompt);
     
+    // Check if AI returned an error message
+    if (aiResponse.includes('unavailable') || 
+        aiResponse.includes('not configured') || 
+        aiResponse.includes('disabled')) {
+      // AI service is not available - use fallback
+      return await generateFallback({ title, description, techStack });
+    }
+
     // Parse JSON from response (handle markdown code blocks if present)
-    let jsonText = text.trim();
+    let jsonText = aiResponse.trim();
     if (jsonText.startsWith('```')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     }
@@ -84,8 +70,9 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
       skills: Array.isArray(parsed.skills) ? parsed.skills : techStack
     };
   } catch (error) {
-    console.error('Gemini parsing error:', error);
-    throw error;
+    console.error('AI generation error:', error);
+    // Return fallback on any error - never crash the UI
+    return await generateFallback({ title, description, techStack });
   }
 }
 

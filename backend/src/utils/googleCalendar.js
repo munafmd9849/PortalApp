@@ -261,9 +261,194 @@ export function generateOAuthUrl(userId) {
 }
 
 /**
+ * Get Google account email from OAuth token
+ * @param {String} accessToken - Google OAuth access token
+ * @returns {Promise<String>} - Google account email
+ */
+export async function getGoogleAccountEmail(accessToken) {
+  try {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials({ access_token: accessToken });
+    
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    
+    return userInfo.data.email?.toLowerCase().trim() || null;
+  } catch (error) {
+    logger.error('Error fetching Google account email:', error);
+    throw new Error('Failed to fetch Google account email');
+  }
+}
+
+/**
+ * Revoke Google OAuth token
+ * @param {String} accessToken - Google OAuth access token to revoke
+ * @returns {Promise<void>}
+ */
+export async function revokeGoogleToken(accessToken) {
+  try {
+    const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`;
+    const response = await fetch(revokeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    if (!response.ok && response.status !== 400) {
+      // 400 is OK - token might already be revoked
+      logger.warn('Token revocation returned non-OK status:', {
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } else {
+      logger.info('Google OAuth token revoked successfully');
+    }
+  } catch (error) {
+    logger.error('Error revoking Google token:', error);
+    // Don't throw - revocation failure shouldn't block the flow
+  }
+}
+
+/**
+ * Get Google account email and verification status from UserInfo API
+ * @param {String} accessToken - Google OAuth access token
+ * @returns {Promise<Object>} - { email: string, verified_email: boolean }
+ */
+/**
+ * Fetch Google account email and verification status using UserInfo API
+ * Uses direct HTTP call as fallback if library call fails
+ * 
+ * @param {String} accessToken - Google OAuth access token
+ * @returns {Promise<Object>} - { email: string, verified_email: boolean }
+ */
+export async function getGoogleUserInfo(accessToken) {
+  if (!accessToken) {
+    throw new Error('Access token is required');
+  }
+
+  // Try using Google library first
+  try {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials({ access_token: accessToken });
+    
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    
+    const email = userInfo.data.email?.toLowerCase().trim() || null;
+    const verifiedEmail = userInfo.data.verified_email === true;
+
+    logger.info('Google UserInfo fetched via library', {
+      hasEmail: !!email,
+      verifiedEmail,
+    });
+
+    if (!email) {
+      throw new Error('Email not returned in UserInfo response');
+    }
+
+    return {
+      email,
+      verified_email: verifiedEmail,
+    };
+  } catch (libraryError) {
+    logger.warn('Google UserInfo library call failed, trying direct HTTP API', {
+      error: libraryError.message,
+      errorCode: libraryError.code,
+    });
+
+    // Fallback: Use direct HTTP API call
+    try {
+      const https = await import('https');
+
+      return new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'www.googleapis.com',
+          path: '/oauth2/v2/userinfo',
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            try {
+              if (res.statusCode !== 200) {
+                logger.error('Google UserInfo API error', {
+                  statusCode: res.statusCode,
+                  statusMessage: res.statusMessage,
+                  response: data,
+                });
+                reject(new Error(`Google UserInfo API returned ${res.statusCode}: ${res.statusMessage}`));
+                return;
+              }
+
+              const userInfo = JSON.parse(data);
+              const email = userInfo.email?.toLowerCase().trim() || null;
+              const verifiedEmail = userInfo.verified_email === true;
+
+              logger.info('Google UserInfo fetched via direct HTTP API', {
+                hasEmail: !!email,
+                verifiedEmail,
+                statusCode: res.statusCode,
+              });
+
+              if (!email) {
+                reject(new Error('Email not returned in UserInfo response'));
+                return;
+              }
+
+              resolve({
+                email,
+                verified_email: verifiedEmail,
+              });
+            } catch (parseError) {
+              logger.error('Error parsing UserInfo response', {
+                error: parseError.message,
+                response: data,
+              });
+              reject(new Error('Failed to parse Google UserInfo response'));
+            }
+          });
+        });
+
+        req.on('error', (error) => {
+          logger.error('Google UserInfo HTTP request failed', {
+            error: error.message,
+            code: error.code,
+          });
+          reject(new Error(`Failed to fetch Google UserInfo: ${error.message}`));
+        });
+
+        req.setTimeout(10000, () => {
+          req.destroy();
+          reject(new Error('Google UserInfo request timeout'));
+        });
+
+        req.end();
+      });
+    } catch (httpError) {
+      logger.error('Both library and HTTP API calls failed for UserInfo', {
+        libraryError: libraryError.message,
+        httpError: httpError.message,
+      });
+      throw new Error(`Failed to fetch Google account information: ${httpError.message}`);
+    }
+  }
+}
+
+/**
  * Exchange authorization code for tokens
  * @param {String} code - Authorization code from Google
- * @returns {Promise<Object>} - Tokens { access_token, refresh_token, expiry_date, scope }
+ * @returns {Promise<Object>} - Tokens { access_token, refresh_token, expiry_date, scope, email, verified_email }
  */
 export async function exchangeCodeForTokens(code) {
   const oauth2Client = getOAuthClient();
@@ -271,16 +456,48 @@ export async function exchangeCodeForTokens(code) {
   try {
     const { tokens } = await oauth2Client.getToken(code);
     
+    if (!tokens.access_token) {
+      throw new Error('No access token received from Google');
+    }
+    
+    // CRITICAL: Fetch Google account email and verification status using UserInfo API
+    let googleEmail = null;
+    let verifiedEmail = false;
+    
+    try {
+      const userInfo = await getGoogleUserInfo(tokens.access_token);
+      googleEmail = userInfo.email;
+      verifiedEmail = userInfo.verified_email;
+      
+      if (!googleEmail) {
+        throw new Error('Google account email not available');
+      }
+      
+      if (!verifiedEmail) {
+        logger.warn('Google account email is not verified', {
+          email: googleEmail,
+        });
+        // Still proceed but log warning
+      }
+    } catch (emailError) {
+      logger.error('Failed to fetch Google account email during token exchange:', emailError);
+      // Revoke token since we can't verify email
+      await revokeGoogleToken(tokens.access_token);
+      throw new Error('Could not verify Google account email. Please try again.');
+    }
+    
     return {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       token_type: tokens.token_type || 'Bearer',
       scope: tokens.scope,
+      email: googleEmail,
+      verified_email: verifiedEmail,
     };
   } catch (error) {
     logger.error('Error exchanging code for tokens:', error);
-    throw new Error('Failed to exchange authorization code for tokens');
+    throw error; // Re-throw to preserve error message
   }
 }
 
