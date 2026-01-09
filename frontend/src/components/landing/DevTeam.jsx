@@ -31,19 +31,19 @@ const devs = [
     linkedin: "https://linkedin.com/in/roshan",
     img: dev4,
   },
-  // Three additional empty circles
+  
   {
-    name: "",
+    name: "Sai Charan",
     linkedin: "#",
     img: null,
   },
   {
-    name: "",
+    name: "Mahammad Munaf",
     linkedin: "#",
     img: null,
   },
   {
-    name: "",
+    name: "Mohammad Irfan",
     linkedin: "#",
     img: null,
   },
