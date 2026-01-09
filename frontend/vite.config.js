@@ -12,11 +12,11 @@ export default defineConfig({
   plugins: [
     react(),
   ],
-  // Server configuration - merged into single object to avoid duplicate key warnings
+  
   server: {
-    host: 'localhost', // Use localhost instead of 0.0.0.0 to fix HMR WebSocket issues
+    host: 'localhost', 
     port: 5173,
-    strictPort: false, // If 5173 is taken, Vite will use next available port
+    strictPort: false, 
     open: false,
     // HMR configuration - explicitly set to avoid WebSocket connection issues
     hmr: {

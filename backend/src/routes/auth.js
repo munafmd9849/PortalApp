@@ -295,8 +295,14 @@ router.post('/login', [
       refreshToken,
     });
   } catch (error) {
-    console.error('Login error:', error);
-    console.error('Login error stack:', error.stack);
+    logger.error('Login error:', error);
+    logger.error('Login error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name,
+      meta: error.meta,
+    });
     res.status(500).json({ 
       error: 'Login failed',
       message: error.message || 'An unexpected error occurred',
