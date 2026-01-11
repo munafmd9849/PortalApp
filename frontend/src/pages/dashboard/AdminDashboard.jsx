@@ -3,7 +3,8 @@ import AdminLayout from '../../components/dashboard/shared/AdminLayout';
 import AdminHome from '../../components/dashboard/admin/AdminHome';
 import CreateJob from '../../components/dashboard/admin/CreateJob';
 import ManageJobs from '../../components/dashboard/admin/ManageJobs';
-import ScheduleInterview from '../../components/dashboard/admin/ScheduleInterview';
+// import ScheduleInterview from '../../components/dashboard/admin/ScheduleInterview'; // Commented out - replaced by InterviewScheduling
+import InterviewScheduling from '../../components/dashboard/admin/InterviewScheduling';
 import JobPostingsManager from '../../components/dashboard/admin/JobPostingsManager';
 import StudentDirectory from '../../components/dashboard/admin/StudentDirectory';
 import RecruiterDirectory from '../../components/dashboard/admin/RecruiterDirectory';
@@ -51,7 +52,8 @@ export default function AdminDashboard() {
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'createJob', label: 'Create Job', icon: FilePlus2 },
     { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase },
-    { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar },
+    // { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar }, // Commented out - replaced by InterviewScheduling
+    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList },
     { id: 'studentDirectory', label: 'Student Directory', icon: Users },
@@ -124,8 +126,10 @@ export default function AdminDashboard() {
         return <CreateJob onCreated={() => setActiveTab('manageJobs')} />;
       case 'manageJobs':
         return <ManageJobs />;
-      case 'scheduleInterview':
-        return <ScheduleInterview />;
+      // case 'scheduleInterview':
+      //   return <ScheduleInterview />; // Commented out - replaced by InterviewScheduling
+      case 'interviewScheduling':
+        return <InterviewScheduling />;
       case 'calendar':
         return <ConnectGoogleCalendar />;
       case 'jobPostingsManager':
