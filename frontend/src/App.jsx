@@ -26,6 +26,8 @@ import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
 import InterviewSessionPage from './pages/InterviewSessionPage'
 import InterviewSessionToken from './pages/InterviewSessionToken'
+import InterviewerDashboard from './pages/interview/InterviewerDashboard'
+import InterviewerRoundEvaluation from './pages/interview/InterviewerRoundEvaluation'
 import Assessment from './pages/Assessment'
 import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
@@ -201,6 +203,10 @@ function AppContent() {
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
+
+        {/* Interviewer routes (token-based, no auth required) */}
+        <Route path="/interview/session/:sessionId" element={<InterviewerDashboard />} />
+        <Route path="/interview/round/:roundId" element={<InterviewerRoundEvaluation />} />
 
         {/* Catch all route */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -2194,6 +2194,23 @@ export default function StudentDashboard() {
                         }`}></div>
                         
                         <div className="p-8">
+                          {/* Interview Status Badge */}
+                          {application.interviewStatus?.hasSession && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Info className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-800">
+                                  {application.interviewStatus.statusText || 'Interview Status'}
+                                </span>
+                              </div>
+                              {application.interviewStatus.lastRoundReached > 0 && (
+                                <p className="text-xs text-blue-600 mt-1 ml-6">
+                                  Last Round Reached: Round {application.interviewStatus.lastRoundReached}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
                           {/* Enhanced Header Row */}
                           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
                             <div className="flex items-center gap-4">

@@ -4,6 +4,7 @@ import AdminHome from '../../components/dashboard/admin/AdminHome';
 import CreateJob from '../../components/dashboard/admin/CreateJob';
 import ManageJobs from '../../components/dashboard/admin/ManageJobs';
 import ScheduleInterview from '../../components/dashboard/admin/ScheduleInterview';
+import InterviewScheduling from '../../components/dashboard/admin/InterviewScheduling';
 import JobPostingsManager from '../../components/dashboard/admin/JobPostingsManager';
 import StudentDirectory from '../../components/dashboard/admin/StudentDirectory';
 import RecruiterDirectory from '../../components/dashboard/admin/RecruiterDirectory';
@@ -52,6 +53,7 @@ export default function AdminDashboard() {
     { id: 'createJob', label: 'Create Job', icon: FilePlus2 },
     { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase },
     { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar },
+    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList },
     { id: 'studentDirectory', label: 'Student Directory', icon: Users },
@@ -126,6 +128,8 @@ export default function AdminDashboard() {
         return <ManageJobs />;
       case 'scheduleInterview':
         return <ScheduleInterview />;
+      case 'interviewScheduling':
+        return <InterviewScheduling />;
       case 'calendar':
         return <ConnectGoogleCalendar />;
       case 'jobPostingsManager':
