@@ -8,6 +8,7 @@ import dev from "../../assets/images/dev1.png";
 import dev2 from "../../assets/images/dev2.png";
 import dev3 from "../../assets/images/dev3.png";
 import dev4 from "../../assets/images/dev4.png";
+import sai1 from "../../assets/images/sai1.png";
 import prof from "../../assets/images/prof1.png";
 
 const devs = [
@@ -43,9 +44,9 @@ const devs = [
     img: null,
   },
   {
-    name: "",
-    linkedin: "#",
-    img: null,
+    name: "Sai Charan",
+    linkedin: "https://www.linkedin.com/in/sai-charan-761842266",
+    img: sai1,
   },
 ];
 

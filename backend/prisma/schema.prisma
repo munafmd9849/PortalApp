@@ -418,11 +418,12 @@ model Job {
   updatedAt DateTime @updatedAt
 
   // Relations
-  company      Company?      @relation(fields: [companyId], references: [id])
-  recruiter    Recruiter?    @relation(fields: [recruiterId], references: [id])
-  applications Application[]
-  jobTracking  JobTracking[]
-  interviews   Interview[]
+  company          Company?          @relation(fields: [companyId], references: [id])
+  recruiter        Recruiter?        @relation(fields: [recruiterId], references: [id])
+  applications     Application[]
+  jobTracking      JobTracking[]
+  interviews       Interview[]
+  interviewSession InterviewSession?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
@@ -469,6 +470,10 @@ model Application {
   appliedDate   DateTime  @default(now()) // Date only (YYYY-MM-DD)
   interviewDate DateTime?
 
+  // Interview status tracking (for new interview system)
+  interviewStatus  String? // Final status: "SELECTED", "REJECTED_IN_ROUND_1", "REJECTED_IN_ROUND_2", etc.
+  lastRoundReached Int?    @default(0) // Last round number reached (0 = not started)
+
   // Additional notes
   notes String?
 
@@ -476,14 +481,16 @@ model Application {
   updatedAt DateTime @updatedAt
 
   // Relations
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  job              Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  roundEvaluations RoundEvaluation[]
 
   @@unique([studentId, jobId]) // One application per student per job
   @@index([studentId, appliedDate(sort: Desc)])
   @@index([studentId, createdAt(sort: Desc)])
   @@index([jobId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+  @@index([interviewStatus])
   @@map("applications")
 }
 
@@ -829,3 +836,109 @@ model InterviewActivity {
   @@index([activityType])
   @@map("interview_activities")
 }
+
+// ============================================================================
+// INTERVIEW SESSIONS (New Production System)
+// ============================================================================
+
+model InterviewSession {
+  id        String  @id @default(uuid())
+  jobId     String  @unique
+  companyId String?
+
+  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED
+
+  // Creator
+  createdBy String // Admin user ID
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  // Relations
+  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rounds             InterviewRound[]
+  interviewerInvites InterviewerInvite[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([jobId])
+  @@index([createdBy])
+  @@map("interview_sessions")
+}
+
+// SessionStatus: "NOT_STARTED", "ONGOING", "COMPLETED"
+
+model InterviewRound {
+  id          String @id @default(uuid())
+  sessionId   String
+  roundNumber Int // 1, 2, 3, etc.
+  name        String // e.g., "Technical Round 1", "HR Round"
+
+  status String @default("LOCKED") // RoundStatus: LOCKED, ACTIVE, ENDED
+
+  // Timestamps
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  session     InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  evaluations RoundEvaluation[]
+
+  @@unique([sessionId, roundNumber])
+  @@unique([sessionId, name])
+  @@index([sessionId, roundNumber])
+  @@index([status])
+  @@map("interview_rounds")
+}
+
+// RoundStatus: "LOCKED", "ACTIVE", "ENDED"
+
+model InterviewerInvite {
+  id        String    @id @default(uuid())
+  sessionId String
+  email     String
+  token     String    @unique // JWT or signed random token
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, email])
+  @@index([token])
+  @@index([sessionId])
+  @@index([email])
+  @@index([used, expiresAt])
+  @@map("interviewer_invites")
+}
+
+model RoundEvaluation {
+  id               String @id @default(uuid())
+  roundId          String
+  applicationId    String
+  interviewerEmail String
+
+  status  String? // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
+  remarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  round       InterviewRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  application Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, applicationId]) // One evaluation per candidate per round
+  @@index([roundId])
+  @@index([applicationId])
+  @@index([status])
+  @@map("round_evaluations")
+}
+
+// EvaluationStatus: "SELECTED", "REJECTED", "ON_HOLD"

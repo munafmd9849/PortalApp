@@ -17,6 +17,7 @@ import { API_BASE_URL } from '../../config/api';
 import api from '../../services/api';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
+import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
 import CustomDropdown from '../../components/common/CustomDropdown';
 import {
   Home,
@@ -261,6 +262,7 @@ export default function StudentDashboard() {
   const [interviewHistory, setInterviewHistory] = useState([]);
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
+  const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application details
   
   // Jobs state
   const [jobs, setJobs] = useState([]);
@@ -2000,143 +2002,189 @@ export default function StudentDashboard() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                {isCracked && (
-                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
-                                    <CheckCircle className="w-5 h-5" />
-                                    Cracked
-                                  </span>
-                                )}
-                                {isRejected && (
-                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
-                                    <XCircle className="w-5 h-5" />
-                                    Rejected
-                                  </span>
-                                )}
-                                {!isCracked && !isRejected && (
-                                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
-                                    <Clock className="w-5 h-5" />
-                                    Pending
-                                  </span>
-                                )}
+                                {/* Dropdown Button */}
+                                <button
+                                  onClick={() => {
+                                    setExpandedApplications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(record.id)) {
+                                        newSet.delete(record.id);
+                                      } else {
+                                        newSet.add(record.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200"
+                                >
+                                  <span className="text-sm font-medium text-gray-700">View Details</span>
+                                  {expandedApplications.has(record.id) ? (
+                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600" />
+                                  ) : (
+                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600" />
+                                  )}
+                                </button>
                               </div>
                             </div>
 
-                            {/* Enhanced Interview Details */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Trophy className="w-5 h-5 text-blue-600" />
-                                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
+                            {/* Dropdown Content - Status and Round Details */}
+                            {expandedApplications.has(record.id) && (
+                              <div className="mb-6 space-y-6 border-t border-gray-200 pt-6">
+                                {/* Status Badges */}
+                                <div className="flex items-center gap-3 justify-center md:justify-start">
+                                  {isCracked && (
+                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
+                                      <CheckCircle className="w-5 h-5" />
+                                      Cracked
+                                    </span>
+                                  )}
+                                  {isRejected && (
+                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
+                                      <XCircle className="w-5 h-5" />
+                                      Rejected
+                                    </span>
+                                  )}
+                                  {!isCracked && !isRejected && (
+                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
+                                      <Clock className="w-5 h-5" />
+                                      Pending
+                                    </span>
+                                  )}
                                 </div>
-                                <p className="text-lg font-bold text-gray-800">
-                                  {history.lastRoundReached || 'Not evaluated'}
-                                </p>
-                              </div>
-                              <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <ClipboardList className="w-5 h-5 text-purple-600" />
-                                  <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
-                                </div>
-                                <p className="text-lg font-bold text-gray-800">
-                                  {history.rounds?.length || 0} rounds
-                                </p>
-                              </div>
-                            </div>
 
-                            {/* Enhanced Rounds Progress */}
-                            {history.rounds && history.rounds.length > 0 && (
-                              <div className="mb-6 bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
-                                <div className="flex items-center gap-2 mb-4">
-                                  <ClipboardList className="w-5 h-5 text-indigo-600" />
-                                  <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
+                                {/* Enhanced Interview Details */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Trophy className="w-5 h-5 text-blue-600" />
+                                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
+                                    </div>
+                                    <p className="text-lg font-bold text-gray-800">
+                                      {history.lastRoundReached || 'Not evaluated'}
+                                    </p>
+                                  </div>
+                                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <ClipboardList className="w-5 h-5 text-purple-600" />
+                                      <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
+                                    </div>
+                                    <p className="text-lg font-bold text-gray-800">
+                                      {history.rounds?.length || 0} rounds
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="space-y-3">
-                                  {history.rounds.map((round, index) => {
-                                    const wasReached = history.roundsReached?.includes(round.name);
-                                    const evaluation = history.evaluations?.find(e => e.roundName === round.name);
-                                    
-                                    return (
-                                      <div
-                                        key={index}
-                                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
-                                          wasReached 
-                                            ? evaluation?.status === 'SELECTED'
-                                              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
-                                              : evaluation?.status === 'REJECTED'
-                                              ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
-                                              : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
-                                            : 'bg-white border-gray-200'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          {(() => {
-                                            // Different colors for each round number - always show colors
-                                            const roundColors = [
-                                              'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
-                                              'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
-                                              'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
-                                              'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
-                                              'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
-                                              'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
-                                              'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
-                                              'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
-                                            ];
-                                            const roundNotReachedColors = [
-                                              'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
-                                              'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
-                                              'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
-                                              'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
-                                              'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
-                                              'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
-                                              'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
-                                              'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
-                                            ];
-                                            const roundNumber = index + 1;
-                                            const colorIndex = (roundNumber - 1) % roundColors.length;
-                                            const baseColor = roundColors[colorIndex];
-                                            const mutedColor = roundNotReachedColors[colorIndex];
-                                            
-                                            return (
-                                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${
-                                                wasReached ? baseColor : mutedColor + ' opacity-75'
-                                              }`}>
-                                                <span className="text-lg">{roundNumber}</span>
+
+                                {/* Enhanced Rounds Progress */}
+                                {history.rounds && history.rounds.length > 0 && (
+                                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
+                                    <div className="flex items-center gap-2 mb-4">
+                                      <ClipboardList className="w-5 h-5 text-indigo-600" />
+                                      <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
+                                    </div>
+                                    <div className="space-y-3">
+                                      {history.rounds.map((round, index) => {
+                                        const wasReached = history.roundsReached?.includes(round.name);
+                                        const evaluation = history.evaluations?.find(e => e.roundName === round.name);
+                                        
+                                        return (
+                                          <div
+                                            key={index}
+                                            className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                                              wasReached 
+                                                ? evaluation?.status === 'SELECTED'
+                                                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
+                                                  : evaluation?.status === 'REJECTED'
+                                                  ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
+                                                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
+                                                : 'bg-white border-gray-200'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-3 mb-3">
+                                              {(() => {
+                                                // Different colors for each round number - always show colors
+                                                const roundColors = [
+                                                  'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
+                                                  'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
+                                                  'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
+                                                  'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
+                                                  'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
+                                                  'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
+                                                  'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
+                                                  'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
+                                                ];
+                                                const roundNotReachedColors = [
+                                                  'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
+                                                  'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
+                                                  'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
+                                                  'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
+                                                  'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
+                                                  'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
+                                                  'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
+                                                  'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
+                                                ];
+                                                const roundNumber = index + 1;
+                                                const colorIndex = (roundNumber - 1) % roundColors.length;
+                                                const baseColor = roundColors[colorIndex];
+                                                const mutedColor = roundNotReachedColors[colorIndex];
+                                                
+                                                return (
+                                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${
+                                                    wasReached ? baseColor : mutedColor + ' opacity-75'
+                                                  }`}>
+                                                    <span className="text-lg">{roundNumber}</span>
+                                                  </div>
+                                                );
+                                              })()}
+                                              <div>
+                                                <span className="font-semibold text-base text-gray-800 block">
+                                                  {round.name || `Round ${index + 1}`}
+                                                </span>
                                               </div>
-                                            );
-                                          })()}
-                                          <div>
-                                            <span className="font-semibold text-base text-gray-800 block">
-                                              {round.name || `Round ${index + 1}`}
-                                            </span>
-                                            {wasReached && evaluation?.marks !== null && (
-                                              <span className="text-xs text-gray-600 mt-1 block">
-                                                Score: {evaluation.marks}/100
-                                              </span>
-                                            )}
+                                            </div>
+                                            
+                                            {/* Round Details */}
+                                            <div className="space-y-2 pl-16">
+                                              {wasReached ? (
+                                                <>
+                                                  {evaluation?.marks !== null && (
+                                                    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                                                      <span className="text-sm font-semibold text-gray-700">Score:</span>
+                                                      <span className="text-base font-bold text-indigo-700">{evaluation.marks}/100</span>
+                                                    </div>
+                                                  )}
+                                                  {evaluation?.status && (
+                                                    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                                                      <span className="text-sm font-semibold text-gray-700">Status:</span>
+                                                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
+                                                        evaluation.status === 'SELECTED'
+                                                          ? 'bg-green-200 text-green-800'
+                                                          : evaluation.status === 'REJECTED'
+                                                          ? 'bg-red-200 text-red-800'
+                                                          : 'bg-blue-200 text-blue-800'
+                                                      }`}>
+                                                        {evaluation.status}
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                  {evaluation?.remarks && (
+                                                    <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
+                                                      <span className="text-sm font-semibold text-gray-700 block mb-1">Remarks:</span>
+                                                      <p className="text-sm text-gray-600">{evaluation.remarks}</p>
+                                                    </div>
+                                                  )}
+                                                </>
+                                              ) : (
+                                                <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg text-center">
+                                                  <span className="text-sm font-medium text-gray-500">Not reached</span>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          {wasReached && (
-                                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
-                                              evaluation?.status === 'SELECTED'
-                                                ? 'bg-green-200 text-green-800'
-                                                : evaluation?.status === 'REJECTED'
-                                                ? 'bg-red-200 text-red-800'
-                                                : 'bg-blue-200 text-blue-800'
-                                            }`}>
-                                              {evaluation?.status || 'Evaluated'}
-                                            </span>
-                                          )}
-                                          {!wasReached && (
-                                            <span className="text-xs font-medium text-gray-400 px-3 py-1.5 bg-gray-100 rounded-full">
-                                              Not reached
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 

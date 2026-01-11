@@ -26,6 +26,8 @@ import recruiterRoutes from './routes/recruiters.js';
 import contactRoutes from './routes/contact.js';
 import interviewRoutes from './routes/interviews.js';
 import interviewTokenRoutes from './routes/interviewToken.js';
+import interviewSchedulingRoutes from './routes/interviewScheduling.js';
+import interviewerRoutes from './routes/interviewerRoutes.js';
 import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
 import calendarRoutes from './routes/calendar.js';
 import endorsementRoutes from './routes/endorsements.js';
@@ -142,7 +144,9 @@ app.use('/api/admin-requests', adminRequestRoutes);
 app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin/interview', interviewRoutes);
-app.use('/api/interview', interviewTokenRoutes); // Token-based interview routes (no auth required)
+app.use('/api/admin/interview-scheduling', interviewSchedulingRoutes); // New interview scheduling routes (admin)
+app.use('/api/interview', interviewerRoutes); // New interviewer token-based routes (no auth required) - MUST come before old routes
+app.use('/api/interview', interviewTokenRoutes); // Old token-based interview routes (no auth required) - fallback for legacy
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
 app.use('/api/calendar', calendarRoutes); // New unified calendar routes
 app.use('/api/endorsements', endorsementRoutes);

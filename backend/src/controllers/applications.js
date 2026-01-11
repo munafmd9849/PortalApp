@@ -110,21 +110,121 @@ export async function getStudentApplications(req, res) {
       orderBy: { appliedDate: 'desc' },
     });
 
-    // Format for frontend compatibility
-    const formatted = applications.map(app => ({
-      id: app.id,
-      studentId: app.studentId,
-      jobId: app.jobId,
-      companyId: app.companyId,
-      status: app.status,
-      appliedDate: app.appliedDate,
-      interviewDate: app.interviewDate,
-      company: app.job?.company || { name: 'Unknown Company' },
-      job: {
-        jobTitle: app.job?.jobTitle || 'Unknown Position',
-        ...app.job,
+    // Get interview sessions for these jobs
+    const jobIds = applications.map(app => app.jobId);
+    const interviewSessions = await prisma.interviewSession.findMany({
+      where: { jobId: { in: jobIds } },
+      include: {
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+        },
       },
-    }));
+    });
+
+    const sessionMap = new Map(interviewSessions.map(s => [s.jobId, s]));
+
+    // Get all round evaluations for these applications to show detailed status
+    const applicationIds = applications.map(app => app.id);
+    const allEvaluations = await prisma.roundEvaluation.findMany({
+      where: { applicationId: { in: applicationIds } },
+      include: {
+        round: {
+          select: { roundNumber: true, name: true },
+        },
+      },
+      orderBy: { round: { roundNumber: 'asc' } },
+    });
+
+    const evaluationsByApp = new Map();
+    allEvaluations.forEach(evaluation => {
+      if (!evaluationsByApp.has(evaluation.applicationId)) {
+        evaluationsByApp.set(evaluation.applicationId, []);
+      }
+      evaluationsByApp.get(evaluation.applicationId).push(evaluation);
+    });
+
+    // Format for frontend compatibility
+    const formatted = applications.map(app => {
+      const session = sessionMap.get(app.jobId);
+      const evaluations = evaluationsByApp.get(app.id) || [];
+      let interviewStatusText = null;
+      let lastRoundStatus = null;
+
+      if (session && evaluations.length > 0) {
+        // Get the last evaluation
+        const lastEval = evaluations[evaluations.length - 1];
+        const lastRound = session.rounds.find(r => r.id === lastEval.roundId);
+        
+        if (lastEval.status === 'SELECTED') {
+          // Check if this was the final round
+          const maxRound = Math.max(...session.rounds.map(r => r.roundNumber));
+          if (lastRound && lastRound.roundNumber === maxRound) {
+            interviewStatusText = 'Selected';
+            lastRoundStatus = `Selected in ${lastRound.name}`;
+          } else {
+            interviewStatusText = `Selected in ${lastRound?.name || `Round ${lastRound?.roundNumber}`}`;
+            lastRoundStatus = interviewStatusText;
+          }
+        } else if (lastEval.status === 'REJECTED') {
+          interviewStatusText = `Rejected in ${lastRound?.name || `Round ${lastRound?.roundNumber}`}`;
+          lastRoundStatus = interviewStatusText;
+        } else if (lastEval.status === 'ON_HOLD') {
+          interviewStatusText = `On Hold in ${lastRound?.name || `Round ${lastRound?.roundNumber}`}`;
+          lastRoundStatus = interviewStatusText;
+        }
+      } else if (session) {
+        if (session.status === 'COMPLETED') {
+          if (app.interviewStatus === 'SELECTED') {
+            interviewStatusText = 'Selected';
+          } else if (app.interviewStatus && app.interviewStatus.startsWith('REJECTED_IN_ROUND_')) {
+            const roundNum = app.interviewStatus.replace('REJECTED_IN_ROUND_', '');
+            const round = session.rounds.find(r => r.roundNumber === parseInt(roundNum));
+            interviewStatusText = round ? `Rejected in ${round.name}` : `Rejected in Round ${roundNum}`;
+          } else {
+            interviewStatusText = 'Interview Completed';
+          }
+        } else if (session.status === 'ONGOING') {
+          const activeRound = session.rounds.find(r => r.status === 'ACTIVE');
+          if (activeRound) {
+            interviewStatusText = `Interview Ongoing - ${activeRound.name}`;
+          } else {
+            interviewStatusText = 'Interview Ongoing';
+          }
+        } else {
+          interviewStatusText = 'Interview Not Started';
+        }
+      } else {
+        // No interview session
+        if (app.status === 'SELECTED') {
+          interviewStatusText = 'Selected';
+        } else if (app.status === 'REJECTED') {
+          interviewStatusText = 'Rejected';
+        } else {
+          interviewStatusText = 'Applied';
+        }
+      }
+
+      return {
+        id: app.id,
+        studentId: app.studentId,
+        jobId: app.jobId,
+        companyId: app.companyId,
+        status: app.status,
+        appliedDate: app.appliedDate,
+        interviewDate: app.interviewDate,
+        company: app.job?.company || { name: 'Unknown Company' },
+        job: {
+          jobTitle: app.job?.jobTitle || 'Unknown Position',
+          ...app.job,
+        },
+        interviewStatus: {
+          hasSession: !!session,
+          statusText: interviewStatusText,
+          lastRoundStatus: lastRoundStatus, // Issue #2 - detailed round status
+          lastRoundReached: app.lastRoundReached || 0,
+        },
+      };
+    });
 
     res.json(formatted);
   } catch (error) {
@@ -224,76 +324,103 @@ export async function getStudentInterviewHistory(req, res) {
       orderBy: { appliedDate: 'desc' },
     });
 
-    // Get all interviews for the jobs this student applied to
+    // Get all interview sessions for the jobs this student applied to (NEW SYSTEM)
     const jobIds = applications.map(app => app.jobId);
-    const interviews = await prisma.interview.findMany({
+    const interviewSessions = await prisma.interviewSession.findMany({
       where: { jobId: { in: jobIds } },
+      include: {
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+        },
+      },
     });
 
-    // Get all interview evaluations for this student
-    const evaluations = await prisma.interviewEvaluation.findMany({
-      where: { studentId: student.id },
-      orderBy: { evaluatedAt: 'desc' },
+    // Get all round evaluations for this student's applications (NEW SYSTEM)
+    const applicationIds = applications.map(app => app.id);
+    const roundEvaluations = await prisma.roundEvaluation.findMany({
+      where: { applicationId: { in: applicationIds } },
+      include: {
+        round: {
+          select: {
+            id: true,
+            roundNumber: true,
+            name: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Create a map of interviewId -> interview
-    const interviewMap = new Map(interviews.map(int => [int.jobId, int]));
+    // Create a map of jobId -> interviewSession
+    const sessionMap = new Map(interviewSessions.map(session => [session.jobId, session]));
     
-    // Create a map of interviewId -> evaluations for this student
+    // Create a map of applicationId -> evaluations
     const evaluationMap = new Map();
-    evaluations.forEach(evaluation => {
-      if (!evaluationMap.has(evaluation.interviewId)) {
-        evaluationMap.set(evaluation.interviewId, []);
+    roundEvaluations.forEach(evaluation => {
+      if (!evaluationMap.has(evaluation.applicationId)) {
+        evaluationMap.set(evaluation.applicationId, []);
       }
-      evaluationMap.get(evaluation.interviewId).push(evaluation);
+      evaluationMap.get(evaluation.applicationId).push(evaluation);
     });
 
-    // Format applications with interview history
+    // Format applications with interview history (NEW SYSTEM)
     const formatted = applications.map(app => {
-      const interview = interviewMap.get(app.jobId);
-      const appEvaluations = interview ? (evaluationMap.get(interview.id) || []) : [];
+      const session = sessionMap.get(app.jobId);
+      const appEvaluations = evaluationMap.get(app.id) || [];
       
-      // Parse rounds from interview
-      let rounds = [];
-      if (interview?.rounds) {
-        try {
-          rounds = typeof interview.rounds === 'string' 
-            ? JSON.parse(interview.rounds) 
-            : interview.rounds;
-        } catch (e) {
-          console.error('Error parsing rounds:', e);
-          rounds = [];
-        }
-      }
+      // Get rounds from session
+      const rounds = session?.rounds || [];
 
       // Determine which round the student reached
       let lastRoundReached = null;
       let lastEvaluationStatus = null;
-      let highestRoundIndex = -1;
+      let highestRoundNumber = -1;
+      const roundsReached = [];
 
       if (appEvaluations.length > 0 && rounds.length > 0) {
         // Find the highest round they were evaluated in
         appEvaluations.forEach(evaluation => {
-          const roundIndex = rounds.findIndex(r => r.name === evaluation.roundName);
-          if (roundIndex > highestRoundIndex) {
-            highestRoundIndex = roundIndex;
-            lastRoundReached = evaluation.roundName;
+          const round = evaluation.round;
+          if (round && round.roundNumber > highestRoundNumber) {
+            highestRoundNumber = round.roundNumber;
+            lastRoundReached = round.name;
             lastEvaluationStatus = evaluation.status;
+          }
+          if (round && !roundsReached.includes(round.name)) {
+            roundsReached.push(round.name);
           }
         });
       }
 
+      // Also check application.lastRoundReached for fallback
+      if (!lastRoundReached && app.lastRoundReached && app.lastRoundReached > 0) {
+        const round = rounds.find(r => r.roundNumber === app.lastRoundReached);
+        if (round) {
+          lastRoundReached = round.name;
+        }
+      }
+
       // Determine final status
-      // If status is SELECTED/OFFERED -> cracked (green)
-      // If status is REJECTED -> rejected (yellow)
-      // Otherwise use application status
       let finalStatus = app.status;
       let isCracked = false;
       let isRejected = false;
 
-      if (lastEvaluationStatus === 'SELECTED') {
+      if (app.interviewStatus === 'SELECTED') {
         isCracked = true;
         finalStatus = 'SELECTED';
+      } else if (app.interviewStatus && app.interviewStatus.startsWith('REJECTED_IN_ROUND_')) {
+        isRejected = true;
+        finalStatus = 'REJECTED';
+      } else if (lastEvaluationStatus === 'SELECTED') {
+        // Check if this was the final round
+        if (session && rounds.length > 0) {
+          const maxRound = Math.max(...rounds.map(r => r.roundNumber));
+          if (highestRoundNumber === maxRound) {
+            isCracked = true;
+            finalStatus = 'SELECTED';
+          }
+        }
       } else if (lastEvaluationStatus === 'REJECTED') {
         isRejected = true;
         finalStatus = 'REJECTED';
@@ -316,19 +443,24 @@ export async function getStudentInterviewHistory(req, res) {
           jobTitle: app.job?.jobTitle || 'Unknown Position',
           ...app.job,
         },
-        // Interview history fields
-        interviewHistory: interview ? {
-          interviewId: interview.id,
+        // Interview history fields (NEW SYSTEM)
+        interviewHistory: session ? {
+          interviewId: session.id,
           hasInterview: true,
-          rounds: rounds,
+          rounds: rounds.map(r => ({
+            name: r.name,
+            roundNumber: r.roundNumber,
+            status: r.status,
+            criteria: null, // Not stored in new system
+          })),
           lastRoundReached: lastRoundReached,
-          roundsReached: appEvaluations.map(e => e.roundName),
+          roundsReached: roundsReached,
           evaluations: appEvaluations.map(e => ({
-            roundName: e.roundName,
-            marks: e.marks,
+            roundName: e.round?.name || `Round ${e.round?.roundNumber}`,
+            marks: null, // Not stored in new system
             remarks: e.remarks,
             status: e.status,
-            evaluatedAt: e.evaluatedAt,
+            evaluatedAt: e.createdAt,
           })),
           isCracked,
           isRejected,
