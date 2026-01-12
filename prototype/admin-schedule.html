@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Interview Schedule</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Interview Session Management</h1>
+      <p>Configure and manage interview sessions for job applications</p>
+    </div>
+
+    <!-- Job Info -->
+    <div class="card">
+      <div class="card-title">Job Information</div>
+      <div id="jobInfo">
+        <p><strong>Title:</strong> <span id="jobTitle"></span></p>
+        <p><strong>Company:</strong> <span id="jobCompany"></span></p>
+        <p><strong>Deadline:</strong> <span id="jobDeadline"></span> (Passed)</p>
+      </div>
+    </div>
+
+    <!-- Screening Summary -->
+    <div class="card">
+      <div class="card-title">Screening Summary</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="totalApplied">0</div>
+          <div class="stat-label">Total Applied</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="resumeShortlisted">0</div>
+          <div class="stat-label">Resume Shortlisted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="testPassed">0</div>
+          <div class="stat-label">Test Passed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+      </div>
+      <div id="screeningStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; background: #f7fafc;">
+        <p id="screeningStatusText" style="margin: 0; font-size: 14px; color: #4a5568;"></p>
+      </div>
+    </div>
+
+    <!-- Create Interview Session -->
+    <div class="card">
+      <div class="card-title">Create Interview Session</div>
+      <div id="sessionStatus" style="margin-bottom: 20px;">
+        <p id="sessionStatusText" style="color: #718096; font-size: 14px;"></p>
+      </div>
+
+      <div id="sessionConfig" style="display: none;">
+        <!-- Round Configuration -->
+        <div class="form-group">
+          <label class="form-label">Number of Rounds</label>
+          <input type="number" id="numRounds" class="form-input" min="1" max="5" value="2" onchange="updateRoundInputs()">
+        </div>
+
+        <div id="roundInputs" style="margin-bottom: 20px;">
+          <!-- Round name inputs will be generated here -->
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" onclick="createSession()" id="createSessionBtn">
+            Create Interview Session
+          </button>
+          <button class="btn btn-secondary" onclick="sendInvites()" id="sendInvitesBtn" style="display: none;">
+            Send Interviewer Invites
+          </button>
+        </div>
+      </div>
+
+      <!-- Existing Session Info -->
+      <div id="existingSession" style="display: none;">
+        <div style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+          <p><strong>Session ID:</strong> <span id="sessionId"></span></p>
+          <p><strong>Status:</strong> <span id="sessionStatusBadge"></span></p>
+          <p><strong>Created:</strong> <span id="sessionCreated"></span></p>
+        </div>
+        <div id="roundsList"></div>
+      </div>
+    </div>
+
+    <!-- Test Passed Candidates -->
+    <div class="card">
+      <div class="card-title">Candidates Eligible for Interview</div>
+      <div id="eligibleCandidates">
+        <p style="color: #718096; font-size: 14px;">No candidates eligible yet. Complete screening first.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="state.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    // Initialize page
+    function init() {
+      loadJobInfo();
+      loadScreeningSummary();
+      loadSessionStatus();
+      updateRoundInputs();
+    }
+
+    function loadJobInfo() {
+      document.getElementById('jobTitle').textContent = MOCK_DATA.job.title;
+      document.getElementById('jobCompany').textContent = MOCK_DATA.job.company;
+      document.getElementById('jobDeadline').textContent = Utils.formatDate(MOCK_DATA.job.deadline);
+    }
+
+    function loadScreeningSummary() {
+      const total = State.applications.length;
+      const shortlisted = State.screening.resumeShortlisted.length;
+      const testPassed = State.screening.testPassed.length;
+      const rejected = State.screening.rejected.length;
+
+      document.getElementById('totalApplied').textContent = total;
+      document.getElementById('resumeShortlisted').textContent = shortlisted;
+      document.getElementById('testPassed').textContent = testPassed;
+      document.getElementById('rejected').textContent = rejected;
+
+      const isComplete = State.isScreeningComplete();
+      const statusDiv = document.getElementById('screeningStatus');
+      const statusText = document.getElementById('screeningStatusText');
+
+      if (isComplete) {
+        statusDiv.style.background = '#c6f6d5';
+        statusText.textContent = '✓ Screening Complete - Ready to create interview session';
+        statusText.style.color = '#22543d';
+      } else {
+        statusDiv.style.background = '#faf089';
+        statusText.textContent = '⚠ Screening Incomplete - All candidates must be screened before creating interview session';
+        statusText.style.color = '#744210';
+      }
+    }
+
+    function loadSessionStatus() {
+      const session = State.interviewSession;
+
+      if (session.status === 'NOT_STARTED' && session.rounds.length === 0) {
+        // No session created yet
+        document.getElementById('sessionStatusText').textContent = 
+          State.isScreeningComplete() 
+            ? 'Ready to create interview session' 
+            : 'Complete screening first';
+        document.getElementById('sessionConfig').style.display = 'block';
+        document.getElementById('createSessionBtn').disabled = !State.isScreeningComplete();
+        document.getElementById('existingSession').style.display = 'none';
+      } else {
+        // Session exists
+        document.getElementById('sessionConfig').style.display = 'none';
+        document.getElementById('existingSession').style.display = 'block';
+        document.getElementById('sessionId').textContent = session.id;
+        
+        const statusBadge = document.getElementById('sessionStatusBadge');
+        statusBadge.textContent = session.status;
+        statusBadge.className = 'badge ' + (session.status === 'ONGOING' ? 'badge-yellow' : 
+                                 session.status === 'COMPLETED' ? 'badge-green' : 'badge-gray');
+        
+        document.getElementById('sessionCreated').textContent = Utils.formatDateTime(session.createdAt);
+        
+        // Display rounds
+        displayRounds();
+      }
+    }
+
+    function updateRoundInputs() {
+      const numRounds = parseInt(document.getElementById('numRounds').value) || 1;
+      const container = document.getElementById('roundInputs');
+      container.innerHTML = '';
+
+      for (let i = 0; i < numRounds; i++) {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        div.innerHTML = `
+          <label class="form-label">Round ${i + 1} Name</label>
+          <input type="text" class="form-input round-name-input" 
+                 placeholder="e.g., Technical Round ${i + 1}" 
+                 value="${i === 0 ? 'Technical Round 1' : i === 1 ? 'HR Round' : `Round ${i + 1}`}">
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    function createSession() {
+      if (!State.isScreeningComplete()) {
+        Utils.showToast('Screening must be completed first', 'error');
+        return;
+      }
+
+      const roundInputs = document.querySelectorAll('.round-name-input');
+      const rounds = Array.from(roundInputs).map(input => {
+        const name = input.value.trim();
+        return name || input.placeholder;
+      });
+
+      if (rounds.length === 0) {
+        Utils.showToast('At least one round is required', 'error');
+        return;
+      }
+
+      const result = State.createInterviewSession(rounds);
+      if (result.success) {
+        Utils.showToast('Interview session created successfully', 'success');
+        loadSessionStatus();
+        document.getElementById('sendInvitesBtn').style.display = 'inline-block';
+      } else {
+        Utils.showToast(result.message, 'error');
+      }
+    }
+
+    function sendInvites() {
+      Utils.showToast('Interviewer invites sent (mock)', 'success');
+    }
+
+    function displayRounds() {
+      const rounds = State.interviewSession.rounds;
+      const container = document.getElementById('roundsList');
+      container.innerHTML = '<div class="card-title">Rounds Configuration</div>';
+
+      rounds.forEach((round, index) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 15px; margin-bottom: 10px; border: 1px solid #e2e8f0; border-radius: 6px;';
+        div.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>${round.name}</strong>
+              <span class="badge ${round.status === 'ACTIVE' ? 'badge-yellow' : 
+                               round.status === 'COMPLETED' ? 'badge-green' : 'badge-gray'}" 
+                    style="margin-left: 10px;">
+                ${round.status}
+              </span>
+            </div>
+            <div style="font-size: 12px; color: #718096;">
+              ${round.startedAt ? 'Started: ' + Utils.formatDateTime(round.startedAt) : ''}
+              ${round.endedAt ? ' | Ended: ' + Utils.formatDateTime(round.endedAt) : ''}
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Load eligible candidates
+    function loadEligibleCandidates() {
+      const container = document.getElementById('eligibleCandidates');
+      const testPassed = State.screening.testPassed;
+
+      if (testPassed.length === 0) {
+        container.innerHTML = '<p style="color: #718096; font-size: 14px;">No candidates eligible yet.</p>';
+        return;
+      }
+
+      const table = document.createElement('table');
+      table.className = 'table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>CGPA</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="eligibleCandidatesBody"></tbody>
+      `;
+
+      const tbody = table.querySelector('#eligibleCandidatesBody');
+      testPassed.forEach(studentId => {
+        const student = getStudentById(studentId);
+        if (student) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${student.name}</td>
+            <td>${student.email}</td>
+            <td>${student.cgpa}</td>
+            <td><span class="badge badge-green">Test Passed</span></td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
+
+      container.innerHTML = '';
+      container.appendChild(table);
+    }
+
+    // Initialize on load
+    init();
+    loadEligibleCandidates();
+
+    // Refresh screening summary every 2 seconds (to catch updates from recruiter page)
+    setInterval(() => {
+      loadScreeningSummary();
+      loadEligibleCandidates();
+    }, 2000);
+  </script>
+</body>
+</html>

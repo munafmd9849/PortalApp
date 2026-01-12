@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recruiter Screening</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Recruiter Screening Portal</h1>
+      <p>Screen and evaluate candidate applications</p>
+    </div>
+
+    <!-- Job Info -->
+    <div class="card">
+      <div class="card-title">Job Information</div>
+      <div id="jobInfo">
+        <p><strong>Title:</strong> <span id="jobTitle"></span></p>
+        <p><strong>Company:</strong> <span id="jobCompany"></span></p>
+        <p style="color: #718096; font-size: 14px; margin-top: 10px;">
+          This is a shared screening link. No login required.
+        </p>
+      </div>
+    </div>
+
+    <!-- Screening Summary -->
+    <div class="card">
+      <div class="card-title">Screening Progress</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="totalApplied">0</div>
+          <div class="stat-label">Total Applied</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="resumeShortlisted">0</div>
+          <div class="stat-label">Resume Shortlisted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="testPassed">0</div>
+          <div class="stat-label">Test Passed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="card" style="background: #edf2f7; border-left: 4px solid #667eea;">
+      <p style="margin: 0; font-size: 14px; color: #2d3748;">
+        <strong>Instructions:</strong> Review each candidate's resume and make screening decisions. 
+        You can shortlist resumes, mark tests as passed, or reject candidates with a reason.
+      </p>
+    </div>
+
+    <!-- Candidates List -->
+    <div class="card">
+      <div class="card-title">Applied Candidates</div>
+      <div id="candidatesList">
+        <p style="color: #718096; text-align: center; padding: 20px;">Loading candidates...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejection Modal -->
+  <div id="rejectionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 8px; max-width: 500px; width: 90%;">
+      <h3 style="margin-bottom: 15px;">Reject Candidate</h3>
+      <div class="form-group">
+        <label class="form-label">Reason for Rejection</label>
+        <select id="rejectionReason" class="form-select">
+          <option value="">Select a reason</option>
+          <option value="Insufficient qualifications">Insufficient qualifications</option>
+          <option value="CGPA below requirement">CGPA below requirement</option>
+          <option value="Resume quality issues">Resume quality issues</option>
+          <option value="Not a good fit">Not a good fit</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" id="customReasonGroup" style="display: none;">
+        <label class="form-label">Custom Reason</label>
+        <input type="text" id="customReason" class="form-input" placeholder="Enter rejection reason">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeRejectionModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmRejection()">Reject</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="state.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    let currentRejectingStudentId = null;
+
+    function init() {
+      loadJobInfo();
+      loadScreeningSummary();
+      loadCandidates();
+    }
+
+    function loadJobInfo() {
+      document.getElementById('jobTitle').textContent = MOCK_DATA.job.title;
+      document.getElementById('jobCompany').textContent = MOCK_DATA.job.company;
+    }
+
+    function loadScreeningSummary() {
+      const total = State.applications.length;
+      const shortlisted = State.screening.resumeShortlisted.length;
+      const testPassed = State.screening.testPassed.length;
+      const rejected = State.screening.rejected.length;
+
+      document.getElementById('totalApplied').textContent = total;
+      document.getElementById('resumeShortlisted').textContent = shortlisted;
+      document.getElementById('testPassed').textContent = testPassed;
+      document.getElementById('rejected').textContent = rejected;
+    }
+
+    function loadCandidates() {
+      const container = document.getElementById('candidatesList');
+      const applications = State.applications;
+
+      if (applications.length === 0) {
+        container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">No candidates applied yet.</p>';
+        return;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'student-list';
+
+      applications.forEach(app => {
+        const student = getStudentById(app.studentId);
+        if (!student) return;
+
+        const card = document.createElement('div');
+        card.className = 'student-card';
+
+        // Get current status
+        const isShortlisted = State.screening.resumeShortlisted.includes(app.studentId);
+        const isTestPassed = State.screening.testPassed.includes(app.studentId);
+        const isRejected = State.screening.rejected.find(r => r.studentId === app.studentId);
+
+        let statusBadge = '';
+        if (isRejected) {
+          statusBadge = `<span class="badge badge-red">Rejected</span>`;
+        } else if (isTestPassed) {
+          statusBadge = `<span class="badge badge-green">Test Passed</span>`;
+        } else if (isShortlisted) {
+          statusBadge = `<span class="badge badge-blue">Resume Shortlisted</span>`;
+        } else {
+          statusBadge = `<span class="badge badge-gray">Applied</span>`;
+        }
+
+        card.innerHTML = `
+          <div class="student-info">
+            <div class="student-name">${student.name}</div>
+            <div class="student-details">
+              <div>Email: ${student.email}</div>
+              <div>CGPA: ${student.cgpa}</div>
+              <div>Applied: ${Utils.formatDate(app.appliedDate)}</div>
+              <div style="margin-top: 5px;">
+                <a href="${student.resumeUrl}" target="_blank" style="color: #667eea; text-decoration: none; font-size: 13px;">
+                  📄 View Resume
+                </a>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+            ${statusBadge}
+            <div class="student-actions">
+              ${!isRejected ? `
+                ${!isShortlisted ? `
+                  <button class="btn btn-primary btn-small" onclick="shortlistResume('${app.studentId}')">
+                    Shortlist Resume
+                  </button>
+                ` : ''}
+                ${isShortlisted && !isTestPassed ? `
+                  <button class="btn btn-success btn-small" onclick="markTestPassed('${app.studentId}')">
+                    Mark Test Passed
+                  </button>
+                ` : ''}
+                <button class="btn btn-danger btn-small" onclick="openRejectionModal('${app.studentId}')" 
+                        ${isRejected ? 'disabled' : ''}>
+                  Reject
+                </button>
+              ` : `
+                <span style="font-size: 12px; color: #718096;">
+                  ${isRejected.reason || 'Rejected'}
+                </span>
+              `}
+            </div>
+          </div>
+        `;
+
+        list.appendChild(card);
+      });
+
+      container.innerHTML = '';
+      container.appendChild(list);
+    }
+
+    function shortlistResume(studentId) {
+      if (State.shortlistResume(studentId)) {
+        Utils.showToast('Resume shortlisted successfully', 'success');
+        loadScreeningSummary();
+        loadCandidates();
+      }
+    }
+
+    function markTestPassed(studentId) {
+      if (State.markTestPassed(studentId)) {
+        Utils.showToast('Test marked as passed', 'success');
+        loadScreeningSummary();
+        loadCandidates();
+      }
+    }
+
+    function openRejectionModal(studentId) {
+      currentRejectingStudentId = studentId;
+      document.getElementById('rejectionModal').style.display = 'flex';
+      document.getElementById('rejectionReason').value = '';
+      document.getElementById('customReason').value = '';
+      document.getElementById('customReasonGroup').style.display = 'none';
+    }
+
+    function closeRejectionModal() {
+      document.getElementById('rejectionModal').style.display = 'none';
+      currentRejectingStudentId = null;
+    }
+
+    document.getElementById('rejectionReason').addEventListener('change', function() {
+      if (this.value === 'Other') {
+        document.getElementById('customReasonGroup').style.display = 'block';
+      } else {
+        document.getElementById('customReasonGroup').style.display = 'none';
+      }
+    });
+
+    function confirmRejection() {
+      if (!currentRejectingStudentId) return;
+
+      const reasonSelect = document.getElementById('rejectionReason');
+      const customReason = document.getElementById('customReason').value.trim();
+      
+      let reason = reasonSelect.value;
+      if (reason === 'Other') {
+        if (!customReason) {
+          Utils.showToast('Please enter a rejection reason', 'error');
+          return;
+        }
+        reason = customReason;
+      }
+
+      if (!reason) {
+        Utils.showToast('Please select a rejection reason', 'error');
+        return;
+      }
+
+      if (State.rejectInScreening(currentRejectingStudentId, reason)) {
+        Utils.showToast('Candidate rejected', 'success');
+        closeRejectionModal();
+        loadScreeningSummary();
+        loadCandidates();
+      }
+    }
+
+    // Close modal on outside click
+    document.getElementById('rejectionModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeRejectionModal();
+      }
+    });
+
+    // Initialize
+    init();
+  </script>
+</body>
+</html>
