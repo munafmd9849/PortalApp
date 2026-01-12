@@ -128,7 +128,16 @@ export async function requestEndorsement(req, res) {
     });
   } catch (error) {
     logger.error('Request endorsement error:', error);
-    res.status(500).json({ error: 'Failed to create endorsement request' });
+    logger.error('Request endorsement error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name,
+    });
+    res.status(500).json({ 
+      error: 'Failed to create endorsement request',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 

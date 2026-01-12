@@ -73,27 +73,9 @@ const PlacementRecords = ({ onLoginOpen }) => {
     };
   }, [showBatchDropdown]);
 
-  // For lg and above, show all cards; for below lg, limit cards for horizontal scroll
+  // Always show 4 cards, responsive layout
   useEffect(() => {
-    function handleResize() {
-      const vw = window.innerWidth;
-      if (vw >= 1024) {
-        // lg and above: show all cards, they will fit with reduced width
-        setCardsToShow(studentRecords[currentRow].length);
-      } else {
-        // Below lg: limit cards for horizontal scrolling
-        if (vw < 640) {
-          setCardsToShow(3);
-        } else if (vw < 768) {
-          setCardsToShow(4);
-        } else {
-          setCardsToShow(5);
-        }
-      }
-    }
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    setCardsToShow(4);
   }, [currentRow]);
 
   const handleShowAll = () => {
@@ -165,12 +147,9 @@ const PlacementRecords = ({ onLoginOpen }) => {
           <div className="relative">
             <div 
               className="
-                flex gap-2 sm:gap-3 md:gap-4 lg:gap-4 
+                grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3
                 transition-all duration-1000 ease-in-out
-                overflow-x-auto lg:overflow-hidden
-                lg:justify-center
-                scrollbar-hide
-                px-4 lg:px-0
+                max-w-7xl mx-auto
               "
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
@@ -214,9 +193,9 @@ const StudentCard = ({ student, index }) => {
     <div
       className="
         relative group bg-white rounded-lg shadow-md overflow-hidden 
-        transition-all duration-300 ease-out transform hover:scale-105 hover:shadow-lg border border-gray-100
-        flex-shrink-0
-        w-40 h-56
+        transition-all duration-300 ease-out transform hover:scale-[1.02] hover:shadow-lg border border-gray-200
+        flex flex-col
+        h-full w-full max-w-[180px] mx-auto
       "
       style={{
         animationDelay: `${index * 100}ms`,
@@ -224,18 +203,19 @@ const StudentCard = ({ student, index }) => {
       }}
     >
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1565C0]/5 to-[#1565C0]/10" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#1565C0]/5 via-[#1565C0]/3 to-transparent" />
       
       {/* Top Section with Profile */}
-      <div className="relative pt-5 pb-1">
+      <div className="relative pt-4 pb-2 flex-shrink-0">
         <div className="flex justify-center">
           <div className="relative">
             <img
               src={student.profileImg}
-              className="w-14 h-14 rounded-full border-2 border-[#1565C0] shadow-sm object-cover transition-colors"
+              className="w-16 h-16 rounded-full border-2 border-[#1565C0] shadow-sm object-cover transition-all duration-300 group-hover:border-[#0d47a1]"
+              alt={student.name}
             />
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#1565C0] rounded-full border border-white flex items-center justify-center">
-              <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#1565C0] rounded-full border-2 border-white flex items-center justify-center shadow-sm">
+              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </div>
@@ -244,55 +224,54 @@ const StudentCard = ({ student, index }) => {
       </div>
 
       {/* Student Info */}
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-3 flex-grow flex flex-col">
         <h3 className="text-sm font-bold text-[#1565C0] text-center mb-2">
           {student.name}
         </h3>
         
-        <div className="space-y-0.5">
+        <div className="space-y-1 flex-grow">
           <div className="text-center">
-            <p className="font-bold text-gray-800 text-sm">{student.company}</p>
+            <p className="font-bold text-gray-900 text-sm">{student.company}</p>
           </div>
           
           <div className="text-center">
             <p className="font-medium text-gray-700 text-xs">{student.role}</p>
           </div>
           
-          <div className="text-center">
-            <p className="font-bold text-[#1565C0] text-sm">{student.package}</p>
+          <div className="text-center py-0.5">
+            <p className="font-bold text-[#1565C0] text-base">{student.package}</p>
           </div>
           
           <div className="text-center">
             <p className="font-medium text-gray-600 text-xs">{student.batch}</p>
           </div>
+        </div>
 
-          <div className='flex justify-around mt-1 opacity-0 group-hover:opacity-100'>
-            {/* LinkedIn Link */}
-            <a 
-              href={student.linkedin} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className='relative bg-blue-200 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden group/linkedin'
-              title="View LinkedIn Profile"
-            >
-              <div className="absolute inset-0 bg-blue-700 opacity-0 group-hover/linkedin:opacity-100 transition-opacity duration-300 rounded-full"></div>
-              <svg className="relative z-10 w-4 h-4 text-blue-600 group-hover/linkedin:text-white transition-colors duration-200" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-              </svg>
-            </a>
+        {/* Social Icons - Always Visible */}
+        <div className='flex justify-center gap-3 mt-3 pt-2 border-t border-gray-200'>
+          {/* LinkedIn Link */}
+          <a 
+            href={student.linkedin} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className='relative bg-blue-100 hover:bg-blue-600 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden group/linkedin shadow-sm hover:shadow-md hover:scale-110'
+            title="View LinkedIn Profile"
+          >
+            <svg className="relative z-10 w-4 h-4 text-blue-600 group-hover/linkedin:text-white transition-colors duration-200" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+            </svg>
+          </a>
 
-            {/* Email Link */}
-            <a 
-              href={`mailto:${student.name.toLowerCase().replace(' ', '.')}@${student.company.toLowerCase()}.com`}
-              className='relative bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 overflow-hidden group/email'
-              title="Send Email"
-            >
-              <div className="absolute inset-0 bg-gray-700 opacity-0 group-hover/email:opacity-100 transition-opacity duration-300 rounded-full"></div>
-              <svg className="relative z-10 w-4 h-4 text-gray-600 group-hover/email:text-white transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-              </svg>
-            </a>
-          </div>
+          {/* Email Link */}
+          <a 
+            href={`mailto:${student.name.toLowerCase().replace(' ', '.')}@${student.company.toLowerCase()}.com`}
+            className='relative bg-gray-100 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden group/email shadow-sm hover:shadow-md hover:scale-110'
+            title="Send Email"
+          >
+            <svg className="relative z-10 w-4 h-4 text-gray-600 group-hover/email:text-white transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+          </a>
         </div>
       </div>
     </div>
