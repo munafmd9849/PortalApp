@@ -9,6 +9,8 @@ import dev2 from "../../assets/images/dev2.png";
 import dev3 from "../../assets/images/dev3.png";
 import dev4 from "../../assets/images/dev4.png";
 import sai1 from "../../assets/images/sai1.png";
+import munaf1 from "../../assets/images/munaf1.png";
+import Irfan from "../../assets/images/Irfan.png";
 import prof from "../../assets/images/prof1.png";
 
 const devs = [
@@ -34,14 +36,14 @@ const devs = [
   },
   // Three additional empty circles
   {
-    name: "",
-    linkedin: "#",
-    img: null,
+    name: "Munaf",
+    linkedin: "https://www.linkedin.com/in/munafmohammad/",
+    img: munaf1,
   },
   {
-    name: "",
-    linkedin: "#",
-    img: null,
+    name: "Irfan",
+    linkedin: "https://www.linkedin.com/in/mohammad-irfan-638a2b308/",
+    img: Irfan,
   },
   {
     name: "Sai Charan",

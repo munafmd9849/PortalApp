@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { deleteJob, subscribeJobs, postJob } from '../../../services/jobs';
 import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin } from 'lucide-react';
-import JobDescriptionModal from '../student/JobDescriptionModal';
 import { useToast } from '../../ui/Toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function ManageJobs() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [postingJobs, setPostingJobs] = useState(new Set());
@@ -16,9 +17,6 @@ export default function ManageJobs() {
   const [selectedBatches, setSelectedBatches] = useState({});
   const [selectedCenters, setSelectedCenters] = useState({});
   const [activeFilter, setActiveFilter] = useState('unposted');
-
-  // Integrated modal state for View JD button
-  const [viewingJob, setViewingJob] = useState(null);
 
   // Filter options state
   const [schoolOptions, setSchoolOptions] = useState([]);
@@ -986,23 +984,18 @@ export default function ManageJobs() {
                           )}
                         </button>
 
-                        {/* View JD Button with integrated modal toggle */}
+                        {/* View JD Button */}
                         <button
-                          onClick={() => setViewingJob(viewingJob?.id === job.id ? null : job)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/job/${job.id}`);
+                          }}
                           className="p-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors shadow-sm"
                           title="View JD"
                         >
                           <View className="w-4 h-4" />
                         </button>
-
-                        {/* Modal directly integrated - only renders when this specific job is being viewed */}
-                        {viewingJob?.id === job.id && (
-                          <JobDescriptionModal
-                            job={viewingJob}
-                            isOpen={true}
-                            onClose={() => setViewingJob(null)}
-                          />
-                        )}
 
                         {/* Share Action */}
                         <button

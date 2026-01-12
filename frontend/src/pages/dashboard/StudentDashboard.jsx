@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
-import JobDescriptionModal from '../../components/dashboard/student/JobDescriptionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -269,9 +268,6 @@ export default function StudentDashboard() {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [applying, setApplying] = useState({});
   
-  // Job Description Modal state
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   
   // Resume Selection Modal state
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
@@ -726,15 +722,9 @@ export default function StudentDashboard() {
     return studentCgpa >= requiredCgpa;
   };
 
-  // Job Description Modal handlers
+  // Job Description navigation handler
   const handleKnowMore = (job) => {
-    setSelectedJob(job);
-    setIsJobModalOpen(true);
-  };
-
-  const handleCloseJobModal = () => {
-    setIsJobModalOpen(false);
-    setSelectedJob(null);
+    navigate(`/job/${job.id}`);
   };
 
 
@@ -3504,12 +3494,6 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Job Description Modal */}
-      <JobDescriptionModal 
-        job={selectedJob}
-        isOpen={isJobModalOpen}
-        onClose={handleCloseJobModal}
-      />
 
       {/* Resume Selection Modal */}
       {isResumeModalOpen && (

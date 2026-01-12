@@ -10,8 +10,8 @@ import ProjectsSection from './ProjectsSection';
 import Achievements from './Achievements';
 import Endorsements from './Endorsements';
 import StudentFooter from './StudentFooter';
-import JobDescriptionModal from './JobDescriptionModal';
 import { getStudentProfile } from '../../../services/students';
+import { useNavigate } from 'react-router-dom';
 import { 
   Clock,
   AlertCircle,
@@ -39,9 +39,8 @@ const DashboardHome = ({
   profileData: propProfileData = null // Allow passing profile data from parent
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState('');
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [profileData, setProfileData] = useState(propProfileData);
   const [loadingProfile, setLoadingProfile] = useState(!propProfileData);
 
@@ -149,15 +148,9 @@ const DashboardHome = ({
   } : null;
 
 
-  //job details modal
+  //job details navigation
   const handleKnowMore = (job) => {
-    setSelectedJob(job);
-    setIsJobModalOpen(true);
-  };
-
-  const handleCloseJobModal = () => {
-    setIsJobModalOpen(false);
-    setSelectedJob(null);
+    navigate(`/job/${job.id}`);
   };
 
   // Footer actions
@@ -323,13 +316,6 @@ const DashboardHome = ({
         </div>
       )}
 
-      {/* Job Description Modal */}
-      <JobDescriptionModal 
-        job={selectedJob}
-        isOpen={isJobModalOpen}
-        onClose={handleCloseJobModal}
-      />
-      
     </div>
   );
 };

@@ -5,12 +5,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../../config/api';
-import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View } from 'lucide-react';
+import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
-import JobDescriptionModal from '../student/JobDescriptionModal';
+import { useNavigate } from 'react-router-dom';
 
 export default function InterviewScheduling() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -30,9 +31,6 @@ export default function InterviewScheduling() {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Job Description Modal state
-  const [viewingJob, setViewingJob] = useState(null);
 
   useEffect(() => {
     loadJobs();
@@ -84,12 +82,12 @@ export default function InterviewScheduling() {
       return;
     }
 
-    setSelectedJob(job);
-    setIsModalOpen(true);
-    setLoadingSession(true);
-    setSession(null); // Clear previous session to show loading state
-    
     try {
+      setSelectedJob(job);
+      setIsModalOpen(true);
+      setLoadingSession(true);
+      setSession(null); // Clear previous session to show loading state
+      
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
@@ -148,6 +146,7 @@ export default function InterviewScheduling() {
     } catch (error) {
       console.error('Error loading session:', error);
       toast.error('Network error. Please check your connection and try again.');
+      // Don't close modal on error, let user see the error state
     } finally {
       setLoadingSession(false);
     }
@@ -157,7 +156,21 @@ export default function InterviewScheduling() {
     setIsModalOpen(false);
     setSelectedJob(null);
     setSession(null);
+    // Re-enable body scroll
+    document.body.style.overflow = '';
   };
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen]);
 
   const handleAddRound = () => {
     if (!roundName.trim()) {
@@ -521,7 +534,7 @@ export default function InterviewScheduling() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setViewingJob(viewingJob?.id === job.id ? null : job);
+                            navigate(`/job/${job.id}`);
                           }}
                           className="p-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors shadow-sm"
                           title="View JD"
@@ -540,15 +553,20 @@ export default function InterviewScheduling() {
 
       {/* Session Management Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" onClick={handleCloseModal}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm" 
+          onClick={handleCloseModal}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
           <div 
-            className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-200"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxHeight: '90vh' }}
           >
             {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Interview Session Management</h2>
+                <h2 className="text-xl font-bold text-slate-900">Session Management</h2>
                 {selectedJob && (
                   <p className="text-sm text-slate-600 mt-1">
                     {selectedJob.jobTitle} • {selectedJob.company?.name || selectedJob.companyName}
@@ -557,15 +575,15 @@ export default function InterviewScheduling() {
               </div>
               <button
                 onClick={handleCloseModal}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/80 rounded-lg transition-colors"
                 title="Close"
               >
-                <X className="w-6 h-6 text-slate-600" />
+                <X className="w-5 h-5 text-slate-600" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6">
+            <div className="p-6 space-y-6">
               {loadingSession ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader className="h-8 w-8 animate-spin text-blue-600 mr-3" />
@@ -573,149 +591,201 @@ export default function InterviewScheduling() {
                 </div>
               ) : session ? (
                 <div className="space-y-6">
-                  {/* Session Info Header */}
-                  <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">Session Details</h3>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Status</p>
-                        <p className={`text-lg font-bold mt-1 ${
-                          session.status === 'NOT_STARTED' ? 'text-gray-700' :
-                          session.status === 'ONGOING' ? 'text-blue-700' :
-                          'text-green-700'
-                        }`}>
-                          {session.status === 'NOT_STARTED' && 'Not Started'}
-                          {session.status === 'ONGOING' && 'Ongoing'}
-                          {session.status === 'COMPLETED' && 'Completed'}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Applications</p>
-                        <p className="text-lg font-bold text-slate-900 mt-1">{session.totalApplications || 0}</p>
+                  {/* Session Info Header - Redesigned */}
+                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-5 border border-blue-100">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-slate-800 mb-3">Session Overview</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className={`w-4 h-4 ${
+                                session.status === 'NOT_STARTED' ? 'text-gray-500' :
+                                session.status === 'ONGOING' ? 'text-blue-500' :
+                                'text-green-500'
+                              }`} />
+                              <p className="text-xs font-medium text-slate-600">Status</p>
+                            </div>
+                            <p className={`text-base font-bold ${
+                              session.status === 'NOT_STARTED' ? 'text-gray-700' :
+                              session.status === 'ONGOING' ? 'text-blue-700' :
+                              'text-green-700'
+                            }`}>
+                              {session.status === 'NOT_STARTED' && 'Not Started'}
+                              {session.status === 'ONGOING' && 'Ongoing'}
+                              {session.status === 'COMPLETED' && 'Completed'}
+                            </p>
+                          </div>
+                          <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Users className="w-4 h-4 text-blue-500" />
+                              <p className="text-xs font-medium text-slate-600">Applications</p>
+                            </div>
+                            <p className="text-base font-bold text-slate-900">{session.totalApplications || 0}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                {/* Section 3: Round Configuration */}
-                <div className="border-t border-slate-200 pt-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Settings className="w-5 h-5 text-slate-600" />
-                    <h2 className="text-lg font-semibold text-slate-900">Round Configuration</h2>
+                {/* Section 3: Round Configuration - Redesigned */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Settings className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">Round Configuration</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Add and manage interview rounds</p>
+                    </div>
                   </div>
                   
                   {session.status === 'ONGOING' || session.status === 'COMPLETED' ? (
-                    <div className={`border border-slate-200 rounded-xl p-4 ${
+                    <div className={`border-2 rounded-xl p-4 ${
                       session.status === 'COMPLETED' 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-yellow-50 border-yellow-200'
+                        ? 'bg-green-50 border-green-300' 
+                        : 'bg-yellow-50 border-yellow-300'
                     }`}>
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className={`w-5 h-5 ${
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${
                           session.status === 'COMPLETED' 
-                            ? 'text-green-600' 
-                            : 'text-yellow-600'
-                        }`} />
-                        <p className={`text-sm font-medium ${
-                          session.status === 'COMPLETED' 
-                            ? 'text-green-800' 
-                            : 'text-yellow-800'
+                            ? 'bg-green-100' 
+                            : 'bg-yellow-100'
                         }`}>
-                          {session.status === 'COMPLETED' 
-                            ? 'Session completed. You can view the configuration but cannot modify it.'
-                            : `Rounds cannot be modified while session is ${session.status.toLowerCase()}.`
-                          }
-                        </p>
+                          <AlertCircle className={`w-5 h-5 ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-600' 
+                              : 'text-yellow-600'
+                          }`} />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-semibold mb-1 ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-900' 
+                              : 'text-yellow-900'
+                          }`}>
+                            {session.status === 'COMPLETED' 
+                              ? 'Session Completed'
+                              : 'Session In Progress'
+                            }
+                          </p>
+                          <p className={`text-sm ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-700' 
+                              : 'text-yellow-700'
+                          }`}>
+                            {session.status === 'COMPLETED' 
+                              ? 'This session has been completed. You can view the configuration but cannot modify it.'
+                              : `Rounds cannot be modified while the session is ${session.status.toLowerCase()}.`
+                            }
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={roundName}
-                          onChange={(e) => setRoundName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddRound()}
-                          placeholder="Enter round name (e.g., Technical Round 1)"
-                          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900"
-                        />
-                        <button
-                          onClick={handleAddRound}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Round
-                        </button>
+                      <div className="bg-white rounded-lg p-4 border border-slate-200">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Add New Round
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={roundName}
+                            onChange={(e) => setRoundName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddRound()}
+                            placeholder="e.g., Technical Round 1, HR Round"
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
+                          />
+                          <button
+                            onClick={handleAddRound}
+                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                          </button>
+                        </div>
                       </div>
 
                       {rounds.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">New Rounds ({rounds.length})</p>
                           {rounds.map((round, index) => (
                             <div
                               key={index}
-                              className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:shadow-sm transition-all"
+                              className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
                             >
                               <div className="flex items-center gap-3">
-                                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold shadow-sm">
+                                <span className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-md">
                                   {round.roundNumber}
                                 </span>
-                                <span className="font-medium text-slate-900">{round.name}</span>
-                                <span className="px-2 py-1 bg-slate-200 text-slate-700 rounded-md text-xs font-medium flex items-center gap-1">
-                                  <Lock className="w-3 h-3" />
-                                  LOCKED
-                                </span>
+                                <div>
+                                  <span className="font-semibold text-slate-900 block">{round.name}</span>
+                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-medium flex items-center gap-1 w-fit mt-1">
+                                    <Lock className="w-3 h-3" />
+                                    Pending
+                                  </span>
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleRemoveRound(index)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Remove round"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                             </div>
                           ))}
-                          <button
-                            onClick={handleConfigureRounds}
-                            disabled={configuringRounds}
-                            className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm transition-colors font-medium"
-                          >
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={handleConfigureRounds}
+                              disabled={configuringRounds}
+                              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
+                            >
                             {configuringRounds ? (
                               <>
                                 <Loader className="w-4 h-4 animate-spin" />
-                                Configuring...
+                                Saving Rounds...
                               </>
                             ) : (
                               <>
                                 <Save className="w-4 h-4" />
-                                Save Round Configuration
+                                Save Rounds
                               </>
                             )}
-                          </button>
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       {session.rounds && session.rounds.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm font-medium text-slate-700 mb-3 uppercase tracking-wide">Configured Rounds:</p>
+                        <div className="mt-5 pt-5 border-t border-slate-200">
+                          <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            Configured Rounds ({session.rounds.length})
+                          </p>
                           <div className="space-y-2">
                             {session.rounds.map((round) => (
                               <div
                                 key={round.id}
-                                className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:shadow-sm transition-all"
+                                className="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-200 hover:shadow-md transition-all"
                               >
-                                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold shadow-sm">
+                                <span className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-sm ${
+                                  round.status === 'LOCKED' ? 'bg-slate-100 text-slate-600' :
+                                  round.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
                                   {round.roundNumber}
                                 </span>
-                                <span className="font-medium text-slate-900 flex-1">{round.name}</span>
-                                <span className={`px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 ${
-                                  round.status === 'LOCKED' ? 'bg-slate-200 text-slate-700' :
-                                  round.status === 'ACTIVE' ? 'bg-blue-200 text-blue-700' :
-                                  'bg-green-200 text-green-700'
+                                <span className="font-semibold text-slate-900 flex-1">{round.name}</span>
+                                <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                                  round.status === 'LOCKED' ? 'bg-slate-100 text-slate-700' :
+                                  round.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-green-100 text-green-700'
                                 }`}>
-                                  {round.status === 'LOCKED' && <Lock className="w-3 h-3" />}
-                                  {round.status === 'ACTIVE' && <PlayCircle className="w-3 h-3" />}
-                                  {round.status === 'ENDED' && <CheckCircle className="w-3 h-3" />}
+                                  {round.status === 'LOCKED' && <Lock className="w-3.5 h-3.5" />}
+                                  {round.status === 'ACTIVE' && <PlayCircle className="w-3.5 h-3.5" />}
+                                  {round.status === 'ENDED' && <CheckCircle className="w-3.5 h-3.5" />}
                                   {round.status}
                                 </span>
                               </div>
@@ -727,24 +797,34 @@ export default function InterviewScheduling() {
                   )}
                 </div>
 
-                {/* Section 2: Interviewer Setup */}
-                <div className="border-t border-slate-200 pt-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Users className="w-5 h-5 text-slate-600" />
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Interviewer Setup
-                      {session.status === 'NOT_STARTED' && (
-                        <span className="ml-2 text-sm font-normal text-red-600">* Required before starting session</span>
-                      )}
-                    </h2>
+                {/* Section 2: Interviewer Setup - Redesigned */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                        Interviewer Setup
+                        {session.status === 'NOT_STARTED' && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">Required</span>
+                        )}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Add interviewers and send invitation links</p>
+                    </div>
                   </div>
                   {session.status === 'COMPLETED' && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                        <p className="text-sm font-medium text-green-800">
-                          Session completed. Interviewer information is view-only.
-                        </p>
+                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 mb-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-green-900 mb-1">Session Completed</p>
+                          <p className="text-sm text-green-700">
+                            Interviewer information is view-only for completed sessions.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -753,45 +833,53 @@ export default function InterviewScheduling() {
                       const isSessionCompleted = session.status === 'COMPLETED';
                       return (
                         <>
-                          <div className="flex gap-2">
-                            <input
-                              type="email"
-                              value={interviewerEmail}
-                              onChange={(e) => setInterviewerEmail(e.target.value)}
-                              onKeyPress={(e) => e.key === 'Enter' && !isSessionCompleted && handleAddInterviewer()}
-                              placeholder="Enter interviewer email"
-                              disabled={isSessionCompleted}
-                              className={`flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 ${
-                                isSessionCompleted ? 'bg-slate-100 cursor-not-allowed opacity-60' : ''
-                              }`}
-                            />
-                            <button
-                              onClick={handleAddInterviewer}
-                              disabled={isSessionCompleted}
-                              className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors ${
-                                isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add
-                            </button>
+                          <div className="bg-white rounded-lg p-4 border border-slate-200">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Add Interviewer Email
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="email"
+                                value={interviewerEmail}
+                                onChange={(e) => setInterviewerEmail(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && !isSessionCompleted && handleAddInterviewer()}
+                                placeholder="interviewer@example.com"
+                                disabled={isSessionCompleted}
+                                className={`flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                                  isSessionCompleted ? 'bg-slate-100 cursor-not-allowed opacity-60' : ''
+                                }`}
+                              />
+                              <button
+                                onClick={handleAddInterviewer}
+                                disabled={isSessionCompleted}
+                                className={`px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md ${
+                                  isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                <Plus className="w-4 h-4" />
+                                Add
+                              </button>
+                            </div>
                           </div>
 
                           {interviewerEmails.length > 0 && (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-slate-700">Interviewers ({interviewerEmails.length})</p>
                               {interviewerEmails.map((email, index) => (
                                 <div
                                   key={index}
-                                  className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:shadow-sm transition-all"
+                                  className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <Mail className="w-4 h-4 text-slate-600" />
-                                    <span className="text-slate-900">{email}</span>
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 rounded-lg">
+                                      <Mail className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <span className="font-medium text-slate-900">{email}</span>
                                   </div>
                                   <button
                                     onClick={() => !isSessionCompleted && handleRemoveInterviewer(email)}
                                     disabled={isSessionCompleted}
-                                    className={`p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ${
+                                    className={`p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ${
                                       isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
                                     }`}
                                     title="Remove interviewer"
@@ -800,11 +888,12 @@ export default function InterviewScheduling() {
                                   </button>
                                 </div>
                               ))}
-                              <button
-                                onClick={handleInviteInterviewers}
-                                disabled={inviting || isSessionCompleted}
-                                className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm transition-colors font-medium"
-                              >
+                              <div className="flex justify-end mt-3">
+                                <button
+                                  onClick={handleInviteInterviewers}
+                                  disabled={inviting || isSessionCompleted}
+                                  className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
+                                >
                                 {inviting ? (
                                   <>
                                     <Loader className="w-4 h-4 animate-spin" />
@@ -813,10 +902,11 @@ export default function InterviewScheduling() {
                                 ) : (
                                   <>
                                     <Mail className="w-4 h-4" />
-                                    Send Invites to Interviewers
+                                    Send Invites
                                   </>
                                 )}
-                              </button>
+                                </button>
+                              </div>
                             </div>
                           )}
                         </>
@@ -824,26 +914,33 @@ export default function InterviewScheduling() {
                     })()}
 
                     {session.interviewerInvites && session.interviewerInvites.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium text-slate-700 mb-3 uppercase tracking-wide">Invited Interviewers:</p>
+                      <div className="mt-5 pt-5 border-t border-slate-200">
+                        <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          Invited Interviewers ({session.interviewerInvites.length})
+                        </p>
                         <div className="space-y-2">
                           {session.interviewerInvites.map((invite) => (
                             <div
                               key={invite.id}
-                              className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:shadow-sm transition-all"
+                              className="flex items-center justify-between p-4 bg-white rounded-lg border border-slate-200 hover:shadow-md transition-all"
                             >
-                              <div className="flex items-center gap-2">
-                                <Mail className="w-4 h-4 text-slate-600" />
-                                <span className="text-slate-900">{invite.email}</span>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-50 rounded-lg">
+                                  <Mail className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                  <span className="font-medium text-slate-900 block">{invite.email}</span>
+                                  <span className="text-xs text-slate-500 mt-0.5">
+                                    Expires: {new Date(invite.expiresAt).toLocaleDateString()}
+                                  </span>
+                                </div>
                                 {invite.used && (
-                                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">
+                                  <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
                                     Used
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs text-slate-500">
-                                Expires: {new Date(invite.expiresAt).toLocaleDateString()}
-                              </span>
                             </div>
                           ))}
                         </div>
@@ -858,7 +955,7 @@ export default function InterviewScheduling() {
                   <p className="text-slate-600 text-lg">Failed to load interview session</p>
                   <button
                     onClick={handleCloseModal}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="mt-4 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
                     Close
                   </button>
@@ -869,12 +966,6 @@ export default function InterviewScheduling() {
         </div>
       )}
 
-      {/* Job Description Modal - Shared modal for all jobs */}
-      <JobDescriptionModal
-        job={viewingJob}
-        isOpen={!!viewingJob}
-        onClose={() => setViewingJob(null)}
-      />
     </div>
   );
 }

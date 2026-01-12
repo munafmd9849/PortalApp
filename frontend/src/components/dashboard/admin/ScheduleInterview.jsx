@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { subscribeJobs } from '../../../services/jobs';
 import { API_BASE_URL } from '../../../config/api';
 import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle } from 'lucide-react';
-import JobDescriptionModal from '../student/JobDescriptionModal';
 import { useToast } from '../../ui/Toast';
 
 export default function ScheduleInterview() {
@@ -13,8 +12,6 @@ export default function ScheduleInterview() {
   const [loading, setLoading] = useState(true);
   const [startingInterview, setStartingInterview] = useState(new Set());
   
-  // Integrated modal state for View JD button
-  const [viewingJob, setViewingJob] = useState(null);
 
   // Real-time jobs subscription
   const jobsSubscriptionRef = useRef(null);
@@ -299,7 +296,11 @@ export default function ScheduleInterview() {
 
                         {/* View JD Button */}
                         <button
-                          onClick={() => setViewingJob(viewingJob?.id === job.id ? null : job)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/job/${job.id}`);
+                          }}
                           className="p-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors shadow-sm"
                           title="View JD"
                         >
@@ -315,12 +316,6 @@ export default function ScheduleInterview() {
         )}
       </div>
 
-      {/* Job Description Modal - Shared modal for all jobs */}
-      <JobDescriptionModal
-        job={viewingJob}
-        isOpen={!!viewingJob}
-        onClose={() => setViewingJob(null)}
-      />
     </div>
   );
 }
