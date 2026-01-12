@@ -457,6 +457,7 @@ export async function getStudentInterviewHistory(req, res) {
           roundsReached: roundsReached,
           evaluations: appEvaluations.map(e => ({
             roundName: e.round?.name || `Round ${e.round?.roundNumber}`,
+            roundNumber: e.round?.roundNumber,
             marks: null, // Not stored in new system
             remarks: e.remarks,
             status: e.status,

@@ -2088,8 +2088,7 @@ const ResumeBuilder = () => {
                       <div className="flex items-center gap-2">
                         <a
                           href={resume.fileUrl || resume.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          download
                           className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all cursor-pointer text-sm font-medium"
                         >
                           <Eye size={16} />
@@ -2338,8 +2337,7 @@ const ResumeBuilder = () => {
                         <div className="flex items-center gap-2 ml-4">
                           <a
                             href={resume.fileUrl || resume.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg"
                           >
                             <Eye size={18} />
@@ -2370,6 +2368,7 @@ const ResumeBuilder = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

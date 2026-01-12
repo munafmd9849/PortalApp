@@ -208,6 +208,10 @@ function AppContent() {
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
 
+        {/* Interviewer routes (token-based, no auth required) */}
+        <Route path="/interview/session/:sessionId" element={<InterviewerDashboard />} />
+        <Route path="/interview/round/:roundId" element={<InterviewerRoundEvaluation />} />
+
         {/* Catch all route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
