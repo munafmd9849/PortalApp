@@ -451,12 +451,14 @@ export async function getStudentInterviewHistory(req, res) {
             name: r.name,
             roundNumber: r.roundNumber,
             status: r.status,
+            criteria: null, // Not stored in new system
           })),
-          lastRoundReached: lastRoundReached || (app.lastRoundReached ? `Round ${app.lastRoundReached}` : null),
+          lastRoundReached: lastRoundReached,
           roundsReached: roundsReached,
           evaluations: appEvaluations.map(e => ({
-            roundName: e.round.name,
-            roundNumber: e.round.roundNumber,
+            roundName: e.round?.name || `Round ${e.round?.roundNumber}`,
+            roundNumber: e.round?.roundNumber,
+            marks: null, // Not stored in new system
             remarks: e.remarks,
             status: e.status,
             evaluatedAt: e.createdAt,

@@ -418,12 +418,12 @@ model Job {
   updatedAt DateTime @updatedAt
 
   // Relations
-  company           Company?           @relation(fields: [companyId], references: [id])
-  recruiter         Recruiter?         @relation(fields: [recruiterId], references: [id])
-  applications      Application[]
-  jobTracking       JobTracking[]
-  interviews        Interview[]
-  interviewSessions InterviewSession[]
+  company          Company?          @relation(fields: [companyId], references: [id])
+  recruiter        Recruiter?        @relation(fields: [recruiterId], references: [id])
+  applications     Application[]
+  jobTracking      JobTracking[]
+  interviews       Interview[]
+  interviewSession InterviewSession?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])

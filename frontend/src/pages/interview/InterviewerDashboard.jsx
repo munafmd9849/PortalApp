@@ -9,11 +9,37 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
 import { Loader, Building2, Briefcase, AlertCircle, CheckCircle, Clock, Lock, PlayCircle, ArrowRight } from 'lucide-react';
 
+// Helper to decode JWT token
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error decoding token:', e);
+    return null;
+  }
+};
+
 const InterviewerDashboard = () => {
-  const { sessionId } = useParams();
+  const { sessionId: sessionIdParam, token: tokenParam } = useParams(); // Support both formats
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
+  
+  // Get token from query params (new format) or path params (legacy)
+  const tokenFromQuery = searchParams.get('token');
+  const tokenFromPath = tokenParam;
+  const token = tokenFromQuery || tokenFromPath;
+  
+  // Get sessionId from path params (new format) or decode from token (legacy)
+  let sessionId = sessionIdParam;
+  if (!sessionId && token) {
+    const decoded = decodeJWT(token);
+    sessionId = decoded?.sessionId;
+  }
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,6 +50,18 @@ const InterviewerDashboard = () => {
     if (!token) {
       setError('No access token provided. Please use the invitation link.');
       setLoading(false);
+      return;
+    }
+    
+    if (!sessionId) {
+      setError('Invalid token. Could not extract session ID.');
+      setLoading(false);
+      return;
+    }
+
+    // If using legacy format with token in path, redirect to new format
+    if (tokenFromPath && !tokenFromQuery) {
+      navigate(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { replace: true });
       return;
     }
 

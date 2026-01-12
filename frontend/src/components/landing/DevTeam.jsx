@@ -8,6 +8,9 @@ import dev from "../../assets/images/dev1.png";
 import dev2 from "../../assets/images/dev2.png";
 import dev3 from "../../assets/images/dev3.png";
 import dev4 from "../../assets/images/dev4.png";
+import sai1 from "../../assets/images/sai1.png";
+import munaf1 from "../../assets/images/munaf1.png";
+import Irfan from "../../assets/images/Irfan.png";
 import prof from "../../assets/images/prof1.png";
 
 const devs = [
@@ -31,21 +34,21 @@ const devs = [
     linkedin: "https://linkedin.com/in/roshan",
     img: dev4,
   },
-  
+  // Three additional empty circles
+  {
+    name: "Munaf",
+    linkedin: "https://www.linkedin.com/in/munafmohammad/",
+    img: munaf1,
+  },
+  {
+    name: "Irfan",
+    linkedin: "https://www.linkedin.com/in/mohammad-irfan-638a2b308/",
+    img: Irfan,
+  },
   {
     name: "Sai Charan",
-    linkedin: "#",
-    img: null,
-  },
-  {
-    name: "Mahammad Munaf",
-    linkedin: "#",
-    img: null,
-  },
-  {
-    name: "Mohammad Irfan",
-    linkedin: "#",
-    img: null,
+    linkedin: "https://www.linkedin.com/in/sai-charan-761842266",
+    img: sai1,
   },
 ];
 

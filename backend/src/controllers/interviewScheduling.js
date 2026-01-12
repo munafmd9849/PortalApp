@@ -369,7 +369,7 @@ export const inviteInterviewers = async (req, res) => {
         });
       }
 
-      const sessionLink = `${frontendUrl}/interview/session/${sessionId}?token=${token}`;
+      const sessionLink = `${frontendUrl}/interview/session/${sessionId}?token=${encodeURIComponent(token)}`;
 
       // Send email
       try {

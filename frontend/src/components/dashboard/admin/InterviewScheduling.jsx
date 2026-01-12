@@ -5,11 +5,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../../config/api';
-import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle } from 'lucide-react';
+import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function InterviewScheduling() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -26,6 +28,9 @@ export default function InterviewScheduling() {
   const [rounds, setRounds] = useState([]);
   const [roundName, setRoundName] = useState('');
   const [configuringRounds, setConfiguringRounds] = useState(false);
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     loadJobs();
@@ -72,13 +77,22 @@ export default function InterviewScheduling() {
   };
 
   const handleSelectJob = async (job) => {
-    setSelectedJob(job);
-    setLoadingSession(true);
+    if (!job || !job.id) {
+      toast.error('Invalid job selected');
+      return;
+    }
+
     try {
+      setSelectedJob(job);
+      setIsModalOpen(true);
+      setLoadingSession(true);
+      setSession(null); // Clear previous session to show loading state
+      
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
         toast.error('Authentication required. Please log in again.');
+        setLoadingSession(false);
         return;
       }
 
@@ -91,6 +105,13 @@ export default function InterviewScheduling() {
 
       if (response.ok) {
         const data = await response.json();
+        
+        if (!data.session) {
+          toast.error('Session data not found in response');
+          setLoadingSession(false);
+          return;
+        }
+
         setSession(data.session);
         setRounds(data.session.rounds || []);
         setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
@@ -116,8 +137,6 @@ export default function InterviewScheduling() {
         
         if (response.status === 401 || response.status === 403) {
           toast.error('Authentication failed. Please log in again.');
-          // Optionally redirect to login
-          // window.location.href = '/login';
         } else if (response.status === 404) {
           toast.error(errorData.error || 'Session not found');
         } else {
@@ -127,10 +146,31 @@ export default function InterviewScheduling() {
     } catch (error) {
       console.error('Error loading session:', error);
       toast.error('Network error. Please check your connection and try again.');
+      // Don't close modal on error, let user see the error state
     } finally {
       setLoadingSession(false);
     }
   };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedJob(null);
+    setSession(null);
+    // Re-enable body scroll
+    document.body.style.overflow = '';
+  };
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen]);
 
   const handleAddRound = () => {
     if (!roundName.trim()) {
@@ -268,198 +308,484 @@ export default function InterviewScheduling() {
     }
   };
 
+  // Helper functions for display (matching ScheduleInterview style)
+  const getSchoolDisplay = (schools) => {
+    if (!schools || schools.length === 0) return 'N/A';
+    if (typeof schools === 'string') {
+      try {
+        const parsed = JSON.parse(schools);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 1) return parsed[0];
+          return `${parsed.length} Schools`;
+        }
+      } catch (e) {
+        return schools;
+      }
+    }
+    if (Array.isArray(schools)) {
+      if (schools.length === 1) return schools[0];
+      return `${schools.length} Schools`;
+    }
+    return 'N/A';
+  };
+
+  const getBatchDisplay = (batches) => {
+    if (!batches || batches.length === 0) return 'N/A';
+    if (typeof batches === 'string') {
+      try {
+        const parsed = JSON.parse(batches);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 1) return parsed[0];
+          return `${parsed.length} Batches`;
+        }
+      } catch (e) {
+        return batches;
+      }
+    }
+    if (Array.isArray(batches)) {
+      if (batches.length === 1) return batches[0];
+      return `${batches.length} Batches`;
+    }
+    return 'N/A';
+  };
+
+  const getCenterDisplay = (centers) => {
+    if (!centers || centers.length === 0) return 'N/A';
+    if (typeof centers === 'string') {
+      try {
+        const parsed = JSON.parse(centers);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 1) return parsed[0];
+          return `${parsed.length} Centers`;
+        }
+      } catch (e) {
+        return centers;
+      }
+    }
+    if (Array.isArray(centers)) {
+      if (centers.length === 1) return centers[0];
+      return `${centers.length} Centers`;
+    }
+    return 'N/A';
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center py-12">
+        <Loader className="h-6 w-6 animate-spin text-blue-600 mr-2" />
+        <span className="text-slate-600">Loading posted jobs...</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Interview Scheduling</h1>
-
-        {/* Section 1: Job Selection */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Job</h2>
-          {jobs.length === 0 ? (
-            <p className="text-gray-500">No posted jobs available.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {jobs.map((job) => {
-                // Check if this job has a completed session (Issue #6)
-                const isDisabled = completedSessions.has(job.id);
-                
-                return (
-                <button
-                  key={job.id}
-                  onClick={() => !isDisabled && handleSelectJob(job)}
-                  disabled={isDisabled}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    selectedJob?.id === job.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : isDisabled
-                      ? 'border-gray-300 bg-gray-100 opacity-60 cursor-not-allowed'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <Briefcase className="w-5 h-5 text-blue-600 mt-1" />
-                    {selectedJob?.id === job.id && (
-                      <CheckCircle className="w-5 h-5 text-blue-600" />
-                    )}
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{job.jobTitle}</h3>
-                  <p className="text-sm text-gray-600 flex items-center gap-1">
-                    <Building2 className="w-4 h-4" />
-                    {job.company?.name || job.companyName || 'Unknown Company'}
-                  </p>
-                  {isDisabled && (
-                    <p className="text-xs text-gray-500 mt-1 italic">Session completed</p>
-                  )}
-                </button>
-                );
-              })}
-            </div>
-          )}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Interview Scheduling</h2>
+          <p className="text-sm text-slate-600 mt-1">
+            Configure interview sessions, rounds, and invite interviewers
+          </p>
         </div>
+      </div>
 
-        {/* Section 2 & 3: Session Management */}
-        {selectedJob && (
-          <div className="border-t pt-6">
-            {loadingSession ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader className="w-6 h-6 animate-spin text-blue-600" />
-              </div>
-            ) : session ? (
-              <div className="space-y-6">
-                {/* Session Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-blue-600 font-medium">Session Status</p>
-                      <p className="text-lg font-semibold text-blue-900">
-                        {session.status === 'NOT_STARTED' && 'Not Started'}
-                        {session.status === 'ONGOING' && 'Ongoing'}
-                        {session.status === 'COMPLETED' && 'Completed'}
-                      </p>
+      {/* Jobs list - matching ScheduleInterview style */}
+      <div>
+        {jobs.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-slate-500">No posted jobs available for interview scheduling</p>
+          </div>
+        ) : (
+          jobs.map((job) => {
+            const isDisabled = completedSessions.has(job.id);
+            const isSelected = selectedJob?.id === job.id;
+            
+            return (
+              <div 
+                key={job.id} 
+                className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
+                  isSelected 
+                    ? 'bg-blue-50 border-blue-300' 
+                    : isDisabled
+                    ? 'bg-gray-100 opacity-60'
+                    : 'bg-green-50'
+                }`}
+              >
+                <div className="p-4">
+                  {/* First Row: Company, Interview Date, School, Batch, Center */}
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Company */}
+                    <div className="flex-4 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 -mt-2">
+                        <Building2 className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">Company</span>
+                        {isSelected && (
+                          <span className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Selected
+                          </span>
+                        )}
+                        {isDisabled && (
+                          <span className="px-2 py-1 text-xs rounded-md bg-gray-100 text-gray-800 border border-gray-200 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-semibold text-slate-900 text-xl truncate ml-[5%]">
+                        {job.company?.name || job.companyName || job.company || 'N/A'}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-blue-600 font-medium">Total Applications</p>
-                      <p className="text-lg font-semibold text-blue-900">{session.totalApplications || 0}</p>
+
+                    {/* Interview Date */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
+                        <span className="text-sm font-medium text-slate-600">Interview</span>
+                      </div>
+                      <div className="text-slate-900 text-sm text-center">
+                        {job.driveDate ? (
+                          job.driveDate.toDate ?
+                            job.driveDate.toDate().toLocaleDateString('en-GB') :
+                            new Date(job.driveDate).toLocaleDateString('en-GB')
+                        ) : 'TBD'}
+                      </div>
+                    </div>
+
+                    {/* School */}
+                    <div className="flex-2 min-w-0">
+                      <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
+                        <GraduationCap className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">School</span>
+                      </div>
+                      <div className="text-slate-900 text-sm text-center">
+                        {getSchoolDisplay(job.targetSchools)}
+                      </div>
+                    </div>
+
+                    {/* Batch */}
+                    <div className="flex-2 min-w-0">
+                      <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
+                        <Users className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">Batch</span>
+                      </div>
+                      <div className="text-slate-900 text-sm text-center">
+                        {getBatchDisplay(job.targetBatches)}
+                      </div>
+                    </div>
+
+                    {/* Center */}
+                    <div className="flex-3 min-w-0">
+                      <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
+                        <MapPin className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">Center</span>
+                      </div>
+                      <div className="text-slate-900 text-sm text-center">
+                        {getCenterDisplay(job.targetCenters)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Second Row: Role and Actions */}
+                  <div className="mt-2 pt-2 border-t border-slate-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Briefcase className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">Role:</span>
+                        <span className="font-semibold text-slate-900 truncate">{job.jobTitle || 'N/A'}</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 ml-4">
+                        {/* Manage Interview Session Button */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!isDisabled) {
+                              console.log('Button clicked for job:', job.id);
+                              handleSelectJob(job);
+                            }
+                          }}
+                          disabled={isDisabled}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
+                            isDisabled
+                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                              : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <Settings className="w-4 h-4" />
+                              <span>Manage Session</span>
+                            </>
+                          ) : (
+                            <>
+                              <PlayCircle className="w-4 h-4" />
+                              <span>Start Session</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* View JD Button */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/job/${job.id}`);
+                          }}
+                          className="p-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors shadow-sm"
+                          title="View JD"
+                        >
+                          <View className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
-                {/* Section 3: Round Configuration */}
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Round Configuration</h2>
+      {/* Session Management Modal */}
+      {isModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm" 
+          onClick={handleCloseModal}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          <div 
+            className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxHeight: '90vh' }}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Session Management</h2>
+                {selectedJob && (
+                  <p className="text-sm text-slate-600 mt-1">
+                    {selectedJob.jobTitle} • {selectedJob.company?.name || selectedJob.companyName}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleCloseModal}
+                className="p-2 hover:bg-white/80 rounded-lg transition-colors"
+                title="Close"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {loadingSession ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader className="h-8 w-8 animate-spin text-blue-600 mr-3" />
+                  <span className="text-slate-600 text-lg">Loading session...</span>
+                </div>
+              ) : session ? (
+                <div className="space-y-6">
+                  {/* Session Info Header - Redesigned */}
+                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-5 border border-blue-100">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-slate-800 mb-3">Session Overview</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className={`w-4 h-4 ${
+                                session.status === 'NOT_STARTED' ? 'text-gray-500' :
+                                session.status === 'ONGOING' ? 'text-blue-500' :
+                                'text-green-500'
+                              }`} />
+                              <p className="text-xs font-medium text-slate-600">Status</p>
+                            </div>
+                            <p className={`text-base font-bold ${
+                              session.status === 'NOT_STARTED' ? 'text-gray-700' :
+                              session.status === 'ONGOING' ? 'text-blue-700' :
+                              'text-green-700'
+                            }`}>
+                              {session.status === 'NOT_STARTED' && 'Not Started'}
+                              {session.status === 'ONGOING' && 'Ongoing'}
+                              {session.status === 'COMPLETED' && 'Completed'}
+                            </p>
+                          </div>
+                          <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Users className="w-4 h-4 text-blue-500" />
+                              <p className="text-xs font-medium text-slate-600">Applications</p>
+                            </div>
+                            <p className="text-base font-bold text-slate-900">{session.totalApplications || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                {/* Section 3: Round Configuration - Redesigned */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Settings className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">Round Configuration</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Add and manage interview rounds</p>
+                    </div>
+                  </div>
                   
                   {session.status === 'ONGOING' || session.status === 'COMPLETED' ? (
-                    <div className={`border rounded-lg p-4 ${
+                    <div className={`border-2 rounded-xl p-4 ${
                       session.status === 'COMPLETED' 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-yellow-50 border-yellow-200'
+                        ? 'bg-green-50 border-green-300' 
+                        : 'bg-yellow-50 border-yellow-300'
                     }`}>
-                      <p className={`text-sm ${
-                        session.status === 'COMPLETED' 
-                          ? 'text-green-800' 
-                          : 'text-yellow-800'
-                      }`}>
-                        {session.status === 'COMPLETED' 
-                          ? 'Session completed. You can view the configuration but cannot modify it.'
-                          : `Rounds cannot be modified while session is ${session.status.toLowerCase()}.`
-                        }
-                      </p>
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          session.status === 'COMPLETED' 
+                            ? 'bg-green-100' 
+                            : 'bg-yellow-100'
+                        }`}>
+                          <AlertCircle className={`w-5 h-5 ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-600' 
+                              : 'text-yellow-600'
+                          }`} />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-semibold mb-1 ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-900' 
+                              : 'text-yellow-900'
+                          }`}>
+                            {session.status === 'COMPLETED' 
+                              ? 'Session Completed'
+                              : 'Session In Progress'
+                            }
+                          </p>
+                          <p className={`text-sm ${
+                            session.status === 'COMPLETED' 
+                              ? 'text-green-700' 
+                              : 'text-yellow-700'
+                          }`}>
+                            {session.status === 'COMPLETED' 
+                              ? 'This session has been completed. You can view the configuration but cannot modify it.'
+                              : `Rounds cannot be modified while the session is ${session.status.toLowerCase()}.`
+                            }
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={roundName}
-                          onChange={(e) => setRoundName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddRound()}
-                          placeholder="Enter round name (e.g., Technical Round 1)"
-                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <button
-                          onClick={handleAddRound}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Round
-                        </button>
+                      <div className="bg-white rounded-lg p-4 border border-slate-200">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Add New Round
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={roundName}
+                            onChange={(e) => setRoundName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddRound()}
+                            placeholder="e.g., Technical Round 1, HR Round"
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
+                          />
+                          <button
+                            onClick={handleAddRound}
+                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                          </button>
+                        </div>
                       </div>
 
                       {rounds.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">New Rounds ({rounds.length})</p>
                           {rounds.map((round, index) => (
                             <div
                               key={index}
-                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                              className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
                             >
                               <div className="flex items-center gap-3">
-                                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold">
+                                <span className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-md">
                                   {round.roundNumber}
                                 </span>
-                                <span className="font-medium text-gray-900">{round.name}</span>
-                                <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium flex items-center gap-1">
-                                  <Lock className="w-3 h-3" />
-                                  LOCKED
-                                </span>
+                                <div>
+                                  <span className="font-semibold text-slate-900 block">{round.name}</span>
+                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-medium flex items-center gap-1 w-fit mt-1">
+                                    <Lock className="w-3 h-3" />
+                                    Pending
+                                  </span>
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleRemoveRound(index)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Remove round"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                             </div>
                           ))}
-                          <button
-                            onClick={handleConfigureRounds}
-                            disabled={configuringRounds}
-                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                          >
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={handleConfigureRounds}
+                              disabled={configuringRounds}
+                              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
+                            >
                             {configuringRounds ? (
                               <>
                                 <Loader className="w-4 h-4 animate-spin" />
-                                Configuring...
+                                Saving Rounds...
                               </>
                             ) : (
                               <>
                                 <Save className="w-4 h-4" />
-                                Save Round Configuration
+                                Save Rounds
                               </>
                             )}
-                          </button>
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       {session.rounds && session.rounds.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Configured Rounds:</p>
+                        <div className="mt-5 pt-5 border-t border-slate-200">
+                          <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            Configured Rounds ({session.rounds.length})
+                          </p>
                           <div className="space-y-2">
                             {session.rounds.map((round) => (
                               <div
                                 key={round.id}
-                                className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                                className="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-200 hover:shadow-md transition-all"
                               >
-                                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold">
+                                <span className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-sm ${
+                                  round.status === 'LOCKED' ? 'bg-slate-100 text-slate-600' :
+                                  round.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
                                   {round.roundNumber}
                                 </span>
-                                <span className="font-medium text-gray-900">{round.name}</span>
-                                <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
-                                  round.status === 'LOCKED' ? 'bg-gray-200 text-gray-700' :
-                                  round.status === 'ACTIVE' ? 'bg-blue-200 text-blue-700' :
-                                  'bg-green-200 text-green-700'
+                                <span className="font-semibold text-slate-900 flex-1">{round.name}</span>
+                                <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                                  round.status === 'LOCKED' ? 'bg-slate-100 text-slate-700' :
+                                  round.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-green-100 text-green-700'
                                 }`}>
-                                  {round.status === 'LOCKED' && <Lock className="w-3 h-3" />}
-                                  {round.status === 'ACTIVE' && <PlayCircle className="w-3 h-3" />}
-                                  {round.status === 'ENDED' && <CheckCircle className="w-3 h-3" />}
+                                  {round.status === 'LOCKED' && <Lock className="w-3.5 h-3.5" />}
+                                  {round.status === 'ACTIVE' && <PlayCircle className="w-3.5 h-3.5" />}
+                                  {round.status === 'ENDED' && <CheckCircle className="w-3.5 h-3.5" />}
                                   {round.status}
                                 </span>
                               </div>
@@ -471,19 +797,35 @@ export default function InterviewScheduling() {
                   )}
                 </div>
 
-                {/* Section 2: Interviewer Setup */}
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                    Interviewer Setup
-                    {session.status === 'NOT_STARTED' && (
-                      <span className="ml-2 text-sm font-normal text-red-600">* Required before starting session</span>
-                    )}
-                  </h2>
+                {/* Section 2: Interviewer Setup - Redesigned */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                        Interviewer Setup
+                        {session.status === 'NOT_STARTED' && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">Required</span>
+                        )}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Add interviewers and send invitation links</p>
+                    </div>
+                  </div>
                   {session.status === 'COMPLETED' && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                      <p className="text-sm text-green-800">
-                        Session completed. Interviewer information is view-only.
-                      </p>
+                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 mb-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-green-900 mb-1">Session Completed</p>
+                          <p className="text-sm text-green-700">
+                            Interviewer information is view-only for completed sessions.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                   <div className="space-y-4">
@@ -491,57 +833,67 @@ export default function InterviewScheduling() {
                       const isSessionCompleted = session.status === 'COMPLETED';
                       return (
                         <>
-                          <div className="flex gap-2">
-                            <input
-                              type="email"
-                              value={interviewerEmail}
-                              onChange={(e) => setInterviewerEmail(e.target.value)}
-                              onKeyPress={(e) => e.key === 'Enter' && !isSessionCompleted && handleAddInterviewer()}
-                              placeholder="Enter interviewer email"
-                              disabled={isSessionCompleted}
-                              className={`flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                isSessionCompleted ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                              }`}
-                            />
-                            <button
-                              onClick={handleAddInterviewer}
-                              disabled={isSessionCompleted}
-                              className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 ${
-                                isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add
-                            </button>
+                          <div className="bg-white rounded-lg p-4 border border-slate-200">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Add Interviewer Email
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="email"
+                                value={interviewerEmail}
+                                onChange={(e) => setInterviewerEmail(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && !isSessionCompleted && handleAddInterviewer()}
+                                placeholder="interviewer@example.com"
+                                disabled={isSessionCompleted}
+                                className={`flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                                  isSessionCompleted ? 'bg-slate-100 cursor-not-allowed opacity-60' : ''
+                                }`}
+                              />
+                              <button
+                                onClick={handleAddInterviewer}
+                                disabled={isSessionCompleted}
+                                className={`px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md ${
+                                  isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                <Plus className="w-4 h-4" />
+                                Add
+                              </button>
+                            </div>
                           </div>
 
                           {interviewerEmails.length > 0 && (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-slate-700">Interviewers ({interviewerEmails.length})</p>
                               {interviewerEmails.map((email, index) => (
                                 <div
                                   key={index}
-                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                                  className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <Mail className="w-4 h-4 text-gray-600" />
-                                    <span className="text-gray-900">{email}</span>
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 rounded-lg">
+                                      <Mail className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <span className="font-medium text-slate-900">{email}</span>
                                   </div>
                                   <button
                                     onClick={() => !isSessionCompleted && handleRemoveInterviewer(email)}
                                     disabled={isSessionCompleted}
-                                    className={`p-1 text-red-600 hover:bg-red-50 rounded ${
+                                    className={`p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ${
                                       isSessionCompleted ? 'opacity-50 cursor-not-allowed' : ''
                                     }`}
+                                    title="Remove interviewer"
                                   >
                                     <X className="w-4 h-4" />
                                   </button>
                                 </div>
                               ))}
-                              <button
-                                onClick={handleInviteInterviewers}
-                                disabled={inviting || isSessionCompleted}
-                                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                              >
+                              <div className="flex justify-end mt-3">
+                                <button
+                                  onClick={handleInviteInterviewers}
+                                  disabled={inviting || isSessionCompleted}
+                                  className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
+                                >
                                 {inviting ? (
                                   <>
                                     <Loader className="w-4 h-4 animate-spin" />
@@ -550,10 +902,11 @@ export default function InterviewScheduling() {
                                 ) : (
                                   <>
                                     <Mail className="w-4 h-4" />
-                                    Send Invites to Interviewers
+                                    Send Invites
                                   </>
                                 )}
-                              </button>
+                                </button>
+                              </div>
                             </div>
                           )}
                         </>
@@ -561,26 +914,33 @@ export default function InterviewScheduling() {
                     })()}
 
                     {session.interviewerInvites && session.interviewerInvites.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Invited Interviewers:</p>
+                      <div className="mt-5 pt-5 border-t border-slate-200">
+                        <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          Invited Interviewers ({session.interviewerInvites.length})
+                        </p>
                         <div className="space-y-2">
                           {session.interviewerInvites.map((invite) => (
                             <div
                               key={invite.id}
-                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                              className="flex items-center justify-between p-4 bg-white rounded-lg border border-slate-200 hover:shadow-md transition-all"
                             >
-                              <div className="flex items-center gap-2">
-                                <Mail className="w-4 h-4 text-gray-600" />
-                                <span className="text-gray-900">{invite.email}</span>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-50 rounded-lg">
+                                  <Mail className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                  <span className="font-medium text-slate-900 block">{invite.email}</span>
+                                  <span className="text-xs text-slate-500 mt-0.5">
+                                    Expires: {new Date(invite.expiresAt).toLocaleDateString()}
+                                  </span>
+                                </div>
                                 {invite.used && (
-                                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                                  <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
                                     Used
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs text-gray-500">
-                                {new Date(invite.expiresAt).toLocaleDateString()}
-                              </span>
                             </div>
                           ))}
                         </div>
@@ -588,16 +948,24 @@ export default function InterviewScheduling() {
                     )}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-10">
-                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Failed to load interview session</p>
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="text-center py-20">
+                  <AlertCircle className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 text-lg">Failed to load interview session</p>
+                  <button
+                    onClick={handleCloseModal}
+                    className="mt-4 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 }

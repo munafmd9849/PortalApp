@@ -187,7 +187,8 @@ function formatDriveDate(driveDate) {
  * JobContent Component
  * Props: job, activeTab, onTabChange, showFooter, onClose, onApply, onShare, onPrint
  */
-const JobContent = React.memo(({ 
+const JobContent = React.memo(({
+  hideHeader = false, // New prop to hide header when used in page mode 
   job, 
   activeTab, 
   onTabChange,
@@ -507,6 +508,7 @@ This position offers excellent growth opportunities, competitive compensation, a
   return (
     <>
       {/* Header - Premium design */}
+      {!hideHeader && (
       <div 
         className="flex items-center justify-between p-6 md:p-8 border-b border-gray-200 bg-gradient-to-r from-gray-50 via-white to-gray-50"
         style={{
@@ -566,6 +568,7 @@ This position offers excellent growth opportunities, competitive compensation, a
           </button>
         )}
       </div>
+      )}
 
       {/* Tabs - Premium design */}
       <div className="border-b border-gray-200 bg-white">

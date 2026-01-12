@@ -45,12 +45,14 @@ export default function AuthRedirect() {
 
       // Public paths that authenticated users can visit without redirect
       const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
+      const isPublicPath = publicPaths.includes(currentPath) || currentPath.startsWith('/job/');
       
       // Admin sub-routes that should not redirect
       const isAdminSubRoute = roleLower === 'admin' && (
         currentPath.startsWith('/admin/interview-session/') ||
         currentPath.startsWith('/admin/assessment/') ||
-        currentPath.startsWith('/admin/job/')
+        currentPath.startsWith('/admin/job/') ||
+        currentPath.startsWith('/job/')
       );
 
       // Only redirect if:
@@ -59,12 +61,12 @@ export default function AuthRedirect() {
       // 3. We're NOT on an admin sub-route
       // 4. We're NOT already on the target dashboard
       // 5. We haven't already redirected in this session
-      if (targetDashboard && !publicPaths.includes(currentPath) && !isAdminSubRoute && currentPath !== targetDashboard && !hasRedirectedRef.current) {
+      if (targetDashboard && !isPublicPath && !isAdminSubRoute && currentPath !== targetDashboard && !hasRedirectedRef.current) {
         console.log(`AuthRedirect - Redirecting authenticated user from ${currentPath} to ${targetDashboard}`);
         hasRedirectedRef.current = true;
         navigate(targetDashboard, { replace: true });
-      } else if (currentPath === targetDashboard || isAdminSubRoute) {
-        // We're on the correct dashboard or admin sub-route - allow navigation to stay
+      } else if (currentPath === targetDashboard || isAdminSubRoute || isPublicPath) {
+        // We're on the correct dashboard, admin sub-route, or public path - allow navigation to stay
         hasRedirectedRef.current = false;
       }
     } else if (user && !role) {

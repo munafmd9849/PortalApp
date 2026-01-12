@@ -14,9 +14,32 @@ import {
 } from 'react-icons/fa';
 import api from '../services/api';
 
+// Helper function to decode JWT token (without verification)
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error decoding token:', e);
+    return null;
+  }
+};
+
 const InterviewSessionToken = () => {
   const { token } = useParams();
   const navigate = useNavigate();
+  
+  // Decode token to get sessionId
+  const decodedToken = React.useMemo(() => {
+    if (!token) return null;
+    return decodeJWT(token);
+  }, [token]);
+  
+  const sessionId = decodedToken?.sessionId;
   
   const [session, setSession] = useState(null);
   const [candidates, setCandidates] = useState([]);
@@ -49,16 +72,22 @@ const InterviewSessionToken = () => {
    * Fetch session data
    */
   const fetchSession = async () => {
+    if (!sessionId || !token) {
+      setError('Invalid token');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const response = await api.get(`/interview/session/${token}`);
-      setSession(response.data.session);
+      const response = await api.get(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`);
+      setSession(response.data);
       setCandidates(response.data.candidates || []);
       setActivities(response.data.activities || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching session:', err);
       setError(err.response?.data?.error || 'Failed to load session');
-      if (err.response?.status === 404 || err.response?.status === 401) {
+      if (err.response?.status === 404 || err.response?.status === 401 || err.response?.status === 403) {
         setTimeout(() => navigate('/'), 3000);
       }
     } finally {

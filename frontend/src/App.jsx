@@ -29,6 +29,7 @@ import InterviewSessionToken from './pages/InterviewSessionToken'
 import InterviewerDashboard from './pages/interview/InterviewerDashboard'
 import InterviewerRoundEvaluation from './pages/interview/InterviewerRoundEvaluation'
 import Assessment from './pages/Assessment'
+import JobDescriptionPage from './pages/JobDescriptionPage'
 import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
@@ -186,7 +187,10 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/endorse/:token" element={<Endorsement />} />
         <Route path="/endorsement/:token" element={<Endorsement />} /> {/* Legacy route support */}
-        <Route path="/interview/:token" element={<InterviewSessionToken />} /> {/* Token-based interview session */}
+        <Route path="/interview/:token" element={<InterviewSessionToken />} /> {/* Legacy token-based interview session */}
+        <Route path="/interview/session/:sessionId" element={<InterviewerDashboard />} /> {/* New interviewer dashboard */}
+        <Route path="/interview/round/:roundId" element={<InterviewerRoundEvaluation />} /> {/* Interviewer round evaluation */}
+        <Route path="/job/:jobId" element={<JobDescriptionPage />} /> {/* Job Description Page */}
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute allowRoles={['student']} />}>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interviewer Session</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Interview Session</h1>
+      <p>Conduct interviews and evaluate candidates</p>
+    </div>
+
+    <!-- Session Info -->
+    <div class="card">
+      <div class="card-title">Session Information</div>
+      <div id="sessionInfo">
+        <p><strong>Job:</strong> <span id="sessionJobTitle"></span></p>
+        <p><strong>Company:</strong> <span id="sessionCompany"></span></p>
+        <p><strong>Session ID:</strong> <span id="sessionId"></span></p>
+        <p><strong>Status:</strong> <span id="sessionStatusBadge"></span></p>
+      </div>
+    </div>
+
+    <!-- Round Progress -->
+    <div class="card">
+      <div class="card-title">Round Progress</div>
+      <div id="roundProgress" class="round-progress">
+        <p style="color: #718096;">No rounds configured yet.</p>
+      </div>
+    </div>
+
+    <!-- Round Controls -->
+    <div class="card" id="roundControlsCard" style="display: none;">
+      <div class="card-title">Round Controls</div>
+      <div id="roundControls">
+        <button class="btn btn-primary" id="startRoundBtn" onclick="startRound()">Start Round</button>
+        <button class="btn btn-secondary" id="endRoundBtn" onclick="endRound()" style="display: none;">End Round</button>
+        <button class="btn btn-success" id="endSessionBtn" onclick="endSession()" style="display: none;">End Session</button>
+      </div>
+      <p id="roundControlMessage" style="margin-top: 10px; font-size: 13px; color: #718096;"></p>
+    </div>
+
+    <!-- Active Round Candidates -->
+    <div class="card" id="candidatesCard" style="display: none;">
+      <div class="card-title" id="activeRoundTitle">Active Round Candidates</div>
+      <div id="candidatesList">
+        <p style="color: #718096; text-align: center; padding: 20px;">No candidates in this round.</p>
+      </div>
+    </div>
+
+    <!-- No Session Message -->
+    <div class="card" id="noSessionCard">
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <p>No interview session has been created yet.</p>
+        <p style="font-size: 14px; color: #718096; margin-top: 10px;">
+          The admin must create an interview session first.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="state.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    let currentActiveRoundId = null;
+
+    function init() {
+      loadSessionInfo();
+      loadRounds();
+      checkActiveRound();
+    }
+
+    function loadSessionInfo() {
+      const session = State.interviewSession;
+
+      if (!session || session.rounds.length === 0) {
+        document.getElementById('noSessionCard').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('noSessionCard').style.display = 'none';
+      document.getElementById('sessionJobTitle').textContent = MOCK_DATA.job.title;
+      document.getElementById('sessionCompany').textContent = MOCK_DATA.job.company;
+      document.getElementById('sessionId').textContent = session.id || 'N/A';
+
+      const statusBadge = document.getElementById('sessionStatusBadge');
+      statusBadge.textContent = session.status;
+      statusBadge.className = 'badge ' + (session.status === 'ONGOING' ? 'badge-yellow' : 
+                               session.status === 'COMPLETED' ? 'badge-green' : 'badge-gray');
+    }
+
+    function loadRounds() {
+      const session = State.interviewSession;
+      const container = document.getElementById('roundProgress');
+
+      if (!session || session.rounds.length === 0) {
+        return;
+      }
+
+      container.innerHTML = '';
+      session.rounds.forEach((round, index) => {
+        const roundItem = document.createElement('div');
+        roundItem.className = 'round-item ' + round.status.toLowerCase();
+        
+        let statusText = round.status;
+        if (round.status === 'PENDING') statusText = 'Pending';
+        else if (round.status === 'ACTIVE') statusText = 'Active';
+        else if (round.status === 'COMPLETED') statusText = 'Completed';
+
+        roundItem.innerHTML = `
+          <div class="round-item-name">${round.name}</div>
+          <div class="round-item-status">${statusText}</div>
+        `;
+
+        container.appendChild(roundItem);
+      });
+    }
+
+    function checkActiveRound() {
+      const session = State.interviewSession;
+
+      if (!session || session.rounds.length === 0) {
+        return;
+      }
+
+      const activeRound = session.rounds.find(r => r.status === 'ACTIVE');
+      const pendingRounds = session.rounds.filter(r => r.status === 'PENDING');
+      const completedRounds = session.rounds.filter(r => r.status === 'COMPLETED');
+      const allCompleted = session.rounds.every(r => r.status === 'COMPLETED');
+
+      // Show/hide round controls
+      document.getElementById('roundControlsCard').style.display = 'block';
+
+      if (activeRound) {
+        currentActiveRoundId = activeRound.id;
+        document.getElementById('startRoundBtn').style.display = 'none';
+        document.getElementById('endRoundBtn').style.display = 'inline-block';
+        document.getElementById('endSessionBtn').style.display = 'none';
+        document.getElementById('roundControlMessage').textContent = 
+          `Round "${activeRound.name}" is currently active. Evaluate candidates below.`;
+        loadCandidatesForRound(activeRound.id);
+      } else if (allCompleted) {
+        document.getElementById('startRoundBtn').style.display = 'none';
+        document.getElementById('endRoundBtn').style.display = 'none';
+        document.getElementById('endSessionBtn').style.display = 'inline-block';
+        document.getElementById('roundControlMessage').textContent = 
+          'All rounds completed. You can end the session.';
+        document.getElementById('candidatesCard').style.display = 'none';
+      } else {
+        // Find next pending round
+        const nextRound = pendingRounds[0];
+        if (nextRound) {
+          const roundIndex = session.rounds.findIndex(r => r.id === nextRound.id);
+          const prevRound = roundIndex > 0 ? session.rounds[roundIndex - 1] : null;
+
+          if (prevRound && prevRound.status !== 'COMPLETED') {
+            document.getElementById('startRoundBtn').disabled = true;
+            document.getElementById('roundControlMessage').textContent = 
+              `Previous round "${prevRound.name}" must be completed first.`;
+          } else {
+            document.getElementById('startRoundBtn').disabled = false;
+            document.getElementById('roundControlMessage').textContent = 
+              `Ready to start "${nextRound.name}". Click "Start Round" to begin.`;
+          }
+        }
+
+        document.getElementById('startRoundBtn').style.display = 'inline-block';
+        document.getElementById('endRoundBtn').style.display = 'none';
+        document.getElementById('endSessionBtn').style.display = 'none';
+        document.getElementById('candidatesCard').style.display = 'none';
+      }
+    }
+
+    function startRound() {
+      const session = State.interviewSession;
+      const pendingRounds = session.rounds.filter(r => r.status === 'PENDING');
+      
+      if (pendingRounds.length === 0) {
+        Utils.showToast('No pending rounds available', 'error');
+        return;
+      }
+
+      const nextRound = pendingRounds[0];
+      const result = State.startRound(nextRound.id);
+
+      if (result.success) {
+        Utils.showToast(`Round "${nextRound.name}" started`, 'success');
+        loadRounds();
+        checkActiveRound();
+      } else {
+        Utils.showToast(result.message, 'error');
+      }
+    }
+
+    function endRound() {
+      if (!currentActiveRoundId) {
+        Utils.showToast('No active round found', 'error');
+        return;
+      }
+
+      const round = State.interviewSession.rounds.find(r => r.id === currentActiveRoundId);
+      if (!round) {
+        Utils.showToast('Round not found', 'error');
+        return;
+      }
+
+      // Check if all candidates are evaluated
+      const candidates = State.getCandidatesForRound(currentActiveRoundId);
+      const evaluations = State.roundEvaluations[currentActiveRoundId] || {};
+      const unevaluated = candidates.filter(id => !evaluations[id]);
+
+      if (unevaluated.length > 0) {
+        if (!Utils.confirm(`There are ${unevaluated.length} unevaluated candidates. End round anyway?`)) {
+          return;
+        }
+      }
+
+      const result = State.endRound(currentActiveRoundId);
+
+      if (result.success) {
+        Utils.showToast(`Round "${round.name}" ended`, 'success');
+        currentActiveRoundId = null;
+        loadRounds();
+        checkActiveRound();
+      } else {
+        Utils.showToast(result.message, 'error');
+      }
+    }
+
+    function endSession() {
+      if (!Utils.confirm('Are you sure you want to end the entire interview session? This action cannot be undone.')) {
+        return;
+      }
+
+      const result = State.endSession();
+
+      if (result.success) {
+        Utils.showToast('Interview session ended successfully', 'success');
+        loadSessionInfo();
+        loadRounds();
+        checkActiveRound();
+      } else {
+        Utils.showToast(result.message, 'error');
+      }
+    }
+
+    function loadCandidatesForRound(roundId) {
+      const candidates = State.getCandidatesForRound(roundId);
+      const container = document.getElementById('candidatesList');
+      const round = State.interviewSession.rounds.find(r => r.id === roundId);
+
+      document.getElementById('activeRoundTitle').textContent = `${round.name} - Candidates`;
+      document.getElementById('candidatesCard').style.display = 'block';
+
+      if (candidates.length === 0) {
+        container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">No candidates in this round.</p>';
+        return;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'student-list';
+
+      candidates.forEach(studentId => {
+        const student = getStudentById(studentId);
+        if (!student) return;
+
+        const evaluations = State.roundEvaluations[roundId] || {};
+        const evaluation = evaluations[studentId];
+
+        const card = document.createElement('div');
+        card.className = 'student-card';
+        card.style.cssText = 'flex-direction: column; align-items: stretch;';
+
+        card.innerHTML = `
+          <div style="margin-bottom: 15px;">
+            <div class="student-name">${student.name}</div>
+            <div class="student-details">
+              <div>Email: ${student.email}</div>
+              <div>CGPA: ${student.cgpa}</div>
+            </div>
+          </div>
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 15px;">
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select candidate-status" data-student-id="${studentId}" 
+                      onchange="updateCandidateStatus('${roundId}', '${studentId}', this.value)">
+                <option value="">Select Status</option>
+                <option value="SELECTED" ${evaluation && evaluation.status === 'SELECTED' ? 'selected' : ''}>Selected</option>
+                <option value="REJECTED" ${evaluation && evaluation.status === 'REJECTED' ? 'selected' : ''}>Rejected</option>
+                <option value="ON_HOLD" ${evaluation && evaluation.status === 'ON_HOLD' ? 'selected' : ''}>On Hold</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Remarks</label>
+              <textarea class="form-textarea candidate-remarks" 
+                        data-student-id="${studentId}"
+                        placeholder="Enter evaluation remarks..."
+                        onchange="updateCandidateRemarks('${roundId}', '${studentId}', this.value)">${evaluation ? evaluation.remarks || '' : ''}</textarea>
+            </div>
+            ${evaluation ? `
+              <div style="font-size: 12px; color: #718096; margin-top: 5px;">
+                Evaluated: ${Utils.formatDateTime(evaluation.evaluatedAt)}
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        list.appendChild(card);
+      });
+
+      container.innerHTML = '';
+      container.appendChild(list);
+    }
+
+    function updateCandidateStatus(roundId, studentId, status) {
+      if (!status) return;
+
+      const remarksEl = document.querySelector(`.candidate-remarks[data-student-id="${studentId}"]`);
+      const remarks = remarksEl ? remarksEl.value : '';
+
+      State.updateRoundEvaluation(roundId, studentId, status, remarks);
+      Utils.showToast('Status updated', 'success');
+    }
+
+    function updateCandidateRemarks(roundId, studentId, remarks) {
+      const statusEl = document.querySelector(`.candidate-status[data-student-id="${studentId}"]`);
+      const status = statusEl ? statusEl.value : '';
+
+      if (status) {
+        State.updateRoundEvaluation(roundId, studentId, status, remarks);
+      }
+    }
+
+    // Initialize
+    init();
+
+    // Refresh every 3 seconds to catch updates
+    setInterval(() => {
+      loadSessionInfo();
+      loadRounds();
+      checkActiveRound();
+    }, 3000);
+  </script>
+</body>
+</html>

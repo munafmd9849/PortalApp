@@ -4,9 +4,7 @@ const PlacementRecords = ({ onLoginOpen }) => {
   const [currentRow, setCurrentRow] = useState(0);
   const [showBatchDropdown, setShowBatchDropdown] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
-  const [cardsToShow, setCardsToShow] = useState(4);
-  const cardWidth = 224; 
-  const cardGap = 24; 
+  const [cardsToShow, setCardsToShow] = useState(4); 
 
   // dummy
   const studentRecords = [
@@ -191,31 +189,25 @@ const PlacementRecords = ({ onLoginOpen }) => {
 const StudentCard = ({ student, index }) => {
   return (
     <div
-      className="
-        relative group bg-white rounded-lg shadow-md overflow-hidden 
-        transition-all duration-300 ease-out transform hover:scale-[1.02] hover:shadow-lg border border-gray-200
-        flex flex-col
-        h-full w-full max-w-[180px] mx-auto
-      "
+      className="relative group bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 ease-out transform hover:scale-105 hover:shadow-lg border border-gray-100 flex-shrink-0 w-40 h-56"
       style={{
         animationDelay: `${index * 100}ms`,
         animation: 'slideInUp 0.6s ease-out forwards'
       }}
     >
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1565C0]/5 via-[#1565C0]/3 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#1565C0]/5 to-[#1565C0]/10" />
       
       {/* Top Section with Profile */}
-      <div className="relative pt-4 pb-2 flex-shrink-0">
+      <div className="relative pt-5 pb-1">
         <div className="flex justify-center">
           <div className="relative">
             <img
               src={student.profileImg}
-              className="w-16 h-16 rounded-full border-2 border-[#1565C0] shadow-sm object-cover transition-all duration-300 group-hover:border-[#0d47a1]"
-              alt={student.name}
+              className="w-14 h-14 rounded-full border-2 border-[#1565C0] shadow-sm object-cover transition-colors"
             />
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#1565C0] rounded-full border-2 border-white flex items-center justify-center shadow-sm">
-              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#1565C0] rounded-full border border-white flex items-center justify-center">
+              <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </div>

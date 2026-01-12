@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
-import JobDescriptionModal from '../../components/dashboard/student/JobDescriptionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -262,16 +261,13 @@ export default function StudentDashboard() {
   const [interviewHistory, setInterviewHistory] = useState([]);
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
-  const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application dropdowns
+  const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application details
   
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [applying, setApplying] = useState({});
   
-  // Job Description Modal state
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   
   // Resume Selection Modal state
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
@@ -726,15 +722,9 @@ export default function StudentDashboard() {
     return studentCgpa >= requiredCgpa;
   };
 
-  // Job Description Modal handlers
+  // Job Description navigation handler
   const handleKnowMore = (job) => {
-    setSelectedJob(job);
-    setIsJobModalOpen(true);
-  };
-
-  const handleCloseJobModal = () => {
-    setIsJobModalOpen(false);
-    setSelectedJob(null);
+    navigate(`/job/${job.id}`);
   };
 
 
@@ -2166,16 +2156,16 @@ export default function StudentDashboard() {
                                                       </span>
                                                     </div>
                                                   )}
-                                                  {evaluation?.feedback && (
+                                                  {evaluation?.remarks && (
                                                     <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                                                      <span className="text-sm font-semibold text-gray-700 block mb-1">Feedback:</span>
-                                                      <p className="text-sm text-gray-600">{evaluation.feedback}</p>
+                                                      <span className="text-sm font-semibold text-gray-700 block mb-1">Remarks:</span>
+                                                      <p className="text-sm text-gray-600">{evaluation.remarks}</p>
                                                     </div>
                                                   )}
                                                 </>
                                               ) : (
                                                 <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg text-center">
-                                                  <span className="text-sm font-medium text-gray-500">This round was not reached</span>
+                                                  <span className="text-sm font-medium text-gray-500">Not reached</span>
                                                 </div>
                                               )}
                                             </div>
@@ -3521,12 +3511,6 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Job Description Modal */}
-      <JobDescriptionModal 
-        job={selectedJob}
-        isOpen={isJobModalOpen}
-        onClose={handleCloseJobModal}
-      />
 
       {/* Resume Selection Modal */}
       {isResumeModalOpen && (
