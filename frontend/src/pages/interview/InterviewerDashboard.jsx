@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
 import { Loader, Building2, Briefcase, AlertCircle, CheckCircle, Clock, Lock, PlayCircle, ArrowRight } from 'lucide-react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 // Helper to decode JWT token
 const decodeJWT = (token) => {
@@ -179,10 +180,19 @@ const InterviewerDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-4" />
-          <p className="text-gray-600">Loading interview session...</p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-500 ease-in-out">
+        <div className="flex flex-col items-center justify-center">
+          <div className="w-64 h-64 flex items-center justify-center mb-4">
+            <DotLottieReact
+              src="https://lottie.host/6f32e72e-0e51-4de6-be26-7a66a512856b/KR5Pp47lfD.json"
+              loop
+              autoplay
+              className="w-full h-full"
+            />
+          </div>
+          <p className="text-gray-600 text-lg font-medium animate-pulse">
+            Loading...
+          </p>
         </div>
       </div>
     );

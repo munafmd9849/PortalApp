@@ -102,9 +102,14 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
   };
 
   const formatSalary = (salary) => {
-    if (!salary) return 'Not specified';
+    if (!salary || (typeof salary === 'string' && salary.trim() === '')) return 'As per industry standards';
+    if (salary === 'As per industry standards') return 'As per industry standards';
     if (typeof salary === 'number') {
       return `₹${(salary / 100000).toFixed(0)} LPA`;
+    }
+    // Check if it contains "As per industry standards"
+    if (typeof salary === 'string' && salary.includes('As per industry standards')) {
+      return 'As per industry standards';
     }
     return salary;
   };
@@ -202,7 +207,7 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                           title={(meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
                           className={`flex-1 px-3 py-2 font-medium rounded-md transition-all duration-200 shadow-sm text-sm ${
                             hasApplied && hasApplied(job.id)
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              ? 'bg-green-200 text-green-800 cursor-not-allowed border border-green-400'
                               : applying && applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
                               : (meetsCgpaRequirement && !meetsCgpaRequirement(job))
@@ -213,7 +218,7 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                           {hasApplied && hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-4 w-4 inline mr-1" />
-                              Applied
+                              Applied!
                             </>
                           ) : applying && applying[job.id] ? (
                             <>
@@ -266,7 +271,7 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                           title={(meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
                           className={`px-2 py-1 font-medium rounded-sm transition-all duration-200 shadow-sm text-xs whitespace-nowrap ${
                             hasApplied && hasApplied(job.id)
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              ? 'bg-green-200 text-green-800 cursor-not-allowed border border-green-400'
                               : applying && applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
                               : (meetsCgpaRequirement && !meetsCgpaRequirement(job))
@@ -277,7 +282,7 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
                           {hasApplied && hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied
+                              Applied!
                             </>
                           ) : applying && applying[job.id] ? (
                             <>

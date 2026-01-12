@@ -38,7 +38,25 @@ export default function JobDetail() {
       setApplyMsg('Application submitted successfully!');
     } catch (error) {
       console.error('Apply error:', error);
-      setApplyMsg(error.message || 'Failed to apply. Please try again.');
+      
+      // Handle CGPA requirement error with precise message
+      if (error.response?.data || error.message) {
+        const errorData = error.response?.data || {};
+        if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+          const message = errorData.message || 'CGPA requirement not met';
+          const requirement = errorData.requirement || '';
+          const fullMessage = requirement 
+            ? `${message}\n\n${requirement}`
+            : message;
+          setApplyMsg(fullMessage);
+        } else if (errorData.error === 'Already applied to this job') {
+          setApplyMsg('You have already applied to this job.');
+        } else {
+          setApplyMsg(errorData.message || error.message || 'Failed to apply. Please try again.');
+        }
+      } else {
+        setApplyMsg('Failed to apply. Please try again.');
+      }
     } finally {
       setApplyLoading(false);
     }

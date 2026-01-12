@@ -196,7 +196,11 @@ export const applyToJob = async (studentId, jobId, applicationData = {}) => {
     console.log('✅ [applyToJob] Application created:', application);
     return application;
   } catch (error) {
-    console.error('❌ [applyToJob] Error:', error);
+    // Don't log "Already applied" errors - they're handled gracefully
+    const errorData = error.response?.data || {};
+    if (errorData.error !== 'Already applied to this job') {
+      console.error('❌ [applyToJob] Error:', error);
+    }
     throw error;
   }
 };

@@ -318,9 +318,37 @@ export async function createJob(req, res) {
       companyId: companyId || null,
       recruiterId: recruiterId || null,
       companyName: companyName || null,
-      salary: mappedData.salary || null,
-      ctc: mappedData.ctc || null,
-      salaryRange: mappedData.salaryRange || null,
+      // Set default "As per industry standards" if salary/stipend not specified
+      salary: (() => {
+        // Check salary first
+        if (mappedData.salary) {
+          const salaryStr = String(mappedData.salary).trim();
+          if (salaryStr !== '' && salaryStr !== 'null' && salaryStr !== 'undefined') {
+            return salaryStr;
+          }
+        }
+        // Check stipend for internships
+        if (mappedData.stipend) {
+          const stipendStr = String(mappedData.stipend).trim();
+          if (stipendStr !== '' && stipendStr !== 'null' && stipendStr !== 'undefined') {
+            return stipendStr;
+          }
+        }
+        // Default value
+        return 'As per industry standards';
+      })(),
+      ctc: (() => {
+        if (mappedData.ctc) {
+          const ctcStr = String(mappedData.ctc).trim();
+          if (ctcStr !== '' && ctcStr !== 'null' && ctcStr !== 'undefined') {
+            return ctcStr;
+          }
+        }
+        return 'As per industry standards';
+      })(),
+      salaryRange: (mappedData.salaryRange && mappedData.salaryRange.trim() !== '') 
+        ? mappedData.salaryRange 
+        : null,
       location: mappedData.location || null,
       companyLocation: mappedData.companyLocation || null,
       driveDate: mappedData.driveDate || null,

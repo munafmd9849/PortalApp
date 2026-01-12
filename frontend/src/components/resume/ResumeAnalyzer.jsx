@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart3, 
   CheckCircle, 
@@ -11,66 +11,119 @@ import {
   Lightbulb,
   RefreshCw
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function ResumeAnalyzer({ resumeInfo, userId }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Mock analysis function - in real implementation, this would call an AI service
+  // Extract text from PDF URL
+  const extractTextFromPDFUrl = async (pdfUrl) => {
+    try {
+      // Fetch the PDF
+      const response = await fetch(pdfUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      
+      // Load PDF document
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // Extract text from all pages
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+      
+      return fullText.trim();
+    } catch (err) {
+      console.error('Error extracting text from PDF:', err);
+      throw new Error('Failed to extract text from PDF. Please ensure the PDF is accessible.');
+    }
+  };
+
+  // Real analysis function using Gemini API
   const analyzeResume = async () => {
+    if (!resumeInfo?.hasResume || !resumeInfo?.resumeUrl) {
+      setError('Resume URL is required for analysis');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Step 1: Extract text from PDF
+      const resumeText = await extractTextFromPDFUrl(resumeInfo.resumeUrl);
       
-      // Mock analysis results
-      const mockAnalysis = {
-        overallScore: 78,
-        sections: {
-          contact: { score: 95, status: 'excellent', feedback: 'Complete contact information provided' },
-          summary: { score: 70, status: 'good', feedback: 'Professional summary could be more impactful' },
-          experience: { score: 85, status: 'excellent', feedback: 'Strong work experience with quantified achievements' },
-          education: { score: 90, status: 'excellent', feedback: 'Relevant education background clearly presented' },
-          skills: { score: 65, status: 'needs_improvement', feedback: 'Skills section could be more comprehensive' },
-          formatting: { score: 80, status: 'good', feedback: 'Clean formatting with minor improvements needed' }
+      if (!resumeText || resumeText.trim().length === 0) {
+        throw new Error('Could not extract text from PDF. The PDF might be image-based or corrupted.');
+      }
+
+      // Step 2: Call backend API for ATS analysis
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        strengths: [
-          'Strong quantified achievements in work experience',
-          'Clear and professional formatting',
-          'Relevant educational background',
-          'Complete contact information'
-        ],
-        improvements: [
-          'Add more technical skills relevant to target roles',
-          'Strengthen professional summary with specific value propositions',
-          'Include more action verbs in experience descriptions',
-          'Consider adding a projects or certifications section'
-        ],
+        body: JSON.stringify({
+          resumeText: resumeText,
+          resumeId: resumeInfo.resumeId || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Analysis failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success || !data.analysis) {
+        throw new Error('Invalid response from analysis service');
+      }
+
+      // Transform API response to match component's expected format
+      const transformedAnalysis = {
+        overallScore: data.analysis.atsScore,
+        atsCompatibility: data.analysis.atsScore,
+        readabilityScore: 0, // Not provided by API, can be calculated or removed
+        strengths: data.analysis.strengths || [],
+        improvements: data.analysis.improvementSuggestions || [],
         keywords: {
-          found: ['JavaScript', 'React', 'Node.js', 'Python', 'SQL'],
-          missing: ['TypeScript', 'AWS', 'Docker', 'Kubernetes', 'MongoDB'],
-          score: 60
+          found: [], // API doesn't provide found keywords separately
+          missing: data.analysis.missingKeywords || [],
+          score: data.analysis.atsScore, // Use ATS score as keyword score
         },
-        atsCompatibility: 85,
-        readabilityScore: 92
+        missingSkills: data.analysis.missingSkills || [],
+        grammarIssues: data.analysis.grammarIssues || [],
+        formattingIssues: data.analysis.formattingIssues || [],
+        clarityIssues: data.analysis.clarityIssues || [],
+        overallFeedback: data.analysis.overallFeedback || '',
       };
       
-      setAnalysis(mockAnalysis);
+      setAnalysis(transformedAnalysis);
     } catch (err) {
-      setError('Failed to analyze resume. Please try again.');
+      console.error('Resume analysis error:', err);
+      setError(err.message || 'Failed to analyze resume. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (resumeInfo?.hasResume) {
-      analyzeResume();
-    }
-  }, [resumeInfo]);
+  // Removed auto-analysis - user must click button to analyze
 
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-green-600';
@@ -103,6 +156,24 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No Resume to Analyze</h3>
         <p className="text-gray-500">Upload a resume to get detailed analysis and improvement suggestions.</p>
+      </div>
+    );
+  }
+
+  // Show button to start analysis if no analysis exists yet
+  if (!analysis && !loading && !error) {
+    return (
+      <div className="text-center py-8">
+        <BarChart3 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Analyze</h3>
+        <p className="text-gray-500 mb-6">Click the button below to analyze your resume for ATS compatibility.</p>
+        <button
+          onClick={analyzeResume}
+          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          <BarChart3 className="h-5 w-5 mr-2" />
+          Analyze Resume
+        </button>
       </div>
     );
   }
@@ -171,43 +242,24 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">{analysis.atsCompatibility}%</div>
-            <div className="text-sm text-blue-700">ATS Compatible</div>
-          </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">{analysis.readabilityScore}%</div>
-            <div className="text-sm text-green-700">Readability</div>
+            <div className="text-sm text-blue-700">ATS Compatibility Score</div>
           </div>
         </div>
       </div>
 
-      {/* Section Scores */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Target className="h-5 w-5 text-purple-600 mr-2" />
-          Section Analysis
-        </h4>
-        <div className="space-y-4">
-          {Object.entries(analysis.sections).map(([section, data]) => (
-            <div key={section} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center">
-                {getStatusIcon(data.status)}
-                <div className="ml-3">
-                  <div className="font-medium text-gray-900 capitalize">
-                    {section.replace('_', ' ')}
-                  </div>
-                  <div className="text-sm text-gray-600">{data.feedback}</div>
-                </div>
-              </div>
-              <div className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreBgColor(data.score)} ${getScoreColor(data.score)}`}>
-                {data.score}%
-              </div>
-            </div>
-          ))}
+      {/* Overall Feedback */}
+      {analysis.overallFeedback && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FileText className="h-5 w-5 text-blue-600 mr-2" />
+            Overall Feedback
+          </h4>
+          <p className="text-gray-700 leading-relaxed">{analysis.overallFeedback}</p>
         </div>
-      </div>
+      )}
 
       {/* Strengths */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -241,50 +293,95 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         </div>
       </div>
 
-      {/* Keywords Analysis */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Star className="h-5 w-5 text-blue-600 mr-2" />
-          Keywords Analysis
-        </h4>
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Keyword Match Score</span>
-            <span className={`text-sm font-medium ${getScoreColor(analysis.keywords.score)}`}>
-              {analysis.keywords.score}%
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className={`h-2 rounded-full ${analysis.keywords.score >= 80 ? 'bg-green-500' : analysis.keywords.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-              style={{ width: `${analysis.keywords.score}%` }}
-            ></div>
+      {/* Missing Keywords */}
+      {analysis.keywords?.missing && analysis.keywords.missing.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Star className="h-5 w-5 text-orange-600 mr-2" />
+            Missing Keywords
+          </h4>
+          <p className="text-sm text-gray-600 mb-3">Consider adding these keywords to improve ATS compatibility:</p>
+          <div className="flex flex-wrap gap-2">
+            {analysis.keywords.missing.map((keyword, index) => (
+              <span key={index} className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
+                {keyword}
+              </span>
+            ))}
           </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h5 className="font-medium text-green-700 mb-2">Found Keywords</h5>
-            <div className="flex flex-wrap gap-2">
-              {analysis.keywords.found.map((keyword, index) => (
-                <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                  {keyword}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h5 className="font-medium text-red-700 mb-2">Missing Keywords</h5>
-            <div className="flex flex-wrap gap-2">
-              {analysis.keywords.missing.map((keyword, index) => (
-                <span key={index} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
-                  {keyword}
-                </span>
-              ))}
-            </div>
+      {/* Missing Skills */}
+      {analysis.missingSkills && analysis.missingSkills.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Target className="h-5 w-5 text-purple-600 mr-2" />
+            Missing Skills
+          </h4>
+          <p className="text-sm text-gray-600 mb-3">These skills are commonly sought after:</p>
+          <div className="flex flex-wrap gap-2">
+            {analysis.missingSkills.map((skill, index) => (
+              <span key={index} className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                {skill}
+              </span>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Grammar Issues */}
+      {analysis.grammarIssues && analysis.grammarIssues.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+            Grammar Issues
+          </h4>
+          <div className="space-y-2">
+            {analysis.grammarIssues.map((issue, index) => (
+              <div key={index} className="flex items-start">
+                <AlertTriangle className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-700">{issue}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Formatting Issues */}
+      {analysis.formattingIssues && analysis.formattingIssues.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FileText className="h-5 w-5 text-yellow-600 mr-2" />
+            Formatting Issues
+          </h4>
+          <div className="space-y-2">
+            {analysis.formattingIssues.map((issue, index) => (
+              <div key={index} className="flex items-start">
+                <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-700">{issue}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Clarity Issues */}
+      {analysis.clarityIssues && analysis.clarityIssues.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <TrendingUp className="h-5 w-5 text-blue-600 mr-2" />
+            Clarity Issues
+          </h4>
+          <div className="space-y-2">
+            {analysis.clarityIssues.map((issue, index) => (
+              <div key={index} className="flex items-start">
+                <AlertTriangle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-700">{issue}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

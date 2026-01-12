@@ -20,6 +20,7 @@
     "@fullcalendar/react": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
     "@heroicons/react": "^2.2.0",
+    "@lottiefiles/dotlottie-react": "^0.17.12",
     "@react-spring/web": "^10.0.1",
     "@tabler/icons-react": "^3.34.1",
     "ag-charts-react": "^12.2.0",
