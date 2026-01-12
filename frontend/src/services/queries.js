@@ -55,19 +55,28 @@ function transformQuery(query) {
     startDate: metadata.startDate || metadata.start_date || null,
     endDate: metadata.endDate || metadata.end_date || null,
     timeSlot: metadata.timeSlot || metadata.time_slot || null,
-    reason: metadata.reason || null
+    reason: metadata.reason || null,
+    jobId: metadata.jobId || null, // Include jobId for question type queries
   };
 }
 
-function buildPayload(formData) {
+function buildPayload(formData, jobs = []) {
   // Ensure required fields are present and not empty
-  const subject = formData.subject?.trim() || '';
-  const message = formData.message?.trim() || '';
   const type = normalizeType(formData.type);
+  let subject = formData.subject?.trim() || '';
+  const message = formData.message?.trim() || '';
+  
+  // For question type, generate subject from selected job
+  if (type === QUERY_TYPES.QUESTION && formData.selectedJobId) {
+    const selectedJob = jobs.find(j => j.id === formData.selectedJobId);
+    if (selectedJob) {
+      subject = `Question about ${selectedJob.jobTitle} at ${selectedJob.companyName || selectedJob.company}`;
+    }
+  }
   
   // Validate required fields
   if (!subject) {
-    throw new Error('Subject is required');
+    throw new Error(type === QUERY_TYPES.QUESTION ? 'Please select a job posting' : 'Subject is required');
   }
   
   // Message validation - not required for endorsement type
@@ -82,6 +91,11 @@ function buildPayload(formData) {
     message: message || '', // Allow empty message for endorsement
     type,
   };
+
+  // Store jobId in metadata for question type
+  if (type === QUERY_TYPES.QUESTION && formData.selectedJobId) {
+    payload.jobId = formData.selectedJobId;
+  }
 
   if (payload.type === QUERY_TYPES.CGPA_UPDATE) {
     // Preserve CGPA as string to avoid floating point rounding
@@ -108,9 +122,9 @@ function buildPayload(formData) {
   return payload;
 }
 
-export async function submitQuery(userId, formData) {
+export async function submitQuery(userId, formData, jobs = []) {
   try {
-    const payload = buildPayload(formData);
+    const payload = buildPayload(formData, jobs);
     console.log('[Query Service] Submitting query with payload:', payload);
     console.log('[Query Service] Original formData:', formData);
     

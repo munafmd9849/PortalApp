@@ -99,6 +99,15 @@ router.delete('/resume/:resumeId',
   studentController.deleteResume
 );
 
+// ATS Resume Analysis
+// POST /api/students/resume/ats-analysis
+// Body: { resumeText, resumeId? }
+// Auth: Student only
+router.post('/resume/ats-analysis',
+  requireRole(['STUDENT']),
+  studentController.analyzeATSResume
+);
+
 // Admin route - Get all students (must be last to avoid route conflicts)
 router.get('/', requireRole(['ADMIN']), studentController.getAllStudents);
 

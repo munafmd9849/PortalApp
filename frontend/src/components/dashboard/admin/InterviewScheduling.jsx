@@ -145,7 +145,8 @@ export default function InterviewScheduling() {
       }
     } catch (error) {
       console.error('Error loading session:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      
+        toast.error('Network error. Please check your connection and try again.');
       // Don't close modal on error, let user see the error state
     } finally {
       setLoadingSession(false);
@@ -583,7 +584,7 @@ export default function InterviewScheduling() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 relative">
               {loadingSession ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader className="h-8 w-8 animate-spin text-blue-600 mr-3" />

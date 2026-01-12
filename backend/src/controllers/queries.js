@@ -86,6 +86,7 @@ async function notifyAdminsAboutQuery(query, metadata, studentProfile) {
       school: studentProfile.school,
       batch: studentProfile.batch,
       message: query.message,
+      jobId: metadata.jobId || null, // Include jobId for question type queries
       type: notificationType, // Store type in data for frontend to extract
     };
 
@@ -135,6 +136,7 @@ export async function createStudentQuery(req, res) {
       reason,
       teacherEmail,
       endorsementMessage,
+      jobId, // New field for job selection in question queries
     } = req.body;
 
     const normalizedType = normalizeType(type);
@@ -200,6 +202,7 @@ export async function createStudentQuery(req, res) {
       reason: reason || null,
       teacherEmail: teacherEmail || null,
       endorsementMessage: endorsementMessage || null,
+      jobId: jobId || null, // Store jobId for question type queries
     };
 
     const studentProfile = await prisma.student.findUnique({

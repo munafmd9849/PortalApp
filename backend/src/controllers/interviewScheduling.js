@@ -69,10 +69,14 @@ async function sendInterviewerInviteEmail(email, sessionLink, jobTitle, companyN
 export const getOrCreateSession = async (req, res) => {
   try {
     const { jobId } = req.method === 'GET' ? req.params : req.body;
-    const userId = req.user.id;
+    const userId = req.userId || req.user?.id;
 
     if (!jobId) {
       return res.status(400).json({ error: 'jobId is required' });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID not found in request' });
     }
 
     // Check if job exists
@@ -103,7 +107,7 @@ export const getOrCreateSession = async (req, res) => {
       session = await prisma.interviewSession.create({
         data: {
           jobId,
-          companyId: job.companyId,
+          companyId: job.companyId || null,
           status: 'NOT_STARTED',
           createdBy: userId,
         },
@@ -200,8 +204,18 @@ export const getOrCreateSession = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error getting/creating session:', error);
-    res.status(500).json({ error: 'Failed to get/create session', details: error.message });
+    console.error('Error getting/creating session:', {
+      message: error.message,
+      stack: error.stack,
+      jobId: req.params?.jobId || req.body?.jobId,
+      userId: req.userId || req.user?.id,
+      method: req.method,
+    });
+    res.status(500).json({ 
+      error: 'Failed to get/create session', 
+      details: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 };
 

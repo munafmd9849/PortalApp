@@ -163,9 +163,14 @@ const getRoundIcon = (label) => {
  * Format salary for display
  */
 function formatSalary(salary) {
-  if (!salary) return "Not specified";
+  if (!salary || salary.trim() === '') return "As per industry standards";
+  if (salary === 'As per industry standards') return "As per industry standards";
   if (typeof salary === "number") {
     return `₹${(salary / 100000).toFixed(1)} LPA`;
+  }
+  // Check if it contains "As per industry standards"
+  if (salary.includes('As per industry standards')) {
+    return 'As per industry standards';
   }
   return salary;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FaPaperPlane, 
   FaQuestionCircle, 
@@ -19,6 +19,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import QueryErrorBoundary from '../../common/QueryErrorBoundary';
+import { getTargetedJobsForStudent } from '../../../services/jobs';
+import { FaBriefcase } from 'react-icons/fa';
 
 // Import query services (ES module syntax)
 import * as queryServices from '../../../services/queries.js';
@@ -30,6 +32,7 @@ const StudentQuerySystem = () => {
   const [formData, setFormData] = useState({
     type: 'question',
     subject: '',
+    selectedJobId: '', // New field for job selection
     message: '',
     cgpa: '',
     proof: null,
@@ -44,9 +47,52 @@ const StudentQuerySystem = () => {
   const [expandedQuery, setExpandedQuery] = useState(null);
   const [referenceId, setReferenceId] = useState('');
   const [loadingQueries, setLoadingQueries] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [showJobSelector, setShowJobSelector] = useState(false);
+  const jobSelectorRef = useRef(null);
 
   // Real queries data from Firebase
   const [pastQueries, setPastQueries] = useState([]);
+
+  // Load jobs on component mount
+  useEffect(() => {
+    const loadJobs = async () => {
+      if (!user?.id) return;
+      
+      setLoadingJobs(true);
+      try {
+        const jobsData = await getTargetedJobsForStudent(user.id);
+        // Filter only posted jobs
+        const postedJobs = jobsData.filter(job => job.isPosted || job.posted || job.status === 'POSTED' || job.status === 'posted');
+        setJobs(postedJobs);
+      } catch (error) {
+        console.error('Failed to load jobs:', error);
+        setJobs([]);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+
+    loadJobs();
+  }, [user?.id]);
+
+  // Handle click outside to close job selector
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (jobSelectorRef.current && !jobSelectorRef.current.contains(event.target)) {
+        setShowJobSelector(false);
+      }
+    };
+
+    if (showJobSelector) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showJobSelector]);
 
   // Load queries on component mount and set up real-time subscription
   useEffect(() => {
@@ -191,13 +237,18 @@ const StudentQuerySystem = () => {
   const validateForm = () => {
     const errors = {};
 
-    if (!formData.subject.trim()) {
-      errors.subject = 'Subject is required';
-    }
-
     if (activeTab === 'question') {
+      // For question type, require job selection instead of subject
+      if (!formData.selectedJobId) {
+        errors.selectedJobId = 'Please select a job posting to ask a question about';
+      }
       if (!formData.message.trim()) {
-        errors.message = 'Message is required';
+        errors.message = 'Your question is required';
+      }
+    } else {
+      // For other types, keep subject requirement
+      if (!formData.subject.trim()) {
+        errors.subject = 'Subject is required';
       }
     }
 
@@ -290,7 +341,7 @@ const StudentQuerySystem = () => {
     try {
       // Submit query to Firebase if service is available
       if (queryServices?.submitQuery) {
-        const result = await queryServices.submitQuery(user.id, formData);
+        const result = await queryServices.submitQuery(user.id, formData, jobs);
         
         // Set reference ID for success message
         setReferenceId(result.referenceId || (queryServices.generateReferenceId ? queryServices.generateReferenceId() : `STU${Math.floor(1000 + Math.random() * 9000)}`));
@@ -350,6 +401,7 @@ const StudentQuerySystem = () => {
     setFormData({
       type: 'question',
       subject: '',
+      selectedJobId: '',
       message: '',
       cgpa: '',
       proof: null,
@@ -360,6 +412,7 @@ const StudentQuerySystem = () => {
     });
     setFormErrors({});
     setSubmitted(false);
+    setShowJobSelector(false);
   };
 
   const getStatusIcon = (status) => {
@@ -563,6 +616,14 @@ const StudentQuerySystem = () => {
                           
                           {query.type === 'question' && (
                             <div className="mb-4">
+                              {query.jobId && (
+                                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <h4 className="text-sm font-medium text-blue-800 mb-1">Job Posting</h4>
+                                  <p className="text-sm text-blue-700">
+                                    {query.subject.includes('about') ? query.subject.split('about')[1]?.trim() : query.subject}
+                                  </p>
+                                </div>
+                              )}
                               <h4 className="text-sm font-medium text-gray-500 mb-1">Your Question</h4>
                               <p className="text-gray-800">{query.message}</p>
                             </div>
@@ -622,6 +683,7 @@ const StudentQuerySystem = () => {
                     onClick={() => {
                       setActiveTab(type.id);
                       setFormData({...formData, type: type.id});
+                      setShowJobSelector(false);
                     }}
                     className={`px-5 py-4 flex flex-col items-center min-w-[140px] border-b-2 transition-all duration-200 ${
                       activeTab === type.id
@@ -641,19 +703,110 @@ const StudentQuerySystem = () => {
 
             {/* Query Form */}
             <form onSubmit={handleSubmit} className="p-6">
-              <div className="mb-6">
-                <label className="block text-gray-700 font-medium mb-2">Subject</label>
-                <input
-                  type="text"
-                  name="subject"
-                  value={formData.subject}
-                  onChange={handleInputChange}
-                  placeholder="Brief description of your query"
-                  className={`w-full px-4 py-3 border ${formErrors.subject ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-100`}
-                  required
-                />
-                {formErrors.subject && <p className="text-red-500 text-sm mt-1">{formErrors.subject}</p>}
-              </div>
+              {/* Job Selection for Question Type */}
+              {activeTab === 'question' ? (
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <FaBriefcase className="w-4 h-4 text-blue-600" />
+                    Select Job Posting <span className="text-red-500">*</span>
+                  </label>
+                  {loadingJobs ? (
+                    <div className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center">
+                      <FaClock className="animate-spin text-blue-500 mr-2" />
+                      <span className="text-gray-600">Loading jobs...</span>
+                    </div>
+                  ) : jobs.length === 0 ? (
+                    <div className="w-full px-4 py-3 border-2 border-yellow-300 rounded-lg bg-yellow-50">
+                      <p className="text-yellow-800 text-sm">No job postings available at the moment. Please check back later.</p>
+                    </div>
+                  ) : (
+                    <div className="relative" ref={jobSelectorRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowJobSelector(!showJobSelector)}
+                        className={`w-full border-2 ${formErrors.selectedJobId ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer`}
+                      >
+                        <span className="truncate flex-1 text-gray-900">
+                          {formData.selectedJobId ? (() => {
+                            const selectedJob = jobs.find(j => j.id === formData.selectedJobId);
+                            return selectedJob ? `${selectedJob.jobTitle} - ${selectedJob.companyName || selectedJob.company}` : 'Select a job posting';
+                          })() : 'Select a job posting to ask a question about'}
+                        </span>
+                        <FaChevronDown className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showJobSelector ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showJobSelector && (
+                        <div className="absolute z-20 w-full bg-white border-2 border-gray-300 rounded-lg shadow-lg mt-1 max-h-96 overflow-y-auto">
+                          <div className="p-2 space-y-2">
+                            {jobs.map((job) => {
+                              const isSelected = formData.selectedJobId === job.id;
+                              return (
+                                <div
+                                  key={job.id}
+                                  onClick={() => {
+                                    setFormData({ ...formData, selectedJobId: job.id });
+                                    setShowJobSelector(false);
+                                    if (formErrors.selectedJobId) {
+                                      setFormErrors({ ...formErrors, selectedJobId: '' });
+                                    }
+                                  }}
+                                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                                    isSelected 
+                                      ? 'border-blue-500 bg-blue-50 shadow-md' 
+                                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <h4 className={`font-semibold text-sm mb-1 ${isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                                        {job.jobTitle}
+                                      </h4>
+                                      <p className={`text-xs mb-2 ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                                        {job.companyName || job.company}
+                                        {job.companyLocation && ` • ${job.companyLocation}`}
+                                      </p>
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {job.jobType && (
+                                          <span className={`px-2 py-1 text-xs rounded ${isSelected ? 'bg-blue-200 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
+                                            {job.jobType}
+                                          </span>
+                                        )}
+                                        {job.workMode && (
+                                          <span className={`px-2 py-1 text-xs rounded ${isSelected ? 'bg-blue-200 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
+                                            {job.workMode}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {isSelected && (
+                                      <FaCheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 ml-2" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {formErrors.selectedJobId && <p className="text-red-500 text-sm mt-1">{formErrors.selectedJobId}</p>}
+                </div>
+              ) : (
+                <div className="mb-6">
+                  <label className="block text-gray-700 font-medium mb-2">Subject</label>
+                  <input
+                    type="text"
+                    name="subject"
+                    value={formData.subject}
+                    onChange={handleInputChange}
+                    placeholder="Brief description of your query"
+                    className={`w-full px-4 py-3 border ${formErrors.subject ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-100`}
+                    required
+                  />
+                  {formErrors.subject && <p className="text-red-500 text-sm mt-1">{formErrors.subject}</p>}
+                </div>
+              )}
 
               {/* Question-specific fields */}
               {activeTab === 'question' && (

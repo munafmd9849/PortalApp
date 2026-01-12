@@ -568,6 +568,14 @@ export default function StudentDashboard() {
     setLoadingApplications(true);
     try {
       const applicationsData = await getStudentApplications(user.id);
+      console.log('📋 Loaded applications:', applicationsData?.length || 0, 'applications');
+      if (applicationsData && applicationsData.length > 0) {
+        console.log('📋 Application jobIds:', applicationsData.map(app => ({ 
+          appId: app.id, 
+          jobId: app.jobId, 
+          jobIdFromJob: app.job?.id 
+        })));
+      }
       setApplications(applicationsData || []);
     } catch (err) {
       console.error('Failed to load applications:', err);
@@ -653,18 +661,96 @@ export default function StudentDashboard() {
       
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       // Pass resumeId in applicationData if backend supports it
-      await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      const applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Application submitted successfully');
+      // Immediately add to applications state for instant UI update
+      if (applicationResult && pendingJob.id) {
+        const newApplication = {
+          id: applicationResult.id || `temp_${Date.now()}`,
+          jobId: pendingJob.id,
+          studentId: user.id,
+          status: 'APPLIED',
+          appliedDate: new Date().toISOString(),
+          company: pendingJob.company || { name: pendingJob.companyName },
+          job: {
+            id: pendingJob.id,
+            jobTitle: pendingJob.jobTitle,
+            ...pendingJob
+          }
+        };
+        setApplications(prev => {
+          // Check if already exists to avoid duplicates
+          const exists = prev.some(app => app.jobId === pendingJob.id);
+          if (exists) return prev;
+          return [newApplication, ...prev];
+        });
       }
       
-      // Refresh applications list
+      // Show success message in clean alert box
+      setAlertMessage(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
+      setAlertType('success');
+      setShowFloatingAlert(true);
+      
+      // Refresh applications list to get complete data from backend
       await loadApplicationsData();
       
+      // Clear applying state after successful application
+      setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
+      
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => {
+        setShowFloatingAlert(false);
+        setAlertMessage(null);
+      }, 3000);
+      
     } catch (error) {
-      console.error('❌ Error applying to job:', error);
-      alert('Failed to apply to job. Please try again.');
+      // Handle "Already applied" gracefully - just refresh and update button, no error shown
+      const errorData = error.response?.data || {};
+      if (errorData.error === 'Already applied to this job') {
+        // Silently refresh applications to update button state
+        await loadApplicationsData();
+        return; // Exit early, no error message needed
+      }
+      
+      // Handle CGPA requirement error with precise message
+      if (error.response?.data || error.message) {
+        if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+          // Clean and precise error message
+          const yourCgpa = errorData.yourCgpa || 'Not set';
+          const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
+          const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
+          
+          const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
+          setAlertMessage(fullMessage);
+          setAlertType('error');
+          setShowFloatingAlert(true);
+          
+          setTimeout(() => {
+            setShowFloatingAlert(false);
+            setAlertMessage(null);
+          }, 7000);
+        } else {
+          // Clean error message for other errors
+          const cleanMessage = errorData.message || error.message || 'Failed to apply to job. Please try again.';
+          setAlertMessage(cleanMessage);
+          setAlertType('error');
+          setShowFloatingAlert(true);
+          
+          setTimeout(() => {
+            setShowFloatingAlert(false);
+            setAlertMessage(null);
+          }, 5000);
+        }
+      } else {
+        setAlertMessage('Failed to apply to job. Please check your connection and try again.');
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 5000);
+      }
     } finally {
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
       setPendingJob(null);
@@ -679,7 +765,15 @@ export default function StudentDashboard() {
   };
 
   const hasApplied = (jobId) => {
-    return applications.some(app => app.jobId === jobId);
+    if (!jobId || !applications || applications.length === 0) {
+      return false;
+    }
+    const applied = applications.some(app => {
+      // Check both jobId and job.id for compatibility
+      const matches = app.jobId === jobId || app.job?.id === jobId;
+      return matches;
+    });
+    return applied;
   };
 
   // Check if student's CGPA meets job requirement
@@ -1563,7 +1657,8 @@ export default function StudentDashboard() {
   };
 
   const formatSalary = (salary) => {
-    if (!salary) return 'Not specified';
+    if (!salary || (typeof salary === 'string' && salary.trim() === '')) return 'As per industry standards';
+    if (salary === 'As per industry standards') return 'As per industry standards';
     
     // Handle number format
     if (typeof salary === 'number') {
@@ -1585,11 +1680,15 @@ export default function StudentDashboard() {
           return `₹${numSalary.toLocaleString()}`;
         }
       }
+      // Check if it contains "As per industry standards"
+      if (salary.includes('As per industry standards')) {
+        return 'As per industry standards';
+      }
       // Return as-is if it's already formatted
       return salary;
     }
     
-    return 'Not specified';
+    return 'As per industry standards';
   };
 
   const renderContent = () => {
@@ -1765,10 +1864,17 @@ export default function StudentDashboard() {
                         <button
                           onClick={() => handleApplyToJob(job)}
                           disabled={hasApplied(job.id) || applying[job.id] || !meetsCgpaRequirement(job)}
-                          title={!meetsCgpaRequirement(job) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
+                          title={!meetsCgpaRequirement(job) ? (() => {
+                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                            }
+                            return "CGPA requirement not met. Please check the job requirements.";
+                          })() : ''}
                           className={`px-2 py-1 rounded-sm text-xs font-medium transition-all duration-200 whitespace-nowrap ${
                             hasApplied(job.id)
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              ? 'bg-green-200 text-green-800 cursor-not-allowed border border-green-400'
                               : applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
                               : !meetsCgpaRequirement(job)
@@ -1779,7 +1885,7 @@ export default function StudentDashboard() {
                           {hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied
+                              Applied!
                             </>
                           ) : applying[job.id] ? (
                             <>
