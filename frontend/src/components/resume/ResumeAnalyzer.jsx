@@ -184,24 +184,52 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         throw new Error('Authentication required. Please log in again.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          resumeText: resumeText,
-          resumeId: resumeInfo.resumeId || null,
-        }),
-      });
+      console.log('📊 [ATS Analysis] Calling backend API with resume text length:', resumeText.length);
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      let response;
+      try {
+        response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            resumeText: resumeText,
+            resumeId: resumeInfo.resumeId || null,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Analysis timed out. The server may be slow or unresponsive. Please try again.');
+        }
+        if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+          throw new Error('Cannot connect to server. Please ensure the backend server is running and try again.');
+        }
+        throw fetchError;
+      }
 
+      console.log('📊 [ATS Analysis] Response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `Analysis failed (${response.status})`);
+        console.error('❌ [ATS Analysis] API error:', errorData);
+        throw new Error(errorData.error || errorData.details || `Analysis failed (${response.status})`);
       }
 
       const data = await response.json();
+      console.log('📊 [ATS Analysis] Analysis received:', {
+        success: data.success,
+        hasAnalysis: !!data.analysis,
+        atsScore: data.analysis?.atsScore
+      });
       
       if (!data.success || !data.analysis) {
         throw new Error('Invalid response from analysis service');
@@ -229,13 +257,23 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       setAnalysis(transformedAnalysis);
     } catch (err) {
       console.error('❌ Resume analysis error:', err);
+      console.error('❌ Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
+      
       // Provide more helpful error messages
       let errorMessage = err.message || 'Failed to analyze resume. Please try again.';
       
       // Enhance error messages for common issues
-      if (errorMessage.includes('CORS')) {
+      if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
+        errorMessage = 'Analysis timed out. The server may be slow or unresponsive. Please try again or check if the backend server is running.';
+      } else if (errorMessage.includes('Cannot connect to server') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:3000 and try again.';
+      } else if (errorMessage.includes('CORS')) {
         errorMessage = 'CORS Error: The PDF cannot be accessed due to security restrictions. Please contact support or try uploading the resume again.';
-      } else if (errorMessage.includes('Network error') || errorMessage.includes('Failed to fetch')) {
+      } else if (errorMessage.includes('Network error')) {
         errorMessage = 'Network Error: Cannot connect to the server. Please check your internet connection and try again.';
       } else if (errorMessage.includes('image-based') || errorMessage.includes('No text could be extracted')) {
         errorMessage = 'Text Extraction Failed: The PDF appears to be image-based (scanned). Please use a PDF with selectable text, or try converting your scanned PDF to text using OCR tools.';
@@ -248,8 +286,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       }
       
       setError(errorMessage);
-    } finally {
-      setLoading(false);
+      setLoading(false); // Ensure loading is cleared on error
     }
   };
 
