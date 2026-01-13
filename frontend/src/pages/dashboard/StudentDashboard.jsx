@@ -258,19 +258,6 @@ export default function StudentDashboard() {
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
-  
-  // Debug: Monitor applications state changes
-  useEffect(() => {
-    console.log('📊 [applications state changed]', {
-      length: applications.length,
-      loading: loadingApplications,
-      applications: applications.map(app => ({
-        id: app.id,
-        jobId: app.jobId,
-        jobTitle: app.job?.jobTitle
-      }))
-    });
-  }, [applications, loadingApplications]);
   const [interviewHistory, setInterviewHistory] = useState([]);
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
@@ -576,14 +563,61 @@ export default function StudentDashboard() {
   }, [user?.id]);
 
   const loadApplicationsData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('⚠️ [loadApplicationsData] No user ID, skipping');
+      return;
+    }
     
+    console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
       const applicationsData = await getStudentApplications(user.id);
+      console.log('📋 [loadApplicationsData] API response:', {
+        isArray: Array.isArray(applicationsData),
+        length: applicationsData?.length || 0,
+        data: applicationsData
+      });
+      
+      if (applicationsData && applicationsData.length > 0) {
+        console.log('📋 [loadApplicationsData] Application details:', applicationsData.map(app => ({ 
+          appId: app.id, 
+          jobId: app.jobId, 
+          jobTitle: app.job?.jobTitle,
+          status: app.status,
+          companyName: app.company?.name || app.job?.company?.name
+        })));
+      } else {
+        console.warn('⚠️ [loadApplicationsData] No applications returned from API');
+      }
+      
+      console.log('📋 [loadApplicationsData] About to set applications state:', {
+        applicationsDataLength: applicationsData?.length || 0,
+        isArray: Array.isArray(applicationsData),
+        firstApp: applicationsData?.[0] ? {
+          id: applicationsData[0].id,
+          jobId: applicationsData[0].jobId,
+          jobTitle: applicationsData[0].job?.jobTitle
+        } : null
+      });
+      
       setApplications(applicationsData || []);
+      
+      // Verify state was set correctly
+      setTimeout(() => {
+        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
+          // Note: We can't directly read state here, but we can log what we set
+          setValue: applicationsData?.length || 0
+        });
+      }, 100);
+      
+      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
     } catch (err) {
-      console.error('Failed to load applications:', err);
+      console.error('❌ [loadApplicationsData] Error loading applications:', err);
+      console.error('❌ [loadApplicationsData] Error details:', {
+        message: err.message,
+        stack: err.stack,
+        response: err.response
+      });
       setApplications([]);
     } finally {
       setLoadingApplications(false);
@@ -660,24 +694,116 @@ export default function StudentDashboard() {
           jobTitle: pendingJob.jobTitle,
           companyId: pendingJob.companyId,
           companyName: pendingJob.company?.name,
-          resumeId
+          resumeId,
+          studentId: user.id
         });
       }
       
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       // Pass resumeId in applicationData if backend supports it
-      await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Application submitted successfully');
+      let applicationResult;
+      try {
+        applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      } catch (applyError) {
+        // Re-throw with more context
+        console.error('❌ [handleResumeSelection] applyToJob error:', applyError);
+        throw applyError;
       }
       
-      // Refresh applications list
+      // Immediately add to applications state for instant UI update
+      if (applicationResult && pendingJob.id) {
+        const newApplication = {
+          id: applicationResult.id || `temp_${Date.now()}`,
+          jobId: pendingJob.id,
+          studentId: user.id,
+          status: 'APPLIED',
+          appliedDate: new Date().toISOString(),
+          company: pendingJob.company || { name: pendingJob.companyName },
+          job: {
+            id: pendingJob.id,
+            jobTitle: pendingJob.jobTitle,
+            ...pendingJob
+          }
+        };
+        setApplications(prev => {
+          // Check if already exists to avoid duplicates
+          const exists = prev.some(app => app.jobId === pendingJob.id);
+          if (exists) return prev;
+          return [newApplication, ...prev];
+        });
+      }
+      
+      // Show success message in clean alert box
+      setAlertMessage(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
+      setAlertType('success');
+      setShowFloatingAlert(true);
+      
+      // Refresh applications list to get complete data from backend
       await loadApplicationsData();
       
+      // Clear applying state after successful application
+      setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
+      
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => {
+        setShowFloatingAlert(false);
+        setAlertMessage(null);
+      }, 3000);
+      
     } catch (error) {
-      console.error('❌ Error applying to job:', error);
-      alert('Failed to apply to job. Please try again.');
+      console.error('❌ [handleApplyToJob] Full error:', error);
+      console.error('❌ [handleApplyToJob] Error response:', error.response);
+      console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
+      
+      // Handle "Already applied" gracefully - just refresh and update button, no error shown
+      const errorData = error.response?.data || error.response || {};
+      const errorMessage = errorData.error || errorData.message || error.message;
+      
+      if (errorMessage === 'Already applied to this job' || errorData.error === 'Already applied to this job') {
+        // Silently refresh applications to update button state
+        await loadApplicationsData();
+        return; // Exit early, no error message needed
+      }
+      
+      // Handle CGPA requirement error with precise message
+      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
+          errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+        // Clean and precise error message
+        const yourCgpa = errorData.yourCgpa || 'Not set';
+        const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
+        const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
+        
+        const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
+        setAlertMessage(fullMessage);
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 7000);
+      } else if (error.isNetworkError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        // Network error
+        setAlertMessage('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 5000);
+      } else {
+        // Clean error message for other errors
+        const cleanMessage = errorData.message || errorMessage || 'Failed to apply to job. Please try again.';
+        setAlertMessage(cleanMessage);
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 5000);
+      }
     } finally {
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
       setPendingJob(null);
@@ -692,7 +818,15 @@ export default function StudentDashboard() {
   };
 
   const hasApplied = (jobId) => {
-    return applications.some(app => app.jobId === jobId);
+    if (!jobId || !applications || applications.length === 0) {
+      return false;
+    }
+    const applied = applications.some(app => {
+      // Check both jobId and job.id for compatibility
+      const matches = app.jobId === jobId || app.job?.id === jobId;
+      return matches;
+    });
+    return applied;
   };
 
   // Check if student's CGPA meets job requirement
@@ -770,19 +904,28 @@ export default function StudentDashboard() {
 
     const handleEditProfileClick = () => {
       setActiveTab('editProfile');
-      navigate('/student?tab=editProfile', { replace: true });
+      // Only navigate if URL doesn't already have the correct tab
+      if (tab !== 'editProfile') {
+        navigate('/student?tab=editProfile', { replace: true });
+      }
     };
     const handleNavigateToJobs = () => {
       setActiveTab('jobs');
-      navigate('/student?tab=jobs', { replace: true });
+      if (tab !== 'jobs') {
+        navigate('/student?tab=jobs', { replace: true });
+      }
     };
     const handleNavigateToApplications = () => {
       setActiveTab('applications');
-      navigate('/student?tab=applications', { replace: true });
+      if (tab !== 'applications') {
+        navigate('/student?tab=applications', { replace: true });
+      }
     };
     const handleNavigateToQuery = () => {
       setActiveTab('raiseQuery');
-      navigate('/student?tab=raiseQuery', { replace: true });
+      if (tab !== 'raiseQuery') {
+        navigate('/student?tab=raiseQuery', { replace: true });
+      }
     };
 
     window.addEventListener('editProfileClicked', handleEditProfileClick);
@@ -790,16 +933,9 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToApplications', handleNavigateToApplications);
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
+    // Set active tab based on URL parameter
     if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
-      const isRefresh = window.performance.navigation?.type === 1 ||
-        window.performance.getEntriesByType('navigation')[0]?.type === 'reload';
-
-      if (!isRefresh || tab !== 'editProfile') {
-        setActiveTab(tab);
-      } else {
-        setActiveTab('dashboard');
-        navigate('/student', { replace: true });
-      }
+      setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
       setActiveTab('dashboard');
@@ -846,19 +982,43 @@ export default function StudentDashboard() {
   
   // Load applications once (even without complete profile)
   useEffect(() => {
-    if (user?.id && !dataLoadingRef.current.applications) {
-      dataLoadingRef.current.applications = true;
-      loadApplicationsData();
+    console.log('📋 [useEffect applications] Triggered:', {
+      hasUserId: !!user?.id,
+      userId: user?.id,
+      alreadyLoaded: dataLoadingRef.current.applications,
+      currentApplicationsLength: applications.length
+    });
+    
+    if (user?.id) {
+      // Always load if we don't have applications yet, or if flag says not loaded
+      if (!dataLoadingRef.current.applications || applications.length === 0) {
+        console.log('📋 [useEffect] Loading applications for user:', user.id);
+        dataLoadingRef.current.applications = true;
+        loadApplicationsData();
+      } else {
+        console.log('📋 [useEffect] Applications already loaded, current count:', applications.length);
+      }
+    } else {
+      console.warn('⚠️ [useEffect] No user ID available for loading applications');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
 
-  // Load interview history when applications tab is active
+  // Load applications and interview history when applications tab is active
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
+      console.log('📋 [useEffect] Applications tab active, reloading data');
+      console.log('📋 [useEffect] Current applications state before reload:', {
+        length: applications.length,
+        loading: loadingApplications
+      });
+      
+      // Always reload when tab is opened to ensure fresh data
+      // Don't check dataLoadingRef - force reload every time tab opens
+      loadApplicationsData();
       loadInterviewHistory();
     }
-  }, [user?.id, activeTab, loadInterviewHistory]);
+  }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
 
   // Validation helper functions
   const validateEmail = (email) => {
@@ -1576,7 +1736,8 @@ export default function StudentDashboard() {
   };
 
   const formatSalary = (salary) => {
-    if (!salary) return 'Not specified';
+    if (!salary || (typeof salary === 'string' && salary.trim() === '')) return 'As per industry standards';
+    if (salary === 'As per industry standards') return 'As per industry standards';
     
     // Handle number format
     if (typeof salary === 'number') {
@@ -1598,11 +1759,15 @@ export default function StudentDashboard() {
           return `₹${numSalary.toLocaleString()}`;
         }
       }
+      // Check if it contains "As per industry standards"
+      if (salary.includes('As per industry standards')) {
+        return 'As per industry standards';
+      }
       // Return as-is if it's already formatted
       return salary;
     }
     
-    return 'Not specified';
+    return 'As per industry standards';
   };
 
   const renderContent = () => {
@@ -1778,10 +1943,17 @@ export default function StudentDashboard() {
                         <button
                           onClick={() => handleApplyToJob(job)}
                           disabled={hasApplied(job.id) || applying[job.id] || !meetsCgpaRequirement(job)}
-                          title={!meetsCgpaRequirement(job) ? "Couldn't apply for Job as CGPA requirement not met." : ''}
+                          title={!meetsCgpaRequirement(job) ? (() => {
+                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                            }
+                            return "CGPA requirement not met. Please check the job requirements.";
+                          })() : ''}
                           className={`px-2 py-1 rounded-sm text-xs font-medium transition-all duration-200 whitespace-nowrap ${
                             hasApplied(job.id)
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300'
+                              ? 'bg-green-200 text-green-800 cursor-not-allowed border border-green-400'
                               : applying[job.id]
                               ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
                               : !meetsCgpaRequirement(job)
@@ -1792,7 +1964,7 @@ export default function StudentDashboard() {
                           {hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied
+                              Applied!
                             </>
                           ) : applying[job.id] ? (
                             <>
@@ -1833,6 +2005,28 @@ export default function StudentDashboard() {
 
       case 'applications':
         // Calculate application statistics
+        console.log('📊 [applications tab] Current applications state:', {
+          applicationsLength: applications.length,
+          applications: applications,
+          loadingApplications,
+          interviewHistoryLength: interviewHistory.length,
+          applicationsType: typeof applications,
+          isArray: Array.isArray(applications),
+          firstApp: applications[0] ? {
+            id: applications[0].id,
+            jobId: applications[0].jobId,
+            jobTitle: applications[0].job?.jobTitle
+          } : null
+        });
+        
+        // Force reload if applications is empty but we expect data
+        if (applications.length === 0 && !loadingApplications && user?.id) {
+          console.warn('⚠️ [applications tab] Applications is empty, forcing reload...');
+          setTimeout(() => {
+            loadApplicationsData();
+          }, 500);
+        }
+        
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
           const status = app.status?.toUpperCase();
