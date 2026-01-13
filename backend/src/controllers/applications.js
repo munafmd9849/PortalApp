@@ -683,11 +683,18 @@ export async function applyToJob(req, res) {
     const applicationData = {
       studentId: student.id,
       jobId,
-      companyId: job.companyId,
+      companyId: job.companyId || null, // Ensure it's null if undefined
       status: 'APPLIED',
       appliedDate: new Date(),
       notes: resumeId ? JSON.stringify({ resumeId }) : null, // Store resumeId in notes for now
     };
+
+    console.log('📝 [applyToJob] Creating application with data:', {
+      studentId: applicationData.studentId,
+      jobId: applicationData.jobId,
+      companyId: applicationData.companyId,
+      hasResumeId: !!resumeId,
+    });
 
     const application = await prisma.application.create({
       data: applicationData,
@@ -707,24 +714,31 @@ export async function applyToJob(req, res) {
     });
 
     // Mark job as viewed/applied in tracking
-    await prisma.jobTracking.upsert({
-      where: {
-        studentId_jobId: {
+    try {
+      await prisma.jobTracking.upsert({
+        where: {
+          studentId_jobId: {
+            studentId: student.id,
+            jobId,
+          },
+        },
+        update: {
+          applied: true,
+          appliedAt: new Date(),
+        },
+        create: {
           studentId: student.id,
           jobId,
+          applied: true,
+          appliedAt: new Date(),
         },
-      },
-      update: {
-        applied: true,
-        appliedAt: new Date(),
-      },
-      create: {
-        studentId: student.id,
-        jobId,
-        applied: true,
-        appliedAt: new Date(),
-      },
-    });
+      });
+      console.log('✅ [applyToJob] Job tracking updated');
+    } catch (trackingError) {
+      // Don't fail application creation if tracking fails
+      console.warn('⚠️ [applyToJob] Failed to update job tracking:', trackingError);
+      logger.warn(`Failed to update job tracking for application ${application.id}:`, trackingError);
+    }
 
     // Send email notifications (to recruiter and applicant)
     try {
@@ -785,8 +799,46 @@ export async function applyToJob(req, res) {
 
     res.status(201).json(application);
   } catch (error) {
-    console.error('Apply to job error:', error);
-    res.status(500).json({ error: 'Failed to apply to job' });
+    console.error('❌ [applyToJob] Error:', error);
+    console.error('❌ [applyToJob] Error message:', error.message);
+    console.error('❌ [applyToJob] Error stack:', error.stack);
+    console.error('❌ [applyToJob] Error code:', error.code);
+    console.error('❌ [applyToJob] Error meta:', error.meta);
+    
+    // Provide more detailed error information
+    let errorMessage = 'Failed to apply to job';
+    let statusCode = 500;
+    
+    // Handle Prisma-specific errors
+    if (error.code === 'P2002') {
+      // Unique constraint violation (likely already applied)
+      errorMessage = 'Already applied to this job';
+      statusCode = 400;
+    } else if (error.code === 'P2003') {
+      // Foreign key constraint violation
+      errorMessage = 'Invalid job or student reference';
+      statusCode = 400;
+    } else if (error.code === 'P2025') {
+      // Record not found
+      errorMessage = 'Job or student not found';
+      statusCode = 404;
+    } else if (error.message) {
+      // Use the actual error message if available
+      errorMessage = error.message;
+    }
+    
+    logger.error(`[applyToJob] Failed to apply to job:`, {
+      error: errorMessage,
+      code: error.code,
+      jobId: req.params?.jobId,
+      userId: req.userId,
+      stack: error.stack,
+    });
+    
+    res.status(statusCode).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 
