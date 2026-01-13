@@ -590,7 +590,26 @@ export default function StudentDashboard() {
         console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
       
+      console.log('📋 [loadApplicationsData] About to set applications state:', {
+        applicationsDataLength: applicationsData?.length || 0,
+        isArray: Array.isArray(applicationsData),
+        firstApp: applicationsData?.[0] ? {
+          id: applicationsData[0].id,
+          jobId: applicationsData[0].jobId,
+          jobTitle: applicationsData[0].job?.jobTitle
+        } : null
+      });
+      
       setApplications(applicationsData || []);
+      
+      // Verify state was set correctly
+      setTimeout(() => {
+        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
+          // Note: We can't directly read state here, but we can log what we set
+          setValue: applicationsData?.length || 0
+        });
+      }, 100);
+      
       console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
     } catch (err) {
       console.error('❌ [loadApplicationsData] Error loading applications:', err);

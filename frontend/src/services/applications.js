@@ -174,7 +174,7 @@ export const getStudentApplications = async (studentId) => {
           return [];
         };
 
-        return {
+        const formatted = {
           ...app,
           appliedDate: parseDate(app.appliedDate) || app.appliedDate,
           interviewDate: parseDate(app.interviewDate) || app.interviewDate || null,
@@ -191,13 +191,40 @@ export const getStudentApplications = async (studentId) => {
             requiredSkills: parseSkills(app.job?.requiredSkills),
           },
         };
+        
+        console.log('📋 [getStudentApplications] Formatted application:', {
+          id: formatted.id,
+          jobId: formatted.jobId,
+          jobTitle: formatted.job?.jobTitle,
+          hasJob: !!formatted.job,
+          hasCompany: !!formatted.company
+        });
+        
+        return formatted;
       });
       
+      console.log('✅ [getStudentApplications] Returning', formattedApplications.length, 'formatted applications');
+      if (formattedApplications.length > 0) {
+        console.log('✅ [getStudentApplications] Sample formatted app:', {
+          id: formattedApplications[0].id,
+          jobId: formattedApplications[0].jobId,
+          jobTitle: formattedApplications[0].job?.jobTitle,
+          status: formattedApplications[0].status
+        });
+      }
       return formattedApplications;
     }
     
     // Return empty array if no applications
-    console.warn('⚠️ [getStudentApplications] No applications found or empty response');
+    console.warn('⚠️ [getStudentApplications] No applications found or empty response. Response was:', {
+      applications,
+      type: typeof applications,
+      isArray: Array.isArray(applications),
+      length: applications?.length,
+      isNull: applications === null,
+      isUndefined: applications === undefined,
+      stringified: JSON.stringify(applications).substring(0, 200)
+    });
     return [];
   } catch (error) {
     console.error('❌ [getStudentApplications] Error:', error);
