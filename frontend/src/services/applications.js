@@ -114,11 +114,31 @@ function generateMockApplications() {
  */
 export const getStudentApplications = async (studentId) => {
   try {
+    console.log('📋 [getStudentApplications] Calling API for studentId:', studentId);
+    console.log('📋 [getStudentApplications] API endpoint:', '/applications/student');
+    
     // Use real API to fetch applications
-    const applications = await api.getStudentApplications();
+    let applications;
+    try {
+      applications = await api.getStudentApplications();
+      console.log('📋 [getStudentApplications] ✅ API call successful');
+    } catch (apiError) {
+      console.error('❌ [getStudentApplications] API call failed:', apiError);
+      throw apiError; // Re-throw to be caught by outer catch
+    }
+    
+    console.log('📋 [getStudentApplications] Raw API response:', {
+      type: typeof applications,
+      isArray: Array.isArray(applications),
+      length: applications?.length,
+      isNull: applications === null,
+      isUndefined: applications === undefined,
+      data: applications
+    });
     
     // If API returns data, format it for frontend components
     if (applications && Array.isArray(applications) && applications.length > 0) {
+      console.log('📋 [getStudentApplications] Processing', applications.length, 'applications');
       // Ensure data structure matches what components expect
       const formattedApplications = applications.map(app => {
         // Parse dates - backend returns ISO strings from Prisma DateTime
@@ -154,7 +174,7 @@ export const getStudentApplications = async (studentId) => {
           return [];
         };
 
-        return {
+        const formatted = {
           ...app,
           appliedDate: parseDate(app.appliedDate) || app.appliedDate,
           interviewDate: parseDate(app.interviewDate) || app.interviewDate || null,
@@ -171,15 +191,49 @@ export const getStudentApplications = async (studentId) => {
             requiredSkills: parseSkills(app.job?.requiredSkills),
           },
         };
+        
+        console.log('📋 [getStudentApplications] Formatted application:', {
+          id: formatted.id,
+          jobId: formatted.jobId,
+          jobTitle: formatted.job?.jobTitle,
+          hasJob: !!formatted.job,
+          hasCompany: !!formatted.company
+        });
+        
+        return formatted;
       });
       
+      console.log('✅ [getStudentApplications] Returning', formattedApplications.length, 'formatted applications');
+      if (formattedApplications.length > 0) {
+        console.log('✅ [getStudentApplications] Sample formatted app:', {
+          id: formattedApplications[0].id,
+          jobId: formattedApplications[0].jobId,
+          jobTitle: formattedApplications[0].job?.jobTitle,
+          status: formattedApplications[0].status
+        });
+      }
       return formattedApplications;
     }
     
     // Return empty array if no applications
+    console.warn('⚠️ [getStudentApplications] No applications found or empty response. Response was:', {
+      applications,
+      type: typeof applications,
+      isArray: Array.isArray(applications),
+      length: applications?.length,
+      isNull: applications === null,
+      isUndefined: applications === undefined,
+      stringified: JSON.stringify(applications).substring(0, 200)
+    });
     return [];
   } catch (error) {
-    console.error('getStudentApplications error:', error);
+    console.error('❌ [getStudentApplications] Error:', error);
+    console.error('❌ [getStudentApplications] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response,
+      data: error.response?.data
+    });
     // Return empty array on error (don't use mock data)
     return [];
   }
@@ -196,7 +250,11 @@ export const applyToJob = async (studentId, jobId, applicationData = {}) => {
     console.log('✅ [applyToJob] Application created:', application);
     return application;
   } catch (error) {
-    console.error('❌ [applyToJob] Error:', error);
+    // Don't log "Already applied" errors - they're handled gracefully
+    const errorData = error.response?.data || {};
+    if (errorData.error !== 'Already applied to this job') {
+      console.error('❌ [applyToJob] Error:', error);
+    }
     throw error;
   }
 };
