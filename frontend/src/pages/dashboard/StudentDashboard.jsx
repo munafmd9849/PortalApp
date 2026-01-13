@@ -865,19 +865,28 @@ export default function StudentDashboard() {
 
     const handleEditProfileClick = () => {
       setActiveTab('editProfile');
-      navigate('/student?tab=editProfile', { replace: true });
+      // Only navigate if URL doesn't already have the correct tab
+      if (tab !== 'editProfile') {
+        navigate('/student?tab=editProfile', { replace: true });
+      }
     };
     const handleNavigateToJobs = () => {
       setActiveTab('jobs');
-      navigate('/student?tab=jobs', { replace: true });
+      if (tab !== 'jobs') {
+        navigate('/student?tab=jobs', { replace: true });
+      }
     };
     const handleNavigateToApplications = () => {
       setActiveTab('applications');
-      navigate('/student?tab=applications', { replace: true });
+      if (tab !== 'applications') {
+        navigate('/student?tab=applications', { replace: true });
+      }
     };
     const handleNavigateToQuery = () => {
       setActiveTab('raiseQuery');
-      navigate('/student?tab=raiseQuery', { replace: true });
+      if (tab !== 'raiseQuery') {
+        navigate('/student?tab=raiseQuery', { replace: true });
+      }
     };
 
     window.addEventListener('editProfileClicked', handleEditProfileClick);
@@ -885,16 +894,9 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToApplications', handleNavigateToApplications);
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
+    // Set active tab based on URL parameter
     if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
-      const isRefresh = window.performance.navigation?.type === 1 ||
-        window.performance.getEntriesByType('navigation')[0]?.type === 'reload';
-
-      if (!isRefresh || tab !== 'editProfile') {
-        setActiveTab(tab);
-      } else {
-        setActiveTab('dashboard');
-        navigate('/student', { replace: true });
-      }
+      setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
       setActiveTab('dashboard');
