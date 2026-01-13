@@ -14,15 +14,16 @@ import {
 import { API_BASE_URL } from '../../config/api';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up PDF.js worker with proper HTTPS URL
+// Use unpkg CDN which is more reliable than cdnjs for workers
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 export default function ResumeAnalyzer({ resumeInfo, userId }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Extract text from PDF URL (with backend fallback for CORS)
+  // Extract text from PDF URL (use backend proxy as primary method)
   const extractTextFromPDFUrl = async (pdfUrl) => {
     try {
       console.log('📄 Attempting to extract text from PDF:', pdfUrl);
@@ -32,32 +33,14 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         throw new Error('Invalid PDF URL provided');
       }
 
-      // Try fetching directly first
-      let response;
-      let useBackendProxy = false;
-      
-      try {
-        response = await fetch(pdfUrl, {
-          method: 'GET',
-          mode: 'cors',
-          credentials: 'omit',
-          headers: {
-            'Accept': 'application/pdf,application/octet-stream,*/*'
-          }
-        });
-      } catch (fetchError) {
-        console.warn('⚠️ Direct fetch failed, trying backend proxy:', fetchError.message);
-        useBackendProxy = true;
+      // Use backend proxy as primary method (more reliable, avoids CORS and worker issues)
+      console.log('📄 Using backend proxy to extract PDF text');
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
       }
 
-      // If direct fetch failed due to CORS or network, use backend proxy
-      if (useBackendProxy || !response || !response.ok) {
-        console.log('📄 Using backend proxy to extract PDF text (avoids CORS)');
-        const token = localStorage.getItem('accessToken');
-        if (!token) {
-          throw new Error('Authentication required. Please log in again.');
-        }
-
+      try {
         const backendResponse = await fetch(`${API_BASE_URL}/students/resume/extract-text`, {
           method: 'POST',
           headers: {
@@ -82,6 +65,25 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
 
         console.log('📄 Text extracted via backend, length:', backendData.resumeText.length, 'characters');
         return backendData.resumeText;
+      } catch (backendError) {
+        console.warn('⚠️ Backend extraction failed, trying frontend fallback:', backendError.message);
+        // Fall back to frontend PDF.js extraction if backend fails
+      }
+
+      // Frontend fallback: Try direct fetch and PDF.js extraction
+      console.log('📄 Attempting frontend PDF extraction as fallback');
+      let response;
+      try {
+        response = await fetch(pdfUrl, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'application/pdf,application/octet-stream,*/*'
+          }
+        });
+      } catch (fetchError) {
+        throw new Error(`Failed to fetch PDF: ${fetchError.message}. Please try again or contact support.`);
       }
 
       if (!response.ok) {
