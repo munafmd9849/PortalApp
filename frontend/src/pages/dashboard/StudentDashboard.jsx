@@ -258,6 +258,19 @@ export default function StudentDashboard() {
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
+  
+  // Debug: Monitor applications state changes
+  useEffect(() => {
+    console.log('📊 [applications state changed]', {
+      length: applications.length,
+      loading: loadingApplications,
+      applications: applications.map(app => ({
+        id: app.id,
+        jobId: app.jobId,
+        jobTitle: app.job?.jobTitle
+      }))
+    });
+  }, [applications, loadingApplications]);
   const [interviewHistory, setInterviewHistory] = useState([]);
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
