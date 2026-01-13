@@ -114,11 +114,19 @@ function generateMockApplications() {
  */
 export const getStudentApplications = async (studentId) => {
   try {
+    console.log('📋 [getStudentApplications] Calling API for studentId:', studentId);
     // Use real API to fetch applications
     const applications = await api.getStudentApplications();
+    console.log('📋 [getStudentApplications] Raw API response:', {
+      type: typeof applications,
+      isArray: Array.isArray(applications),
+      length: applications?.length,
+      data: applications
+    });
     
     // If API returns data, format it for frontend components
     if (applications && Array.isArray(applications) && applications.length > 0) {
+      console.log('📋 [getStudentApplications] Processing', applications.length, 'applications');
       // Ensure data structure matches what components expect
       const formattedApplications = applications.map(app => {
         // Parse dates - backend returns ISO strings from Prisma DateTime
@@ -177,9 +185,16 @@ export const getStudentApplications = async (studentId) => {
     }
     
     // Return empty array if no applications
+    console.warn('⚠️ [getStudentApplications] No applications found or empty response');
     return [];
   } catch (error) {
-    console.error('getStudentApplications error:', error);
+    console.error('❌ [getStudentApplications] Error:', error);
+    console.error('❌ [getStudentApplications] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response,
+      data: error.response?.data
+    });
     // Return empty array on error (don't use mock data)
     return [];
   }

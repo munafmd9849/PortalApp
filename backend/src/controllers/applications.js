@@ -242,6 +242,13 @@ export async function getStudentApplications(req, res) {
     });
 
     console.log('📋 [getStudentApplications] Returning formatted applications:', formatted.length);
+    if (formatted.length === 0) {
+      console.warn('⚠️ [getStudentApplications] No applications found for studentId:', student.id);
+      console.warn('⚠️ [getStudentApplications] This could mean:');
+      console.warn('   1. Student has not applied to any jobs yet');
+      console.warn('   2. Applications exist but studentId mismatch');
+      console.warn('   3. Database query returned empty result');
+    }
     res.json(formatted);
   } catch (error) {
     console.error('❌ [getStudentApplications] Error:', error);

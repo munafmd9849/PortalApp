@@ -963,6 +963,12 @@ export default function StudentDashboard() {
   
   // Load applications once (even without complete profile)
   useEffect(() => {
+    console.log('📋 [useEffect applications] Triggered:', {
+      hasUserId: !!user?.id,
+      userId: user?.id,
+      alreadyLoaded: dataLoadingRef.current.applications
+    });
+    
     if (user?.id && !dataLoadingRef.current.applications) {
       console.log('📋 [useEffect] Loading applications for user:', user.id);
       dataLoadingRef.current.applications = true;
@@ -979,9 +985,17 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
       console.log('📋 [useEffect] Applications tab active, reloading data');
+      // Force reload by resetting the flag temporarily
+      const wasLoaded = dataLoadingRef.current.applications;
       // Reload applications when tab is opened to ensure fresh data
       loadApplicationsData();
       loadInterviewHistory();
+      // Restore the flag after a delay to allow reload
+      if (wasLoaded) {
+        setTimeout(() => {
+          dataLoadingRef.current.applications = true;
+        }, 1000);
+      }
     }
   }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
 
