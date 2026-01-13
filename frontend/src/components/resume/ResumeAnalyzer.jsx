@@ -25,26 +25,106 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
   // Extract text from PDF URL
   const extractTextFromPDFUrl = async (pdfUrl) => {
     try {
-      // Fetch the PDF
-      const response = await fetch(pdfUrl);
+      console.log('📄 Attempting to extract text from PDF:', pdfUrl);
+      
+      // Check if URL is valid
+      if (!pdfUrl || typeof pdfUrl !== 'string') {
+        throw new Error('Invalid PDF URL provided');
+      }
+
+      // Try fetching with credentials for CORS
+      let response;
+      try {
+        response = await fetch(pdfUrl, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'application/pdf,application/octet-stream,*/*'
+          }
+        });
+      } catch (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
+          throw new Error('CORS error: The PDF cannot be accessed due to cross-origin restrictions. Please ensure the PDF URL allows cross-origin access.');
+        }
+        if (fetchError.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Cannot reach the PDF URL. Please check your internet connection and ensure the PDF is accessible.');
+        }
+        throw new Error(`Failed to fetch PDF: ${fetchError.message}`);
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('PDF not found. The resume URL may be invalid or the file has been removed.');
+        }
+        if (response.status === 403) {
+          throw new Error('Access denied. The PDF may require authentication or the URL has expired.');
+        }
+        throw new Error(`Failed to load PDF: HTTP ${response.status} ${response.statusText}`);
+      }
+
+      // Check if response is actually a PDF
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('pdf') && !contentType.includes('octet-stream')) {
+        console.warn('⚠️ Unexpected content type:', contentType);
+      }
+
       const arrayBuffer = await response.arrayBuffer();
       
-      // Load PDF document
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('PDF file is empty or corrupted.');
+      }
+
+      console.log('📄 PDF loaded, size:', arrayBuffer.byteLength, 'bytes');
+      
+      // Load PDF document with error handling
+      let pdf;
+      try {
+        pdf = await pdfjsLib.getDocument({ 
+          data: arrayBuffer,
+          verbosity: 0 // Suppress PDF.js warnings
+        }).promise;
+      } catch (pdfError) {
+        console.error('❌ PDF.js error:', pdfError);
+        if (pdfError.message.includes('Invalid PDF')) {
+          throw new Error('Invalid PDF format. The file may be corrupted or not a valid PDF.');
+        }
+        throw new Error(`Failed to parse PDF: ${pdfError.message}`);
+      }
+      
+      console.log('📄 PDF parsed successfully, pages:', pdf.numPages);
       
       // Extract text from all pages
       let fullText = '';
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
+        try {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          fullText += pageText + '\n';
+        } catch (pageError) {
+          console.warn(`⚠️ Error extracting text from page ${i}:`, pageError);
+          // Continue with other pages
+        }
       }
       
-      return fullText.trim();
+      const extractedText = fullText.trim();
+      console.log('📄 Text extracted, length:', extractedText.length, 'characters');
+      
+      if (extractedText.length === 0) {
+        throw new Error('No text could be extracted from the PDF. The PDF might be image-based (scanned) or contain only images. Please use a PDF with selectable text.');
+      }
+      
+      return extractedText;
     } catch (err) {
-      console.error('Error extracting text from PDF:', err);
-      throw new Error('Failed to extract text from PDF. Please ensure the PDF is accessible.');
+      console.error('❌ Error extracting text from PDF:', err);
+      // Re-throw with original message if it's already a user-friendly error
+      if (err.message && !err.message.includes('Failed to extract text from PDF')) {
+        throw err;
+      }
+      // Otherwise provide a generic error
+      throw new Error('Failed to extract text from PDF. Please ensure the PDF is accessible and contains selectable text (not just images).');
     }
   };
 
@@ -116,8 +196,26 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       
       setAnalysis(transformedAnalysis);
     } catch (err) {
-      console.error('Resume analysis error:', err);
-      setError(err.message || 'Failed to analyze resume. Please try again.');
+      console.error('❌ Resume analysis error:', err);
+      // Provide more helpful error messages
+      let errorMessage = err.message || 'Failed to analyze resume. Please try again.';
+      
+      // Enhance error messages for common issues
+      if (errorMessage.includes('CORS')) {
+        errorMessage = 'CORS Error: The PDF cannot be accessed due to security restrictions. Please contact support or try uploading the resume again.';
+      } else if (errorMessage.includes('Network error') || errorMessage.includes('Failed to fetch')) {
+        errorMessage = 'Network Error: Cannot connect to the server. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('image-based') || errorMessage.includes('No text could be extracted')) {
+        errorMessage = 'Text Extraction Failed: The PDF appears to be image-based (scanned). Please use a PDF with selectable text, or try converting your scanned PDF to text using OCR tools.';
+      } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+        errorMessage = 'PDF Not Found: The resume file may have been removed or the URL is invalid. Please upload your resume again.';
+      } else if (errorMessage.includes('Access denied') || errorMessage.includes('403')) {
+        errorMessage = 'Access Denied: The PDF URL may have expired or requires authentication. Please upload your resume again.';
+      } else if (errorMessage.includes('Authentication required')) {
+        errorMessage = 'Authentication Error: Please log in again and try analyzing your resume.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
