@@ -180,6 +180,18 @@ async function apiRequest(endpoint, options = {}) {
       });
     }
     
+    // CRITICAL: Log applications API responses for debugging
+    if (endpoint.includes('/applications/student')) {
+      console.log('📥 [API] Applications response received:', {
+        endpoint,
+        isArray: Array.isArray(data),
+        length: data?.length || 0,
+        type: typeof data,
+        firstItem: data?.[0] || null,
+        fullResponse: data,
+      });
+    }
+    
     return data;
   } catch (error) {
     // Re-throw if it's already our custom error

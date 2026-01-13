@@ -115,12 +115,24 @@ function generateMockApplications() {
 export const getStudentApplications = async (studentId) => {
   try {
     console.log('📋 [getStudentApplications] Calling API for studentId:', studentId);
+    console.log('📋 [getStudentApplications] API endpoint:', '/applications/student');
+    
     // Use real API to fetch applications
-    const applications = await api.getStudentApplications();
+    let applications;
+    try {
+      applications = await api.getStudentApplications();
+      console.log('📋 [getStudentApplications] ✅ API call successful');
+    } catch (apiError) {
+      console.error('❌ [getStudentApplications] API call failed:', apiError);
+      throw apiError; // Re-throw to be caught by outer catch
+    }
+    
     console.log('📋 [getStudentApplications] Raw API response:', {
       type: typeof applications,
       isArray: Array.isArray(applications),
       length: applications?.length,
+      isNull: applications === null,
+      isUndefined: applications === undefined,
       data: applications
     });
     
