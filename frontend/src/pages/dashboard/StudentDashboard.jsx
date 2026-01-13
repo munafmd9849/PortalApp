@@ -985,17 +985,21 @@ export default function StudentDashboard() {
     console.log('📋 [useEffect applications] Triggered:', {
       hasUserId: !!user?.id,
       userId: user?.id,
-      alreadyLoaded: dataLoadingRef.current.applications
+      alreadyLoaded: dataLoadingRef.current.applications,
+      currentApplicationsLength: applications.length
     });
     
-    if (user?.id && !dataLoadingRef.current.applications) {
-      console.log('📋 [useEffect] Loading applications for user:', user.id);
-      dataLoadingRef.current.applications = true;
-      loadApplicationsData();
-    } else if (!user?.id) {
+    if (user?.id) {
+      // Always load if we don't have applications yet, or if flag says not loaded
+      if (!dataLoadingRef.current.applications || applications.length === 0) {
+        console.log('📋 [useEffect] Loading applications for user:', user.id);
+        dataLoadingRef.current.applications = true;
+        loadApplicationsData();
+      } else {
+        console.log('📋 [useEffect] Applications already loaded, current count:', applications.length);
+      }
+    } else {
       console.warn('⚠️ [useEffect] No user ID available for loading applications');
-    } else if (dataLoadingRef.current.applications) {
-      console.log('📋 [useEffect] Applications already loaded, skipping');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
@@ -1004,17 +1008,15 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
       console.log('📋 [useEffect] Applications tab active, reloading data');
-      // Force reload by resetting the flag temporarily
-      const wasLoaded = dataLoadingRef.current.applications;
-      // Reload applications when tab is opened to ensure fresh data
+      console.log('📋 [useEffect] Current applications state before reload:', {
+        length: applications.length,
+        loading: loadingApplications
+      });
+      
+      // Always reload when tab is opened to ensure fresh data
+      // Don't check dataLoadingRef - force reload every time tab opens
       loadApplicationsData();
       loadInterviewHistory();
-      // Restore the flag after a delay to allow reload
-      if (wasLoaded) {
-        setTimeout(() => {
-          dataLoadingRef.current.applications = true;
-        }, 1000);
-      }
     }
   }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
 
