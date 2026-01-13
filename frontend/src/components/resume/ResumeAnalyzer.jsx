@@ -22,7 +22,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Extract text from PDF URL
+  // Extract text from PDF URL (with backend fallback for CORS)
   const extractTextFromPDFUrl = async (pdfUrl) => {
     try {
       console.log('📄 Attempting to extract text from PDF:', pdfUrl);
@@ -32,8 +32,10 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         throw new Error('Invalid PDF URL provided');
       }
 
-      // Try fetching with credentials for CORS
+      // Try fetching directly first
       let response;
+      let useBackendProxy = false;
+      
       try {
         response = await fetch(pdfUrl, {
           method: 'GET',
@@ -44,14 +46,42 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
           }
         });
       } catch (fetchError) {
-        console.error('❌ Fetch error:', fetchError);
-        if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
-          throw new Error('CORS error: The PDF cannot be accessed due to cross-origin restrictions. Please ensure the PDF URL allows cross-origin access.');
+        console.warn('⚠️ Direct fetch failed, trying backend proxy:', fetchError.message);
+        useBackendProxy = true;
+      }
+
+      // If direct fetch failed due to CORS or network, use backend proxy
+      if (useBackendProxy || !response || !response.ok) {
+        console.log('📄 Using backend proxy to extract PDF text (avoids CORS)');
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          throw new Error('Authentication required. Please log in again.');
         }
-        if (fetchError.message.includes('Failed to fetch')) {
-          throw new Error('Network error: Cannot reach the PDF URL. Please check your internet connection and ensure the PDF is accessible.');
+
+        const backendResponse = await fetch(`${API_BASE_URL}/students/resume/extract-text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            resumeUrl: pdfUrl,
+            resumeId: resumeInfo?.resumeId || null,
+          }),
+        });
+
+        if (!backendResponse.ok) {
+          const errorData = await backendResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || errorData.details || `Backend extraction failed (${backendResponse.status})`);
         }
-        throw new Error(`Failed to fetch PDF: ${fetchError.message}`);
+
+        const backendData = await backendResponse.json();
+        if (!backendData.success || !backendData.resumeText) {
+          throw new Error(backendData.error || 'Failed to extract text from PDF');
+        }
+
+        console.log('📄 Text extracted via backend, length:', backendData.resumeText.length, 'characters');
+        return backendData.resumeText;
       }
 
       if (!response.ok) {

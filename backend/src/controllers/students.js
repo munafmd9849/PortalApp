@@ -1999,3 +1999,107 @@ export async function analyzeATSResume(req, res) {
     });
   }
 }
+
+/**
+ * Extract text from PDF URL (backend proxy to avoid CORS)
+ * POST /api/students/resume/extract-text
+ * Body: { resumeUrl, resumeId? }
+ * Auth: Student only
+ */
+export async function extractResumeText(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeUrl, resumeId } = req.body;
+
+    // Validate input
+    if (!resumeUrl || typeof resumeUrl !== 'string') {
+      return res.status(400).json({ error: 'Resume URL is required' });
+    }
+
+    // Optional: Verify resume belongs to student if resumeId is provided
+    if (resumeId) {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      const resume = await prisma.studentResumeFile.findFirst({
+        where: {
+          id: resumeId,
+          studentId: student.id,
+        },
+      });
+
+      if (!resume) {
+        return res.status(403).json({ error: 'Resume not found or access denied' });
+      }
+    }
+
+    // Fetch PDF from URL (backend can access without CORS issues)
+    let pdfResponse;
+    try {
+      pdfResponse = await fetch(resumeUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf,application/octet-stream,*/*'
+        }
+      });
+    } catch (fetchError) {
+      console.error('Error fetching PDF:', fetchError);
+      return res.status(400).json({ 
+        error: 'Failed to fetch PDF from URL',
+        details: fetchError.message 
+      });
+    }
+
+    if (!pdfResponse.ok) {
+      return res.status(pdfResponse.status).json({ 
+        error: `Failed to fetch PDF: HTTP ${pdfResponse.status}`,
+        details: pdfResponse.statusText
+      });
+    }
+
+    const arrayBuffer = await pdfResponse.arrayBuffer();
+    
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      return res.status(400).json({ error: 'PDF file is empty or corrupted' });
+    }
+
+    // Use pdf-parse library for text extraction
+    try {
+      const pdfParse = await import('pdf-parse');
+      const pdfData = await pdfParse.default(Buffer.from(arrayBuffer));
+      const extractedText = pdfData.text.trim();
+
+      if (!extractedText || extractedText.length === 0) {
+        return res.status(400).json({ 
+          error: 'No text could be extracted from PDF',
+          details: 'The PDF might be image-based (scanned) or contain only images'
+        });
+      }
+
+      return res.json({
+        success: true,
+        resumeText: extractedText,
+        textLength: extractedText.length,
+        pages: pdfData.numpages
+      });
+    } catch (parseError) {
+      console.error('PDF parsing error:', parseError);
+      return res.status(400).json({ 
+        error: 'Failed to parse PDF',
+        details: parseError.message 
+      });
+    }
+  } catch (error) {
+    console.error('Extract resume text error:', error);
+    res.status(500).json({ 
+      error: 'Failed to extract text from PDF',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}

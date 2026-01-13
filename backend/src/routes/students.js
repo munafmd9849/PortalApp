@@ -99,6 +99,15 @@ router.delete('/resume/:resumeId',
   studentController.deleteResume
 );
 
+// Extract text from PDF URL (backend proxy to avoid CORS)
+// POST /api/students/resume/extract-text
+// Body: { resumeUrl, resumeId? }
+// Auth: Student only
+router.post('/resume/extract-text',
+  requireRole(['STUDENT']),
+  studentController.extractResumeText
+);
+
 // ATS Resume Analysis
 // POST /api/students/resume/ats-analysis
 // Body: { resumeText, resumeId? }
