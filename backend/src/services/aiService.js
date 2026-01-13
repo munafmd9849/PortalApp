@@ -118,3 +118,132 @@ function generateBulletsFallback(title, description, techStack) {
   return bullets.slice(0, 4); // Max 4 bullets
 }
 
+/**
+ * Analyze resume for ATS (Applicant Tracking System) compatibility
+ * @param {string} resumeText - Extracted text from resume PDF
+ * @returns {Promise<Object>} ATS analysis results
+ */
+export async function analyzeATSResume(resumeText) {
+  try {
+    // Check if AI is available
+    if (!AI_CONFIG.enabled || !AI_CONFIG.google.apiKey) {
+      console.warn('AI service not configured, using fallback ATS analysis');
+      return generateATSFallback(resumeText);
+    }
+
+    // Use AI abstraction layer for ATS analysis
+    const prompt = `You are an ATS (Applicant Tracking System) resume analyzer. Analyze the following resume text and provide a comprehensive ATS compatibility assessment.
+
+Resume Text:
+${resumeText.substring(0, 8000)}${resumeText.length > 8000 ? '...' : ''}
+
+Analyze the resume and return a JSON object with the following structure:
+{
+  "atsScore": 75,
+  "missingKeywords": ["keyword1", "keyword2"],
+  "missingSkills": ["skill1", "skill2"],
+  "grammarIssues": ["issue1", "issue2"],
+  "formattingIssues": ["issue1", "issue2"],
+  "clarityIssues": ["issue1", "issue2"],
+  "improvementSuggestions": ["suggestion1", "suggestion2"],
+  "strengths": ["strength1", "strength2"],
+  "overallFeedback": "Overall feedback about the resume"
+}
+
+Guidelines:
+- atsScore: Number between 0-100 (higher is better)
+- missingKeywords: Array of important keywords that should be included
+- missingSkills: Array of skills that are commonly expected but missing
+- grammarIssues: Array of grammar or spelling issues found
+- formattingIssues: Array of formatting problems (e.g., inconsistent dates, missing sections)
+- clarityIssues: Array of clarity or readability issues
+- improvementSuggestions: Array of actionable suggestions to improve ATS compatibility
+- strengths: Array of positive aspects of the resume
+- overallFeedback: A comprehensive summary (2-3 sentences) of the resume's ATS compatibility
+
+Return ONLY valid JSON, no markdown, no code blocks.`;
+
+    const aiResponse = await generateAIContent(prompt);
+    
+    // Check if AI returned an error message
+    if (aiResponse.includes('unavailable') || 
+        aiResponse.includes('not configured') || 
+        aiResponse.includes('disabled')) {
+      // AI service is not available - use fallback
+      return generateATSFallback(resumeText);
+    }
+
+    // Parse JSON from response (handle markdown code blocks if present)
+    let jsonText = aiResponse.trim();
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    }
+    
+    const parsed = JSON.parse(jsonText);
+    
+    // Validate and format response
+    return {
+      atsScore: typeof parsed.atsScore === 'number' ? Math.max(0, Math.min(100, parsed.atsScore)) : 50,
+      missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [],
+      missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills : [],
+      grammarIssues: Array.isArray(parsed.grammarIssues) ? parsed.grammarIssues : [],
+      formattingIssues: Array.isArray(parsed.formattingIssues) ? parsed.formattingIssues : [],
+      clarityIssues: Array.isArray(parsed.clarityIssues) ? parsed.clarityIssues : [],
+      improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : [],
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+      overallFeedback: parsed.overallFeedback || 'Resume analysis completed. Review the suggestions to improve ATS compatibility.'
+    };
+  } catch (error) {
+    console.error('ATS analysis error:', error);
+    // Return fallback on any error - never crash the UI
+    return generateATSFallback(resumeText);
+  }
+}
+
+/**
+ * Fallback ATS analysis when AI is not available
+ */
+function generateATSFallback(resumeText) {
+  const wordCount = resumeText.split(/\s+/).length;
+  const hasEmail = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(resumeText);
+  const hasPhone = /\b\d{10,}\b/.test(resumeText);
+  const hasEducation = /education|degree|university|college|bachelor|master|phd/i.test(resumeText);
+  const hasExperience = /experience|work|employment|intern|project/i.test(resumeText);
+  const hasSkills = /skill|proficient|expert|knowledge|familiar/i.test(resumeText);
+
+  // Calculate basic ATS score
+  let score = 50; // Base score
+  if (wordCount >= 300 && wordCount <= 800) score += 10;
+  if (hasEmail) score += 10;
+  if (hasPhone) score += 5;
+  if (hasEducation) score += 10;
+  if (hasExperience) score += 10;
+  if (hasSkills) score += 5;
+
+  const suggestions = [];
+  if (wordCount < 200) suggestions.push('Resume is too short. Aim for 300-800 words.');
+  if (wordCount > 1000) suggestions.push('Resume is too long. Consider condensing to 800 words or less.');
+  if (!hasEmail) suggestions.push('Add your email address for contact information.');
+  if (!hasPhone) suggestions.push('Add your phone number for better contact options.');
+  if (!hasEducation) suggestions.push('Include your educational background.');
+  if (!hasExperience) suggestions.push('Add work experience or internship details.');
+  if (!hasSkills) suggestions.push('Include a skills section highlighting your technical and soft skills.');
+
+  return {
+    atsScore: Math.min(100, score),
+    missingKeywords: [],
+    missingSkills: [],
+    grammarIssues: [],
+    formattingIssues: [],
+    clarityIssues: [],
+    improvementSuggestions: suggestions,
+    strengths: [
+      hasEmail && hasPhone ? 'Contact information is present' : null,
+      hasEducation ? 'Education section found' : null,
+      hasExperience ? 'Experience section found' : null,
+    ].filter(Boolean),
+    overallFeedback: 'Basic resume analysis completed. For detailed ATS optimization, please configure the AI service. ' + 
+      (suggestions.length > 0 ? 'Consider addressing the improvement suggestions listed above.' : 'Your resume has good basic structure.')
+  };
+}
+

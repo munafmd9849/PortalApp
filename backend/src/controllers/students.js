@@ -1978,7 +1978,9 @@ export async function analyzeATSResume(req, res) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('ATS analysis error:', error);
+    console.error('❌ [analyzeATSResume] Error:', error);
+    console.error('❌ [analyzeATSResume] Error message:', error.message);
+    console.error('❌ [analyzeATSResume] Error stack:', error.stack);
     
     // Handle specific error types
     if (error.message.includes('not configured') || error.message.includes('not available')) {
@@ -1992,10 +1994,11 @@ export async function analyzeATSResume(req, res) {
       return res.status(400).json({ error: error.message });
     }
 
-    // Generic error response
+    // Generic error response with more details in development
     res.status(500).json({ 
       error: 'Failed to analyze resume. Please try again.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
