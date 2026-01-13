@@ -2007,8 +2007,24 @@ export default function StudentDashboard() {
           applicationsLength: applications.length,
           applications: applications,
           loadingApplications,
-          interviewHistoryLength: interviewHistory.length
+          interviewHistoryLength: interviewHistory.length,
+          applicationsType: typeof applications,
+          isArray: Array.isArray(applications),
+          firstApp: applications[0] ? {
+            id: applications[0].id,
+            jobId: applications[0].jobId,
+            jobTitle: applications[0].job?.jobTitle
+          } : null
         });
+        
+        // Force reload if applications is empty but we expect data
+        if (applications.length === 0 && !loadingApplications && user?.id) {
+          console.warn('⚠️ [applications tab] Applications is empty, forcing reload...');
+          setTimeout(() => {
+            loadApplicationsData();
+          }, 500);
+        }
+        
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
           const status = app.status?.toUpperCase();
