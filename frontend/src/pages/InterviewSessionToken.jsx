@@ -10,7 +10,7 @@ import {
   FaPlay, FaStop, FaCheck, FaClock, FaUser, FaFilter, FaSearch, 
   FaFilePdf, FaDownload, FaGraduationCap, FaCode, FaTrophy, FaBriefcase,
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaLinkedin, FaGithub, FaTimes,
-  FaEdit, FaSave, FaTimesCircle
+  FaEdit, FaSave, FaTimesCircle, FaLock
 } from 'react-icons/fa';
 import api from '../services/api';
 
@@ -67,6 +67,53 @@ const InterviewSessionToken = () => {
   });
 
   const pollingIntervalRef = useRef(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const animationContainerRef = useRef(null);
+
+  // Load the dotlottie script for animations
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src*="dotlottie-wc"]');
+    if (existingScript) {
+      setScriptLoaded(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.7.1/dist/dotlottie-wc.js';
+    script.type = 'module';
+    script.async = true;
+    script.onload = () => {
+      setScriptLoaded(true);
+    };
+    script.onerror = () => {
+      console.warn('Failed to load Lottie animation script, using fallback');
+      setScriptLoaded(false);
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  // Create the dotlottie element after script loads (for loading state)
+  useEffect(() => {
+    if (scriptLoaded && animationContainerRef.current && loading && !animationContainerRef.current.querySelector('dotlottie-wc')) {
+      setTimeout(() => {
+        if (animationContainerRef.current && !animationContainerRef.current.querySelector('dotlottie-wc')) {
+          try {
+            const dotlottie = document.createElement('dotlottie-wc');
+            dotlottie.setAttribute('src', 'https://lottie.host/329a31de-1775-4015-9d59-bae15a35069e/Nwhtg98V5B.lottie');
+            dotlottie.setAttribute('speed', '2');
+            dotlottie.setAttribute('mode', 'forward');
+            dotlottie.setAttribute('loop', '');
+            dotlottie.setAttribute('autoplay', '');
+            dotlottie.style.width = '300px';
+            dotlottie.style.height = '300px';
+            animationContainerRef.current.appendChild(dotlottie);
+          } catch (error) {
+            console.warn('Failed to create Lottie animation:', error);
+          }
+        }
+      }, 100);
+    }
+  }, [scriptLoaded, loading]);
 
   /**
    * Fetch session data
@@ -247,8 +294,14 @@ const InterviewSessionToken = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading session...</p>
+          <div ref={animationContainerRef} className="flex justify-center mb-6">
+            {/* dotlottie-wc will be inserted here via useEffect if script loads */}
+            {!scriptLoaded && (
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            )}
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Interview Session</h2>
+          <p className="text-gray-600">Please wait...</p>
         </div>
       </div>
     );
@@ -325,45 +378,64 @@ const InterviewSessionToken = () => {
                 {rounds.map((round, index) => {
                   const canStart = index === 0 || rounds[index - 1].status === 'completed';
                   const isCurrent = round.name === session.currentRound;
+                  const isLocked = round.status === 'pending' && !canStart;
                   
                   return (
-                    <div key={round.name} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h3 className="font-semibold text-gray-800">{round.name}</h3>
-                        <p className="text-sm text-gray-600">{round.criteria || 'No criteria specified'}</p>
-                        <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold ${
-                          round.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          round.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {round.status}
-                        </span>
+                    <div 
+                      key={round.name} 
+                      className={`flex items-center justify-between p-4 border rounded-lg transition-all duration-300 ${
+                        isCurrent ? 'ring-2 ring-indigo-500 shadow-md' : ''
+                      } ${
+                        isLocked ? 'opacity-75 bg-gray-50' : 'bg-white hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {isLocked && (
+                          <div className="flex-shrink-0">
+                            <FaLock className="text-gray-400 animate-pulse" />
+                          </div>
+                        )}
+                        <div>
+                          <h3 className={`font-semibold ${isLocked ? 'text-gray-500' : 'text-gray-800'}`}>
+                            {round.name}
+                          </h3>
+                          <p className={`text-sm ${isLocked ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {round.criteria || 'No criteria specified'}
+                          </p>
+                          <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 ${
+                            round.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            round.status === 'ongoing' ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {round.status}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         {round.status === 'pending' && canStart && (
                           <button
                             onClick={() => handleStartRound(round.name)}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"
+                            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
                           >
-                            <FaPlay /> Start
+                            <FaPlay className="animate-pulse" /> Start Round
                           </button>
                         )}
                         {round.status === 'ongoing' && (
                           <button
                             onClick={() => handleEndRound(round.name)}
-                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
                           >
                             <FaStop /> End Round
                           </button>
                         )}
                         {round.status === 'completed' && (
-                          <span className="px-4 py-2 bg-green-100 text-green-800 rounded flex items-center gap-2">
-                            <FaCheck /> Completed
+                          <span className="px-4 py-2 bg-green-100 text-green-800 rounded flex items-center gap-2 transition-all duration-200">
+                            <FaCheck className="animate-bounce" /> Completed
                           </span>
                         )}
                         {round.status === 'pending' && !canStart && (
-                          <span className="px-4 py-2 bg-gray-200 text-gray-600 rounded">
-                            Waiting...
+                          <span className="px-4 py-2 bg-gray-200 text-gray-600 rounded flex items-center gap-2 transition-all duration-200">
+                            <FaLock className="animate-pulse" /> Locked
                           </span>
                         )}
                       </div>
