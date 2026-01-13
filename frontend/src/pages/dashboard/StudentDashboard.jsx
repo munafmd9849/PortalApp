@@ -563,22 +563,42 @@ export default function StudentDashboard() {
   }, [user?.id]);
 
   const loadApplicationsData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('⚠️ [loadApplicationsData] No user ID, skipping');
+      return;
+    }
     
+    console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
       const applicationsData = await getStudentApplications(user.id);
-      console.log('📋 Loaded applications:', applicationsData?.length || 0, 'applications');
+      console.log('📋 [loadApplicationsData] API response:', {
+        isArray: Array.isArray(applicationsData),
+        length: applicationsData?.length || 0,
+        data: applicationsData
+      });
+      
       if (applicationsData && applicationsData.length > 0) {
-        console.log('📋 Application jobIds:', applicationsData.map(app => ({ 
+        console.log('📋 [loadApplicationsData] Application details:', applicationsData.map(app => ({ 
           appId: app.id, 
           jobId: app.jobId, 
-          jobIdFromJob: app.job?.id 
+          jobTitle: app.job?.jobTitle,
+          status: app.status,
+          companyName: app.company?.name || app.job?.company?.name
         })));
+      } else {
+        console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
+      
       setApplications(applicationsData || []);
+      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
     } catch (err) {
-      console.error('Failed to load applications:', err);
+      console.error('❌ [loadApplicationsData] Error loading applications:', err);
+      console.error('❌ [loadApplicationsData] Error details:', {
+        message: err.message,
+        stack: err.stack,
+        response: err.response
+      });
       setApplications([]);
     } finally {
       setLoadingApplications(false);
@@ -944,8 +964,13 @@ export default function StudentDashboard() {
   // Load applications once (even without complete profile)
   useEffect(() => {
     if (user?.id && !dataLoadingRef.current.applications) {
+      console.log('📋 [useEffect] Loading applications for user:', user.id);
       dataLoadingRef.current.applications = true;
       loadApplicationsData();
+    } else if (!user?.id) {
+      console.warn('⚠️ [useEffect] No user ID available for loading applications');
+    } else if (dataLoadingRef.current.applications) {
+      console.log('📋 [useEffect] Applications already loaded, skipping');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
@@ -1942,6 +1967,12 @@ export default function StudentDashboard() {
 
       case 'applications':
         // Calculate application statistics
+        console.log('📊 [applications tab] Current applications state:', {
+          applicationsLength: applications.length,
+          applications: applications,
+          loadingApplications,
+          interviewHistoryLength: interviewHistory.length
+        });
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
           const status = app.status?.toUpperCase();
