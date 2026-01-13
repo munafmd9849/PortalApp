@@ -655,13 +655,21 @@ export default function StudentDashboard() {
           jobTitle: pendingJob.jobTitle,
           companyId: pendingJob.companyId,
           companyName: pendingJob.company?.name,
-          resumeId
+          resumeId,
+          studentId: user.id
         });
       }
       
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       // Pass resumeId in applicationData if backend supports it
-      const applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      let applicationResult;
+      try {
+        applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      } catch (applyError) {
+        // Re-throw with more context
+        console.error('❌ [handleResumeSelection] applyToJob error:', applyError);
+        throw applyError;
+      }
       
       // Immediately add to applications state for instant UI update
       if (applicationResult && pendingJob.id) {
@@ -704,45 +712,51 @@ export default function StudentDashboard() {
       }, 3000);
       
     } catch (error) {
+      console.error('❌ [handleApplyToJob] Full error:', error);
+      console.error('❌ [handleApplyToJob] Error response:', error.response);
+      console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
+      
       // Handle "Already applied" gracefully - just refresh and update button, no error shown
-      const errorData = error.response?.data || {};
-      if (errorData.error === 'Already applied to this job') {
+      const errorData = error.response?.data || error.response || {};
+      const errorMessage = errorData.error || errorData.message || error.message;
+      
+      if (errorMessage === 'Already applied to this job' || errorData.error === 'Already applied to this job') {
         // Silently refresh applications to update button state
         await loadApplicationsData();
         return; // Exit early, no error message needed
       }
       
       // Handle CGPA requirement error with precise message
-      if (error.response?.data || error.message) {
-        if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
-          // Clean and precise error message
-          const yourCgpa = errorData.yourCgpa || 'Not set';
-          const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
-          const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
-          
-          const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
-          setAlertMessage(fullMessage);
-          setAlertType('error');
-          setShowFloatingAlert(true);
-          
-          setTimeout(() => {
-            setShowFloatingAlert(false);
-            setAlertMessage(null);
-          }, 7000);
-        } else {
-          // Clean error message for other errors
-          const cleanMessage = errorData.message || error.message || 'Failed to apply to job. Please try again.';
-          setAlertMessage(cleanMessage);
-          setAlertType('error');
-          setShowFloatingAlert(true);
-          
-          setTimeout(() => {
-            setShowFloatingAlert(false);
-            setAlertMessage(null);
-          }, 5000);
-        }
+      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
+          errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+        // Clean and precise error message
+        const yourCgpa = errorData.yourCgpa || 'Not set';
+        const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
+        const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
+        
+        const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
+        setAlertMessage(fullMessage);
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 7000);
+      } else if (error.isNetworkError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        // Network error
+        setAlertMessage('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 5000);
       } else {
-        setAlertMessage('Failed to apply to job. Please check your connection and try again.');
+        // Clean error message for other errors
+        const cleanMessage = errorData.message || errorMessage || 'Failed to apply to job. Please try again.';
+        setAlertMessage(cleanMessage);
         setAlertType('error');
         setShowFloatingAlert(true);
         
