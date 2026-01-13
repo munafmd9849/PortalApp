@@ -975,12 +975,15 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
 
-  // Load interview history when applications tab is active
+  // Load applications and interview history when applications tab is active
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
+      console.log('📋 [useEffect] Applications tab active, reloading data');
+      // Reload applications when tab is opened to ensure fresh data
+      loadApplicationsData();
       loadInterviewHistory();
     }
-  }, [user?.id, activeTab, loadInterviewHistory]);
+  }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
 
   // Validation helper functions
   const validateEmail = (email) => {

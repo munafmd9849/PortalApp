@@ -87,17 +87,22 @@ export async function getAllApplications(req, res) {
 export async function getStudentApplications(req, res) {
   try {
     const userId = req.userId;
+    console.log('📋 [getStudentApplications] Request received for userId:', userId);
 
     const student = await prisma.student.findUnique({
       where: { userId },
       select: { id: true },
     });
 
+    console.log('📋 [getStudentApplications] Student found:', student ? { id: student.id } : 'NOT FOUND');
+
     // If student doesn't exist yet, return empty array (for new users)
     if (!student) {
+      console.warn('⚠️ [getStudentApplications] Student not found, returning empty array');
       return res.json([]);
     }
 
+    console.log('📋 [getStudentApplications] Querying applications for studentId:', student.id);
     const applications = await prisma.application.findMany({
       where: { studentId: student.id },
       include: {
@@ -109,6 +114,16 @@ export async function getStudentApplications(req, res) {
       },
       orderBy: { appliedDate: 'desc' },
     });
+
+    console.log('📋 [getStudentApplications] Found applications:', applications.length);
+    if (applications.length > 0) {
+      console.log('📋 [getStudentApplications] Application IDs:', applications.map(app => ({
+        id: app.id,
+        jobId: app.jobId,
+        status: app.status,
+        jobTitle: app.job?.jobTitle
+      })));
+    }
 
     // Get interview sessions for these jobs
     const jobIds = applications.map(app => app.jobId);
@@ -226,9 +241,11 @@ export async function getStudentApplications(req, res) {
       };
     });
 
+    console.log('📋 [getStudentApplications] Returning formatted applications:', formatted.length);
     res.json(formatted);
   } catch (error) {
-    console.error('Get student applications error:', error);
+    console.error('❌ [getStudentApplications] Error:', error);
+    console.error('❌ [getStudentApplications] Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to get applications' });
   }
 }
