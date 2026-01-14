@@ -114,12 +114,12 @@ const InterviewerRoundEvaluation = () => {
   const handleSaveEvaluation = async (applicationId) => {
     const evaluation = evaluations[applicationId];
     if (!evaluation.status || !['SELECTED', 'REJECTED', 'ON_HOLD'].includes(evaluation.status)) {
-      alert('Please select a status');
+      showWarning('Please select a status before saving');
       return;
     }
 
     if ((evaluation.status === 'REJECTED' || evaluation.status === 'ON_HOLD') && !evaluation.remarks?.trim()) {
-      alert('Remarks are required for REJECTED or ON_HOLD status');
+      showWarning('Remarks are required for REJECTED or ON_HOLD status');
       return;
     }
 
@@ -143,14 +143,22 @@ const InterviewerRoundEvaluation = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save evaluation');
+        throw new Error(errorData.error || errorData.message || 'Failed to save evaluation');
       }
+
+      // Show success message
+      const statusMessages = {
+        'SELECTED': 'Candidate marked as selected',
+        'REJECTED': 'Candidate marked as rejected',
+        'ON_HOLD': 'Candidate marked as on hold'
+      };
+      showSuccess(statusMessages[evaluation.status] || 'Evaluation saved successfully');
 
       // Reload to get updated data
       await loadRoundData();
     } catch (err) {
       console.error('Error saving evaluation:', err);
-      alert(err.message || 'Failed to save evaluation');
+      showError(err.message || 'Failed to save evaluation. Please try again.');
     } finally {
       setSaving((prev) => ({ ...prev, [applicationId]: false }));
     }
@@ -161,8 +169,10 @@ const InterviewerRoundEvaluation = () => {
       return;
     }
 
+    let loadingToastId = null;
     try {
       setEndingRound(true);
+      loadingToastId = showLoading('Ending round...');
 
       // URL encode the token
       const encodedToken = encodeURIComponent(token);
@@ -178,7 +188,7 @@ const InterviewerRoundEvaluation = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        let errorMessage = errorData.error || 'Failed to end round';
+        let errorMessage = errorData.error || errorData.message || 'Failed to end round';
         if (errorData.details) {
           errorMessage += `: ${errorData.details}`;
         }
@@ -186,9 +196,9 @@ const InterviewerRoundEvaluation = () => {
       }
 
       const result = await response.json();
-      const message = result.message || 'Round ended successfully!';
+      const message = result.message || 'Round ended successfully! Only selected candidates will proceed to the next round.';
       
-      alert(message);
+      replaceLoadingToast(loadingToastId, 'success', message);
       
       // Navigate back to session page
       if (round && round.sessionId) {
@@ -199,7 +209,10 @@ const InterviewerRoundEvaluation = () => {
       }
     } catch (err) {
       console.error('Error ending round:', err);
-      alert(err.message || 'Failed to end round. Please try again.');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      showError(err.message || 'Failed to end round. Please ensure all candidates are evaluated and try again.');
     } finally {
       setEndingRound(false);
     }

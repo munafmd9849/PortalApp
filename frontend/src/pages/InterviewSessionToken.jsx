@@ -172,11 +172,17 @@ const InterviewSessionToken = () => {
    * Start a round
    */
   const handleStartRound = async (roundName) => {
+    let loadingToastId = null;
     try {
-      await api.post(`/interview/session/${token}/round/${roundName}/start`);
+      loadingToastId = showLoading(`Starting ${roundName}...`);
+      await api.post(`/interview/session/${token}/round/${roundName}/start`, {}, { silent: true });
+      replaceLoadingToast(loadingToastId, 'success', `${roundName} started successfully`);
       await fetchSession();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to start round');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to start round. Please try again.');
     }
   };
 
@@ -188,12 +194,19 @@ const InterviewSessionToken = () => {
       return;
     }
 
+    let loadingToastId = null;
     try {
-      const response = await api.post(`/interview/session/${token}/round/${roundName}/end`);
-      alert(response.data.message || 'Round ended successfully');
+      loadingToastId = showLoading(`Ending ${roundName}...`);
+      const response = await api.post(`/interview/session/${token}/round/${roundName}/end`, {}, { silent: true });
+      const message = response.data?.message || `${roundName} ended successfully. Only selected candidates will proceed.`;
+      replaceLoadingToast(loadingToastId, 'success', message);
       await fetchSession();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to end round');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to end round. Please ensure all candidates are evaluated.';
+      showError(errorMsg);
     }
   };
 

@@ -11,6 +11,7 @@ import {
   Users, Filter, Search, AlertCircle, Lock, Mail, Building2
 } from 'lucide-react';
 import api from '../../services/api';
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 
 const RecruiterScreening = () => {
   const [searchParams] = useSearchParams();
@@ -70,13 +71,22 @@ const RecruiterScreening = () => {
       await api.patch(`/recruiter/screening/application/${applicationId}?token=${encodeURIComponent(token)}`, {
         screeningStatus: newStatus,
         screeningRemarks: remarks || null
-      });
+      }, { silent: true }); // Silent to show custom message
+
+      // Show success message based on action
+      const statusMessages = {
+        'RESUME_SELECTED': 'Resume selected successfully',
+        'RESUME_REJECTED': 'Resume rejected',
+        'TEST_SELECTED': 'Candidate passed the test',
+        'TEST_REJECTED': 'Candidate failed the test'
+      };
+      showSuccess(statusMessages[newStatus] || 'Screening decision saved');
 
       // Refresh data
       await fetchScreeningData();
     } catch (err) {
       console.error('Error updating screening status:', err);
-      alert(err.response?.data?.error || 'Failed to update screening status');
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to save screening decision. Please try again.');
     }
   };
 
@@ -85,17 +95,23 @@ const RecruiterScreening = () => {
       return;
     }
 
+    let loadingToastId = null;
     try {
+      loadingToastId = showLoading('Finalizing screening...');
+      
       await api.post(`/recruiter/screening/finalize?token=${encodeURIComponent(token)}`, {
         jobId
-      });
+      }, { silent: true }); // Silent to show custom message
 
       setFinalized(true);
-      alert('Screening finalized successfully!');
+      replaceLoadingToast(loadingToastId, 'success', 'Screening finalized successfully! All decisions are now locked.');
       await fetchScreeningData();
     } catch (err) {
       console.error('Error finalizing screening:', err);
-      alert(err.response?.data?.error || 'Failed to finalize screening');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to finalize screening. Please ensure all candidates have been decided.');
     }
   };
 

@@ -231,6 +231,7 @@ export async function createJob(req, res) {
     const recruiterEmail = jobData.recruiterEmail?.trim();
     if (!recruiterEmail) {
       return res.status(400).json({ 
+        success: false,
         error: 'Recruiter/HR email is required',
         field: 'recruiterEmail',
         message: 'Please provide a valid email address for the recruiter or HR contact who will handle screening.'
@@ -241,6 +242,7 @@ export async function createJob(req, res) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(recruiterEmail)) {
       return res.status(400).json({ 
+        success: false,
         error: 'Invalid recruiter email format',
         field: 'recruiterEmail',
         message: 'Please provide a valid email address.'
@@ -445,7 +447,11 @@ export async function createJob(req, res) {
       }
     }
 
-    res.status(201).json(job);
+    res.status(201).json({
+      success: true,
+      message: 'Job created successfully. It has been sent for review and will appear in the "In Review" section.',
+      data: job,
+    });
   } catch (error) {
     console.error('Create job error:', error);
     console.error('Error stack:', error.stack);

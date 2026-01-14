@@ -8,6 +8,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 
 // Utility helpers
 const toISOFromDDMMYYYY = (val) => {
@@ -812,7 +813,7 @@ export default function CreateJob({ onCreated }) {
   const handleSave = async () => {
     // Basic validation for drafts - only require company and job title
     if (!form.company?.trim() || !form.jobTitle?.trim()) {
-      alert('Please fill in at least Company and Job Title before saving as draft.');
+      showWarning('Please fill in at least Company and Job Title before saving as draft.');
       return;
     }
     
@@ -820,10 +821,10 @@ export default function CreateJob({ onCreated }) {
       setIsSaving(true);
       const payload = buildJobPayload();
       await saveJobDraft(payload);
-      alert('Saved as draft successfully!');
+      showSuccess('Draft saved successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to save draft: ' + (err?.message || 'Unknown error'));
+      showError(err?.message || 'Failed to save draft. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -832,7 +833,7 @@ export default function CreateJob({ onCreated }) {
   const handleAddAnotherPosition = async () => {
     // Basic validation for saving position - only require company and job title
     if (!form.company?.trim() || !form.jobTitle?.trim()) {
-      alert('Please fill in at least Company and Job Title before saving this position.');
+      showWarning('Please fill in at least Company and Job Title before saving this position.');
       return;
     }
     
@@ -882,10 +883,10 @@ export default function CreateJob({ onCreated }) {
       });
 
       setCollapsedSections(new Set());
-      alert('Position saved; new form prefilled');
+      showSuccess('Position saved. New form has been prefilled.');
     } catch (err) {
       console.error(err);
-      alert('Failed to add another position: ' + (err?.message || 'Unknown error'));
+      showError(err?.message || 'Failed to add another position. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -902,12 +903,15 @@ export default function CreateJob({ onCreated }) {
       if (!isSkillsEligibilityComplete) missingFields.push('Skills & Eligibility');
       if (!isInterviewProcessComplete) missingFields.push('Interview Process');
       
-      alert(`Please complete the following sections before submitting:\n\n• ${missingFields.join('\n• ')}`);
+      showWarning(`Please complete the following sections before submitting: ${missingFields.join(', ')}`);
       return;
     }
     
+    let loadingToastId = null;
     try {
       setPosting(true);
+      loadingToastId = showLoading('Submitting job for review...');
+      
       const payload = buildJobPayload();
       
       // Debug: Log payload to see what's being sent
@@ -917,15 +921,19 @@ export default function CreateJob({ onCreated }) {
       const { jobId } = await submitJobForReview(payload);
       
       if (onCreated) onCreated();
-      alert('Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
+      replaceLoadingToast(loadingToastId, 'success', 'Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
       resetForm();
     } catch (err) {
       console.error('Submit error:', err);
       
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      
       // Handle network errors separately
       if (err?.isNetworkError || err?.message?.includes('Failed to connect') || err?.message?.includes('Failed to fetch')) {
         const backendPort = import.meta.env.VITE_API_URL?.match(/:(\d+)/)?.[1] || '3000';
-        alert(`Network Error:\n\n${err.message}\n\nPlease check:\n1. Backend server is running (http://localhost:${backendPort})\n2. No firewall is blocking the connection\n3. Backend server logs for any errors`);
+        showError(`Network error. Please check:\n1. Backend server is running (http://localhost:${backendPort})\n2. No firewall is blocking the connection\n3. Backend server logs for any errors`);
         return;
       }
       
@@ -940,7 +948,7 @@ export default function CreateJob({ onCreated }) {
         errorMessage = `Server error (${err.status}): ${errorMessage}`;
       }
       
-      alert(`Failed to submit job:\n\n${errorMessage}`);
+      showError(errorMessage || 'Failed to submit job. Please check all required fields and try again.');
     } finally {
       setPosting(false);
     }

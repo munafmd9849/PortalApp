@@ -76,11 +76,19 @@ export async function getOrCreateScreeningSession(req, res) {
     });
 
     if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Job not found',
+        message: 'The job you are trying to access does not exist.'
+      });
     }
 
     if (!job.recruiterEmail) {
-      return res.status(400).json({ error: 'Recruiter email not configured for this job' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Recruiter email not configured',
+        message: 'Recruiter email is not configured for this job. Please contact the administrator.'
+      });
     }
 
     // Check if application deadline has passed
@@ -88,6 +96,7 @@ export async function getOrCreateScreeningSession(req, res) {
     const deadline = job.applicationDeadline ? new Date(job.applicationDeadline) : null;
     if (deadline && now < deadline) {
       return res.status(403).json({ 
+        success: false,
         error: 'Screening is not available yet',
         message: `Application deadline is ${deadline.toLocaleDateString()}. Screening will be available after the deadline.`
       });
@@ -185,7 +194,11 @@ export async function getOrCreateScreeningSession(req, res) {
     });
   } catch (error) {
     console.error('Get screening session error:', error);
-    res.status(500).json({ error: 'Failed to get screening session', details: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get screening session',
+      message: 'An error occurred while loading the screening session. Please try again.'
+    });
   }
 }
 
@@ -202,18 +215,30 @@ export async function updateScreeningStatus(req, res) {
     const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Token is required' });
+      return res.status(401).json({ 
+        success: false,
+        error: 'Token is required',
+        message: 'Access token is required. Please use the link from your email.'
+      });
     }
 
     const decoded = verifyScreeningToken(token);
     if (!decoded) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid or expired token',
+        message: 'Your access token is invalid or has expired. Please use the link from your email.'
+      });
     }
 
     // Validate screening status
     const validStatuses = ['APPLIED', 'RESUME_REJECTED', 'RESUME_SELECTED', 'TEST_REJECTED', 'TEST_SELECTED'];
     if (!validStatuses.includes(screeningStatus)) {
-      return res.status(400).json({ error: 'Invalid screening status' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid screening status',
+        message: `Invalid screening status. Must be one of: ${validStatuses.join(', ')}`
+      });
     }
 
     // Get application to verify it belongs to the job
@@ -230,12 +255,20 @@ export async function updateScreeningStatus(req, res) {
     });
 
     if (!application) {
-      return res.status(404).json({ error: 'Application not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Application not found',
+        message: 'The application you are trying to update does not exist.'
+      });
     }
 
     // Verify token matches job
     if (application.job.id !== decoded.jobId) {
-      return res.status(403).json({ error: 'Token does not match this application' });
+      return res.status(403).json({ 
+        success: false,
+        error: 'Token does not match this application',
+        message: 'You do not have permission to update this application.'
+      });
     }
 
     // Validate status transitions
@@ -244,8 +277,9 @@ export async function updateScreeningStatus(req, res) {
     // Can only move to TEST status if RESUME_SELECTED
     if ((screeningStatus === 'TEST_REJECTED' || screeningStatus === 'TEST_SELECTED') && currentStatus !== 'RESUME_SELECTED') {
       return res.status(400).json({ 
+        success: false,
         error: 'Invalid status transition',
-        message: 'Cannot move to test stage without first selecting the resume'
+        message: 'Cannot move to test stage without first selecting the resume. Please select the resume first.'
       });
     }
 
@@ -263,6 +297,7 @@ export async function updateScreeningStatus(req, res) {
 
     res.json({
       success: true,
+      message: 'Screening decision saved successfully',
       application: {
         id: updated.id,
         screeningStatus: updated.screeningStatus,
@@ -272,7 +307,11 @@ export async function updateScreeningStatus(req, res) {
     });
   } catch (error) {
     console.error('Update screening status error:', error);
-    res.status(500).json({ error: 'Failed to update screening status', details: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update screening status',
+      message: 'An error occurred while saving the screening decision. Please try again.'
+    });
   }
 }
 
@@ -288,12 +327,20 @@ export async function finalizeScreening(req, res) {
     const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Token is required' });
+      return res.status(401).json({ 
+        success: false,
+        error: 'Token is required',
+        message: 'Access token is required. Please use the link from your email.'
+      });
     }
 
     const decoded = verifyScreeningToken(token);
     if (!decoded || decoded.jobId !== jobId) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid or expired token',
+        message: 'Your access token is invalid or has expired. Please use the link from your email.'
+      });
     }
 
     // Get all applications for this job
@@ -309,6 +356,7 @@ export async function finalizeScreening(req, res) {
 
     if (undecided.length > 0) {
       return res.status(400).json({ 
+        success: false,
         error: 'Cannot finalize screening',
         message: `${undecided.length} application(s) still need to be decided. Please complete all screening decisions before finalizing.`
       });
@@ -327,7 +375,7 @@ export async function finalizeScreening(req, res) {
 
     res.json({
       success: true,
-      message: 'Screening finalized successfully',
+      message: 'Screening finalized successfully. All decisions are now locked.',
       summary: {
         total: applications.length,
         testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED').length,
@@ -338,7 +386,11 @@ export async function finalizeScreening(req, res) {
     });
   } catch (error) {
     console.error('Finalize screening error:', error);
-    res.status(500).json({ error: 'Failed to finalize screening', details: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to finalize screening',
+      message: 'An error occurred while finalizing screening. Please try again.'
+    });
   }
 }
 

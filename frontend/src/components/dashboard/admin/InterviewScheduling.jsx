@@ -6,11 +6,10 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../../config/api';
 import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
-import { useToast } from '../../ui/Toast';
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 import { useNavigate } from 'react-router-dom';
 
 export default function InterviewScheduling() {
-  const toast = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
@@ -42,7 +41,7 @@ export default function InterviewScheduling() {
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
-        toast.error('Authentication required. Please log in again.');
+        showError('Authentication required. Please log in again.');
         return;
       }
 
@@ -63,14 +62,14 @@ export default function InterviewScheduling() {
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (response.status === 401 || response.status === 403) {
-          toast.error('Authentication failed. Please log in again.');
+          showError('Authentication failed. Please log in again.');
         } else {
-          toast.error(errorData.error || 'Failed to load jobs');
+          showError(errorData.error || errorData.message || 'Failed to load jobs');
         }
       }
     } catch (error) {
       console.error('Error loading jobs:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      showError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,7 @@ export default function InterviewScheduling() {
 
   const handleSelectJob = async (job) => {
     if (!job || !job.id) {
-      toast.error('Invalid job selected');
+      showError('Invalid job selected');
       return;
     }
 
@@ -91,7 +90,7 @@ export default function InterviewScheduling() {
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
-        toast.error('Authentication required. Please log in again.');
+        showError('Authentication required. Please log in again.');
         setLoadingSession(false);
         return;
       }
@@ -107,7 +106,7 @@ export default function InterviewScheduling() {
         const data = await response.json();
         
         if (!data.session) {
-          toast.error('Session data not found in response');
+          showError('Session data not found in response');
           setLoadingSession(false);
           return;
         }
@@ -130,23 +129,22 @@ export default function InterviewScheduling() {
         // Auto-populate rounds from job description if no rounds exist (Issue #7)
         if (data.session.rounds.length === 0 && data.session.suggestedRounds && data.session.suggestedRounds.length > 0) {
           setRounds(data.session.suggestedRounds);
-          toast.success(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
+          showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         
         if (response.status === 401 || response.status === 403) {
-          toast.error('Authentication failed. Please log in again.');
+          showError('Authentication failed. Please log in again.');
         } else if (response.status === 404) {
-          toast.error(errorData.error || 'Session not found');
+          showError(errorData.error || errorData.message || 'Session not found');
         } else {
-          toast.error(errorData.error || `Failed to load session (${response.status})`);
+          showError(errorData.error || errorData.message || `Failed to load session (${response.status})`);
         }
       }
     } catch (error) {
       console.error('Error loading session:', error);
-      
-        toast.error('Network error. Please check your connection and try again.');
+      showError('Network error. Please check your connection and try again.');
       // Don't close modal on error, let user see the error state
     } finally {
       setLoadingSession(false);
@@ -175,7 +173,7 @@ export default function InterviewScheduling() {
 
   const handleAddRound = () => {
     if (!roundName.trim()) {
-      toast.error('Please enter a round name');
+      showWarning('Please enter a round name');
       return;
     }
 
@@ -209,7 +207,7 @@ export default function InterviewScheduling() {
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
-        toast.error('Authentication required. Please log in again.');
+        showError('Authentication required. Please log in again.');
         return;
       }
 
@@ -225,18 +223,18 @@ export default function InterviewScheduling() {
       if (response.ok) {
         const data = await response.json();
         setRounds(data.rounds);
-        toast.success('Rounds configured successfully');
+        showSuccess('Rounds configured successfully');
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (response.status === 401 || response.status === 403) {
-          toast.error('Authentication failed. Please log in again.');
+          showError('Authentication failed. Please log in again.');
         } else {
           toast.error(errorData.error || 'Failed to configure rounds');
         }
       }
     } catch (error) {
       console.error('Error configuring rounds:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      showError('Network error. Please check your connection and try again.');
     } finally {
       setConfiguringRounds(false);
     }
@@ -245,12 +243,12 @@ export default function InterviewScheduling() {
   const handleAddInterviewer = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(interviewerEmail)) {
-      toast.error('Please enter a valid email address');
+      showWarning('Please enter a valid email address');
       return;
     }
 
     if (interviewerEmails.includes(interviewerEmail)) {
-      toast.error('This email is already added');
+      showWarning('This email is already added');
       return;
     }
 
@@ -273,7 +271,7 @@ export default function InterviewScheduling() {
       const token = localStorage.getItem('accessToken');
       
       if (!token) {
-        toast.error('Authentication required. Please log in again.');
+        showError('Authentication required. Please log in again.');
         return;
       }
 
@@ -288,7 +286,7 @@ export default function InterviewScheduling() {
 
       if (response.ok) {
         const data = await response.json();
-        toast.success(`Invites sent to ${data.invites.length} interviewer(s)`);
+        showSuccess(`Invites sent to ${data.invites.length} interviewer(s)`);
         // Reload session to get updated invites
         if (selectedJob) {
           handleSelectJob(selectedJob);
@@ -296,14 +294,14 @@ export default function InterviewScheduling() {
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (response.status === 401 || response.status === 403) {
-          toast.error('Authentication failed. Please log in again.');
+          showError('Authentication failed. Please log in again.');
         } else {
-          toast.error(errorData.error || 'Failed to invite interviewers');
+          showError(errorData.error || errorData.message || 'Failed to invite interviewers');
         }
       }
     } catch (error) {
       console.error('Error inviting interviewers:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      showError('Network error. Please check your connection and try again.');
     } finally {
       setInviting(false);
     }

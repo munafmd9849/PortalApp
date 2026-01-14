@@ -6,6 +6,15 @@
 
 import { API_BASE_URL, getBackendPort } from '../config/api.js';
 
+// Lazy import toast utility to avoid circular dependency
+let toastUtils = null;
+async function getToastUtils() {
+  if (!toastUtils) {
+    toastUtils = await import('../utils/toast.js');
+  }
+  return toastUtils;
+}
+
 /**
  * Get auth token from storage
  */
@@ -72,8 +81,16 @@ async function refreshAccessToken() {
 
 /**
  * API request wrapper with auth and error handling
+ * Automatically shows toast notifications for errors and optional success messages
+ * 
+ * @param {string} endpoint - API endpoint
+ * @param {object} options - Request options
+ * @param {boolean} options.silent - If true, don't show toast notifications
+ * @param {boolean} options.showSuccess - If true, show success toast if response has message
+ * @returns {Promise} API response data
  */
 async function apiRequest(endpoint, options = {}) {
+  const { silent = false, showSuccess = false, ...fetchOptions } = options;
   const token = getAuthToken();
 
   const headers = {
@@ -89,7 +106,7 @@ async function apiRequest(endpoint, options = {}) {
     let response;
     try {
       response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
@@ -120,6 +137,17 @@ async function apiRequest(endpoint, options = {}) {
       error.originalError = fetchError;
       error.endpoint = endpoint;
       error.url = url;
+      
+      // Automatically show network error toast unless silent
+      if (!silent) {
+        getToastUtils().then(utils => {
+          utils.handleApiError(error);
+        }).catch(() => {
+          // Toast not initialized yet, just log
+          console.error('Network Error:', error.message);
+        });
+      }
+      
       throw error;
     }
 
@@ -129,7 +157,7 @@ async function apiRequest(endpoint, options = {}) {
         const newToken = await refreshAccessToken();
         headers.Authorization = `Bearer ${newToken}`;
         response = await fetch(url, {
-          ...options,
+          ...fetchOptions,
           headers,
         });
       } catch (error) {
@@ -161,6 +189,17 @@ async function apiRequest(endpoint, options = {}) {
         statusText: response.statusText,
       };
       error.status = response.status;
+      
+      // Automatically show error toast unless silent
+      if (!silent) {
+        getToastUtils().then(utils => {
+          utils.handleApiError(error);
+        }).catch(() => {
+          // Toast not initialized yet, just log
+          console.error('API Error:', error.message);
+        });
+      }
+      
       throw error;
     }
 
@@ -177,6 +216,15 @@ async function apiRequest(endpoint, options = {}) {
         hasCertifications: Array.isArray(data?.certifications),
         certificationsCount: data?.certifications?.length || 0,
         fullResponse: data,
+      });
+    }
+    
+    // Show success toast if requested and message exists
+    if (!silent && showSuccess && data?.message) {
+      getToastUtils().then(utils => {
+        utils.showSuccess(data.message);
+      }).catch(() => {
+        // Toast not initialized, ignore
       });
     }
     
@@ -589,38 +637,51 @@ export const api = {
 
   // Generic HTTP methods for calendar and other services
   get: (endpoint, config = {}) => {
-    const query = config.params ? new URLSearchParams(config.params).toString() : '';
+    const { silent, showSuccess, params, ...restConfig } = config;
+    const query = params ? new URLSearchParams(params).toString() : '';
     const url = query ? `${endpoint}?${query}` : endpoint;
-    return apiRequest(url).then(data => ({ data }));
+    return apiRequest(url, { silent, showSuccess, ...restConfig }).then(data => ({ data }));
   },
   post: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response })).catch(error => {
       // Re-throw to preserve error structure
       throw error;
     });
   },
   put: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
   delete: (endpoint, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'DELETE',
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
   patch: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'PATCH',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
 };

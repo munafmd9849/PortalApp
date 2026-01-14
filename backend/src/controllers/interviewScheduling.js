@@ -7,6 +7,7 @@ import prisma from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../config/email.js';
 import logger from '../config/logger.js';
+import { sendSuccess, sendError, sendValidationError, sendNotFound, sendUnauthorized, sendForbidden, sendServerError } from '../utils/response.js';
 
 /**
  * Generate secure token for interviewer invite
@@ -237,7 +238,7 @@ export const configureRounds = async (req, res) => {
     const { rounds } = req.body; // Array of { name, roundNumber }
 
     if (!rounds || !Array.isArray(rounds) || rounds.length === 0) {
-      return res.status(400).json({ error: 'rounds array is required' });
+      return sendValidationError(res, 'rounds', 'Rounds array is required and must contain at least one round');
     }
 
     // Get session
@@ -247,23 +248,23 @@ export const configureRounds = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return sendNotFound(res, 'Interview session');
     }
 
     // Validate session status
     if (session.status === 'COMPLETED') {
-      return res.status(409).json({ error: 'Cannot configure rounds for completed session' });
+      return sendError(res, 'Cannot configure rounds for completed session', 'This interview session has been completed. Rounds cannot be modified.', 409);
     }
 
     if (session.status === 'ONGOING') {
-      return res.status(409).json({ error: 'Cannot modify rounds while session is ongoing' });
+      return sendError(res, 'Cannot modify rounds while session is ongoing', 'Rounds cannot be modified while the interview session is in progress.', 409);
     }
 
     // Validate round numbers are sequential
     const roundNumbers = rounds.map(r => r.roundNumber || r.roundNumber).sort((a, b) => a - b);
     for (let i = 0; i < roundNumbers.length; i++) {
       if (roundNumbers[i] !== i + 1) {
-        return res.status(400).json({ error: `Round numbers must be sequential starting from 1. Found: ${roundNumbers.join(', ')}` });
+        return sendValidationError(res, 'roundNumbers', `Round numbers must be sequential starting from 1. Found: ${roundNumbers.join(', ')}`);
       }
     }
 
@@ -271,7 +272,7 @@ export const configureRounds = async (req, res) => {
     const names = rounds.map(r => r.name.trim());
     const uniqueNames = new Set(names);
     if (names.length !== uniqueNames.size) {
-      return res.status(400).json({ error: 'Round names must be unique' });
+      return sendValidationError(res, 'roundNames', 'Round names must be unique');
     }
 
     // Delete existing rounds (if any)
@@ -293,18 +294,17 @@ export const configureRounds = async (req, res) => {
       )
     );
 
-    res.json({
-      message: 'Rounds configured successfully',
+    sendSuccess(res, {
       rounds: createdRounds.map(r => ({
         id: r.id,
         roundNumber: r.roundNumber,
         name: r.name,
         status: r.status,
       })),
-    });
+    }, 'Rounds configured successfully');
   } catch (error) {
     console.error('Error configuring rounds:', error);
-    res.status(500).json({ error: 'Failed to configure rounds', details: error.message });
+    sendServerError(res, 'Failed to configure rounds. Please try again.');
   }
 };
 
@@ -318,14 +318,14 @@ export const inviteInterviewers = async (req, res) => {
     const { emails } = req.body; // Array of email addresses
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return res.status(400).json({ error: 'emails array is required' });
+      return sendValidationError(res, 'emails', 'At least one interviewer email is required');
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const invalidEmails = emails.filter(email => !emailRegex.test(email));
     if (invalidEmails.length > 0) {
-      return res.status(400).json({ error: `Invalid email format: ${invalidEmails.join(', ')}` });
+      return sendValidationError(res, 'emails', `Invalid email format: ${invalidEmails.join(', ')}`);
     }
 
     // Get session
@@ -413,13 +413,10 @@ export const inviteInterviewers = async (req, res) => {
       });
     }
 
-    res.json({
-      message: 'Interviewers invited successfully',
-      invites,
-    });
+    sendSuccess(res, { invites }, 'Interviewers invited successfully');
   } catch (error) {
     console.error('Error inviting interviewers:', error);
-    res.status(500).json({ error: 'Failed to invite interviewers', details: error.message });
+    sendServerError(res, 'Failed to send interviewer invitations. Please try again.');
   }
 };
 
@@ -947,10 +944,7 @@ export const evaluateCandidate = async (req, res) => {
       },
     });
 
-    res.json({
-      message: 'Evaluation saved successfully',
-      evaluation,
-    });
+    sendSuccess(res, { evaluation }, 'Evaluation saved successfully');
   } catch (error) {
     console.error('Error evaluating candidate:', error);
     res.status(500).json({ error: 'Failed to save evaluation', details: error.message });

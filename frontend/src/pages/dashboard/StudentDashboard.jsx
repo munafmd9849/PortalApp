@@ -14,6 +14,7 @@ import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '.
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
 import api from '../../services/api';
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -733,6 +734,7 @@ export default function StudentDashboard() {
         });
       }
       
+<<<<<<< Updated upstream
           job: {
             id: pendingJob.id,
             jobTitle: pendingJob.jobTitle,
@@ -751,6 +753,10 @@ export default function StudentDashboard() {
       setAlertMessage(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
       setAlertType('success');
       setShowFloatingAlert(true);
+=======
+      // Show success toast
+      showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
+>>>>>>> Stashed changes
       
       // Refresh applications list to get complete data from backend
       await loadApplicationsData();
@@ -758,14 +764,7 @@ export default function StudentDashboard() {
       // Clear applying state after successful application
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
       
-      // Auto-hide success message after 3 seconds
-      setTimeout(() => {
-        setShowFloatingAlert(false);
-        setAlertMessage(null);
-      }, 3000);
-      
     } catch (error) {
-<<<<<<< HEAD
       console.error('❌ [handleApplyToJob] Full error:', error);
       console.error('❌ [handleApplyToJob] Error response:', error.response);
       console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
@@ -781,7 +780,6 @@ export default function StudentDashboard() {
       }
       
       // Handle CGPA requirement error with precise message
-<<<<<<< HEAD
       if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
           errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
         // Clean and precise error message
@@ -797,14 +795,6 @@ export default function StudentDashboard() {
         // Clean error message for other errors
         const cleanMessage = errorData.message || errorMessage || 'Failed to apply to job. Please try again.';
         showError(cleanMessage);
-      }
-        setAlertType('error');
-        setShowFloatingAlert(true);
-        
-        setTimeout(() => {
-          setShowFloatingAlert(false);
-          setAlertMessage(null);
-        }, 5000);
       }
     } finally {
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
