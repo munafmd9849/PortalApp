@@ -735,15 +735,60 @@ export async function applyToJob(req, res) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    // Get student with full details for email
+    // Get student with full details including CGPA
     const studentProfile = await prisma.student.findUnique({
       where: { id: student.id },
       select: {
         id: true,
         fullName: true,
         email: true,
+        cgpa: true,
       },
     });
+
+    // Validate CGPA requirement
+    if (job.minCgpa) {
+      const jobMinCgpa = job.minCgpa;
+      const studentCgpa = studentProfile.cgpa ? parseFloat(String(studentProfile.cgpa)) : null;
+
+      if (studentCgpa === null || isNaN(studentCgpa)) {
+        return res.status(400).json({ 
+          error: 'CGPA requirement check failed',
+          message: 'Your CGPA is not set in your profile. Please update your profile with your current CGPA to apply for this job.',
+          requirement: `This job requires a minimum CGPA of ${jobMinCgpa}`,
+        });
+      }
+
+      // Parse job requirement - could be CGPA (0-10) or percentage (0-100)
+      const requirementStr = String(jobMinCgpa).trim();
+      let requiredCgpa = null;
+
+      // Check if it's a percentage (ends with %)
+      if (requirementStr.endsWith('%')) {
+        const percentage = parseFloat(requirementStr.slice(0, -1));
+        if (!isNaN(percentage)) {
+          // Convert percentage to CGPA (assuming 10-point scale: 70% = 7.0)
+          requiredCgpa = percentage / 10;
+        }
+      } else {
+        // Try to parse as CGPA directly
+        requiredCgpa = parseFloat(requirementStr);
+      }
+
+      if (!isNaN(requiredCgpa) && studentCgpa < requiredCgpa) {
+        const requirementDisplay = requirementStr.endsWith('%') 
+          ? `${requirementStr} (${requiredCgpa.toFixed(2)} CGPA)` 
+          : `${requiredCgpa.toFixed(2)}`;
+        
+        return res.status(400).json({ 
+          error: 'CGPA requirement not met',
+          message: `Your current CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement for this job.`,
+          requirement: `This job requires a minimum CGPA of ${requirementDisplay}`,
+          yourCgpa: studentCgpa.toFixed(2),
+          requiredCgpa: requirementDisplay,
+        });
+      }
+    }
 
     // Create application with resumeId (store in notes field for now, or extend schema later)
     // Note: To properly store resumeId, we'd need to add a resumeId field to Application model
@@ -753,6 +798,7 @@ export async function applyToJob(req, res) {
       jobId,
       companyId: job.companyId,
       status: 'APPLIED',
+      screeningStatus: 'APPLIED', // Initialize screening status for recruiter screening flow
       appliedDate: new Date(),
       notes: resumeId ? JSON.stringify({ resumeId }) : null, // Store resumeId in notes for now
     };

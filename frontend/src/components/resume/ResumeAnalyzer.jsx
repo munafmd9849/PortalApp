@@ -185,11 +185,11 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       }
 
       console.log('📊 [ATS Analysis] Calling backend API with resume text length:', resumeText.length);
-      
+
       // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
+
       let response;
       try {
         response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
@@ -262,10 +262,10 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         message: err.message,
         stack: err.stack
       });
-      
+
       // Provide more helpful error messages
       let errorMessage = err.message || 'Failed to analyze resume. Please try again.';
-      
+
       // Enhance error messages for common issues
       if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
         errorMessage = 'Analysis timed out. The server may be slow or unresponsive. Please try again or check if the backend server is running.';
@@ -286,7 +286,8 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       }
       
       setError(errorMessage);
-      setLoading(false); // Ensure loading is cleared on error
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -733,7 +733,21 @@ export default function StudentDashboard() {
         });
       }
       
-      // Show success message in clean alert box
+          job: {
+            id: pendingJob.id,
+            jobTitle: pendingJob.jobTitle,
+            ...pendingJob
+          }
+        };
+        setApplications(prev => {
+          // Check if already exists to avoid duplicates
+          const exists = prev.some(app => app.jobId === pendingJob.id);
+          if (exists) return prev;
+          return [newApplication, ...prev];
+        });
+      }
+      
+      // Show success toast
       setAlertMessage(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
       setAlertType('success');
       setShowFloatingAlert(true);
@@ -751,6 +765,7 @@ export default function StudentDashboard() {
       }, 3000);
       
     } catch (error) {
+<<<<<<< HEAD
       console.error('❌ [handleApplyToJob] Full error:', error);
       console.error('❌ [handleApplyToJob] Error response:', error.response);
       console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
@@ -766,6 +781,7 @@ export default function StudentDashboard() {
       }
       
       // Handle CGPA requirement error with precise message
+<<<<<<< HEAD
       if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
           errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
         // Clean and precise error message
@@ -773,29 +789,15 @@ export default function StudentDashboard() {
         const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
         const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
         
-        const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
-        setAlertMessage(fullMessage);
-        setAlertType('error');
-        setShowFloatingAlert(true);
-        
-        setTimeout(() => {
-          setShowFloatingAlert(false);
-          setAlertMessage(null);
-        }, 7000);
+        showError(`${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`);
       } else if (error.isNetworkError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        // Network error
-        setAlertMessage('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
-        setAlertType('error');
-        setShowFloatingAlert(true);
-        
-        setTimeout(() => {
-          setShowFloatingAlert(false);
-          setAlertMessage(null);
-        }, 5000);
+        // Network error - already handled by API layer, but show if not shown
+        showError('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
       } else {
         // Clean error message for other errors
         const cleanMessage = errorData.message || errorMessage || 'Failed to apply to job. Please try again.';
-        setAlertMessage(cleanMessage);
+        showError(cleanMessage);
+      }
         setAlertType('error');
         setShowFloatingAlert(true);
         

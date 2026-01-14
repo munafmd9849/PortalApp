@@ -1915,3 +1915,87 @@ async function syncCodingProfiles(userId, profileData) {
     }
   }
 }
+
+/**
+ * Analyze resume for ATS compatibility
+ * POST /api/students/resume/ats-analysis
+ * Body: { resumeText, resumeId? }
+ * Auth: Student only
+ */
+export async function analyzeATSResume(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeText, resumeId } = req.body;
+
+    // Validate input
+    if (!resumeText || typeof resumeText !== 'string' || resumeText.trim().length === 0) {
+      return res.status(400).json({ error: 'Resume text is required' });
+    }
+
+    // Optional: Verify resume belongs to student if resumeId is provided
+    if (resumeId) {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      const resume = await prisma.studentResumeFile.findFirst({
+        where: {
+          id: resumeId,
+          studentId: student.id,
+        },
+      });
+
+      if (!resume) {
+        return res.status(403).json({ error: 'Resume not found or access denied' });
+      }
+    }
+
+    // Import AI service
+    const { analyzeATSResume: analyzeATS } = await import('../services/aiService.js');
+
+    // Call AI service for analysis
+    const analysis = await analyzeATS(resumeText);
+
+    // Return formatted response
+    res.json({
+      success: true,
+      analysis: {
+        atsScore: analysis.atsScore,
+        missingKeywords: analysis.missingKeywords,
+        missingSkills: analysis.missingSkills,
+        grammarIssues: analysis.grammarIssues,
+        formattingIssues: analysis.formattingIssues,
+        clarityIssues: analysis.clarityIssues,
+        improvementSuggestions: analysis.improvementSuggestions,
+        strengths: analysis.strengths,
+        overallFeedback: analysis.overallFeedback,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('ATS analysis error:', error);
+    
+    // Handle specific error types
+    if (error.message.includes('not configured') || error.message.includes('not available')) {
+      return res.status(503).json({ 
+        error: 'ATS analysis service is temporarily unavailable. Please try again later.',
+        details: 'AI service is not configured or unavailable'
+      });
+    }
+
+    if (error.message.includes('Resume text is required')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Generic error response
+    res.status(500).json({ 
+      error: 'Failed to analyze resume. Please try again.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}
