@@ -32,6 +32,8 @@ import googleCalendarConnectRoutes from './routes/googleCalendarConnect.js';
 import calendarRoutes from './routes/calendar.js';
 import endorsementRoutes from './routes/endorsements.js';
 import placementRoutes from './routes/placement.js';
+import recruiterScreeningRoutes from './routes/recruiterScreening.js';
+import adminScreeningRoutes from './routes/adminScreening.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -151,6 +153,8 @@ app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (
 app.use('/api/calendar', calendarRoutes); // New unified calendar routes
 app.use('/api/endorsements', endorsementRoutes);
 app.use('/api/placement', placementRoutes);
+app.use('/api/recruiter', recruiterScreeningRoutes); // Token-based recruiter screening (no login)
+app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code
@@ -224,9 +228,45 @@ server.listen(PORT,'0.0.0.0',() => {
   process.exit(1);
 });
 
+// Scheduled task: Check for jobs with passed deadlines and send recruiter screening emails
+// Runs every hour
+import { checkAndSendScreeningEmails } from './services/screeningEmailService.js';
+
+let screeningEmailInterval = null;
+
+function startScreeningEmailScheduler() {
+  // Run immediately on startup (for jobs that already passed deadline)
+  setTimeout(async () => {
+    try {
+      console.log('🔍 Checking for jobs with passed deadlines to send screening emails...');
+      await checkAndSendScreeningEmails();
+    } catch (error) {
+      console.error('❌ Error in screening email check:', error);
+    }
+  }, 30000); // Wait 30 seconds after server start
+
+  // Then run every hour
+  screeningEmailInterval = setInterval(async () => {
+    try {
+      console.log('🔍 Scheduled check: Sending recruiter screening emails...');
+      await checkAndSendScreeningEmails();
+    } catch (error) {
+      console.error('❌ Error in scheduled screening email check:', error);
+    }
+  }, 60 * 60 * 1000); // Every hour
+
+  console.log('📅 Screening email scheduler started (runs every hour)');
+}
+
+// Start scheduler
+startScreeningEmailScheduler();
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  if (screeningEmailInterval) {
+    clearInterval(screeningEmailInterval);
+  }
   await prisma.$disconnect();
   server.close(() => {
     console.log('Server closed');

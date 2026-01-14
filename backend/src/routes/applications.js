@@ -16,6 +16,9 @@ router.use(authenticate);
 // Get all applications (admin only) - must be before /:applicationId routes
 router.get('/', requireRole(['ADMIN']), applicationController.getAllApplications);
 
+// Get screening summary for a job (admin only)
+router.get('/job/:jobId/screening-summary', requireRole(['ADMIN']), applicationController.getJobScreeningSummary);
+
 // Get student's applications (student only)
 router.get('/student', requireRole(['STUDENT']), applicationController.getStudentApplications);
 

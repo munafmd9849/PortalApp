@@ -2227,6 +2227,37 @@ export default function StudentDashboard() {
                             {/* Dropdown Content - Status and Round Details */}
                             {expandedApplications.has(record.id) && (
                               <div className="mb-6 space-y-6 border-t border-gray-200 pt-6">
+                                {/* Screening Status Badge (shown first, before interview status) */}
+                                {record.screeningStatusText && (
+                                  <div className={`p-4 border rounded-lg ${
+                                    record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                      ? 'bg-red-50 border-red-200'
+                                      : record.screeningStatus === 'TEST_SELECTED'
+                                      ? 'bg-green-50 border-green-200'
+                                      : 'bg-yellow-50 border-yellow-200'
+                                  }`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Info className={`w-5 h-5 ${
+                                        record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                          ? 'text-red-600'
+                                          : record.screeningStatus === 'TEST_SELECTED'
+                                          ? 'text-green-600'
+                                          : 'text-yellow-600'
+                                      }`} />
+                                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
+                                    </div>
+                                    <p className={`text-base font-bold ${
+                                      record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                        ? 'text-red-800'
+                                        : record.screeningStatus === 'TEST_SELECTED'
+                                        ? 'text-green-800'
+                                        : 'text-yellow-800'
+                                    }`}>
+                                      {record.screeningStatusText}
+                                    </p>
+                                  </div>
+                                )}
+                                
                                 {/* Status Badges */}
                                 <div className="flex items-center gap-3 justify-center md:justify-start">
                                   {isCracked && (
@@ -2439,8 +2470,38 @@ export default function StudentDashboard() {
                         }`}></div>
                         
                         <div className="p-8">
-                          {/* Interview Status Badge */}
-                          {application.interviewStatus?.hasSession && (
+                          {/* Screening Status Badge (shown first, before interview status) */}
+                          {application.screeningStatusText && (
+                            <div className={`mb-4 p-3 border rounded-lg ${
+                              application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                ? 'bg-red-50 border-red-200'
+                                : application.screeningStatus === 'TEST_SELECTED'
+                                ? 'bg-green-50 border-green-200'
+                                : 'bg-yellow-50 border-yellow-200'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <Info className={`w-4 h-4 ${
+                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                    ? 'text-red-600'
+                                    : application.screeningStatus === 'TEST_SELECTED'
+                                    ? 'text-green-600'
+                                    : 'text-yellow-600'
+                                }`} />
+                                <span className={`text-sm font-medium ${
+                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                    ? 'text-red-800'
+                                    : application.screeningStatus === 'TEST_SELECTED'
+                                    ? 'text-green-800'
+                                    : 'text-yellow-800'
+                                }`}>
+                                  {application.screeningStatusText}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Interview Status Badge (only if passed screening) */}
+                          {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
                             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Info className="w-4 h-4 text-blue-600" />

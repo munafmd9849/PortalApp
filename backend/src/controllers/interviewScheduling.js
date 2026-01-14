@@ -114,8 +114,15 @@ export const getOrCreateSession = async (req, res) => {
       });
     }
 
-    // Get application count
-    const applicationCount = await prisma.application.count({
+    // Get application count (only TEST_SELECTED candidates are eligible for interviews)
+    const eligibleApplicationCount = await prisma.application.count({
+      where: { 
+        jobId,
+        screeningStatus: 'TEST_SELECTED'
+      },
+    });
+
+    const totalApplicationCount = await prisma.application.count({
       where: { jobId },
     });
 
@@ -180,7 +187,8 @@ export const getOrCreateSession = async (req, res) => {
           company: job.company ? { name: job.company.name } : null,
           description: job.description, // Include for round extraction
         },
-        totalApplications: applicationCount,
+        totalApplications: totalApplicationCount,
+        eligibleApplications: eligibleApplicationCount, // Only TEST_SELECTED candidates
         rounds: session.rounds.map(r => ({
           id: r.id,
           roundNumber: r.roundNumber,
@@ -703,14 +711,23 @@ export const getRoundCandidates = async (req, res) => {
     }
 
     // Get all applications for this job
+    // CRITICAL: Only include candidates who passed screening (TEST_SELECTED)
     let applications = await prisma.application.findMany({
-      where: { jobId: round.session.jobId },
+      where: { 
+        jobId: round.session.jobId,
+        screeningStatus: 'TEST_SELECTED' // Only candidates who passed screening
+      },
       include: {
         student: {
           include: { user: true },
         },
       },
     });
+
+    // If no TEST_SELECTED candidates found, return empty list with warning
+    if (applications.length === 0) {
+      console.warn(`No TEST_SELECTED candidates found for job ${round.session.jobId}. Interview session can only include candidates who passed screening.`);
+    }
 
     // Backend-enforced filtering: For rounds after the first, only show SELECTED from previous round
     if (round.roundNumber > 1) {

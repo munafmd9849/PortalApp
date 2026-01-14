@@ -371,6 +371,8 @@ model Job {
   companyId   String?
   recruiterId String?
   companyName String? // Fallback if companyId is null
+  recruiterEmail String? // REQUIRED for new jobs: Email for recruiter/HR screening access (token-based)
+  recruiterName  String? // Optional: Name of recruiter/HR contact
 
   // Compensation
   salary      String? // Can be number or range string
@@ -424,6 +426,7 @@ model Job {
   jobTracking      JobTracking[]
   interviews       Interview[]
   interviewSession InterviewSession?
+  screeningSession RecruiterScreeningSession?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
@@ -470,6 +473,11 @@ model Application {
   appliedDate   DateTime  @default(now()) // Date only (YYYY-MM-DD)
   interviewDate DateTime?
 
+  // Pre-interview screening status (REQUIRED before interview)
+  screeningStatus String? @default("APPLIED") // ScreeningStatus: APPLIED, RESUME_REJECTED, RESUME_SELECTED, TEST_REJECTED, TEST_SELECTED
+  screeningRemarks String? // Optional remarks from recruiter during screening
+  screeningCompletedAt DateTime? // When screening was finalized
+
   // Interview status tracking (for new interview system)
   interviewStatus  String? // Final status: "SELECTED", "REJECTED_IN_ROUND_1", "REJECTED_IN_ROUND_2", etc.
   lastRoundReached Int?    @default(0) // Last round number reached (0 = not started)
@@ -491,6 +499,7 @@ model Application {
   @@index([jobId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
   @@index([interviewStatus])
+  @@index([screeningStatus])
   @@map("applications")
 }
 
@@ -942,3 +951,23 @@ model RoundEvaluation {
 }
 
 // EvaluationStatus: "SELECTED", "REJECTED", "ON_HOLD"
+
+// ============================================================================
+// RECRUITER SCREENING SESSIONS
+// ============================================================================
+
+model RecruiterScreeningSession {
+  id        String   @id @default(uuid())
+  jobId     String   @unique
+  token     String   @unique // Secure random token or JWT for access
+  expiresAt DateTime // Token expiration (7-14 days)
+  createdAt DateTime @default(now())
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([jobId])
+  @@index([expiresAt])
+  @@map("recruiter_screening_sessions")
+}

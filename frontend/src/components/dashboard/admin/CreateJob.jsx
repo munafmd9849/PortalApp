@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
 import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
@@ -91,6 +91,7 @@ export default function CreateJob({ onCreated }) {
 
   const [websiteError, setWebsiteError] = useState('');
   const [linkedinError, setLinkedinError] = useState('');
+  const [recruiterEmailError, setRecruiterEmailError] = useState('');
   const [stipendError, setStipendError] = useState('');
   const [durationError, setDurationError] = useState('');
   const [salaryError, setSalaryError] = useState('');
@@ -133,6 +134,8 @@ export default function CreateJob({ onCreated }) {
     company: '',
     website: '',
     linkedin: '',
+    recruiterEmail: '', // REQUIRED: Email for recruiter/HR screening access
+    recruiterName: '', // Optional: Name of recruiter/HR contact
     jobType: '',
     stipend: '',
     duration: '',
@@ -405,18 +408,19 @@ export default function CreateJob({ onCreated }) {
 
   // All existing completion checks
   const isCompanyDetailsComplete = useMemo(() => {
-    const base = form.company?.trim() && form.jobTitle?.trim() && form.companyLocation?.trim() && form.website?.trim() && form.linkedin?.trim() && form.workMode?.trim() && form.workMode !== '' && form.jobType?.trim() && form.jobType !== '';
+    const base = form.company?.trim() && form.jobTitle?.trim() && form.companyLocation?.trim() && form.website?.trim() && form.linkedin?.trim() && form.workMode?.trim() && form.workMode !== '' && form.jobType?.trim() && form.jobType !== '' && form.recruiterEmail?.trim();
     const comp = form.jobType === 'Internship'
       ? form.stipend?.trim() && form.duration?.trim()
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
+    const recruiterEmailOk = !form.recruiterEmail?.trim() || !recruiterEmailError;
     const stipendOk = !form.stipend?.trim() || !stipendError;
     const durationOk = !form.duration?.trim() || !durationError;
     const salaryOk = !form.salary?.trim() || !salaryError;
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
-    return !!(base && comp && websiteOk && linkedinOk && stipendOk && durationOk && salaryOk && locationOk);
-  }, [form, websiteError, linkedinError, stipendError, durationError, salaryError, companyLocationError]);
+    return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
+  }, [form, websiteError, linkedinError, recruiterEmailError, stipendError, durationError, salaryError, companyLocationError]);
 
   const isDriveDetailsComplete = useMemo(() => {
     return !!(form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText)) && form.driveVenues.length > 0;
@@ -519,6 +523,16 @@ export default function CreateJob({ onCreated }) {
     } else {
       setCompanyLocationError('Please enter the location');
     }
+  };
+
+  const onRecruiterEmailChange = (value) => {
+    update({ recruiterEmail: value });
+    if (!value) {
+      setRecruiterEmailError('');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setRecruiterEmailError(emailRegex.test(value) ? '' : 'Please enter a valid email address');
   };
 
   const onYopChange = (value) => {
@@ -682,6 +696,8 @@ export default function CreateJob({ onCreated }) {
       company: keep.company ?? '',
       website: keep.website ?? '',
       linkedin: keep.linkedin ?? '',
+      recruiterEmail: keep.recruiterEmail ?? '',
+      recruiterName: keep.recruiterName ?? '',
       jobType: '',
       stipend: '',
       duration: '',
@@ -746,6 +762,9 @@ export default function CreateJob({ onCreated }) {
       website: form.website || '',
       linkedin: form.linkedin || '',
       companyLocation: form.companyLocation || '',
+      // Recruiter/HR contact (REQUIRED)
+      recruiterEmail: (form.recruiterEmail || '').trim(),
+      recruiterName: (form.recruiterName || '').trim() || null,
       // Job details
       jobType: form.jobType || '',
       stipend: form.stipend || '',
@@ -1130,6 +1149,44 @@ export default function CreateJob({ onCreated }) {
                       required 
                     />
                     {websiteError && <p className="text-red-500 text-sm mt-1">{websiteError}</p>}
+                  </div>
+                </div>
+
+                {/* Recruiter/HR Contact Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Mail size={16} className="text-purple-600" />
+                      Recruiter/HR Email <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      type="email"
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        recruiterEmailError ? 'border-red-500 bg-red-50' : form.recruiterEmail?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="recruiter@company.com" 
+                      value={form.recruiterEmail} 
+                      onChange={(e) => onRecruiterEmailChange(e.target.value)} 
+                      onBlur={(e) => onRecruiterEmailChange(e.target.value)}
+                      required 
+                    />
+                    {recruiterEmailError && <p className="text-red-500 text-sm mt-1">{recruiterEmailError}</p>}
+                    <p className="text-xs text-gray-500 mt-1">This email will receive the screening link after application deadline</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <User size={16} className="text-gray-500" />
+                      Recruiter/HR Name <span className="text-gray-400">(Optional)</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        form.recruiterName?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="e.g. John Doe" 
+                      value={form.recruiterName} 
+                      onChange={(e) => update({ recruiterName: e.target.value })} 
+                    />
                   </div>
                 </div>
 
