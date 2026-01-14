@@ -734,29 +734,8 @@ export default function StudentDashboard() {
         });
       }
       
-<<<<<<< Updated upstream
-          job: {
-            id: pendingJob.id,
-            jobTitle: pendingJob.jobTitle,
-            ...pendingJob
-          }
-        };
-        setApplications(prev => {
-          // Check if already exists to avoid duplicates
-          const exists = prev.some(app => app.jobId === pendingJob.id);
-          if (exists) return prev;
-          return [newApplication, ...prev];
-        });
-      }
-      
-      // Show success toast
-      setAlertMessage(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
-      setAlertType('success');
-      setShowFloatingAlert(true);
-=======
       // Show success toast
       showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
->>>>>>> Stashed changes
       
       // Refresh applications list to get complete data from backend
       await loadApplicationsData();
