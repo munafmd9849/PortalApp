@@ -331,6 +331,10 @@ router.post('/refresh', verifyRefreshToken, async (req, res) => {
 /**
  * POST /auth/logout
  * Logout user (invalidate refresh token)
+ * 
+ * IMPORTANT: This endpoint ONLY clears refresh tokens for session management.
+ * Google Calendar tokens are NOT cleared on logout - they persist in the database
+ * so the calendar remains connected when the user logs back in.
  */
 router.post('/logout', authenticate, async (req, res) => {
   try {
@@ -338,6 +342,8 @@ router.post('/logout', authenticate, async (req, res) => {
     const refreshToken = req.body.refreshToken;
 
     // Delete refresh token if provided
+    // NOTE: We explicitly do NOT delete GoogleCalendarToken records here.
+    // Calendar connection should persist across logout/login cycles.
     if (refreshToken) {
       await prisma.refreshToken.deleteMany({
         where: { token: refreshToken },

@@ -45,19 +45,20 @@ const RecruiterScreening = () => {
       setLoading(true);
       setError(null);
 
-      const response = await api.get(`/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`);
+      // NOTE: our API client returns `{ data }` for `api.get`
+      const { data } = await api.get(`/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`);
       
-      setSession(response.session);
-      setJob(response.job);
-      setApplications(response.applications || []);
-      setSummary(response.summary || {});
+      setSession(data?.session || null);
+      setJob(data?.job || null);
+      setApplications(data?.applications || []);
+      setSummary(data?.summary || {});
 
       // Check if screening is finalized (all applications decided)
-      const allDecided = (response.applications || []).every(app => {
+      const allDecided = (data?.applications || []).every(app => {
         const status = app.screeningStatus || 'APPLIED';
         return status !== 'APPLIED' && status !== 'RESUME_SELECTED';
       });
-      setFinalized(allDecided && response.applications.length > 0);
+      setFinalized(allDecided && (data?.applications || []).length > 0);
     } catch (err) {
       console.error('Error fetching screening data:', err);
       setError(err.response?.data?.error || err.message || 'Failed to load screening data');
@@ -316,15 +317,19 @@ const RecruiterScreening = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">{student.enrollmentId || 'N/A'}</td>
                       <td className="px-6 py-4">
                         {student.resumeUrl ? (
-                          <a
-                            href={student.resumeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => {
+                              // Open PDF in new window/tab for inline viewing
+                              const pdfWindow = window.open(student.resumeUrl, '_blank');
+                              if (pdfWindow) {
+                                pdfWindow.focus();
+                              }
+                            }}
                             className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors text-sm"
                           >
                             <FileText className="w-4 h-4" />
                             View
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-gray-400 text-sm">No resume</span>
                         )}

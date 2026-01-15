@@ -34,7 +34,9 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
     atsScore: null,
     atsIssues: [],
     aiSuggestions: [],
-    isEnhancing: false
+    isEnhancing: false,
+    id: null, // Resume ID from database
+    url: null // Cloudinary URL
   });
   
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +52,11 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
 
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
+
+  // Load resume info on mount
+  useEffect(() => {
+    loadResumeInfo();
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -149,6 +156,7 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
         atsScore: atsResult.score,
         atsIssues: atsResult.issues,
         aiSuggestions: [],
+        id: response.id, // Resume ID from database (required for deletion)
         url: response.url // Cloudinary URL from backend
       }));
       
@@ -185,22 +193,44 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
       setError('');
       setPdfError(false);
       
-      // This would be replaced with actual resume info loading logic
-      const info = {
-        file: null,
-        fileName: null,
-        fileSize: null,
-        fileType: null,
-        uploadedAt: null,
-        hasResume: false,
-        atsScore: null,
-        atsIssues: []
-      };
+      // Fetch resumes from API
+      const resumes = await api.getResumes();
       
-      setResumeInfo(info);
-      // If there's a URL, set it for preview
-      if (info.url) {
-        setPdfUrl(info.url);
+      // Find default resume or use first one
+      const defaultResume = resumes.find(r => r.isDefault) || resumes[0];
+      
+      if (defaultResume) {
+        const info = {
+          file: null, // File object not available after upload
+          fileName: defaultResume.fileName,
+          fileSize: defaultResume.fileSize,
+          fileType: 'application/pdf',
+          uploadedAt: defaultResume.uploadedAt,
+          hasResume: true,
+          atsScore: null,
+          atsIssues: [],
+          id: defaultResume.id, // Resume ID (required for deletion)
+          url: defaultResume.fileUrl // Cloudinary URL
+        };
+        
+        setResumeInfo(info);
+        setPdfUrl(defaultResume.fileUrl);
+      } else {
+        // No resume found
+        const emptyInfo = {
+          file: null,
+          fileName: null,
+          fileSize: null,
+          fileType: null,
+          uploadedAt: null,
+          hasResume: false,
+          atsScore: null,
+          atsIssues: [],
+          id: null,
+          url: null
+        };
+        setResumeInfo(emptyInfo);
+        setPdfUrl('');
       }
     } catch (error) {
       console.error('Error loading resume info:', error);
@@ -211,41 +241,69 @@ export default function ResumeManager({ onResumeUpdate, userId }) {
     }
   };
 
-  const handleDeleteResume = () => {
-    if (!window.confirm('Are you sure you want to remove your resume?')) {
+  const handleDeleteResume = async () => {
+    if (!resumeInfo.id) {
+      // No resume ID means it was never uploaded or already deleted
+      setError('No resume to delete');
       return;
     }
 
-    setDeleting(true);
-    setError('');
-    
-    // Clean up object URL
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
+    try {
+      setDeleting(true);
+      setError('');
+      
+      console.log('Deleting resume with ID:', resumeInfo.id);
+      
+      // Call API to delete resume from backend and Cloudinary
+      await api.deleteResume(resumeInfo.id);
+      
+      console.log('Resume deleted successfully');
+      
+      // Clean up object URL
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+      
+      const emptyResumeInfo = {
+        file: null,
+        fileName: null,
+        fileSize: null,
+        uploadedAt: null,
+        hasResume: false,
+        fileType: null,
+        atsScore: null,
+        atsIssues: [],
+        id: null,
+        url: null
+      };
+      
+      setResumeInfo(emptyResumeInfo);
+      setPdfUrl('');
+      setSuccess('Resume deleted successfully');
+      
+      if (onResumeUpdate) {
+        onResumeUpdate(emptyResumeInfo);
+      }
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error deleting resume:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response,
+        status: err.status,
+        resumeId: resumeInfo.id
+      });
+      
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to delete resume. Please try again.';
+      setError(errorMessage);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setDeleting(false);
     }
-    
-    const emptyResumeInfo = {
-      file: null,
-      fileName: null,
-      fileSize: null,
-      uploadedAt: null,
-      hasResume: false,
-      fileType: null,
-      atsScore: null,
-      atsIssues: []
-    };
-    
-    setResumeInfo(emptyResumeInfo);
-    setPdfUrl('');
-    setSuccess('Resume removed successfully');
-    
-    if (onResumeUpdate) {
-      onResumeUpdate(emptyResumeInfo);
-    }
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => setSuccess(''), 3000);
-    setDeleting(false);
   };
 
   const handleDownload = () => {

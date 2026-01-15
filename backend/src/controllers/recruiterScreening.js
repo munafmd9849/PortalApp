@@ -44,13 +44,22 @@ function verifyScreeningToken(token) {
  */
 export async function getOrCreateScreeningSession(req, res) {
   try {
-    const { jobId } = req.body;
+    // Support both:
+    // - GET /api/recruiter/screening/session?token=...&jobId=...
+    // - POST /api/recruiter/screening/session { jobId } with Authorization: Bearer <token>
     const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    let jobId = req.body?.jobId || req.query?.jobId;
 
-    // If token provided, verify it
+    // If token is provided, verify it. If jobId isn't provided, derive it from token.
+    let decoded = null;
     if (token) {
-      const decoded = verifyScreeningToken(token);
-      if (!decoded || decoded.jobId !== jobId) {
+      decoded = verifyScreeningToken(token);
+      if (!decoded) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+      if (!jobId) {
+        jobId = decoded.jobId;
+      } else if (decoded.jobId !== jobId) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
     }
@@ -151,8 +160,17 @@ export async function getOrCreateScreeningSession(req, res) {
             batch: true,
             center: true,
             school: true,
-            resumeUrl: true,
-            resumeFileName: true
+            resumeUrl: true, // Legacy field (fallback)
+            resumeFileName: true,
+            resumeFiles: {
+              where: { isDefault: true },
+              select: {
+                fileUrl: true,
+                fileName: true,
+                isDefault: true
+              },
+              take: 1
+            }
           }
         }
       },
@@ -174,15 +192,26 @@ export async function getOrCreateScreeningSession(req, res) {
         recruiterName: job.recruiterName,
         applicationDeadline: job.applicationDeadline
       },
-      applications: applications.map(app => ({
-        id: app.id,
-        studentId: app.studentId,
-        student: app.student,
-        screeningStatus: app.screeningStatus || 'APPLIED',
-        screeningRemarks: app.screeningRemarks || null,
-        screeningCompletedAt: app.screeningCompletedAt || null,
-        appliedDate: app.appliedDate
-      })),
+      applications: applications.map(app => {
+        // Get resume URL from new StudentResumeFile (preferred) or fallback to old resumeUrl
+        const defaultResume = app.student.resumeFiles?.[0];
+        const resumeUrl = defaultResume?.fileUrl || app.student.resumeUrl;
+        const resumeFileName = defaultResume?.fileName || app.student.resumeFileName;
+        
+        return {
+          id: app.id,
+          studentId: app.studentId,
+          student: {
+            ...app.student,
+            resumeUrl: resumeUrl, // Use new Cloudinary URL if available, fallback to old
+            resumeFileName: resumeFileName
+          },
+          screeningStatus: app.screeningStatus || 'APPLIED',
+          screeningRemarks: app.screeningRemarks || null,
+          screeningCompletedAt: app.screeningCompletedAt || null,
+          appliedDate: app.appliedDate
+        };
+      }),
       summary: {
         total: applications.length,
         applied: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,

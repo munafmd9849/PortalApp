@@ -9,6 +9,7 @@ import { createNotification } from './notifications.js';
 import { getIO } from '../config/socket.js';
 import { sendApplicationNotification, sendApplicationStatusUpdateNotification } from '../services/emailService.js';
 import logger from '../config/logger.js';
+import { sendSuccess } from '../utils/response.js';
 
 /**
  * Get all applications (admin only)
@@ -735,7 +736,7 @@ export async function applyToJob(req, res) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    // Get student with full details including CGPA
+    // Get student with full details including CGPA and backlogs
     const studentProfile = await prisma.student.findUnique({
       where: { id: student.id },
       select: {
@@ -743,6 +744,7 @@ export async function applyToJob(req, res) {
         fullName: true,
         email: true,
         cgpa: true,
+        backlogs: true,
       },
     });
 
@@ -790,6 +792,53 @@ export async function applyToJob(req, res) {
       }
     }
 
+    // Validate backlogs requirement
+    if (job.backlogs) {
+      const jobBacklogsRequirement = job.backlogs.trim().toLowerCase();
+      const studentBacklogs = studentProfile.backlogs ? String(studentProfile.backlogs).trim() : null;
+
+      if (studentBacklogs === null || studentBacklogs === '') {
+        return res.status(400).json({ 
+          error: 'Backlogs requirement check failed',
+          message: 'Your backlogs count is not set in your profile. Please update your profile with your current backlogs count to apply for this job.',
+          requirement: `This job allows: ${jobBacklogsRequirement}`,
+        });
+      }
+
+      // Parse job requirement - could be "0", "1-2", "No", "1", etc.
+      const requirementStr = jobBacklogsRequirement;
+      let isAllowed = false;
+
+      // Handle different requirement formats
+      if (requirementStr === 'no' || requirementStr === '0' || requirementStr === 'none') {
+        // Job allows no backlogs
+        const studentBacklogsNum = parseInt(studentBacklogs) || 0;
+        isAllowed = studentBacklogsNum === 0;
+      } else if (requirementStr.includes('-')) {
+        // Range format: "1-2", "0-1", etc.
+        const [minStr, maxStr] = requirementStr.split('-').map(s => s.trim());
+        const minBacklogs = parseInt(minStr) || 0;
+        const maxBacklogs = parseInt(maxStr) || 0;
+        const studentBacklogsNum = parseInt(studentBacklogs) || 0;
+        isAllowed = studentBacklogsNum >= minBacklogs && studentBacklogsNum <= maxBacklogs;
+      } else {
+        // Single number: "1", "2", etc.
+        const maxAllowed = parseInt(requirementStr) || 0;
+        const studentBacklogsNum = parseInt(studentBacklogs) || 0;
+        isAllowed = studentBacklogsNum <= maxAllowed;
+      }
+
+      if (!isAllowed) {
+        return res.status(400).json({ 
+          error: 'Backlogs requirement not met',
+          message: `Your current backlogs count (${studentBacklogs}) does not meet the requirement for this job.`,
+          requirement: `This job allows: ${jobBacklogsRequirement}`,
+          yourBacklogs: studentBacklogs,
+          allowedBacklogs: jobBacklogsRequirement,
+        });
+      }
+    }
+
     // Create application with resumeId (store in notes field for now, or extend schema later)
     // Note: To properly store resumeId, we'd need to add a resumeId field to Application model
     // For now, we'll store it in the notes field as JSON
@@ -805,6 +854,13 @@ export async function applyToJob(req, res) {
 
     const application = await prisma.application.create({
       data: applicationData,
+      include: {
+        job: {
+          include: {
+            company: true,
+          },
+        },
+      },
     });
 
     console.log('✅ [applyToJob] Application created:', {
@@ -891,13 +947,39 @@ export async function applyToJob(req, res) {
       logger.error(`Failed to send application notifications for application ${application.id}:`, notificationError);
     }
 
+    // Format response to match frontend expectations (same format as getStudentApplications)
+    const formattedApplication = {
+      id: application.id,
+      studentId: application.studentId,
+      jobId: application.jobId,
+      companyId: application.companyId,
+      status: application.status,
+      screeningStatus: application.screeningStatus || 'APPLIED',
+      appliedDate: application.appliedDate,
+      interviewDate: application.interviewDate,
+      company: application.job?.company || job.company || { name: job.companyName || 'Unknown Company' },
+      job: {
+        jobTitle: application.job?.jobTitle || job.jobTitle || 'Unknown Position',
+        ...application.job,
+        ...job, // Include all job fields
+      },
+      screeningStatusText: 'Applied (Screening Pending)',
+      interviewStatus: {
+        hasSession: false,
+        statusText: null,
+        lastRoundStatus: null,
+        lastRoundReached: 0,
+      },
+    };
+
     // Emit real-time update via Socket.IO
     const io = getIO();
     if (io) {
-      io.to(`student:${userId}`).emit('application:created', application);
+      io.to(`student:${userId}`).emit('application:created', formattedApplication);
     }
 
-    res.status(201).json(application);
+    // Return formatted application (matching getStudentApplications format)
+    res.status(201).json(formattedApplication);
   } catch (error) {
     console.error('Apply to job error:', error);
     res.status(500).json({ error: 'Failed to apply to job' });

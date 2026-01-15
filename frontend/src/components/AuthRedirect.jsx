@@ -45,7 +45,13 @@ export default function AuthRedirect() {
 
       // Public paths that authenticated users can visit without redirect
       const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
-      const isPublicPath = publicPaths.includes(currentPath) || currentPath.startsWith('/job/');
+      const isPublicPath = publicPaths.includes(currentPath) 
+        || currentPath.startsWith('/job/')
+        || currentPath.startsWith('/profile/') // Public profile sharing (no auth required)
+        || currentPath.startsWith('/endorse/')
+        || currentPath.startsWith('/endorsement/')
+        || currentPath.startsWith('/interview/')
+        || currentPath.startsWith('/recruiter/screening');
       
       // Admin sub-routes that should not redirect
       const isAdminSubRoute = roleLower === 'admin' && (

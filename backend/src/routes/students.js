@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import * as studentController from '../controllers/students.js';
 import * as resumeController from '../controllers/resume.js';
+import * as publicProfileController from '../controllers/publicProfile.js';
 import { uploadProfileImage, uploadResume } from '../middleware/upload.js';
 
 const router = express.Router({ mergeParams: true });
@@ -99,6 +100,15 @@ router.delete('/resume/:resumeId',
   studentController.deleteResume
 );
 
+// Extract text from resume PDF
+// POST /api/students/resume/extract-text
+// Body: { resumeUrl, resumeId? }
+// Auth: Student only
+router.post('/resume/extract-text',
+  requireRole(['STUDENT']),
+  studentController.extractResumeText
+);
+
 // ATS Resume Analysis
 // POST /api/students/resume/ats-analysis
 // Body: { resumeText, resumeId? }
@@ -107,6 +117,12 @@ router.post('/resume/ats-analysis',
   requireRole(['STUDENT']),
   studentController.analyzeATSResume
 );
+
+// Public Profile Management (Student only)
+router.post('/public-profile/generate', requireRole(['STUDENT']), publicProfileController.generatePublicProfileId);
+router.post('/public-profile/regenerate', requireRole(['STUDENT']), publicProfileController.regeneratePublicProfileId);
+router.get('/public-profile/settings', requireRole(['STUDENT']), publicProfileController.getPublicProfileSettings);
+router.patch('/public-profile/settings', requireRole(['STUDENT']), publicProfileController.updatePublicProfileSettings);
 
 // Admin route - Get all students (must be last to avoid route conflicts)
 router.get('/', requireRole(['ADMIN']), studentController.getAllStudents);

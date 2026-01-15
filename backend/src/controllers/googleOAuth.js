@@ -23,7 +23,8 @@ export const initGoogleOAuth = async (req, res) => {
     res.redirect(authUrl);
   } catch (error) {
     logger.error('Error initializing Google OAuth:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     res.redirect(`${frontendUrl}/dashboard?error=oauth_init_failed`);
   }
 };
@@ -64,7 +65,8 @@ export const handleGoogleCallback = async (req, res) => {
     const { code, state } = req.query;
 
     if (!code) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/dashboard?calendar=error&message=no_code`);
     }
 
@@ -72,7 +74,8 @@ export const handleGoogleCallback = async (req, res) => {
     const userId = state;
 
     if (!userId) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/dashboard?calendar=error&message=invalid_state`);
     }
 
@@ -86,7 +89,8 @@ export const handleGoogleCallback = async (req, res) => {
     });
 
     if (!user) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/dashboard?calendar=error&message=user_not_found`);
     }
 
@@ -144,19 +148,22 @@ export const handleGoogleCallback = async (req, res) => {
       logger.info(`Google Calendar connected for admin ${user.id}`);
     } else {
       // Other roles - not supported
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/dashboard?calendar=error&message=role_not_supported`);
     }
 
     // Redirect to frontend with success message
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const dashboardPath = user.role === 'STUDENT' ? '/student' : 
                          user.role === 'RECRUITER' ? '/recruiter' : '/admin';
     
     res.redirect(`${frontendUrl}${dashboardPath}?calendar=connected`);
   } catch (error) {
     logger.error('Error in Google OAuth callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     res.redirect(`${frontendUrl}/dashboard?calendar=error&message=oauth_failed`);
   }
 };

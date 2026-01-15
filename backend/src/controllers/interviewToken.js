@@ -397,6 +397,15 @@ async function getCandidatesForRound(interviewId, roundName, rounds) {
                 profilePhoto: true,
               },
             },
+            resumeFiles: {
+              where: { isDefault: true },
+              select: {
+                fileUrl: true,
+                fileName: true,
+                isDefault: true
+              },
+              take: 1
+            },
             education: {
               orderBy: { endYear: 'desc' },
             },
@@ -443,8 +452,8 @@ async function getCandidatesForRound(interviewId, roundName, rounds) {
           cgpa: app.student.cgpa,
           bio: app.student.bio,
           headline: app.student.headline,
-          resumeUrl: app.student.resumeUrl,
-          resumeFileName: app.student.resumeFileName,
+          resumeUrl: app.student.resumeFiles?.[0]?.fileUrl || app.student.resumeUrl, // Use new Cloudinary URL if available, fallback to old
+          resumeFileName: app.student.resumeFiles?.[0]?.fileName || app.student.resumeFileName,
           linkedin: app.student.linkedin,
           githubUrl: app.student.githubUrl,
           profilePhoto: app.student.user?.profilePhoto,
@@ -490,6 +499,15 @@ async function getCandidatesForRound(interviewId, roundName, rounds) {
                 email: true,
                 profilePhoto: true,
               },
+            },
+            resumeFiles: {
+              where: { isDefault: true },
+              select: {
+                fileUrl: true,
+                fileName: true,
+                isDefault: true
+              },
+              take: 1
             },
             education: {
               orderBy: { endYear: 'desc' },
@@ -537,8 +555,8 @@ async function getCandidatesForRound(interviewId, roundName, rounds) {
           cgpa: evaluation.student.cgpa,
           bio: evaluation.student.bio,
           headline: evaluation.student.headline,
-          resumeUrl: evaluation.student.resumeUrl,
-          resumeFileName: evaluation.student.resumeFileName,
+          resumeUrl: evaluation.student.resumeFiles?.[0]?.fileUrl || evaluation.student.resumeUrl, // Use new Cloudinary URL if available, fallback to old
+          resumeFileName: evaluation.student.resumeFiles?.[0]?.fileName || evaluation.student.resumeFileName,
           linkedin: evaluation.student.linkedin,
           githubUrl: evaluation.student.githubUrl,
           profilePhoto: evaluation.student.user?.profilePhoto,

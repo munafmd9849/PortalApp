@@ -35,6 +35,7 @@ const StudentQuerySystem = () => {
     selectedJobId: '', // New field for job selection
     message: '',
     cgpa: '',
+    backlogs: '',
     proof: null,
     startDate: '',
     endDate: '',
@@ -125,6 +126,7 @@ const StudentQuerySystem = () => {
   const queryTypes = [
     { id: 'question', name: 'Ask a Question', icon: <FaQuestionCircle />, description: 'Get clarification on placement process', color: 'blue' },
     { id: 'cgpa', name: 'Update CGPA', icon: <FaChartLine />, description: 'Submit updated marks with proof', color: 'green' },
+    { id: 'backlog', name: 'Update Backlogs', icon: <FaChartLine />, description: 'Submit updated backlogs count', color: 'orange' },
     { id: 'calendar', name: 'Block Calendar', icon: <FaCalendarAlt />, description: 'Request specific time slots', color: 'purple' }
   ];
 
@@ -164,6 +166,22 @@ const StudentQuerySystem = () => {
         } else if (!isNaN(numValue) && numValue < 0) {
           finalValue = '0.00';
         }
+      }
+      
+      setFormData({
+        ...formData,
+        [name]: finalValue
+      });
+    } else if (name === 'backlogs') {
+      // Special handling for backlogs: allow only non-negative integers or "X+" format
+      const sanitized = value.replace(/[^0-9+]/g, '');
+      // Allow formats like "0", "1", "2", "3+", etc.
+      let finalValue = sanitized;
+      
+      // Ensure only one '+' at the end
+      if (finalValue.includes('+')) {
+        const parts = finalValue.split('+');
+        finalValue = parts[0] + (parts.length > 1 ? '+' : '');
       }
       
       setFormData({
@@ -291,6 +309,30 @@ const StudentQuerySystem = () => {
       }
     }
 
+    if (activeTab === 'backlog') {
+      const backlogsValue = formData.backlogs;
+      if (!backlogsValue || backlogsValue.trim() === '') {
+        errors.backlogs = 'Backlogs count is required';
+      } else {
+        // Validate backlogs format: non-negative integer or "X+" format
+        const backlogsStr = String(backlogsValue).trim();
+        const backlogsRegex = /^(\d+|\d+\+)$/;
+        
+        if (!backlogsRegex.test(backlogsStr)) {
+          errors.backlogs = 'Backlogs must be a non-negative integer (e.g., 0, 1, 2, 3+)';
+        } else {
+          // Extract numeric value (remove + if present)
+          const numericValue = parseInt(backlogsStr.replace('+', ''), 10);
+          if (isNaN(numericValue) || numericValue < 0) {
+            errors.backlogs = 'Backlogs must be a non-negative integer';
+          }
+        }
+      }
+      if (!formData.proof) {
+        errors.proof = 'Proof document is required';
+      }
+    }
+
     if (activeTab === 'calendar') {
       const today = new Date().toISOString().split('T')[0];
       if (!formData.startDate) {
@@ -404,6 +446,7 @@ const StudentQuerySystem = () => {
       selectedJobId: '',
       message: '',
       cgpa: '',
+      backlogs: '',
       proof: null,
       startDate: '',
       endDate: '',
@@ -509,7 +552,7 @@ const StudentQuerySystem = () => {
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-800 mb-3">Student Query Portal</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Contact the placement cell for assistance with questions, CGPA updates, or scheduling requests
+            Contact the placement cell for assistance with questions, CGPA updates, backlog updates, or scheduling requests
           </p>
         </div>
 
@@ -575,6 +618,7 @@ const StudentQuerySystem = () => {
                           <div className="mr-4">
                             {query.type === 'question' && <FaQuestionCircle className="text-blue-500 text-xl" />}
                             {query.type === 'cgpa' && <FaChartLine className="text-green-500 text-xl" />}
+                            {query.type === 'backlog' && <FaChartLine className="text-orange-500 text-xl" />}
                             {query.type === 'calendar' && <FaCalendarAlt className="text-purple-500 text-xl" />}
                           </div>
                           <div>
@@ -633,6 +677,13 @@ const StudentQuerySystem = () => {
                             <div className="mb-4">
                               <h4 className="text-sm font-medium text-gray-500 mb-1">CGPA Submitted</h4>
                               <p className="text-gray-800">{query.cgpa}</p>
+                            </div>
+                          )}
+                          
+                          {query.type === 'backlog' && (
+                            <div className="mb-4">
+                              <h4 className="text-sm font-medium text-gray-500 mb-1">Backlogs Submitted</h4>
+                              <p className="text-gray-800">{query.backlogs || query.metadata?.backlogs || 'N/A'}</p>
                             </div>
                           )}
                           
@@ -903,6 +954,64 @@ const StudentQuerySystem = () => {
                 </>
               )}
 
+              {/* Backlog Update fields */}
+              {activeTab === 'backlog' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="text-gray-700 font-medium mb-2 flex items-center">
+                        Updated Backlogs Count
+                        <span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="backlogs"
+                        value={formData.backlogs}
+                        onChange={handleInputChange}
+                        placeholder="Enter backlogs count (e.g., 0, 1, 2, 3+)"
+                        pattern="^(\d+|\d+\+)$"
+                        maxLength="10"
+                        className={`w-full px-4 py-3 border ${formErrors.backlogs ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200`}
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Format: Non-negative integer (e.g., 0, 1, 2, 3+). Use "+" for 3 or more.</p>
+                      {formErrors.backlogs && <p className="text-red-500 text-sm mt-1">{formErrors.backlogs}</p>}
+                    </div>
+                    <div>
+                      <label className="text-gray-700 font-medium mb-2 flex items-center">
+                        Proof Document
+                        <span className="text-red-500 ml-1">*</span>
+                        <FaExclamationCircle className="text-amber-500 ml-2 text-sm" title="Required for verification" />
+                      </label>
+                      <div className={`relative border ${formErrors.proof ? 'border-red-500' : 'border-gray-300'} rounded-xl p-4 text-center hover:border-orange-400 transition-colors duration-200 group`}>
+                        <input
+                          type="file"
+                          onChange={handleFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          required
+                        />
+                        <FaFileUpload className="text-gray-400 text-2xl mx-auto mb-2 group-hover:text-orange-500 transition-colors" />
+                        <p className="text-sm text-gray-600">
+                          {formData.proof ? formData.proof.name : 'Upload marksheet or transcript'}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">PDF, JPG, or PNG (Max 5MB)</p>
+                      </div>
+                      {formErrors.proof && <p className="text-red-500 text-sm mt-1">{formErrors.proof}</p>}
+                    </div>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-200">
+                    <div className="flex items-start">
+                      <FaInfoCircle className="text-orange-600 mt-0.5 mr-3 flex-shrink-0" />
+                      <p className="text-sm text-orange-700">
+                        Please ensure your document is clear and shows your name, university seal, and the updated backlogs count clearly. 
+                        Documents must be officially issued by your institution.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Calendar Blocking fields */}
               {activeTab === 'calendar' && (
                 <>
@@ -1072,6 +1181,13 @@ const StudentQuerySystem = () => {
               </div>
               <h3 className="font-semibold text-gray-800 mb-2">CGPA Updates</h3>
               <p className="text-sm text-gray-600">Submit your updated marks with official documentation for verification.</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+              <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
+                <FaChartLine className="text-orange-600 text-xl" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">Backlog Updates</h3>
+              <p className="text-sm text-gray-600">Submit your updated backlogs count with official documentation for verification.</p>
             </div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
               <div className="bg-purple-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">

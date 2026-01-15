@@ -342,7 +342,8 @@ export const inviteInterviewers = async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const invites = [];
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
@@ -730,7 +731,18 @@ export const getRoundCandidates = async (req, res) => {
       },
       include: {
         student: {
-          include: { user: true },
+          include: { 
+            user: true,
+            resumeFiles: {
+              where: { isDefault: true },
+              select: {
+                fileUrl: true,
+                fileName: true,
+                isDefault: true
+              },
+              take: 1
+            }
+          },
         },
       },
     });
@@ -815,6 +827,11 @@ export const getRoundCandidates = async (req, res) => {
     const candidates = applications.map(app => {
       const evaluation = evaluationMap.get(app.id);
       const previousEvaluation = previousEvaluationMap.get(app.id);
+      
+      // Get resume URL from new StudentResumeFile (preferred) or fallback to old resumeUrl
+      const defaultResume = app.student.resumeFiles?.[0];
+      const resumeUrl = defaultResume?.fileUrl || app.student.resumeUrl;
+      
       return {
         applicationId: app.id,
         student: {
@@ -823,7 +840,7 @@ export const getRoundCandidates = async (req, res) => {
           email: app.student.email,
           enrollmentId: app.student.enrollmentId,
           batch: app.student.batch,
-          resumeUrl: app.student.resumeUrl,
+          resumeUrl: resumeUrl, // Use new Cloudinary URL if available, fallback to old
           skills: skillsMap.get(app.student.id) || [],
         },
         evaluation: evaluation ? {

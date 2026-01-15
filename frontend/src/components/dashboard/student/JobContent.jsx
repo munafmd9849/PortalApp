@@ -221,8 +221,33 @@ const JobContent = React.memo(({
       companyName: job.company?.name || job.companyName || job.company || "Company Name",
       logoUrl: job.company?.logoUrl || job.company?.logo || job.logoUrl,
       website: job.company?.website || job.website || job.companyWebsite,
+      // Description (backend uses `description`)
+      jobDescription: job.jobDescription || job.description || job.responsibilities || "",
+      // Many places in UI expect responsibilities separately; fall back to description
+      responsibilities: job.responsibilities || job.description || job.jobDescription || "",
       // Skills
-      skills: job.requiredSkills || job.skillsRequired || job.skills || [],
+      skills: (() => {
+        const raw = job.requiredSkills || job.skillsRequired || job.skills || [];
+        // Backend stores requiredSkills as a JSON string for SQLite compatibility
+        if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (!trimmed) return [];
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          }
+          // Comma/newline separated string
+          return trimmed
+            .split(/[,;•\n\r]/)
+            .map(s => s.trim())
+            .filter(Boolean);
+        }
+        return Array.isArray(raw) ? raw : [];
+      })(),
       // Salary
       salary: job.salary || job.stipend || job.ctc || job.salaryRange,
       // Dates
@@ -435,54 +460,47 @@ This position offers excellent growth opportunities, competitive compensation, a
     // Method 3: Parse from requirements field
     else if (displayJob.requirements && typeof displayJob.requirements === 'string') {
       const requirementsText = displayJob.requirements;
-      const roundPatterns = [
-        /Round\s*(\d+)[:]\s*([^\n\r]+)/gi,
-        /(\d+)[.]\s*([^\n\r]+)/gi,
-        /([A-Z][^:]+):\s*([^\n\r]+)/g,
-      ];
-      
-      let foundRounds = [];
-      roundPatterns.forEach(pattern => {
-        const matches = [...requirementsText.matchAll(pattern)];
-        matches.forEach((match) => {
-          if (match[1] && match[2]) {
-            foundRounds.push({
-              label: match[1].trim(),
-              description: match[2].trim(),
-            });
-          }
-        });
-      });
-      
+      // IMPORTANT:
+      // The requirements text often contains lines like:
+      //   "I Round: DSA"
+      //   "II Round: HR"
+      // If we run a generic "Anything: value" pattern as well, it double-counts the same
+      // lines (e.g., "I" and "I Round" both match), producing duplicate rounds.
+      //
+      // So we only fall back to the generic pattern IF none of the specific patterns match.
+      const romanPattern = /([IVX]+)\s+Round[:]\s*([^\n\r]+)/gi;
+      const numericRoundPattern = /Round\s*(\d+)[:]\s*([^\n\r]+)/gi;
+      const numberedListPattern = /(\d+)[.]\s*([^\n\r]+)/gi;
+      const genericLabelPattern = /([A-Z][^:]+):\s*([^\n\r]+)/g;
+
+      const extractMatches = (pattern) =>
+        [...requirementsText.matchAll(pattern)]
+          .filter((m) => m?.[1] && m?.[2])
+          .map((m) => ({ label: String(m[1]).trim(), description: String(m[2]).trim() }));
+
+      let foundRounds = extractMatches(romanPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(numericRoundPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(numberedListPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(genericLabelPattern);
+
       if (foundRounds.length > 0) {
-        rounds = foundRounds.map((round, index) => ({
-          label: round.label || `Round ${index + 1}`,
-          description: round.description || "Interview round details will be shared.",
-          color: roundColors[index % roundColors.length],
-          number: String(index + 1),
-          icon: getRoundIcon(round.label),
-        }));
+        const romanToNumber = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 };
+        rounds = foundRounds.map((round, index) => {
+          const rawLabel = round.label || `Round ${index + 1}`;
+          const normalizedLabel = romanToNumber[rawLabel] ? `Round ${romanToNumber[rawLabel]}` : rawLabel;
+          return {
+            label: normalizedLabel,
+            description: round.description || "Interview round details will be shared.",
+            color: roundColors[index % roundColors.length],
+            number: String(index + 1),
+            icon: getRoundIcon(normalizedLabel),
+          };
+        });
       }
     }
     
-    // If we found rounds, add Offer and Onboarding
-    if (rounds.length > 0) {
-      rounds.push({
-        label: "OFFER",
-        description: "Formal job offer extended to selected candidates.",
-        color: "bg-teal-500",
-        number: String(rounds.length + 1),
-        icon: <FaCheckCircle className="text-white" size={18} />,
-      });
-      rounds.push({
-        label: "Onboarding",
-        description: "Orientation and integration process for new hires.",
-        color: "bg-red-500",
-        number: String(rounds.length + 1),
-        icon: <FaEnvelopeOpen className="text-white" size={18} />,
-      });
-      return rounds;
-    }
+    // If we found rounds, return ONLY those rounds (no auto-added steps).
+    if (rounds.length > 0) return rounds;
     
     // Fallback to default timeline
     return defaultInterviewTimeline;

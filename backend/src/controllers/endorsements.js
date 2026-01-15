@@ -101,7 +101,8 @@ export async function requestEndorsement(req, res) {
     });
 
     // Generate magic link
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const magicLink = `${frontendUrl}/endorse/${token}`;
 
     // Send email with magic link

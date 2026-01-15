@@ -22,11 +22,17 @@ export default function InterviewScheduling() {
   const [interviewerEmail, setInterviewerEmail] = useState('');
   const [interviewerEmails, setInterviewerEmails] = useState([]);
   const [inviting, setInviting] = useState(false);
+  
+  // Safety: Ensure interviewerEmails is always an array
+  const safeInterviewerEmails = Array.isArray(interviewerEmails) ? interviewerEmails : [];
 
   // Round configuration
   const [rounds, setRounds] = useState([]);
   const [roundName, setRoundName] = useState('');
   const [configuringRounds, setConfiguringRounds] = useState(false);
+  
+  // Safety: Ensure rounds is always an array
+  const safeRounds = Array.isArray(rounds) ? rounds : [];
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,22 +60,48 @@ export default function InterviewScheduling() {
 
       if (response.ok) {
         const data = await response.json();
-        const jobsList = data.jobs || data || [];
+        // Handle both response formats: { jobs: [...] } or direct array
+        const jobsList = data.jobs || (Array.isArray(data) ? data : []);
         setJobs(jobsList);
+        
+        if (jobsList.length === 0) {
+          console.log('No jobs found with isPosted=true filter');
+        }
         
         // Note: Completed session check is done lazily when selecting a job
         // to avoid making too many API calls on initial load
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorData = await response.json().catch(() => ({ 
+          success: false,
+          error: 'Unknown error',
+          message: `HTTP ${response.status}: ${response.statusText}`
+        }));
+        
+        console.error('Failed to load jobs:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        
         if (response.status === 401 || response.status === 403) {
           showError('Authentication failed. Please log in again.');
         } else {
-          showError(errorData.error || errorData.message || 'Failed to load jobs');
+          showError(errorData.message || errorData.error || 'Failed to load jobs. Please try again.');
         }
       }
     } catch (error) {
-      console.error('Error loading jobs:', error);
-      showError('Network error. Please check your connection and try again.');
+      console.error('Error loading jobs:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      
+      // Check if it's a network error or API error
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        showError('Network error. Please check your connection and ensure the backend server is running.');
+      } else {
+        showError(error.message || 'Failed to load jobs. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -112,7 +144,9 @@ export default function InterviewScheduling() {
         }
 
         setSession(data.session);
-        setRounds(data.session.rounds || []);
+        // Ensure rounds is always an array
+        const sessionRounds = Array.isArray(data.session.rounds) ? data.session.rounds : [];
+        setRounds(sessionRounds);
         setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
         
         // Track completed sessions (Issue #6)
@@ -127,7 +161,7 @@ export default function InterviewScheduling() {
         }
         
         // Auto-populate rounds from job description if no rounds exist (Issue #7)
-        if (data.session.rounds.length === 0 && data.session.suggestedRounds && data.session.suggestedRounds.length > 0) {
+        if (sessionRounds.length === 0 && data.session.suggestedRounds && Array.isArray(data.session.suggestedRounds) && data.session.suggestedRounds.length > 0) {
           setRounds(data.session.suggestedRounds);
           showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
         }
@@ -155,6 +189,10 @@ export default function InterviewScheduling() {
     setIsModalOpen(false);
     setSelectedJob(null);
     setSession(null);
+    setRounds([]);
+    setRoundName('');
+    setInterviewerEmails([]);
+    setInterviewerEmail('');
     // Re-enable body scroll
     document.body.style.overflow = '';
   };
@@ -178,16 +216,16 @@ export default function InterviewScheduling() {
     }
 
     const newRound = {
-      roundNumber: rounds.length + 1,
+      roundNumber: safeRounds.length + 1,
       name: roundName.trim(),
     };
 
-    setRounds([...rounds, newRound]);
+    setRounds([...safeRounds, newRound]);
     setRoundName('');
   };
 
   const handleRemoveRound = (index) => {
-    const newRounds = rounds.filter((_, i) => i !== index);
+    const newRounds = safeRounds.filter((_, i) => i !== index);
     // Renumber rounds
     const renumbered = newRounds.map((r, i) => ({
       ...r,
@@ -196,9 +234,15 @@ export default function InterviewScheduling() {
     setRounds(renumbered);
   };
 
-  const handleConfigureRounds = async () => {
-    if (rounds.length === 0) {
-      toast.error('Please add at least one round');
+  const handleConfigureRounds = async (e) => {
+    // Prevent form submission and page reload
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (safeRounds.length === 0) {
+      showWarning('Please add at least one round');
       return;
     }
 
@@ -217,19 +261,19 @@ export default function InterviewScheduling() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ rounds }),
+        body: JSON.stringify({ rounds: safeRounds }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setRounds(data.rounds);
+        setRounds(Array.isArray(data.rounds) ? data.rounds : []);
         showSuccess('Rounds configured successfully');
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (response.status === 401 || response.status === 403) {
           showError('Authentication failed. Please log in again.');
         } else {
-          toast.error(errorData.error || 'Failed to configure rounds');
+          showError(errorData.error || errorData.message || 'Failed to configure rounds');
         }
       }
     } catch (error) {
@@ -247,22 +291,28 @@ export default function InterviewScheduling() {
       return;
     }
 
-    if (interviewerEmails.includes(interviewerEmail)) {
+    if (safeInterviewerEmails.includes(interviewerEmail)) {
       showWarning('This email is already added');
       return;
     }
 
-    setInterviewerEmails([...interviewerEmails, interviewerEmail]);
+    setInterviewerEmails([...safeInterviewerEmails, interviewerEmail]);
     setInterviewerEmail('');
   };
 
   const handleRemoveInterviewer = (email) => {
-    setInterviewerEmails(interviewerEmails.filter(e => e !== email));
+    setInterviewerEmails(safeInterviewerEmails.filter(e => e !== email));
   };
 
-  const handleInviteInterviewers = async () => {
-    if (interviewerEmails.length === 0) {
-      toast.error('Please add at least one interviewer email');
+  const handleInviteInterviewers = async (e) => {
+    // Prevent form submission and page reload
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (safeInterviewerEmails.length === 0) {
+      showWarning('Please add at least one interviewer email');
       return;
     }
 
@@ -281,12 +331,13 @@ export default function InterviewScheduling() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ emails: interviewerEmails }),
+        body: JSON.stringify({ emails: safeInterviewerEmails }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        showSuccess(`Invites sent to ${data.invites.length} interviewer(s)`);
+        const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
+        showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
         // Reload session to get updated invites
         if (selectedJob) {
           handleSelectJob(selectedJob);
@@ -697,6 +748,7 @@ export default function InterviewScheduling() {
                             className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
                           />
                           <button
+                            type="button"
                             onClick={handleAddRound}
                             className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md"
                           >
@@ -706,10 +758,10 @@ export default function InterviewScheduling() {
                         </div>
                       </div>
 
-                      {rounds.length > 0 && (
+                      {safeRounds.length > 0 && (
                         <div className="space-y-3">
-                          <p className="text-sm font-medium text-slate-700">New Rounds ({rounds.length})</p>
-                          {rounds.map((round, index) => (
+                          <p className="text-sm font-medium text-slate-700">New Rounds ({safeRounds.length})</p>
+                          {safeRounds.map((round, index) => (
                             <div
                               key={index}
                               className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
@@ -737,6 +789,7 @@ export default function InterviewScheduling() {
                           ))}
                           <div className="flex justify-end mt-3">
                             <button
+                              type="button"
                               onClick={handleConfigureRounds}
                               disabled={configuringRounds}
                               className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
@@ -757,7 +810,7 @@ export default function InterviewScheduling() {
                         </div>
                       )}
 
-                      {session.rounds && session.rounds.length > 0 && (
+                      {session.rounds && Array.isArray(session.rounds) && session.rounds.length > 0 && (
                         <div className="mt-5 pt-5 border-t border-slate-200">
                           <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                             <CheckCircle className="w-4 h-4 text-green-600" />
@@ -849,6 +902,7 @@ export default function InterviewScheduling() {
                                 }`}
                               />
                               <button
+                                type="button"
                                 onClick={handleAddInterviewer}
                                 disabled={isSessionCompleted}
                                 className={`px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-all text-sm font-medium hover:shadow-md ${
@@ -861,10 +915,10 @@ export default function InterviewScheduling() {
                             </div>
                           </div>
 
-                          {interviewerEmails.length > 0 && (
+                          {safeInterviewerEmails.length > 0 && (
                             <div className="space-y-3">
-                              <p className="text-sm font-medium text-slate-700">Interviewers ({interviewerEmails.length})</p>
-                              {interviewerEmails.map((email, index) => (
+                              <p className="text-sm font-medium text-slate-700">Interviewers ({safeInterviewerEmails.length})</p>
+                              {safeInterviewerEmails.map((email, index) => (
                                 <div
                                   key={index}
                                   className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-300 hover:shadow-md transition-all"
@@ -889,6 +943,7 @@ export default function InterviewScheduling() {
                               ))}
                               <div className="flex justify-end mt-3">
                                 <button
+                                  type="button"
                                   onClick={handleInviteInterviewers}
                                   disabled={inviting || isSessionCompleted}
                                   className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-md transition-all text-sm font-semibold hover:shadow-lg"
@@ -912,7 +967,7 @@ export default function InterviewScheduling() {
                       );
                     })()}
 
-                    {session.interviewerInvites && session.interviewerInvites.length > 0 && (
+                    {session.interviewerInvites && Array.isArray(session.interviewerInvites) && session.interviewerInvites.length > 0 && (
                       <div className="mt-5 pt-5 border-t border-slate-200">
                         <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-green-600" />

@@ -62,8 +62,10 @@ export async function listJobs({ limitTo = 50, recruiterId, status } = {}) {
  */
 export async function getJob(jobId) {
   try {
-    const job = await api.getJob(jobId);
-    return job;
+    const res = await api.getJob(jobId);
+    // Backend commonly wraps responses as: { success: true, data: {...} }
+    // Normalize to always return the job object itself.
+    return res && typeof res === 'object' && 'data' in res ? res.data : res;
   } catch (error) {
     console.error('getJob error:', error);
     throw error;

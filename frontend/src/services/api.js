@@ -4,7 +4,7 @@
  * Centralized API client for all backend requests
  */
 
-import { API_BASE_URL, getBackendPort } from '../config/api.js';
+import { API_BASE_URL } from '../config/api.js';
 
 // Lazy import toast utility to avoid circular dependency
 let toastUtils = null;
@@ -119,15 +119,14 @@ async function apiRequest(endpoint, options = {}) {
         type: fetchError.name,
       });
       
-      // Provide helpful error message
+      // Provide helpful error message (production-safe, no localhost references)
       let errorMessage = 'Failed to connect to server. ';
       if (fetchError.name === 'AbortError' || fetchError.message.includes('timeout')) {
-        errorMessage += 'Request timed out. The server may be slow or unresponsive.';
+        errorMessage += 'Request timed out. Please try again.';
       } else if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
-        errorMessage += 'CORS error. Check if the backend server is running and CORS is configured correctly.';
+        errorMessage += 'Connection error. Please check your network connection and try again.';
       } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-        const port = getBackendPort();
-        errorMessage += `Cannot reach the server. Please check:\n1. Backend server is running on http://localhost:${port}\n2. No firewall blocking the connection\n3. Backend server is accessible`;
+        errorMessage += 'Cannot reach the server. Please check your network connection and ensure the service is available.';
       } else {
         errorMessage += fetchError.message || 'Unknown network error.';
       }
@@ -386,6 +385,36 @@ export const api = {
   updateStudentProfile: (data) => apiRequest('/students/profile', {
     method: 'PUT',
     body: JSON.stringify(data),
+  }),
+  
+  // Public Profile (NO AUTH - public access)
+  getPublicProfile: (publicProfileId) => {
+    // Public endpoint - no auth token needed
+    return fetch(`${API_BASE_URL}/public/profile/${publicProfileId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) {
+        throw { response, status: response.status, ...data };
+      }
+      return data;
+    });
+  },
+  
+  // Public Profile Management (AUTH REQUIRED - student only)
+  generatePublicProfileId: () => apiRequest('/students/public-profile/generate', {
+    method: 'POST',
+  }),
+  regeneratePublicProfileId: () => apiRequest('/students/public-profile/regenerate', {
+    method: 'POST',
+  }),
+  getPublicProfileSettings: () => apiRequest('/students/public-profile/settings'),
+  updatePublicProfileSettings: (settings) => apiRequest('/students/public-profile/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
   }),
   getAllStudents: (params = {}) => {
     const query = new URLSearchParams(params).toString();

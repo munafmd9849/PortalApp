@@ -663,14 +663,18 @@ const InterviewSessionToken = () => {
                       <FaFilePdf className="text-red-600" />
                       Resume
                     </h4>
-                    <a
-                      href={candidate.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        // Open PDF in new window/tab for inline viewing
+                        const pdfWindow = window.open(candidate.resumeUrl, '_blank');
+                        if (pdfWindow) {
+                          pdfWindow.focus();
+                        }
+                      }}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                     >
-                      <FaDownload /> View/Download Resume
-                    </a>
+                      <FaFilePdf /> View Resume
+                    </button>
                     {candidate.resumeFileName && (
                       <p className="text-xs text-gray-500 mt-1">{candidate.resumeFileName}</p>
                     )}

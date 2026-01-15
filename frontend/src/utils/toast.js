@@ -9,12 +9,26 @@ import { TOAST_TYPES } from '../components/ui/Toast';
 // Store reference to toast context
 let toastContext = null;
 
+// Deduplication cache to prevent duplicate toasts
+const toastCache = new Map();
+const TOAST_COOLDOWN = 2000; // 2 seconds cooldown for same message
+
 /**
  * Initialize toast utility with toast context
  * Called once from App.jsx after ToastProvider mounts
  */
 export function initToast(toast) {
   toastContext = toast;
+  
+  // Clean up old cache entries periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of toastCache.entries()) {
+      if (now - timestamp > TOAST_COOLDOWN) {
+        toastCache.delete(key);
+      }
+    }
+  }, 5000); // Clean every 5 seconds
 }
 
 /**
@@ -37,9 +51,30 @@ function getToast() {
 }
 
 /**
+ * Check if toast message should be shown (deduplication)
+ */
+function shouldShowToast(message, type) {
+  const key = `${type}:${message}`;
+  const now = Date.now();
+  const lastShown = toastCache.get(key);
+  
+  if (lastShown && (now - lastShown) < TOAST_COOLDOWN) {
+    return false; // Too soon, skip this toast
+  }
+  
+  toastCache.set(key, now);
+  return true;
+}
+
+/**
  * Show success toast
  */
 export function showSuccess(message, title = null, options = {}) {
+  // Deduplicate: skip if same success message shown recently
+  if (!shouldShowToast(message, 'success')) {
+    return null;
+  }
+  
   return getToast().success(message, title, options);
 }
 
@@ -47,6 +82,11 @@ export function showSuccess(message, title = null, options = {}) {
  * Show error toast
  */
 export function showError(message, title = null, options = {}) {
+  // Deduplicate: skip if same error message shown recently
+  if (!shouldShowToast(message, 'error')) {
+    return null;
+  }
+  
   return getToast().error(message, title, {
     duration: 7000, // Longer duration for errors
     ...options,
@@ -57,6 +97,11 @@ export function showError(message, title = null, options = {}) {
  * Show warning toast
  */
 export function showWarning(message, title = null, options = {}) {
+  // Deduplicate: skip if same warning message shown recently
+  if (!shouldShowToast(message, 'warning')) {
+    return null;
+  }
+  
   return getToast().warning(message, title, options);
 }
 

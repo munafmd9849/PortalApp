@@ -246,9 +246,10 @@ export const applyToJob = async (studentId, jobId, applicationData = {}) => {
   try {
     console.log('📝 [applyToJob] Calling API with:', { jobId, applicationData });
     // Include resumeId and companyId in the request body
-    const application = await api.applyToJob(jobId, applicationData);
-    console.log('✅ [applyToJob] Application created:', application);
-    return application;
+    const response = await api.applyToJob(jobId, applicationData);
+    // API returns the application directly (not wrapped)
+    console.log('✅ [applyToJob] Application created:', response);
+    return response;
   } catch (error) {
     // Don't log "Already applied" errors - they're handled gracefully
     const errorData = error.response?.data || {};

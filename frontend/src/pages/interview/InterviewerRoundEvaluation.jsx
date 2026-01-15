@@ -6,7 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
-import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink } from 'lucide-react';
+import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon } from 'lucide-react';
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 
 const InterviewerRoundEvaluation = () => {
   const { roundId } = useParams();
@@ -22,6 +23,7 @@ const InterviewerRoundEvaluation = () => {
   const [evaluations, setEvaluations] = useState({});
   const [canEndRound, setCanEndRound] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
+  const [useMockData, setUseMockData] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -32,6 +34,104 @@ const InterviewerRoundEvaluation = () => {
 
     loadRoundData();
   }, [roundId, token]);
+
+  const loadMockData = () => {
+    const mockRound = {
+      id: roundId,
+      name: round?.name || 'Aptitude Test',
+      sessionId: round?.sessionId || null,
+    };
+
+    const mockCandidates = [
+      {
+        applicationId: 'mock-1',
+        student: {
+          fullName: 'John Doe',
+          email: 'john.doe@example.com',
+          enrollmentId: 'ENR001',
+          batch: '2024',
+          skills: ['JavaScript', 'React', 'Node.js', 'MongoDB'],
+          resumeUrl: 'https://example.com/resumes/john-doe-resume.pdf',
+          profileUrl: '/student/profile/ENR001',
+        },
+        evaluation: null,
+        previousRoundRemarks: null,
+      },
+      {
+        applicationId: 'mock-2',
+        student: {
+          fullName: 'Jane Smith',
+          email: 'jane.smith@example.com',
+          enrollmentId: 'ENR002',
+          batch: '2024',
+          skills: ['Python', 'Django', 'PostgreSQL', 'AWS'],
+          resumeUrl: 'https://example.com/resumes/jane-smith-resume.pdf',
+          profileUrl: '/student/profile/ENR002',
+        },
+        evaluation: null,
+        previousRoundRemarks: 'Strong technical skills, good communication.',
+      },
+      {
+        applicationId: 'mock-3',
+        student: {
+          fullName: 'Mike Johnson',
+          email: 'mike.johnson@example.com',
+          enrollmentId: 'ENR003',
+          batch: '2023',
+          skills: ['Java', 'Spring Boot', 'MySQL', 'Docker'],
+          resumeUrl: 'https://example.com/resumes/mike-johnson-resume.pdf',
+          profileUrl: '/student/profile/ENR003',
+        },
+        evaluation: {
+          status: 'SELECTED',
+          remarks: 'Excellent problem-solving skills.',
+          createdAt: new Date().toISOString(),
+        },
+        previousRoundRemarks: null,
+      },
+      {
+        applicationId: 'mock-4',
+        student: {
+          fullName: 'Sarah Williams',
+          email: 'sarah.williams@example.com',
+          enrollmentId: 'ENR004',
+          batch: '2024',
+          skills: ['TypeScript', 'Angular', 'Express', 'Redis'],
+          resumeUrl: 'https://example.com/resumes/sarah-williams-resume.pdf',
+          profileUrl: '/student/profile/ENR004',
+        },
+        evaluation: null,
+        previousRoundRemarks: null,
+      },
+    ];
+
+    setRound(mockRound);
+    setCandidates(mockCandidates);
+
+    // Build evaluations map
+    const evalMap = {};
+    mockCandidates.forEach((candidate) => {
+      if (candidate.evaluation) {
+        evalMap[candidate.applicationId] = {
+          status: candidate.evaluation.status,
+          remarks: candidate.evaluation.remarks || '',
+        };
+      } else {
+        evalMap[candidate.applicationId] = {
+          status: '',
+          remarks: '',
+        };
+      }
+    });
+    setEvaluations(evalMap);
+
+    // Check if all candidates are evaluated
+    const allEvaluated = mockCandidates.every(
+      (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED', 'ON_HOLD'].includes(c.evaluation.status)
+    );
+    setCanEndRound(allEvaluated && mockCandidates.length > 0);
+    setLoading(false);
+  };
 
   const loadRoundData = async () => {
     try {
@@ -51,18 +151,37 @@ const InterviewerRoundEvaluation = () => {
 
       if (!candidatesResponse.ok) {
         const errorData = await candidatesResponse.json();
+        // If no candidates, use mock data
+        if (candidatesResponse.status === 404 || errorData.error?.includes('No candidates')) {
+          setUseMockData(true);
+          loadMockData();
+          return;
+        }
         setError(errorData.error || 'Failed to load candidates');
         setLoading(false);
         return;
       }
 
       const candidatesData = await candidatesResponse.json();
-      setCandidates(candidatesData.candidates || []);
-      setRound(candidatesData.round);
+      if (candidatesData.candidates && candidatesData.candidates.length > 0) {
+        setCandidates(candidatesData.candidates || []);
+        setRound(candidatesData.round);
+        setUseMockData(false);
+      } else {
+        // No candidates, use mock data
+        setUseMockData(true);
+        loadMockData();
+        return;
+      }
 
-      // Build evaluations map
+      // Build evaluations map and ensure profile URLs
       const evalMap = {};
       candidatesData.candidates.forEach((candidate) => {
+        // Add profile URL if student ID is available
+        if (candidate.student && candidate.student.id && !candidate.student.profileUrl) {
+          candidate.student.profileUrl = `/student/profile/${candidate.student.id}`;
+        }
+        
         if (candidate.evaluation) {
           evalMap[candidate.applicationId] = {
             status: candidate.evaluation.status,
@@ -261,39 +380,50 @@ const InterviewerRoundEvaluation = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate(-1)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-600" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Evaluate Candidates</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  {round?.name} • {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} to evaluate
-                </p>
+                <h1 className="text-3xl font-bold text-gray-900">Evaluate Candidates</h1>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-sm font-semibold text-gray-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-200">
+                    {round?.name || 'Round'}
+                  </span>
+                  <span className="text-sm text-gray-600 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} to evaluate
+                  </span>
+                  {useMockData && (
+                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-300">
+                      Mock Data
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             {canEndRound && (
               <button
                 onClick={handleEndRound}
                 disabled={endingRound}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all"
               >
                 {endingRound ? (
                   <>
-                    <Loader className="w-4 h-4 animate-spin" />
+                    <Loader className="w-5 h-5 animate-spin" />
                     Ending...
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircle className="w-5 h-5" />
                     End Round
                   </>
                 )}
@@ -301,14 +431,29 @@ const InterviewerRoundEvaluation = () => {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Candidates List */}
-        <div className="space-y-4">
-          {candidates.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <p className="text-gray-500">No candidates available for this round.</p>
-            </div>
-          ) : (
+      {/* Main Content */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="max-w-6xl mx-auto">
+
+          {/* Candidates List */}
+          <div className="space-y-4">
+            {candidates.length === 0 ? (
+              <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-12 text-center">
+                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No candidates available</h3>
+                <p className="text-gray-600 mb-6">There are no candidates assigned to this round yet.</p>
+                {!useMockData && (
+                  <button
+                    onClick={loadMockData}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 font-semibold shadow-md hover:shadow-lg transition-all"
+                  >
+                    Load Mock Data for Testing
+                  </button>
+                )}
+              </div>
+            ) : (
             candidates.map((candidate) => {
               const evaluation = evaluations[candidate.applicationId] || { status: '', remarks: '' };
               const isEvaluated = candidate.evaluation && candidate.evaluation.status;
@@ -317,51 +462,78 @@ const InterviewerRoundEvaluation = () => {
               return (
                 <div
                   key={candidate.applicationId}
-                  className="bg-white rounded-lg shadow-sm p-6"
+                  className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-6 hover:shadow-xl transition-all duration-200"
                 >
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                        <User className="w-6 h-6 text-blue-600" />
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <User className="w-7 h-7 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{candidate.student.fullName}</h3>
-                        <p className="text-sm text-gray-600">{candidate.student.email}</p>
-                        {candidate.student.enrollmentId && (
-                          <p className="text-xs text-gray-500">ID: {candidate.student.enrollmentId}</p>
-                        )}
-                        {candidate.student.batch && (
-                          <p className="text-xs text-gray-500">Batch: {candidate.student.batch}</p>
-                        )}
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">{candidate.student.fullName}</h3>
+                        <p className="text-sm text-gray-600 mb-2">{candidate.student.email}</p>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {candidate.student.enrollmentId && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                              ID: {candidate.student.enrollmentId}
+                            </span>
+                          )}
+                          {candidate.student.batch && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                              Batch: {candidate.student.batch}
+                            </span>
+                          )}
+                        </div>
                         {candidate.student.skills && candidate.student.skills.length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs text-gray-500 mb-1">Skills:</p>
-                            <div className="flex flex-wrap gap-1">
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold text-gray-700 mb-2">Skills:</p>
+                            <div className="flex flex-wrap gap-2">
                               {candidate.student.skills.map((skill, idx) => (
-                                <span key={idx} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                <span key={idx} className="px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
                                   {skill}
                                 </span>
                               ))}
                             </div>
                           </div>
                         )}
+                        {/* Resume and Profile Links */}
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {candidate.student.resumeUrl && (
+                            <button
+                              onClick={() => {
+                                // Open PDF in new window/tab for inline viewing
+                                const pdfWindow = window.open(candidate.student.resumeUrl, '_blank');
+                                if (pdfWindow) {
+                                  pdfWindow.focus();
+                                }
+                              }}
+                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 text-sm font-medium flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
+                            >
+                              <FileText className="w-4 h-4" />
+                              View Resume
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                          {(candidate.student.profileUrl || candidate.student.id) && (
+                            <button
+                              onClick={() => {
+                                // Construct profile URL from student ID or use provided profileUrl
+                                const profileUrl = candidate.student.profileUrl || `/student/profile/${candidate.student.id}`;
+                                window.open(profileUrl, '_blank');
+                              }}
+                              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:from-purple-600 hover:to-pink-700 text-sm font-medium flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
+                            >
+                              <LinkIcon className="w-4 h-4" />
+                              View Profile
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {candidate.student.resumeUrl && (
-                        <a
-                          href={candidate.student.resumeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm flex items-center gap-2"
-                        >
-                          <FileText className="w-4 h-4" />
-                          Resume
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
                       {isEvaluated && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
                           {getStatusIcon(candidate.evaluation.status)}
                           <span className="text-sm font-medium text-gray-700">
                             {candidate.evaluation.status}
@@ -371,25 +543,25 @@ const InterviewerRoundEvaluation = () => {
                     </div>
                   </div>
 
-                  {/* Previous Round Remarks (Issue #4) */}
+                  {/* Previous Round Remarks */}
                   {candidate.previousRoundRemarks && (
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs font-medium text-blue-800 mb-1">Previous Round Remarks:</p>
-                      <p className="text-sm text-blue-900">{candidate.previousRoundRemarks}</p>
+                    <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg shadow-sm">
+                      <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Previous Round Remarks:</p>
+                      <p className="text-sm text-blue-900 leading-relaxed">{candidate.previousRoundRemarks}</p>
                     </div>
                   )}
 
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {/* Status Selection */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status *
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Status <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={evaluation.status}
                         onChange={(e) => handleStatusChange(candidate.applicationId, e.target.value)}
                         disabled={isEvaluated}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium transition-all"
                       >
                         <option value="">Select status</option>
                         <option value="SELECTED">Selected</option>
@@ -400,7 +572,7 @@ const InterviewerRoundEvaluation = () => {
 
                     {/* Remarks */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
                         Remarks
                         {(evaluation.status === 'REJECTED' || evaluation.status === 'ON_HOLD') && (
                           <span className="text-red-500"> *</span>
@@ -410,9 +582,9 @@ const InterviewerRoundEvaluation = () => {
                         value={evaluation.remarks}
                         onChange={(e) => handleRemarksChange(candidate.applicationId, e.target.value)}
                         disabled={isEvaluated}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        placeholder="Enter remarks..."
+                        rows={4}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all resize-none"
+                        placeholder="Enter remarks about the candidate's performance..."
                       />
                     </div>
 
@@ -421,16 +593,16 @@ const InterviewerRoundEvaluation = () => {
                       <button
                         onClick={() => handleSaveEvaluation(candidate.applicationId)}
                         disabled={isSaving || !evaluation.status}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all"
                       >
                         {isSaving ? (
                           <>
-                            <Loader className="w-4 h-4 animate-spin" />
+                            <Loader className="w-5 h-5 animate-spin" />
                             Saving...
                           </>
                         ) : (
                           <>
-                            <Save className="w-4 h-4" />
+                            <Save className="w-5 h-5" />
                             Save Evaluation
                           </>
                         )}
@@ -438,9 +610,13 @@ const InterviewerRoundEvaluation = () => {
                     )}
 
                     {isEvaluated && (
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-600">
-                          <strong>Evaluation saved:</strong> {new Date(candidate.evaluation.createdAt).toLocaleString()}
+                      <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <p className="text-sm font-bold text-green-800">Evaluation Saved</p>
+                        </div>
+                        <p className="text-xs text-green-700">
+                          {new Date(candidate.evaluation.createdAt).toLocaleString()}
                         </p>
                       </div>
                     )}
@@ -449,6 +625,7 @@ const InterviewerRoundEvaluation = () => {
               );
             })
           )}
+          </div>
         </div>
       </div>
     </div>

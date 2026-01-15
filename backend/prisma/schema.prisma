@@ -104,6 +104,7 @@ model Student {
   phone        String
   enrollmentId String?  @unique // Optional during registration, user provides it later
   cgpa         Decimal? // Stored as Decimal type (SQLite uses TEXT for Decimal, preserves precision)
+  backlogs     String? // Number of backlogs (e.g., "0", "1", "2", "3+")
 
   // Academic Info
   batch  String // e.g., "25-29"
@@ -145,6 +146,11 @@ model Student {
 
   // Email preferences
   emailNotificationsDisabled Boolean @default(false)
+
+  // Public Profile Sharing
+  publicProfileId String? @unique // UUID for public profile access (non-guessable)
+  publicProfileShowEmail Boolean @default(true) // Toggle for email visibility in public profile
+  publicProfileShowPhone Boolean @default(false) // Toggle for phone visibility in public profile
 
   // Endorsements (stored as JSON string for SQLite compatibility - magic link system)
   endorsementsData String? // JSON array: [{ endorserName, endorserEmail, endorserRole, organization, message, relatedSkills, verified, submittedAt }]
@@ -371,8 +377,9 @@ model Job {
   companyId   String?
   recruiterId String?
   companyName String? // Fallback if companyId is null
-  recruiterEmail String? // REQUIRED for new jobs: Email for recruiter/HR screening access (token-based)
-  recruiterName  String? // Optional: Name of recruiter/HR contact
+  recruiterEmail String? // REQUIRED for new jobs: Primary email for recruiter/HR screening access (token-based) - kept for backward compatibility
+  recruiterName  String? // Optional: Name of primary recruiter/HR contact - kept for backward compatibility
+  recruiterEmails String? // JSON string: Array of recruiter/HR contacts [{email: string, name: string|null}] - supports multiple emails
 
   // Compensation
   salary      String? // Can be number or range string
@@ -389,6 +396,15 @@ model Job {
   jobType         String? // 'Full-time', 'Internship', etc.
   experienceLevel String?
   driveVenues     String // Array of venue strings (stored as JSON string)
+  
+  // Eligibility Requirements
+  qualification   String? // Required qualification (e.g., "B.Tech", "M.Tech")
+  specialization  String? // Specialization (e.g., "Computer Science", "Electronics")
+  yop             String? // Year of Passing (e.g., "2024", "2025")
+  minCgpa         String? // Minimum CGPA requirement (e.g., "7.00", "8.50", "70%")
+  gapAllowed      String? // Gap allowed (e.g., "Yes", "No", "1 year")
+  gapYears        String? // Maximum gap years allowed
+  backlogs        String? // Backlogs allowed (e.g., "0", "1-2", "No")
 
   // SPOCs (Single Point of Contact) (stored as JSON string)
   spocs String // Array of { fullName, email, phone } as JSON string

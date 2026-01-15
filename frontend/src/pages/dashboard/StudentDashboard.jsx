@@ -14,7 +14,7 @@ import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '.
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
 import api from '../../services/api';
-import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
+import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -59,7 +59,9 @@ import {
   Camera,
   Globe,
   Plus,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Eye,
+  DollarSign
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -90,6 +92,7 @@ const normalizeProfileSnapshot = (profile = {}) => ({
           return cgpaStr;
         })()
       : '',
+  backlogs: profile.backlogs || '',
   batch: profile.batch || '',
   center: profile.center || '',
   school: profile.school || '',
@@ -138,9 +141,7 @@ export default function StudentDashboard() {
   // Other profile states
   const [isChecked, setIsChecked] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
-  const [alertMessage, setAlertMessage] = useState(null);
-  const [alertType, setAlertType] = useState('info');
-  const [showFloatingAlert, setShowFloatingAlert] = useState(false);
+  // Old alert system removed - using toast notifications instead
 
   // Edit Profile form state
   const [fullName, setFullName] = useState('');
@@ -148,6 +149,7 @@ export default function StudentDashboard() {
   const [phone, setPhone] = useState('');
   const [enrollmentId, setEnrollmentId] = useState('');
   const [cgpa, setCgpa] = useState('');
+  const [backlogs, setBacklogs] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [Headline, setHeadline] = useState('');
@@ -170,7 +172,6 @@ export default function StudentDashboard() {
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
-  const discardAlertTimeoutRef = useRef(null);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
@@ -178,6 +179,7 @@ export default function StudentDashboard() {
     phone,
     enrollmentId,
     cgpa,
+    backlogs,
     batch,
     center,
     school,
@@ -202,6 +204,7 @@ export default function StudentDashboard() {
     phone,
     enrollmentId,
     cgpa,
+    backlogs,
     batch,
     center,
     school,
@@ -230,6 +233,7 @@ export default function StudentDashboard() {
     setPhone(snapshot.phone);
     setEnrollmentId(snapshot.enrollmentId);
     setCgpa(snapshot.cgpa);
+    setBacklogs(snapshot.backlogs);
     setBatch(snapshot.batch);
     setCenter(snapshot.center);
     setSchool(snapshot.school);
@@ -276,6 +280,12 @@ export default function StudentDashboard() {
   const [resumes, setResumes] = useState([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
 
+  // Public Profile state
+  const [publicProfileId, setPublicProfileId] = useState(null);
+  const [publicProfileShowEmail, setPublicProfileShowEmail] = useState(true);
+  const [publicProfileShowPhone, setPublicProfileShowPhone] = useState(false);
+  const [loadingPublicProfile, setLoadingPublicProfile] = useState(false);
+
   // Case-insensitive string matching helper
   const matchesIgnoreCase = (str1, str2) => {
     if (!str1 || !str2) return false;
@@ -312,37 +322,16 @@ export default function StudentDashboard() {
   useEffect(() => {
     const previousTab = prevActiveTabRef.current;
     if (previousTab === 'editProfile' && activeTab !== 'editProfile') {
-      if (discardAlertTimeoutRef.current) {
-        clearTimeout(discardAlertTimeoutRef.current);
-        discardAlertTimeoutRef.current = null;
-      }
-
       if (isFormDirty) {
         resetProfileForm();
         setIsFormDirty(false);
         setIsChecked(false);
         setValidationErrors({});
-        setAlertMessage('Unsaved profile changes were discarded.');
-        setAlertType('info');
-        setShowFloatingAlert(true);
-
-        discardAlertTimeoutRef.current = setTimeout(() => {
-          setShowFloatingAlert(false);
-          setAlertMessage(null);
-          discardAlertTimeoutRef.current = null;
-        }, 3000);
+        showInfo('Unsaved profile changes were discarded.');
       }
     }
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
-
-  useEffect(() => {
-    return () => {
-      if (discardAlertTimeoutRef.current) {
-        clearTimeout(discardAlertTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Job loading with proper targeting logic
   const loadJobsData = useCallback(async () => {
@@ -468,6 +457,7 @@ export default function StudentDashboard() {
         } else {
           setCgpa('');
         }
+        setBacklogs(profileData.backlogs || '');
         setBatch(profileData.batch || ''); // No default - must be set
         setCenter(profileData.center || ''); // No default - must be set
         setSchool(profileData.school || ''); // No default - must be set
@@ -711,37 +701,17 @@ export default function StudentDashboard() {
         throw applyError;
       }
       
-      // Immediately add to applications state for instant UI update
-      if (applicationResult && pendingJob.id) {
-        const newApplication = {
-          id: applicationResult.id || `temp_${Date.now()}`,
-          jobId: pendingJob.id,
-          studentId: user.id,
-          status: 'APPLIED',
-          appliedDate: new Date().toISOString(),
-          company: pendingJob.company || { name: pendingJob.companyName },
-          job: {
-            id: pendingJob.id,
-            jobTitle: pendingJob.jobTitle,
-            ...pendingJob
-          }
-        };
-        setApplications(prev => {
-          // Check if already exists to avoid duplicates
-          const exists = prev.some(app => app.jobId === pendingJob.id);
-          if (exists) return prev;
-          return [newApplication, ...prev];
-        });
-      }
-      
       // Show success toast
       showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
       
-      // Refresh applications list to get complete data from backend
-      await loadApplicationsData();
-      
-      // Clear applying state after successful application
+      // Clear applying state immediately
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
+      
+      // Force refresh applications list to get complete data from backend (including the new application)
+      // Reset the loading flag to force a fresh load
+      dataLoadingRef.current.applications = false;
+      // Reload immediately
+      await loadApplicationsData();
       
     } catch (error) {
       console.error('❌ [handleApplyToJob] Full error:', error);
@@ -928,6 +898,23 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Only depend on user.id, loadProfile is stable
 
+  // Load public profile settings
+  useEffect(() => {
+    const loadPublicProfileSettings = async () => {
+      if (!user?.id) return;
+      try {
+        const settings = await api.getPublicProfileSettings();
+        setPublicProfileId(settings.publicProfileId);
+        setPublicProfileShowEmail(settings.showEmail ?? true);
+        setPublicProfileShowPhone(settings.showPhone ?? false);
+      } catch (err) {
+        console.error('Failed to load public profile settings:', err);
+        // Don't show error - settings are optional
+      }
+    };
+    loadPublicProfileSettings();
+  }, [user?.id]);
+
   // Load skills after profile is loaded (only once)
   const skillsLoadedRef = useRef(false);
   useEffect(() => {
@@ -985,11 +972,13 @@ export default function StudentDashboard() {
       });
       
       // Always reload when tab is opened to ensure fresh data
-      // Don't check dataLoadingRef - force reload every time tab opens
+      // Reset loading flag to allow reload
+      dataLoadingRef.current.applications = false;
       loadApplicationsData();
       loadInterviewHistory();
     }
-  }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, activeTab]); // Reload when tab changes to applications
 
   // Validation helper functions
   const validateEmail = (email) => {
@@ -1259,14 +1248,7 @@ export default function StudentDashboard() {
           fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
-      setAlertMessage('Please fix the following errors:\n\n' + validation.errors.join('\n'));
-      setAlertType('error');
-      setShowFloatingAlert(true);
-      
-      setTimeout(() => {
-        setShowFloatingAlert(false);
-        setAlertMessage(null);
-      }, 4000);
+      showError('Please fix the following errors:\n\n' + validation.errors.join('\n'));
       return;
     }
 
@@ -1311,6 +1293,7 @@ export default function StudentDashboard() {
         enrollmentId: enrollmentId.trim(),
         // Send CGPA with exactly 2 decimal places or null
         cgpa: formattedCgpa,
+        backlogs: backlogs.trim() || null,
         batch,
         center,
         bio: bio.trim(),
@@ -1331,9 +1314,7 @@ export default function StudentDashboard() {
       };
 
       // Show success immediately for better UX (optimistic update)
-      setAlertMessage('Successfully Update Profile Details');
-      setAlertType('success');
-      setShowFloatingAlert(true);
+      showSuccess('Profile details updated successfully');
       setIsChecked(false);
       
       // Save to database in background
@@ -1369,6 +1350,7 @@ export default function StudentDashboard() {
         } else {
           setCgpa('');
         }
+        setBacklogs(updatedProfile.backlogs || '');
         setBatch(updatedProfile.batch || '');
         setCenter(updatedProfile.center || '');
         setSchool(updatedProfile.school || '');
@@ -1410,6 +1392,7 @@ export default function StudentDashboard() {
           phone: updatedProfile.phone || '',
           enrollmentId: updatedProfile.enrollmentId || '',
           cgpa: updatedProfile.cgpa?.toString?.() || '',
+          backlogs: updatedProfile.backlogs || '',
           batch: updatedProfile.batch || '',
           center: updatedProfile.center || '',
           school: updatedProfile.school || '',
@@ -1442,8 +1425,7 @@ export default function StudentDashboard() {
       }));
       
       setTimeout(() => {
-        setShowFloatingAlert(false);
-        setAlertMessage(null);
+        // Alert removed - using toast notifications
         setActiveTab('dashboard');
         navigate('/student', { replace: true });
       }, 3000);
@@ -1476,14 +1458,7 @@ export default function StudentDashboard() {
         errorMessage += 'Please try again.';
       }
       
-      setAlertMessage(errorMessage);
-      setAlertType('error');
-      setShowFloatingAlert(true);
-      
-      setTimeout(() => {
-        setShowFloatingAlert(false);
-        setAlertMessage(null);
-      }, 4000);
+      showError(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -1539,9 +1514,7 @@ export default function StudentDashboard() {
   const handleTabClick = (tabId) => {
     setActiveTab(tabId);
     setMobileMenuOpen(false);
-    // Clear alert when switching tabs
-    setShowFloatingAlert(false);
-    setAlertMessage(null);
+    // Alert system removed - using toast notifications
     // Update URL to reflect the current tab
     if (tabId === 'dashboard') {
       // Remove tab parameter for dashboard (default view)
@@ -1664,8 +1637,14 @@ export default function StudentDashboard() {
 
   const getCompanyColor = (companyName) => {
     const colors = [
-      'bg-[#3c80a7]', 'bg-green-600', 'bg-purple-600',
-      'bg-red-600', 'bg-indigo-600', 'bg-pink-600'
+      'bg-gradient-to-br from-blue-500 to-blue-600',
+      'bg-gradient-to-br from-green-500 to-emerald-600',
+      'bg-gradient-to-br from-purple-500 to-purple-600',
+      'bg-gradient-to-br from-red-500 to-rose-600',
+      'bg-gradient-to-br from-indigo-500 to-indigo-600',
+      'bg-gradient-to-br from-pink-500 to-pink-600',
+      'bg-gradient-to-br from-orange-500 to-orange-600',
+      'bg-gradient-to-br from-teal-500 to-cyan-600'
     ];
     const index = companyName ? companyName.length % colors.length : 0;
     return colors[index];
@@ -1861,99 +1840,197 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {/* Column Headers */}
-                  <div className="grid grid-cols-5 gap-4 mb-3 py-3 px-4 bg-gray-50 rounded-lg">
-                    <div className="text-gray-700 font-semibold text-sm">Company</div>
-                    <div className="text-gray-700 font-semibold text-sm">Job Title</div>
-                    <div className="text-gray-700 font-semibold text-sm">Drive Date</div>
-                    <div className="text-gray-700 font-semibold text-sm">Salary (CTC)</div>
-                    <div></div>
+                <div className="space-y-4">
+                  {/* Column Headers - Desktop Only */}
+                  <div className="hidden md:grid grid-cols-12 gap-4 mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                    <div className="col-span-3 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
+                      <Briefcase className="h-4 w-4 mr-2 text-blue-600" />
+                      Company & Role
+                    </div>
+                    <div className="col-span-2 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
+                      <Calendar className="h-4 w-4 mr-2 text-blue-600" />
+                      Drive Date
+                    </div>
+                    <div className="col-span-2 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
+                      <DollarSign className="h-4 w-4 mr-2 text-blue-600" />
+                      Salary (CTC)
+                    </div>
+                    <div className="col-span-5 text-right text-gray-700 font-bold text-sm uppercase tracking-wide">
+                      Actions
+                    </div>
                   </div>
 
                   {/* Job Listings */}
-                  {jobs.map((job) => (
-                    <div
-                      key={job.id}
-                      className="grid grid-cols-5 gap-4 p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 hover:from-blue-50 hover:to-blue-100 hover:shadow-md transition-all duration-200 border border-gray-200"
-                    >
-                      <div className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold mr-3 ${getCompanyColor(job.company?.name || job.company)}`}>
-                          {getCompanyInitial(job.company?.name || job.company)}
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                    {jobs.map((job) => {
+                      const companyName = job.company?.name || job.company || 'Company';
+                      const isApplied = hasApplied(job.id);
+                      const isApplying = applying[job.id];
+                      const cgpaNotMet = !meetsCgpaRequirement(job);
+                      
+                      return (
+                        <div
+                          key={job.id}
+                          className="group bg-white rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all duration-300 overflow-hidden"
+                        >
+                          {/* Mobile Layout */}
+                          <div className="md:hidden p-5 space-y-4">
+                            <div className="flex items-start gap-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
+                                {getCompanyInitial(companyName)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{companyName}</h3>
+                                <p className="text-base font-semibold text-blue-600 mb-2">{job.jobTitle}</p>
+                                <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-4 w-4 text-gray-400" />
+                                    <span>{formatDate(job.driveDate || job.applicationDeadline)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <DollarSign className="h-4 w-4 text-green-500" />
+                                    <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => handleKnowMore(job)}
+                                className="flex-1 px-4 py-2.5 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                Know More
+                              </button>
+                              <button
+                                onClick={() => handleApplyToJob(job)}
+                                disabled={isApplied || isApplying || cgpaNotMet}
+                                title={cgpaNotMet ? (() => {
+                                  const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                  const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                  if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                    return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                  }
+                                  return "CGPA requirement not met. Please check the job requirements.";
+                                })() : ''}
+                                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                                  isApplied
+                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
+                                    : isApplying
+                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
+                                    : cgpaNotMet
+                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
+                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
+                                }`}
+                              >
+                                {isApplied ? (
+                                  <>
+                                    <CheckCircle className="h-5 w-5" />
+                                    Applied!
+                                  </>
+                                ) : isApplying ? (
+                                  <>
+                                    <Loader className="h-5 w-5 animate-spin" />
+                                    Applying...
+                                  </>
+                                ) : cgpaNotMet ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    CGPA Not Met
+                                  </>
+                                ) : (
+                                  <>
+                                    <Briefcase className="h-5 w-5" />
+                                    Apply Now
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Desktop Layout */}
+                          <div className="hidden md:grid md:grid-cols-12 gap-4 p-6 items-center">
+                            <div className="col-span-3 flex items-center gap-4">
+                              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
+                                {getCompanyInitial(companyName)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="text-base font-bold text-gray-900 truncate mb-1">{companyName}</h3>
+                                <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                              </div>
+                            </div>
+
+                            <div className="col-span-2 flex items-center">
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                <span className="text-sm font-medium">{formatDate(job.driveDate || job.applicationDeadline)}</span>
+                              </div>
+                            </div>
+
+                            <div className="col-span-2 flex items-center">
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="h-4 w-4 text-green-500" />
+                                <span className="text-sm font-bold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
+                              </div>
+                            </div>
+
+                            <div className="col-span-5 flex items-center justify-end gap-3">
+                              <button
+                                onClick={() => handleKnowMore(job)}
+                                className="px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md"
+                              >
+                                <Eye className="h-4 w-4" />
+                                Know More
+                              </button>
+                              <button
+                                onClick={() => handleApplyToJob(job)}
+                                disabled={isApplied || isApplying || cgpaNotMet}
+                                title={cgpaNotMet ? (() => {
+                                  const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                  const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                  if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                    return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                  }
+                                  return "CGPA requirement not met. Please check the job requirements.";
+                                })() : ''}
+                                className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
+                                  isApplied
+                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
+                                    : isApplying
+                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
+                                    : cgpaNotMet
+                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
+                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
+                                }`}
+                              >
+                                {isApplied ? (
+                                  <>
+                                    <CheckCircle className="h-5 w-5" />
+                                    Applied!
+                                  </>
+                                ) : isApplying ? (
+                                  <>
+                                    <Loader className="h-5 w-5 animate-spin" />
+                                    Applying...
+                                  </>
+                                ) : cgpaNotMet ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    CGPA Not Met
+                                  </>
+                                ) : (
+                                  <>
+                                    <Briefcase className="h-5 w-5" />
+                                    Apply Now
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-sm font-medium text-gray-900 truncate">
-                          {job.company?.name || job.company || 'Company'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-800 truncate">
-                          {job.jobTitle}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-600 truncate">
-                          {formatDate(job.driveDate || job.applicationDeadline)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-green-600">
-                          {formatSalary(job.salary || job.ctc)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleKnowMore(job)}
-                          className="px-2 py-1 border border-[#3c80a7] bg-[#8ec5ff] text-black font-medium rounded-sm hover:bg-[#2563eb] hover:text-white transition-all duration-200 shadow-sm text-xs whitespace-nowrap cursor-pointer"
-                        >
-                          Know More
-                        </button>
-                        <button
-                          onClick={() => handleApplyToJob(job)}
-                          disabled={hasApplied(job.id) || applying[job.id] || !meetsCgpaRequirement(job)}
-                          title={!meetsCgpaRequirement(job) ? (() => {
-                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                            }
-                            return "CGPA requirement not met. Please check the job requirements.";
-                          })() : ''}
-                          className={`px-2 py-1 rounded-sm text-xs font-medium transition-all duration-200 whitespace-nowrap ${
-                            hasApplied(job.id)
-                              ? 'bg-green-200 text-green-800 cursor-not-allowed border border-green-400'
-                              : applying[job.id]
-                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-300'
-                              : !meetsCgpaRequirement(job)
-                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
-                              : 'border border-green-600 bg-[#268812] text-white hover:bg-green-600 cursor-pointer'
-                          }`}
-                        >
-                          {hasApplied(job.id) ? (
-                            <>
-                              <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied!
-                            </>
-                          ) : applying[job.id] ? (
-                            <>
-                              <Loader className="h-3 w-3 inline mr-1 animate-spin" />
-                              Applying...
-                            </>
-                          ) : !meetsCgpaRequirement(job) ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              CGPA Not Met
-                            </>
-                          ) : (
-                            'Apply Now'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -2718,18 +2795,12 @@ export default function StudentDashboard() {
                             const maxSize = 2 * 1024 * 1024; // 2MB
 
                             if (!allowedTypes.includes(file.type)) {
-                              setAlertMessage('Only JPG, PNG, and WebP images are allowed');
-                              setAlertType('error');
-                              setShowFloatingAlert(true);
-                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              showError('Only JPG, PNG, and WebP images are allowed');
                               return;
                             }
 
                             if (file.size > maxSize) {
-                              setAlertMessage('File size must be less than 2MB');
-                              setAlertType('error');
-                              setShowFloatingAlert(true);
-                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              showError('File size must be less than 2MB');
                               return;
                             }
 
@@ -2740,10 +2811,7 @@ export default function StudentDashboard() {
                               // Update profile photo state with Cloudinary URL
                               setProfilePhoto(response.profileImage.url);
                               
-                              setAlertMessage('Profile image uploaded successfully!');
-                              setAlertType('success');
-                              setShowFloatingAlert(true);
-                              setTimeout(() => setShowFloatingAlert(false), 3000);
+                              showSuccess('Profile image uploaded successfully!');
                             } catch (err) {
                               console.error('Error uploading profile image:', err);
                               // Extract error message from various error formats
@@ -2755,10 +2823,7 @@ export default function StudentDashboard() {
                               } else if (err.response?.error) {
                                 errorMessage = err.response.error;
                               }
-                              setAlertMessage(errorMessage);
-                              setAlertType('error');
-                              setShowFloatingAlert(true);
-                              setTimeout(() => setShowFloatingAlert(false), 5000);
+                              showError(errorMessage);
                             }
                           }}
                         />
@@ -2944,6 +3009,28 @@ export default function StudentDashboard() {
                       {validationErrors.cgpa && (
                         <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
                       )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Trophy size={16} className="text-orange-500" />
+                        Active Backlogs
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        placeholder="Enter backlogs (e.g., 0, 1, 2, 3+)"
+                        value={backlogs}
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          // Allow numbers and + sign (for "3+" format)
+                          value = value.replace(/[^0-9+]/g, '');
+                          // Limit length
+                          if (value.length > 5) {
+                            value = value.substring(0, 5);
+                          }
+                          setBacklogs(value);
+                        }}
+                      />
                     </div>
                     <div>
                       <CustomDropdown
@@ -3481,6 +3568,247 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Public Profile Sharing Section */}
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 border border-indigo-200">
+                  <div className="flex items-center gap-2 pb-3 border-b border-indigo-200 mb-4">
+                    <LinkIcon size={20} className="text-indigo-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Public Profile Sharing</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Share Button */}
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            setLoadingPublicProfile(true);
+                            let profileId = publicProfileId;
+                            
+                            // Generate if doesn't exist
+                            if (!profileId) {
+                              console.log('📝 [Share Profile] Generating public profile ID...');
+                              try {
+                                const response = await api.generatePublicProfileId();
+                                console.log('✅ [Share Profile] Response received:', response);
+                                  
+                                // Handle both direct response and wrapped response
+                                profileId = response?.publicProfileId || response?.data?.publicProfileId;
+                                  
+                                if (!profileId || typeof profileId !== 'string') {
+                                  console.error('❌ [Share Profile] Invalid response format:', {
+                                    response,
+                                    type: typeof response,
+                                    keys: response ? Object.keys(response) : null
+                                  });
+                                  throw new Error('Invalid response: publicProfileId not found or invalid');
+                                }
+                                  
+                                console.log('✅ [Share Profile] Profile ID extracted:', profileId);
+                                setPublicProfileId(profileId);
+                              } catch (generateError) {
+                                console.error('❌ [Share Profile] Error generating profile ID:', generateError);
+                                throw generateError; // Re-throw to be caught by outer catch
+                              }
+                            }
+                            
+                            // Build public profile URL
+                            const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+                            const publicUrl = `${frontendUrl}/profile/${profileId}`;
+                            
+                            console.log('Public profile URL:', publicUrl);
+                            
+                            // Copy to clipboard
+                            await navigator.clipboard.writeText(publicUrl);
+                            showSuccess('Profile link copied. Anyone with this link can view your profile.');
+                          } catch (err) {
+                            console.error('❌ [Share Profile] Failed to generate/copy profile link:', err);
+                            console.error('❌ [Share Profile] Error details:', {
+                              message: err.message,
+                              response: err.response,
+                              status: err.status,
+                              error: err.error,
+                              stack: err.stack
+                            });
+                            
+                            // Extract error message from various possible formats
+                            let errorMessage = 'Failed to generate profile link. Please try again.';
+                            if (err.response?.data) {
+                              errorMessage = err.response.data.message || err.response.data.error || errorMessage;
+                            } else if (err.message) {
+                              errorMessage = err.message;
+                            } else if (err.error) {
+                              errorMessage = err.error;
+                            }
+                            
+                            showError(errorMessage);
+                          } finally {
+                            setLoadingPublicProfile(false);
+                          }
+                        }}
+                        disabled={loadingPublicProfile}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loadingPublicProfile ? (
+                          <>
+                            <Loader className="animate-spin" size={16} />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <LinkIcon size={16} />
+                            Share Profile
+                          </>
+                        )}
+                      </button>
+                      
+                      {publicProfileId && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              setLoadingPublicProfile(true);
+                              const response = await api.regeneratePublicProfileId();
+                              setPublicProfileId(response.publicProfileId);
+                              showSuccess('Profile link regenerated. Old link is no longer valid.');
+                            } catch (err) {
+                              console.error('Failed to regenerate profile link:', err);
+                              showError('Failed to regenerate profile link. Please try again.');
+                            } finally {
+                              setLoadingPublicProfile(false);
+                            }
+                          }}
+                          disabled={loadingPublicProfile}
+                          className="flex items-center gap-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Reset Link
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Visibility Toggles */}
+                    <div className="space-y-3 pt-4 border-t border-indigo-200">
+                      <p className="text-sm font-medium text-gray-700 mb-3">Profile Visibility Settings</p>
+                      
+                      <label className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Mail size={16} className="text-gray-500" />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Show Email</span>
+                            <p className="text-xs text-gray-500">Display your email on public profile</p>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={publicProfileShowEmail}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            const oldValue = publicProfileShowEmail;
+                            setPublicProfileShowEmail(newValue);
+                            try {
+                              console.log('📝 [Email Visibility] Updating to:', newValue);
+                              const response = await api.updatePublicProfileSettings({ showEmail: newValue });
+                              console.log('✅ [Email Visibility] Update successful:', response);
+                              // Update state from response if provided
+                              if (response?.showEmail !== undefined) {
+                                setPublicProfileShowEmail(response.showEmail);
+                              }
+                            } catch (err) {
+                              console.error('❌ [Email Visibility] Failed to update:', err);
+                              console.error('❌ [Email Visibility] Error details:', {
+                                message: err.message,
+                                response: err.response,
+                                status: err.status,
+                                error: err.error,
+                              });
+                              setPublicProfileShowEmail(oldValue); // Revert on error
+                              const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update email visibility. Please try again.';
+                              showError(errorMessage);
+                            }
+                          }}
+                          className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Phone size={16} className="text-gray-500" />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Show Phone</span>
+                            <p className="text-xs text-gray-500">Display your phone number on public profile</p>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={publicProfileShowPhone}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            const oldValue = publicProfileShowPhone;
+                            setPublicProfileShowPhone(newValue);
+                            try {
+                              console.log('📝 [Phone Visibility] Updating to:', newValue);
+                              const response = await api.updatePublicProfileSettings({ showPhone: newValue });
+                              console.log('✅ [Phone Visibility] Update successful:', response);
+                              // Update state from response if provided
+                              if (response?.showPhone !== undefined) {
+                                setPublicProfileShowPhone(response.showPhone);
+                              }
+                            } catch (err) {
+                              console.error('❌ [Phone Visibility] Failed to update:', err);
+                              console.error('❌ [Phone Visibility] Error details:', {
+                                message: err.message,
+                                response: err.response,
+                                status: err.status,
+                                error: err.error,
+                              });
+                              setPublicProfileShowPhone(oldValue); // Revert on error
+                              const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update phone visibility. Please try again.';
+                              showError(errorMessage);
+                            }
+                          }}
+                          className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-4 border-t border-gray-200">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => setIsChecked(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        I confirm that all information provided is accurate
+                      </span>
+                    </label>
+                    <button
+                      type="submit"
+                      id='editSaveBtn'
+                      disabled={!isChecked || saving}
+                      className={`px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
+                        (!isChecked || saving) 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
+                      }`}
+                    >
+                      {saving ? (
+                        <span className="flex items-center gap-2">
+                          <Loader className="animate-spin" size={16} />
+                          Saving...
+                        </span>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
           </div>
@@ -3683,72 +4011,7 @@ export default function StudentDashboard() {
         </div>
       </DashboardLayout>
       
-      {/* Floating Alert for All Types */}
-      {showFloatingAlert && alertMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300">
-          <div className={`rounded-lg shadow-lg border p-4 flex items-center space-x-3 min-w-[300px] ${
-            alertType === 'success' 
-              ? 'bg-white border-green-200'
-              : alertType === 'error'
-              ? 'bg-white border-red-200'
-              : alertType === 'warning'
-              ? 'bg-white border-yellow-200'
-              : 'bg-white border-blue-200'
-          }`}>
-            <div className="flex-shrink-0">
-              {alertType === 'success' && <CheckCircle className="h-6 w-6 text-green-600" />}
-              {alertType === 'error' && <XCircle className="h-6 w-6 text-red-600" />}
-              {alertType === 'warning' && <AlertTriangle className="h-6 w-6 text-yellow-600" />}
-              {alertType === 'info' && <Info className="h-6 w-6 text-blue-600" />}
-            </div>
-            <div className="flex-1">
-              <div className={`text-sm font-medium ${
-                alertType === 'success' 
-                  ? 'text-green-800'
-                  : alertType === 'error'
-                  ? 'text-red-800'
-                  : alertType === 'warning'
-                  ? 'text-yellow-800'
-                  : 'text-blue-800'
-              }`}>
-                {alertType === 'success' && 'Success'}
-                {alertType === 'error' && 'Error'}
-                {alertType === 'warning' && 'Warning'}
-                {alertType === 'info' && 'Information'}
-              </div>
-              <div className={`text-sm whitespace-pre-line ${
-                alertType === 'success' 
-                  ? 'text-gray-700'
-                  : alertType === 'error'
-                  ? 'text-gray-700'
-                  : alertType === 'warning'
-                  ? 'text-gray-700'
-                  : 'text-gray-700'
-              }`}>
-                {alertMessage}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowFloatingAlert(false);
-                setAlertMessage(null);
-              }}
-              className={`flex-shrink-0 rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                alertType === 'success' 
-                  ? 'text-green-500 hover:bg-green-100 focus:ring-green-600'
-                  : alertType === 'error'
-                  ? 'text-red-500 hover:bg-red-100 focus:ring-red-600'
-                  : alertType === 'warning'
-                  ? 'text-yellow-500 hover:bg-yellow-100 focus:ring-yellow-600'
-                  : 'text-blue-500 hover:bg-blue-100 focus:ring-blue-600'
-              }`}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Old floating alert removed - using toast notifications instead */}
 
 
       {/* Resume Selection Modal */}

@@ -12,9 +12,18 @@ let io = null;
  * Initialize Socket.IO server
  */
 export function initSocket(server) {
+  // CORS_ORIGIN is validated at server startup, so it's guaranteed to exist
+  const corsOrigin = process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : [];
+  
+  if (corsOrigin.length === 0) {
+    throw new Error('CORS_ORIGIN environment variable is required for Socket.IO');
+  }
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: corsOrigin,
       methods: ['GET', 'POST'],
       credentials: true,
     },

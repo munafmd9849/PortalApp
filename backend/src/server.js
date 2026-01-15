@@ -34,6 +34,7 @@ import endorsementRoutes from './routes/endorsements.js';
 import placementRoutes from './routes/placement.js';
 import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
+import publicRoutes from './routes/public.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -44,6 +45,55 @@ const __dirname = dirname(__filename);
 // Load .env file from the backend root directory (parent of src/)
 dotenv.config({ path: join(__dirname, '../.env') });
 
+// ============================================
+// STARTUP VALIDATION: Required Environment Variables
+// ============================================
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const requiredEnvVars = ['JWT_SECRET', 'FRONTEND_URL'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  if (isDevelopment) {
+    // In development, use defaults but warn
+    console.warn('⚠️  WARNING: Missing environment variables (using development defaults):');
+    missingVars.forEach(varName => {
+      console.warn(`   - ${varName}`);
+    });
+    console.warn('\n💡 For production, please set these variables in your .env file.');
+    console.warn('   Example:');
+    console.warn('   JWT_SECRET=your-secret-key-here');
+    console.warn('   FRONTEND_URL=https://your-frontend-domain.com');
+    
+    // Set development defaults
+    if (!process.env.JWT_SECRET) {
+      process.env.JWT_SECRET = 'dev-secret-key-change-in-production-' + Date.now();
+      console.warn('   Using temporary JWT_SECRET for development (NOT SECURE FOR PRODUCTION)');
+    }
+    if (!process.env.FRONTEND_URL) {
+      console.warn('   FRONTEND_URL not set. Please set it in your .env file.');
+    }
+  } else {
+    // In production, fail fast
+    console.error('❌ CRITICAL: Missing required environment variables:');
+    missingVars.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error('\n💡 Please set these variables in your .env file before starting the server.');
+    console.error('   Example:');
+    console.error('   JWT_SECRET=your-secret-key-here');
+    console.error('   FRONTEND_URL=https://your-frontend-domain.com');
+    process.exit(1);
+  }
+}
+
+// Validate FRONTEND_URL format
+const frontendUrl = process.env.FRONTEND_URL;
+if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith('https://')) {
+  console.error('❌ CRITICAL: FRONTEND_URL must start with http:// or https://');
+  console.error(`   Current value: ${frontendUrl}`);
+  process.exit(1);
+}
+
 // DEBUG: Verify .env loading for Google AI
 console.log('🔍 [DEBUG] Environment Variables Check:');
 console.log('  - GOOGLE_AI_API_KEY:', process.env.GOOGLE_AI_API_KEY ? `${process.env.GOOGLE_AI_API_KEY.substring(0, 10)}...${process.env.GOOGLE_AI_API_KEY.substring(process.env.GOOGLE_AI_API_KEY.length - 5)} (${process.env.GOOGLE_AI_API_KEY.length} chars)` : '❌ NOT SET');
@@ -51,6 +101,7 @@ console.log('  - GOOGLE_AI_MODEL:', process.env.GOOGLE_AI_MODEL || process.env.G
 console.log('  - GOOGLE_AI_MAX_TOKENS:', process.env.GOOGLE_AI_MAX_TOKENS || '2048 (default)');
 console.log('  - GOOGLE_AI_TEMPERATURE:', process.env.GOOGLE_AI_TEMPERATURE || '0.7 (default)');
 console.log('  - AI_ENABLED:', process.env.AI_ENABLED !== 'false' ? 'true' : 'false');
+console.log('  - FRONTEND_URL:', process.env.FRONTEND_URL);
 
 const app = express();
 const server = http.createServer(app);
@@ -63,18 +114,38 @@ const io = initSocket(server);
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    // In development, allow localhost on any port
-    if (process.env.NODE_ENV === 'development') {
-      if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-        return callback(null, true);
+    // Get allowed origins from environment variable
+    // CORS_ORIGIN can be a comma-separated list for multiple origins
+    let allowedOrigins = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+      : [];
+    
+    // If no CORS_ORIGIN is set
+    if (allowedOrigins.length === 0) {
+      if (isDevelopment) {
+        // Development: Use FRONTEND_URL if available, otherwise warn
+        if (process.env.FRONTEND_URL) {
+          allowedOrigins = [process.env.FRONTEND_URL];
+          console.warn('⚠️  CORS_ORIGIN not set, using FRONTEND_URL for CORS:', process.env.FRONTEND_URL);
+        } else {
+          console.warn('⚠️  CORS_ORIGIN and FRONTEND_URL not set. CORS may not work properly.');
+          console.warn('   Please set CORS_ORIGIN or FRONTEND_URL in your .env file');
+        }
+      } else {
+        // Production: Fail fast
+        console.error('❌ CRITICAL: CORS_ORIGIN environment variable is not set.');
+        console.error('   Please set CORS_ORIGIN in your .env file (e.g., CORS_ORIGIN=https://your-frontend-domain.com)');
+        process.exit(1);
       }
     }
-    // In production, use configured CORS_ORIGIN
-    const allowedOrigins = process.env.CORS_ORIGIN 
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : ['http://localhost:5173'];
     
-    if (allowedOrigins.includes(origin)) {
+    // In development, also allow localhost on any port
+    if (isDevelopment && origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+      return callback(null, true);
+    }
+    
+    // Allow requests from configured origins
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -136,6 +207,8 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+// Public routes (NO AUTH) - must come before authenticated routes
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/jobs', jobRoutes);
@@ -216,7 +289,8 @@ server.listen(PORT,'0.0.0.0',() => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.IO enabled`);
   console.log(`🗄️  Database: ${process.env.DATABASE_URL?.includes('postgresql') ? 'PostgreSQL' : 'SQLite'}`);
-  console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
+  console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'NOT SET (CRITICAL)'}`);
+  console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
   console.log(`📧 Email configured: ${process.env.EMAIL_USER ? 'Yes' : 'No'}`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
