@@ -60,7 +60,7 @@ Create or update `backend/.env`:
 
 ```env
 # Database (existing)
-DATABASE_URL=file:./prisma/dev.db
+DATABASE_URL=postgresql://<user>:<password>@<neon-host>/<db>?sslmode=require
 
 # Google Calendar OAuth
 GOOGLE_CLIENT_ID=123456789-abcdefghijklmnopqrstuvwxyz.apps.googleusercontent.com
@@ -118,7 +118,7 @@ After adding the variables, verify:
 
 ```env
 # Database
-DATABASE_URL=file:./prisma/dev.db
+DATABASE_URL=postgresql://<user>:<password>@<neon-host>/<db>?sslmode=require
 
 # JWT (existing)
 JWT_SECRET=your_jwt_secret_here

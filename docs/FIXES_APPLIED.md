@@ -32,11 +32,11 @@
 - **Solution**: Extended stack trace logging and added error meta
 - **Location**: Lines 590-610
 
-### Fix 6: SQLite Concurrency Enhancement
+### Fix 6: Database Concurrency Enhancement
 **File**: `backend/src/config/database.js`
-- **Issue**: SQLite doesn't handle concurrent reads well
-- **Solution**: Enable WAL (Write-Ahead Logging) mode for better concurrency
-- **Location**: Lines 31-38
+- **Issue**: Database connection stability under concurrent load
+- **Solution**: Use a production-grade PostgreSQL database with proper pooling
+- **Location**: N/A (PostgreSQL-only)
 
 ### Fix 7: Connection Pool Monitoring
 **File**: `backend/src/config/database.js`
@@ -48,7 +48,7 @@
 
 1. **No More 500 Errors**: Requests should succeed even if some User records are missing
 2. **Better Error Messages**: More detailed error info in development mode
-3. **Improved Concurrency**: SQLite WAL mode allows concurrent reads
+3. **Improved Concurrency**: PostgreSQL supports concurrent reads/writes safely
 4. **Graceful Degradation**: Students without users still appear in list with defaults
 
 ## 🧪 Testing Recommendations

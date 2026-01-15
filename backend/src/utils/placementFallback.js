@@ -24,15 +24,15 @@ Solve 200+ problems on LeetCode, focusing on medium difficulty. Start with compa
 4. System Design Basics
 Understand arrays vs linked lists trade-offs, hash table collision handling, and tree traversal methods. Know when to use which structure. YouTube: System Design Interview by Tech Dummies.
 
-5. Mock Interviews
-Practice explaining your approach out loud. Time yourself solving problems. Get feedback on code quality and communication. YouTube: InterviewBit Mock Interview Series.
+5. Practice Interviews
+Practice explaining your approach out loud. Time yourself solving problems. Get feedback on code quality and communication. YouTube: InterviewBit interview practice series.
 
 Weekly Plan:
 Week 1-2: Arrays and Strings (50 problems)
 Week 3-4: Linked Lists and Stacks (40 problems)
 Week 5-6: Trees and Graphs (60 problems)
 Week 7-8: Dynamic Programming (50 problems)
-Week 9-10: Revision and Mock Interviews
+Week 9-10: Revision and Practice Interviews
 
 Start with easy problems, gradually move to medium. Focus on understanding patterns, not solving maximum problems.`;
   }
@@ -75,7 +75,7 @@ Solve problems daily on LeetCode, Codeforces, or HackerRank. Focus on problem-so
 3. Projects and Resume
 Build 2-3 substantial projects showcasing your skills. Write clean code and document your work. Prepare to explain your projects in detail.
 
-4. Mock Interviews
+4. Practice Interviews
 Practice explaining your thought process while solving problems. Get feedback on communication and problem-solving approach. YouTube: InterviewBit, Pramp.
 
 5. Company Research

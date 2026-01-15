@@ -628,7 +628,7 @@ const handleKnowMore = (job) => {
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Database (SQLite)                         │
+│                    Database (PostgreSQL / Neon)              │
 │  Returns: Job record with relations                         │
 └──────────────────────┬──────────────────────────────────────┘
                        │

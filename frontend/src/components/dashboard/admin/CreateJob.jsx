@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
 import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
@@ -8,6 +8,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 
 // Utility helpers
 const toISOFromDDMMYYYY = (val) => {
@@ -16,6 +17,8 @@ const toISOFromDDMMYYYY = (val) => {
   if (!m) return '';
   const [_, dd, mm, yyyy] = m;
   const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  // Set to end of day (23:59:59) to ensure the full day is available
+  d.setHours(23, 59, 59, 999);
   return isNaN(d.getTime()) ? '' : d.toISOString();
 };
 
@@ -91,6 +94,7 @@ export default function CreateJob({ onCreated }) {
 
   const [websiteError, setWebsiteError] = useState('');
   const [linkedinError, setLinkedinError] = useState('');
+  const [recruiterEmailError, setRecruiterEmailError] = useState('');
   const [stipendError, setStipendError] = useState('');
   const [durationError, setDurationError] = useState('');
   const [salaryError, setSalaryError] = useState('');
@@ -133,6 +137,7 @@ export default function CreateJob({ onCreated }) {
     company: '',
     website: '',
     linkedin: '',
+    recruiterEmails: [{ email: '', name: '' }], // Array of recruiter/HR contacts: [{ email, name }]
     jobType: '',
     stipend: '',
     duration: '',
@@ -145,6 +150,8 @@ export default function CreateJob({ onCreated }) {
     spocs: [{ fullName: '', email: '', phone: '' }],
     driveDateText: '',
     driveDateISO: '',
+    applicationDeadlineText: '',
+    applicationDeadlineISO: '',
     driveVenues: [],
     qualification: '',
     specialization: '',
@@ -166,6 +173,8 @@ export default function CreateJob({ onCreated }) {
   const [driveDraft, setDriveDraft] = useState({
     driveDateText: '',
     driveDateISO: '',
+    applicationDeadlineText: '',
+    applicationDeadlineISO: '',
     driveVenues: [],
   });
 
@@ -405,22 +414,35 @@ export default function CreateJob({ onCreated }) {
 
   // All existing completion checks
   const isCompanyDetailsComplete = useMemo(() => {
-    const base = form.company?.trim() && form.jobTitle?.trim() && form.companyLocation?.trim() && form.website?.trim() && form.linkedin?.trim() && form.workMode?.trim() && form.workMode !== '' && form.jobType?.trim() && form.jobType !== '';
+    // Check if at least one recruiter email is provided and valid
+    const hasValidRecruiterEmail = form.recruiterEmails?.length > 0 && 
+      form.recruiterEmails.some(rec => {
+        const email = rec.email?.trim();
+        if (!email) return false;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+      });
+    
+    const base = form.company?.trim() && form.jobTitle?.trim() && form.companyLocation?.trim() && form.website?.trim() && form.linkedin?.trim() && form.workMode?.trim() && form.workMode !== '' && form.jobType?.trim() && form.jobType !== '' && hasValidRecruiterEmail;
     const comp = form.jobType === 'Internship'
       ? form.stipend?.trim() && form.duration?.trim()
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
+    const recruiterEmailOk = hasValidRecruiterEmail && !recruiterEmailError;
     const stipendOk = !form.stipend?.trim() || !stipendError;
     const durationOk = !form.duration?.trim() || !durationError;
     const salaryOk = !form.salary?.trim() || !salaryError;
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
-    return !!(base && comp && websiteOk && linkedinOk && stipendOk && durationOk && salaryOk && locationOk);
-  }, [form, websiteError, linkedinError, stipendError, durationError, salaryError, companyLocationError]);
+    return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
+  }, [form, websiteError, linkedinError, recruiterEmailError, stipendError, durationError, salaryError, companyLocationError]);
 
   const isDriveDetailsComplete = useMemo(() => {
-    return !!(form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText)) && form.driveVenues.length > 0;
-  }, [form.driveDateISO, form.driveDateText, form.driveVenues]);
+    const hasDriveDate = !!(form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText));
+    const hasApplicationDeadline = !!(form.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText));
+    const hasVenues = form.driveVenues.length > 0;
+    return hasDriveDate && hasApplicationDeadline && hasVenues;
+  }, [form.driveDateISO, form.driveDateText, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
     return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
@@ -518,6 +540,39 @@ export default function CreateJob({ onCreated }) {
       setCompanyLocationError('');
     } else {
       setCompanyLocationError('Please enter the location');
+    }
+  };
+
+  const onRecruiterEmailChange = (index, value) => {
+    const updated = [...form.recruiterEmails];
+    updated[index] = { ...updated[index], email: value };
+    update({ recruiterEmails: updated });
+    
+    // Validate email
+    if (!value) {
+      setRecruiterEmailError('');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setRecruiterEmailError(emailRegex.test(value) ? '' : 'Please enter a valid email address');
+  };
+
+  const onRecruiterNameChange = (index, value) => {
+    const updated = [...form.recruiterEmails];
+    updated[index] = { ...updated[index], name: value };
+    update({ recruiterEmails: updated });
+  };
+
+  const addRecruiterEmail = () => {
+    update({ recruiterEmails: [...form.recruiterEmails, { email: '', name: '' }] });
+  };
+
+  const removeRecruiterEmail = (index) => {
+    if (form.recruiterEmails.length > 1) {
+      const updated = form.recruiterEmails.filter((_, i) => i !== index);
+      update({ recruiterEmails: updated });
+    } else {
+      showWarning('At least one recruiter email is required');
     }
   };
 
@@ -682,6 +737,9 @@ export default function CreateJob({ onCreated }) {
       company: keep.company ?? '',
       website: keep.website ?? '',
       linkedin: keep.linkedin ?? '',
+      recruiterEmails: keep.recruiterEmails && Array.isArray(keep.recruiterEmails) && keep.recruiterEmails.length > 0 
+        ? keep.recruiterEmails 
+        : (keep.recruiterEmail ? [{ email: keep.recruiterEmail, name: keep.recruiterName || '' }] : [{ email: '', name: '' }]),
       jobType: '',
       stipend: '',
       duration: '',
@@ -694,6 +752,8 @@ export default function CreateJob({ onCreated }) {
       spocs: [{ fullName: '', email: '', phone: '' }],
       driveDateText: '',
       driveDateISO: '',
+      applicationDeadlineText: '',
+      applicationDeadlineISO: '',
       driveVenues: [],
       qualification: '',
       specialization: '',
@@ -714,6 +774,8 @@ export default function CreateJob({ onCreated }) {
     setDriveDraft({
       driveDateText: '',
       driveDateISO: '',
+      applicationDeadlineText: '',
+      applicationDeadlineISO: '',
       driveVenues: [],
     });
 
@@ -746,6 +808,8 @@ export default function CreateJob({ onCreated }) {
       website: form.website || '',
       linkedin: form.linkedin || '',
       companyLocation: form.companyLocation || '',
+      // Recruiter/HR contacts (REQUIRED - at least one)
+      recruiterEmails: form.recruiterEmails || [{ email: '', name: '' }],
       // Job details
       jobType: form.jobType || '',
       stipend: form.stipend || '',
@@ -769,6 +833,7 @@ export default function CreateJob({ onCreated }) {
       backlogs: form.backlogs || '',
       // Drive details
       driveDate: form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || null,
+      applicationDeadline: form.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || null,
       driveVenues: Array.isArray(form.driveVenues) ? form.driveVenues : [],
       // Interview process
       interviewRounds: [
@@ -793,7 +858,7 @@ export default function CreateJob({ onCreated }) {
   const handleSave = async () => {
     // Basic validation for drafts - only require company and job title
     if (!form.company?.trim() || !form.jobTitle?.trim()) {
-      alert('Please fill in at least Company and Job Title before saving as draft.');
+      showWarning('Please fill in at least Company and Job Title before saving as draft.');
       return;
     }
     
@@ -801,10 +866,10 @@ export default function CreateJob({ onCreated }) {
       setIsSaving(true);
       const payload = buildJobPayload();
       await saveJobDraft(payload);
-      alert('Saved as draft successfully!');
+      showSuccess('Draft saved successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to save draft: ' + (err?.message || 'Unknown error'));
+      showError(err?.message || 'Failed to save draft. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -813,7 +878,7 @@ export default function CreateJob({ onCreated }) {
   const handleAddAnotherPosition = async () => {
     // Basic validation for saving position - only require company and job title
     if (!form.company?.trim() || !form.jobTitle?.trim()) {
-      alert('Please fill in at least Company and Job Title before saving this position.');
+      showWarning('Please fill in at least Company and Job Title before saving this position.');
       return;
     }
     
@@ -834,6 +899,8 @@ export default function CreateJob({ onCreated }) {
         responsibilities: '',
         driveDateText: '',
         driveDateISO: '',
+        applicationDeadlineText: '',
+        applicationDeadlineISO: '',
         driveVenues: [],
         qualification: '',
         specialization: '',
@@ -863,10 +930,10 @@ export default function CreateJob({ onCreated }) {
       });
 
       setCollapsedSections(new Set());
-      alert('Position saved; new form prefilled');
+      showSuccess('Position saved. New form has been prefilled.');
     } catch (err) {
       console.error(err);
-      alert('Failed to add another position: ' + (err?.message || 'Unknown error'));
+      showError(err?.message || 'Failed to add another position. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -883,12 +950,15 @@ export default function CreateJob({ onCreated }) {
       if (!isSkillsEligibilityComplete) missingFields.push('Skills & Eligibility');
       if (!isInterviewProcessComplete) missingFields.push('Interview Process');
       
-      alert(`Please complete the following sections before submitting:\n\n• ${missingFields.join('\n• ')}`);
+      showWarning(`Please complete the following sections before submitting: ${missingFields.join(', ')}`);
       return;
     }
     
+    let loadingToastId = null;
     try {
       setPosting(true);
+      loadingToastId = showLoading('Submitting job for review...');
+      
       const payload = buildJobPayload();
       
       // Debug: Log payload to see what's being sent
@@ -898,15 +968,18 @@ export default function CreateJob({ onCreated }) {
       const { jobId } = await submitJobForReview(payload);
       
       if (onCreated) onCreated();
-      alert('Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
+      replaceLoadingToast(loadingToastId, 'success', 'Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
       resetForm();
     } catch (err) {
       console.error('Submit error:', err);
       
-      // Handle network errors separately
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      
+      // Handle network errors separately (production-safe, no localhost references)
       if (err?.isNetworkError || err?.message?.includes('Failed to connect') || err?.message?.includes('Failed to fetch')) {
-        const backendPort = import.meta.env.VITE_API_URL?.match(/:(\d+)/)?.[1] || '3000';
-        alert(`Network Error:\n\n${err.message}\n\nPlease check:\n1. Backend server is running (http://localhost:${backendPort})\n2. No firewall is blocking the connection\n3. Backend server logs for any errors`);
+        showError('Network error. Please check your connection and try again. If the problem persists, contact support.');
         return;
       }
       
@@ -921,7 +994,7 @@ export default function CreateJob({ onCreated }) {
         errorMessage = `Server error (${err.status}): ${errorMessage}`;
       }
       
-      alert(`Failed to submit job:\n\n${errorMessage}`);
+      showError(errorMessage || 'Failed to submit job. Please check all required fields and try again.');
     } finally {
       setPosting(false);
     }
@@ -1133,6 +1206,82 @@ export default function CreateJob({ onCreated }) {
                   </div>
                 </div>
 
+                {/* Recruiter/HR Contact Information */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Mail size={16} className="text-purple-600" />
+                      Recruiter/HR Contacts <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addRecruiterEmail}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200"
+                    >
+                      <Plus size={16} />
+                      Add Email
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">These emails will receive the screening link after application deadline</p>
+                  
+                  {form.recruiterEmails?.map((recruiter, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Email <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          type="email"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            recruiterEmailError ? 'border-red-500 bg-red-50' : recruiter.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="recruiter@company.com" 
+                          value={recruiter.email || ''} 
+                          onChange={(e) => onRecruiterEmailChange(index, e.target.value)} 
+                          onBlur={(e) => onRecruiterEmailChange(index, e.target.value)}
+                          required 
+                        />
+                      </div>
+
+                      <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Name <span className="text-gray-400">(Optional)</span>
+                        </label>
+                        <input 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                            recruiter.name?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`} 
+                          placeholder="e.g. John Doe" 
+                          value={recruiter.name || ''} 
+                          onChange={(e) => onRecruiterNameChange(index, e.target.value)} 
+                        />
+                      </div>
+
+                      <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2 invisible">
+                          Action
+                        </label>
+                        {form.recruiterEmails.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeRecruiterEmail(index)}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 h-[42px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors border border-red-200"
+                          >
+                            <X size={16} />
+                            Remove
+                          </button>
+                        ) : (
+                          <div className="w-full flex items-center justify-center gap-2 px-3 py-2 h-[42px] text-xs font-medium text-blue-600 bg-blue-50 rounded-md border border-blue-200">
+                            <Info size={14} />
+                            At least one email required
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {recruiterEmailError && <p className="text-red-500 text-sm mt-1">{recruiterEmailError}</p>}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {/* Job Type Dropdown */}
                   <CustomDropdown
@@ -1152,59 +1301,7 @@ export default function CreateJob({ onCreated }) {
                     placeholder="Select Job Type"
                   />
 
-                  {form.jobType === 'Internship' ? (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <FaDollarSign size={16} className="text-gray-500" />
-                          Stipend <span className="text-red-500">*</span>
-                        </label>
-                        <input 
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="₹ per month (e.g. 15000)" 
-                          value={form.stipend} 
-                          onChange={(e) => onStipendChange(e.target.value)} 
-                        />
-                        {stipendError && <p className="text-red-500 text-sm mt-1">{stipendError}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <FaClock size={16} className="text-gray-500" />
-                          Duration <span className="text-red-500">*</span>
-                        </label>
-                        <input 
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            durationError ? 'border-red-500 bg-red-50' : form.duration?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="e.g. 6 months" 
-                          value={form.duration} 
-                          onChange={(e) => onDurationChange(e.target.value)} 
-                        />
-                        {durationError && <p className="text-red-500 text-sm mt-1">{durationError}</p>}
-                      </div>
-                    </>
-                  ) : form.jobType === 'Full-Time' ? (
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <FaDollarSign size={16} className="text-gray-500" />
-                        Salary (CTC) <span className="text-red-500">*</span>
-                      </label>
-                      <input 
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                        }`} 
-                        placeholder="₹ per annum (e.g. 12,00,000)" 
-                        value={form.salary} 
-                        onChange={(e) => onSalaryChange(e.target.value)} 
-                      />
-                      {salaryError && <p className="text-red-500 text-sm mt-1">{salaryError}</p>}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Job Title */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                       <Briefcase size={16} className="text-gray-500" />
@@ -1240,6 +1337,58 @@ export default function CreateJob({ onCreated }) {
                     placeholder="Select Work Mode"
                   />
                 </div>
+
+                {/* Conditional fields based on Job Type */}
+                {form.jobType === 'Internship' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <FaDollarSign size={16} className="text-gray-500" />
+                        Stipend <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`} 
+                        placeholder="₹ per month (e.g. 15000)" 
+                        value={form.stipend} 
+                        onChange={(e) => onStipendChange(e.target.value)} 
+                      />
+                      {stipendError && <p className="text-red-500 text-sm mt-1">{stipendError}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <FaClock size={16} className="text-gray-500" />
+                        Duration <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                          durationError ? 'border-red-500 bg-red-50' : form.duration?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`} 
+                        placeholder="e.g. 6 months" 
+                        value={form.duration} 
+                        onChange={(e) => onDurationChange(e.target.value)} 
+                      />
+                      {durationError && <p className="text-red-500 text-sm mt-1">{durationError}</p>}
+                    </div>
+                  </div>
+                ) : form.jobType === 'Full-Time' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FaDollarSign size={16} className="text-gray-500" />
+                      Salary (CTC) <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                        salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`} 
+                      placeholder="₹ per annum (e.g. 12,00,000)" 
+                      value={form.salary} 
+                      onChange={(e) => onSalaryChange(e.target.value)} 
+                    />
+                    {salaryError && <p className="text-red-500 text-sm mt-1">{salaryError}</p>}
+                  </div>
+                ) : null}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="md:col-span-2">
@@ -1458,13 +1607,56 @@ export default function CreateJob({ onCreated }) {
                     </div>
                   </div>
 
-                  {/* Drive Venue Multi-Select Dropdown */}
+                  {/* Application Deadline with DatePicker */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <MapPin size={16} className="text-green-600" />
-                      Drive Venue <span className="text-red-500">*</span>
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      Application Deadline <span className="text-red-500">*</span>
                     </label>
-                    <div ref={venueDropdownRef} className="relative">
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5 pointer-events-none z-10" />
+                      <DatePicker
+                        selected={driveDraft.applicationDeadlineISO ? new Date(driveDraft.applicationDeadlineISO) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            // Set to end of day (23:59:59) in local timezone to ensure the full day is available
+                            const endOfDay = new Date(date);
+                            endOfDay.setHours(23, 59, 59, 999);
+                            const isoDate = endOfDay.toISOString();
+                            const formattedDate = toDDMMYYYY(isoDate);
+                            setDriveDraft(prev => ({
+                              ...prev,
+                              applicationDeadlineISO: isoDate,
+                              applicationDeadlineText: formattedDate
+                            }));
+                            update({ applicationDeadlineISO: isoDate, applicationDeadlineText: formattedDate });
+                          } else {
+                            setDriveDraft(prev => ({
+                              ...prev,
+                              applicationDeadlineISO: '',
+                              applicationDeadlineText: ''
+                            }));
+                            update({ applicationDeadlineISO: '', applicationDeadlineText: '' });
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        placeholderText="Select application deadline"
+                        minDate={new Date()}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                        wrapperClassName="w-full"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Recruiters will receive screening link after this date</p>
+                  </div>
+                </div>
+
+                {/* Drive Venue Multi-Select Dropdown */}
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <MapPin size={16} className="text-green-600" />
+                    Drive Venue <span className="text-red-500">*</span>
+                  </label>
+                  <div ref={venueDropdownRef} className="relative">
                       <button
                         type="button"
                         className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
@@ -1505,7 +1697,6 @@ export default function CreateJob({ onCreated }) {
                         </div>
                       )}
                     </div>
-                  </div>
                 </div>
               </>
             )}

@@ -610,11 +610,10 @@ const ResumeBuilder = () => {
   };
 
   const handleDeleteResume = async (resumeId) => {
-    if (!window.confirm('Are you sure you want to delete this resume?')) return;
     
     try {
       setSaving(true);
-      const response = await fetch(`${API_BASE_URL}/students/resumes/${resumeId}`, {
+      const response = await fetch(`${API_BASE_URL}/students/resume/${resumeId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -1769,7 +1768,7 @@ const ResumeBuilder = () => {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Live Demo URL</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Project URL</label>
                     <input
                       type="url"
                       placeholder="https://yourproject.com"
@@ -2249,17 +2248,22 @@ const ResumeBuilder = () => {
             <p className="text-gray-600">
               Get detailed analysis of your uploaded resume including ATS compatibility, keyword matching, and improvement suggestions.
             </p>
-            <ResumeAnalyzer resumeInfo={resumes.length > 0 ? {
-              hasResume: true,
-              resumeUrl: resumes[0].fileUrl,
-              fileName: resumes[0].fileName,
-              uploadedAt: resumes[0].uploadedAt
-            } : {
-              hasResume: false,
-              resumeUrl: null,
-              fileName: null,
-              uploadedAt: null
-            }} userId={user?.id} />
+            <ResumeAnalyzer 
+              resumeInfo={resumes.length > 0 ? {
+                hasResume: true,
+                resumeUrl: resumes[0].fileUrl,
+                fileName: resumes[0].fileName,
+                uploadedAt: resumes[0].uploadedAt,
+                resumeId: resumes[0].id
+              } : {
+                hasResume: false,
+                resumeUrl: null,
+                fileName: null,
+                uploadedAt: null
+              }} 
+              resumes={resumes}
+              userId={user?.id} 
+            />
           </div>
         </div>
       )}
@@ -2345,11 +2349,9 @@ const ResumeBuilder = () => {
                           </a>
                           <button
                             onClick={async () => {
-                              if (window.confirm('Are you sure you want to delete this resume?')) {
-                                await handleDeleteResume(resume.id);
-                                if (resumes.length === 1) {
-                                  setShowResumesModal(false);
-                                }
+                              await handleDeleteResume(resume.id);
+                              if (resumes.length === 1) {
+                                setShowResumesModal(false);
                               }
                             }}
                             disabled={saving}

@@ -36,7 +36,7 @@ const RecruiterCalendar = () => {
       // const drivesData = await api.getRecruiterDrives();
       // const updatesData = await api.getScheduleUpdates();
       
-      // Mock data for now
+      // No events yet
       setInterviews([]);
       setDrives([]);
       setScheduleUpdates([]);

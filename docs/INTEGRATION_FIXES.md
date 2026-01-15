@@ -128,7 +128,7 @@ import { AuthContext } from '../context/AuthContextJWT';
   CORS_ORIGIN=http://localhost:5173
   
   DATABASE_URL="postgresql://user:password@localhost:5432/portal"
-  # OR for SQLite: DATABASE_URL="file:./dev.db"
+  # DATABASE_URL must be a PostgreSQL (Neon) connection string (sslmode=require)
   
   JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
   JWT_REFRESH_SECRET="your-refresh-token-secret-min-32-chars"
@@ -367,7 +367,7 @@ curl -X GET http://localhost:3000/api/jobs/targeted \
 1. **Check backend logs** for errors
 2. **Check frontend console** for errors
 3. **Verify environment variables** are set correctly
-4. **Check database connection** (PostgreSQL/SQLite)
+4. **Check database connection** (PostgreSQL / Neon)
 5. **Check Redis connection** (for workers)
 6. **Verify CORS** settings match frontend URL
 7. **Check JWT secrets** are set correctly

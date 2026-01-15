@@ -19,7 +19,6 @@ import {
   XCircle,
   Loader
 } from 'lucide-react';
-import { mockApplications, mockJobs, shouldUseMockData, mockEducation, mockProjects, mockAchievements, mockCertifications, mockEndorsements } from '../../../utils/mockData';
 
 const DashboardHome = ({ 
   studentData, 
@@ -74,66 +73,10 @@ const DashboardHome = ({
     loadProfileData();
   }, [user?.id, propProfileData]);
 
-  // Check if sections have data (real data OR mock data if enabled)
-  // If profileData is still loading, show all sections (they'll handle their own loading states)
-  // Once loaded, show sections if they have real data OR if mock data is enabled
-  const useMockData = shouldUseMockData();
-  
-  const hasEducation = loadingProfile 
-    ? true // Show while loading
-    : (profileData?.education && Array.isArray(profileData.education) && profileData.education.length > 0) || 
-      (useMockData && mockEducation && mockEducation.length > 0);
-  
-  const hasSkills = loadingProfile 
-    ? true // Show while loading
-    : (profileData?.skills && Array.isArray(profileData.skills) && profileData.skills.length > 0) || 
-      useMockData; // Skills section will use mock data if enabled
-  
-  const hasProjects = loadingProfile 
-    ? true // Show while loading
-    : (profileData?.projects && Array.isArray(profileData.projects) && profileData.projects.length > 0) || 
-      (useMockData && mockProjects && mockProjects.length > 0);
-  
-  const hasAchievements = loadingProfile 
-    ? true // Show while loading
-    : (profileData?.achievements && Array.isArray(profileData.achievements) && profileData.achievements.length > 0) || 
-      (useMockData && mockAchievements && mockAchievements.length > 0);
-  
-  const hasCertifications = loadingProfile 
-    ? true // Show while loading
-    : (profileData?.certifications && Array.isArray(profileData.certifications) && profileData.certifications.length > 0) || 
-      (useMockData && mockCertifications && mockCertifications.length > 0);
-  
-  // Check endorsements - need to parse from endorsementsData
-  // Always show endorsements section if mock data is enabled, since the component handles its own data loading
-  let hasEndorsements = false;
-  if (loadingProfile) {
-    hasEndorsements = true; // Show while loading
-  } else {
-    // Check real data
-    if (profileData?.endorsementsData) {
-      try {
-        const endorsements = typeof profileData.endorsementsData === 'string' 
-          ? JSON.parse(profileData.endorsementsData) 
-          : profileData.endorsementsData;
-        hasEndorsements = Array.isArray(endorsements) && endorsements.length > 0;
-      } catch (e) {
-        console.error('Error parsing endorsementsData:', e);
-      }
-    }
-    // Always show if mock data is enabled (component will handle showing mock data)
-    if (!hasEndorsements && useMockData) {
-      hasEndorsements = true;
-    }
-  }
-
-  // Use mock data if real data is empty and in development mode
-  const displayApplications = (applications && applications.length > 0) 
-    ? applications 
-    : (shouldUseMockData() ? mockApplications : []);
-  const displayJobs = (jobs && jobs.length > 0) 
-    ? jobs 
-    : (shouldUseMockData() ? mockJobs : []);
+  // IMPORTANT: Production behavior — no fallback datasets.
+  // UI renders from real API data only (or empty arrays while loading).
+  const displayApplications = Array.isArray(applications) ? applications : [];
+  const displayJobs = Array.isArray(jobs) ? jobs : [];
 
   // Convert studentData props to expected format and calculate stats
   const formattedStudentData = studentData ? {
@@ -277,34 +220,16 @@ const DashboardHome = ({
         />
       )}
 
-      {/* Education Section - Only show if has data */}
-      {hasEducation && (
-        <EducationSection isAdminView={isAdminView} />
-      )}
-
-      {/* Skills Section - Only show if has data */}
-      {hasSkills && (
-        <SkillsSection isAdminView={isAdminView} />
-      )}
-
-      {/* Projects Section - Only show if has data */}
-      {hasProjects && (
-        <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
-      )}
-
-      {/* Achievements & Certifications Section - Only show if has achievements or certifications */}
-      {(hasAchievements || hasCertifications) && (
-        <Achievements isAdminView={isAdminView} />
-      )}
-
-      {/* Endorsements Section - Only show if has data */}
-      {hasEndorsements && (
-        <Endorsements 
-          isAdminView={isAdminView} 
-          studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
-          profileData={profileData}
-        />
-      )}
+      {/* Profile sections render with real data only; they handle their own empty states */}
+      <EducationSection isAdminView={isAdminView} />
+      <SkillsSection isAdminView={isAdminView} />
+      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
+      <Achievements isAdminView={isAdminView} />
+      <Endorsements 
+        isAdminView={isAdminView} 
+        studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
+        profileData={profileData}
+      />
 
       {/* Student Footer */}
       {!hideFooter && (

@@ -7,6 +7,7 @@ import prisma from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../config/email.js';
 import logger from '../config/logger.js';
+import { sendSuccess, sendError, sendValidationError, sendNotFound, sendUnauthorized, sendForbidden, sendServerError } from '../utils/response.js';
 
 /**
  * Generate secure token for interviewer invite
@@ -118,8 +119,15 @@ export const getOrCreateSession = async (req, res) => {
       });
     }
 
-    // Get application count
-    const applicationCount = await prisma.application.count({
+    // Get application count (only TEST_SELECTED candidates are eligible for interviews)
+    const eligibleApplicationCount = await prisma.application.count({
+      where: { 
+        jobId,
+        screeningStatus: 'TEST_SELECTED'
+      },
+    });
+
+    const totalApplicationCount = await prisma.application.count({
       where: { jobId },
     });
 
@@ -184,7 +192,8 @@ export const getOrCreateSession = async (req, res) => {
           company: job.company ? { name: job.company.name } : null,
           description: job.description, // Include for round extraction
         },
-        totalApplications: applicationCount,
+        totalApplications: totalApplicationCount,
+        eligibleApplications: eligibleApplicationCount, // Only TEST_SELECTED candidates
         rounds: session.rounds.map(r => ({
           id: r.id,
           roundNumber: r.roundNumber,
@@ -229,7 +238,7 @@ export const configureRounds = async (req, res) => {
     const { rounds } = req.body; // Array of { name, roundNumber }
 
     if (!rounds || !Array.isArray(rounds) || rounds.length === 0) {
-      return res.status(400).json({ error: 'rounds array is required' });
+      return sendValidationError(res, 'rounds', 'Rounds array is required and must contain at least one round');
     }
 
     // Get session
@@ -239,23 +248,23 @@ export const configureRounds = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return sendNotFound(res, 'Interview session');
     }
 
     // Validate session status
     if (session.status === 'COMPLETED') {
-      return res.status(409).json({ error: 'Cannot configure rounds for completed session' });
+      return sendError(res, 'Cannot configure rounds for completed session', 'This interview session has been completed. Rounds cannot be modified.', 409);
     }
 
     if (session.status === 'ONGOING') {
-      return res.status(409).json({ error: 'Cannot modify rounds while session is ongoing' });
+      return sendError(res, 'Cannot modify rounds while session is ongoing', 'Rounds cannot be modified while the interview session is in progress.', 409);
     }
 
     // Validate round numbers are sequential
     const roundNumbers = rounds.map(r => r.roundNumber || r.roundNumber).sort((a, b) => a - b);
     for (let i = 0; i < roundNumbers.length; i++) {
       if (roundNumbers[i] !== i + 1) {
-        return res.status(400).json({ error: `Round numbers must be sequential starting from 1. Found: ${roundNumbers.join(', ')}` });
+        return sendValidationError(res, 'roundNumbers', `Round numbers must be sequential starting from 1. Found: ${roundNumbers.join(', ')}`);
       }
     }
 
@@ -263,7 +272,7 @@ export const configureRounds = async (req, res) => {
     const names = rounds.map(r => r.name.trim());
     const uniqueNames = new Set(names);
     if (names.length !== uniqueNames.size) {
-      return res.status(400).json({ error: 'Round names must be unique' });
+      return sendValidationError(res, 'roundNames', 'Round names must be unique');
     }
 
     // Delete existing rounds (if any)
@@ -285,18 +294,17 @@ export const configureRounds = async (req, res) => {
       )
     );
 
-    res.json({
-      message: 'Rounds configured successfully',
+    sendSuccess(res, {
       rounds: createdRounds.map(r => ({
         id: r.id,
         roundNumber: r.roundNumber,
         name: r.name,
         status: r.status,
       })),
-    });
+    }, 'Rounds configured successfully');
   } catch (error) {
     console.error('Error configuring rounds:', error);
-    res.status(500).json({ error: 'Failed to configure rounds', details: error.message });
+    sendServerError(res, 'Failed to configure rounds. Please try again.');
   }
 };
 
@@ -310,14 +318,14 @@ export const inviteInterviewers = async (req, res) => {
     const { emails } = req.body; // Array of email addresses
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return res.status(400).json({ error: 'emails array is required' });
+      return sendValidationError(res, 'emails', 'At least one interviewer email is required');
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const invalidEmails = emails.filter(email => !emailRegex.test(email));
     if (invalidEmails.length > 0) {
-      return res.status(400).json({ error: `Invalid email format: ${invalidEmails.join(', ')}` });
+      return sendValidationError(res, 'emails', `Invalid email format: ${invalidEmails.join(', ')}`);
     }
 
     // Get session
@@ -334,7 +342,8 @@ export const inviteInterviewers = async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const invites = [];
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
@@ -405,13 +414,10 @@ export const inviteInterviewers = async (req, res) => {
       });
     }
 
-    res.json({
-      message: 'Interviewers invited successfully',
-      invites,
-    });
+    sendSuccess(res, { invites }, 'Interviewers invited successfully');
   } catch (error) {
     console.error('Error inviting interviewers:', error);
-    res.status(500).json({ error: 'Failed to invite interviewers', details: error.message });
+    sendServerError(res, 'Failed to send interviewer invitations. Please try again.');
   }
 };
 
@@ -717,14 +723,34 @@ export const getRoundCandidates = async (req, res) => {
     }
 
     // Get all applications for this job
+    // CRITICAL: Only include candidates who passed screening (TEST_SELECTED)
     let applications = await prisma.application.findMany({
-      where: { jobId: round.session.jobId },
+      where: { 
+        jobId: round.session.jobId,
+        screeningStatus: 'TEST_SELECTED' // Only candidates who passed screening
+      },
       include: {
         student: {
-          include: { user: true },
+          include: { 
+            user: true,
+            resumeFiles: {
+              where: { isDefault: true },
+              select: {
+                fileUrl: true,
+                fileName: true,
+                isDefault: true
+              },
+              take: 1
+            }
+          },
         },
       },
     });
+
+    // If no TEST_SELECTED candidates found, return empty list with warning
+    if (applications.length === 0) {
+      console.warn(`No TEST_SELECTED candidates found for job ${round.session.jobId}. Interview session can only include candidates who passed screening.`);
+    }
 
     // Backend-enforced filtering: For rounds after the first, only show SELECTED from previous round
     if (round.roundNumber > 1) {
@@ -801,6 +827,11 @@ export const getRoundCandidates = async (req, res) => {
     const candidates = applications.map(app => {
       const evaluation = evaluationMap.get(app.id);
       const previousEvaluation = previousEvaluationMap.get(app.id);
+      
+      // Get resume URL from new StudentResumeFile (preferred) or fallback to old resumeUrl
+      const defaultResume = app.student.resumeFiles?.[0];
+      const resumeUrl = defaultResume?.fileUrl || app.student.resumeUrl;
+      
       return {
         applicationId: app.id,
         student: {
@@ -809,7 +840,7 @@ export const getRoundCandidates = async (req, res) => {
           email: app.student.email,
           enrollmentId: app.student.enrollmentId,
           batch: app.student.batch,
-          resumeUrl: app.student.resumeUrl,
+          resumeUrl: resumeUrl, // Use new Cloudinary URL if available, fallback to old
           skills: skillsMap.get(app.student.id) || [],
         },
         evaluation: evaluation ? {
@@ -930,10 +961,7 @@ export const evaluateCandidate = async (req, res) => {
       },
     });
 
-    res.json({
-      message: 'Evaluation saved successfully',
-      evaluation,
-    });
+    sendSuccess(res, { evaluation }, 'Evaluation saved successfully');
   } catch (error) {
     console.error('Error evaluating candidate:', error);
     res.status(500).json({ error: 'Failed to save evaluation', details: error.message });

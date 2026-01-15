@@ -5,7 +5,7 @@
 ### ✅ 1. Prisma Schema (`MIGRATION/prisma/schema.prisma`)
 - **All Firestore collections migrated to PostgreSQL tables**
 - Relationships, indexes, and constraints defined
-- Compatible with both PostgreSQL (production) and SQLite (development)
+- Uses PostgreSQL (Neon) exclusively
 - Enums for status fields
 - Proper foreign keys and cascade deletes
 

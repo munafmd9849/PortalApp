@@ -350,7 +350,7 @@ CORS_ORIGIN=http://localhost:5173
 
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/portal"
-# OR for SQLite: DATABASE_URL="file:./dev.db"
+# DATABASE_URL must be a PostgreSQL (Neon) connection string (sslmode=require)
 
 # JWT Authentication (CRITICAL - Keep Secure)
 JWT_SECRET="your-super-secret-jwt-key-min-32-chars"

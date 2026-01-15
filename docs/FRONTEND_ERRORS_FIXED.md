@@ -116,10 +116,10 @@ Backend returns 404 when student profile doesn't exist, but frontend expects emp
 ### **Location**
 - **File**: `backend/src/controllers/jobs.js`
 - **Lines**: 67-149
-- **Error**: Prisma query uses `isEmpty` and `has` which don't work with SQLite JSON strings
+- **Error**: Prisma query uses `isEmpty` and `has` which don't work with JSON-string fields
 
 ### **Root Cause**
-- SQLite stores arrays as JSON strings, not native arrays
+- Targeting arrays are stored as JSON strings, not native arrays
 - Prisma `isEmpty` and `has` operators don't work with JSON strings
 - Query fails with Prisma error
 
@@ -159,13 +159,13 @@ Backend returns 404 when student profile doesn't exist, but frontend expects emp
 -      status: 'POSTED',
 -      isPosted: true,
 -      OR: [
--        // Complex Prisma query with isEmpty/has (doesn't work with SQLite JSON strings)
+-        // Complex Prisma query with isEmpty/has (doesn't work with JSON-string fields)
 -        ...
 -      ],
 -    };
 -
 -    const jobs = await prisma.job.findMany({ where, ... });
-+    // Get all posted jobs first (targeting done in memory for SQLite compatibility)
++    // Get all posted jobs first (targeting done in memory)
 +    const allJobs = await prisma.job.findMany({
 +      where: { status: 'POSTED', isPosted: true },
 +      include: { company: true },
@@ -173,9 +173,9 @@ Backend returns 404 when student profile doesn't exist, but frontend expects emp
 +      take: 200,
 +    });
 +
-+    // Filter jobs in memory (handle JSON strings in SQLite)
++    // Filter jobs in memory (handle JSON-string fields)
 +    const targetedJobs = allJobs.filter(job => {
-+      // Parse targeting arrays (stored as JSON strings in SQLite)
++      // Parse targeting arrays (stored as JSON strings)
 +      let targetSchools = [];
 +      let targetCenters = [];
 +      let targetBatches = [];
@@ -374,7 +374,7 @@ Already fixed in previous session - URL normalization moved inside field process
 
 1. ✅ `frontend/src/components/dashboard/shared/DashboardLayout.jsx` - Added import
 2. ✅ `backend/src/controllers/students.js` - Fixed getStudentProfile, improved error handling
-3. ✅ `backend/src/controllers/jobs.js` - Fixed getTargetedJobs for SQLite compatibility
+3. ✅ `backend/src/controllers/jobs.js` - Fixed getTargetedJobs for JSON-string targeting fields
 4. ✅ `frontend/src/pages/dashboard/StudentDashboard.jsx` - Fixed useEffect dependencies
 5. ✅ `frontend/src/services/api.js` - Improved error logging
 
@@ -383,7 +383,7 @@ Already fixed in previous session - URL normalization moved inside field process
 ## **Underlying Logic Mistakes**
 
 1. **Missing Imports**: Always check imports when function is undefined
-2. **SQLite JSON Strings**: Prisma `isEmpty`/`has` don't work with JSON strings - filter in memory
+2. **JSON-string targeting fields**: Prisma `isEmpty`/`has` don't work with JSON strings - filter in memory
 3. **useEffect Dependencies**: Including functions that depend on state causes infinite loops
 4. **Error Handling**: Always log full error details for debugging
 5. **New User Handling**: Return empty structures instead of 404 for new users

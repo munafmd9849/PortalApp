@@ -4,7 +4,8 @@ export const QUERY_TYPES = {
   QUESTION: 'question',
   CGPA_UPDATE: 'cgpa',
   CALENDAR_BLOCK: 'calendar',
-  ENDORSEMENT: 'endorsement'
+  ENDORSEMENT: 'endorsement',
+  BACKLOG_UPDATE: 'backlog'
 };
 
 export const QUERY_STATUS = {
@@ -29,7 +30,7 @@ function generateReferenceId() {
 
 function normalizeType(type = 'question') {
   const normalized = (type || 'question').toLowerCase();
-  if (['question', 'cgpa', 'calendar', 'endorsement'].includes(normalized)) {
+  if (['question', 'cgpa', 'calendar', 'endorsement', 'backlog'].includes(normalized)) {
     return normalized;
   }
   return 'question';
@@ -101,6 +102,12 @@ function buildPayload(formData, jobs = []) {
     // Preserve CGPA as string to avoid floating point rounding
     // Backend will validate and convert to Decimal
     payload.cgpa = formData.cgpa ? String(formData.cgpa).trim() : null;
+  }
+
+  if (payload.type === QUERY_TYPES.BACKLOG_UPDATE) {
+    // Preserve backlogs as string
+    // Backend will validate format
+    payload.backlogs = formData.backlogs ? String(formData.backlogs).trim() : null;
   }
 
   if (payload.type === QUERY_TYPES.CALENDAR_BLOCK) {

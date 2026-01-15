@@ -997,6 +997,19 @@ export default function ManageJobs() {
                           <View className="w-4 h-4" />
                         </button>
 
+                        {/* View Applicants Button */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/admin/jobs/${job.id}/applications`);
+                          }}
+                          className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors shadow-sm"
+                          title="View Applicants"
+                        >
+                          <Users className="w-4 h-4" />
+                        </button>
+
                         {/* Share Action */}
                         <button
                           onClick={() => handleShare(job)}

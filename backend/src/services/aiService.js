@@ -121,55 +121,60 @@ function generateBulletsFallback(title, description, techStack) {
 /**
  * Analyze resume for ATS (Applicant Tracking System) compatibility
  * @param {string} resumeText - Extracted text from resume PDF
- * @returns {Promise<Object>} ATS analysis results
+ * @returns {Promise<Object>} Analysis results with score, suggestions, etc.
  */
 export async function analyzeATSResume(resumeText) {
   try {
+    const clamp = (value, min, max, fallback) => {
+      if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
+      return Math.max(min, Math.min(max, value));
+    };
+
     // Check if AI is available
     if (!AI_CONFIG.enabled || !AI_CONFIG.google.apiKey) {
       console.warn('AI service not configured, using fallback ATS analysis');
       return generateATSFallback(resumeText);
     }
 
-    // Use AI abstraction layer for ATS analysis
-    const prompt = `You are an ATS (Applicant Tracking System) resume analyzer. Analyze the following resume text and provide a comprehensive ATS compatibility assessment.
+    // Use AI abstraction layer for comprehensive ATS analysis
+    const prompt = `You are an expert ATS (Applicant Tracking System) resume analyzer.
 
 Resume Text:
-${resumeText.substring(0, 8000)}${resumeText.length > 8000 ? '...' : ''}
+${(resumeText || '').substring(0, 8000)}${resumeText && resumeText.length > 8000 ? '... (truncated)' : ''}
 
-Analyze the resume and return a JSON object with the following structure:
+Return ONLY valid JSON (no markdown, no code blocks) with the following structure:
 {
   "atsScore": 75,
+  "strengths": ["strength1", "strength2"],
+  "improvementSuggestions": ["suggestion1", "suggestion2"],
   "missingKeywords": ["keyword1", "keyword2"],
   "missingSkills": ["skill1", "skill2"],
   "grammarIssues": ["issue1", "issue2"],
   "formattingIssues": ["issue1", "issue2"],
   "clarityIssues": ["issue1", "issue2"],
-  "improvementSuggestions": ["suggestion1", "suggestion2"],
-  "strengths": ["strength1", "strength2"],
-  "overallFeedback": "Overall feedback about the resume"
+  "overallFeedback": "Comprehensive feedback (2-4 sentences)"
 }
 
-Guidelines:
-- atsScore: Number between 0-100 (higher is better)
-- missingKeywords: Array of important keywords that should be included
-- missingSkills: Array of skills that are commonly expected but missing
-- grammarIssues: Array of grammar or spelling issues found
-- formattingIssues: Array of formatting problems (e.g., inconsistent dates, missing sections)
-- clarityIssues: Array of clarity or readability issues
-- improvementSuggestions: Array of actionable suggestions to improve ATS compatibility
-- strengths: Array of positive aspects of the resume
-- overallFeedback: A comprehensive summary (2-3 sentences) of the resume's ATS compatibility
+Scoring Guidelines:
+- 80-100: Excellent ATS compatibility
+- 60-79: Good with room for improvement
+- 40-59: Needs significant improvements
+- 0-39: Poor ATS compatibility
 
-Return ONLY valid JSON, no markdown, no code blocks.`;
+Focus on:
+1. Keyword optimization and relevance
+2. Format compatibility (no tables, clean structure)
+3. Section organization (Contact, Summary, Experience, Education, Skills)
+4. Grammar and spelling
+5. Clarity and conciseness
+6. Action verbs and quantifiable achievements`;
 
     const aiResponse = await generateAIContent(prompt);
-    
+
     // Check if AI returned an error message
     if (aiResponse.includes('unavailable') || 
         aiResponse.includes('not configured') || 
         aiResponse.includes('disabled')) {
-      // AI service is not available - use fallback
       return generateATSFallback(resumeText);
     }
 
@@ -178,20 +183,21 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
     if (jsonText.startsWith('```')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     }
-    
+
     const parsed = JSON.parse(jsonText);
-    
+
     // Validate and format response
     return {
-      atsScore: typeof parsed.atsScore === 'number' ? Math.max(0, Math.min(100, parsed.atsScore)) : 50,
+      atsScore: clamp(parsed.atsScore, 0, 100, 50),
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+      improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : [],
       missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [],
       missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills : [],
       grammarIssues: Array.isArray(parsed.grammarIssues) ? parsed.grammarIssues : [],
       formattingIssues: Array.isArray(parsed.formattingIssues) ? parsed.formattingIssues : [],
       clarityIssues: Array.isArray(parsed.clarityIssues) ? parsed.clarityIssues : [],
-      improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : [],
-      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-      overallFeedback: parsed.overallFeedback || 'Resume analysis completed. Review the suggestions to improve ATS compatibility.'
+      overallFeedback: parsed.overallFeedback || 'Analysis completed. Review the suggestions to improve your resume.',
+      isAI: true,
     };
   } catch (error) {
     console.error('ATS analysis error:', error);
@@ -204,46 +210,88 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
  * Fallback ATS analysis when AI is not available
  */
 function generateATSFallback(resumeText) {
-  const wordCount = resumeText.split(/\s+/).length;
-  const hasEmail = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(resumeText);
-  const hasPhone = /\b\d{10,}\b/.test(resumeText);
-  const hasEducation = /education|degree|university|college|bachelor|master|phd/i.test(resumeText);
-  const hasExperience = /experience|work|employment|intern|project/i.test(resumeText);
-  const hasSkills = /skill|proficient|expert|knowledge|familiar/i.test(resumeText);
+  const raw = typeof resumeText === 'string' ? resumeText : '';
+  const text = raw.toLowerCase();
+  const wordCount = raw.trim().length === 0 ? 0 : raw.trim().split(/\s+/).filter(Boolean).length;
 
-  // Calculate basic ATS score
-  let score = 50; // Base score
-  if (wordCount >= 300 && wordCount <= 800) score += 10;
-  if (hasEmail) score += 10;
-  if (hasPhone) score += 5;
-  if (hasEducation) score += 10;
-  if (hasExperience) score += 10;
-  if (hasSkills) score += 5;
+  const hasEmail = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/.test(raw);
+  const hasPhone = /(\+?\d[\d\s().-]{8,}\d)/.test(raw);
 
-  const suggestions = [];
-  if (wordCount < 200) suggestions.push('Resume is too short. Aim for 300-800 words.');
-  if (wordCount > 1000) suggestions.push('Resume is too long. Consider condensing to 800 words or less.');
-  if (!hasEmail) suggestions.push('Add your email address for contact information.');
-  if (!hasPhone) suggestions.push('Add your phone number for better contact options.');
-  if (!hasEducation) suggestions.push('Include your educational background.');
-  if (!hasExperience) suggestions.push('Add work experience or internship details.');
-  if (!hasSkills) suggestions.push('Include a skills section highlighting your technical and soft skills.');
+  // Basic keyword checking
+  const commonKeywords = [
+    'experience', 'education', 'skills', 'project', 'achievement',
+    'leadership', 'teamwork', 'communication', 'problem solving',
+    'javascript', 'python', 'react', 'node', 'java', 'sql'
+  ];
+
+  const foundKeywords = commonKeywords.filter(keyword => text.includes(keyword));
+  const keywordScore = (foundKeywords.length / commonKeywords.length) * 30;
+
+  // Basic structure checking
+  let structureScore = 0;
+  if (hasEmail || hasPhone || text.includes('contact')) structureScore += 10;
+  if (text.includes('summary') || text.includes('objective') || text.includes('profile')) structureScore += 10;
+  if (text.includes('experience') || text.includes('work') || text.includes('employment') || text.includes('intern')) structureScore += 15;
+  if (text.includes('education') || text.includes('degree') || text.includes('university') || text.includes('college')) structureScore += 10;
+  if (text.includes('skill') || text.includes('technical') || text.includes('competenc')) structureScore += 10;
+
+  // Basic quality checks
+  let qualityScore = 0;
+  const hasNumbers = /\d/.test(raw);
+  const hasActionVerbs = /(developed|created|implemented|designed|managed|led|improved|achieved)/i.test(raw);
+  if (hasNumbers) qualityScore += 10;
+  if (hasActionVerbs) qualityScore += 10;
+
+  // Word count heuristics
+  let lengthScore = 0;
+  if (wordCount >= 300 && wordCount <= 800) lengthScore += 10;
+  if (wordCount > 1000) lengthScore -= 5;
+  if (wordCount > 0 && wordCount < 200) lengthScore -= 5;
+
+  // Contact info heuristics
+  let contactScore = 0;
+  if (hasEmail) contactScore += 5;
+  if (hasPhone) contactScore += 3;
+
+  const totalScore = Math.max(0, Math.min(100, Math.round(keywordScore + structureScore + qualityScore + lengthScore + contactScore)));
+
+  // Generate improvement suggestions - always provide at least some suggestions
+  const improvementSuggestions = [];
+
+  if (wordCount > 0 && wordCount < 200) improvementSuggestions.push('Resume is too short. Aim for 300–800 words with more detail and impact.');
+  if (wordCount > 1000) improvementSuggestions.push('Resume is too long. Consider condensing to ~1 page (or 2 max) and removing repetition.');
+  if (!hasEmail) improvementSuggestions.push('Add a professional email address in the contact section.');
+  if (!hasPhone) improvementSuggestions.push('Add a phone number to improve recruiter reachability.');
+
+  if (foundKeywords.length < 5) improvementSuggestions.push('Add more relevant keywords to improve ATS matching.');
+  if (structureScore < 30) improvementSuggestions.push('Ensure key sections exist: Contact, Summary, Experience, Education, Skills.');
+  if (!hasNumbers) improvementSuggestions.push('Add quantifiable achievements (numbers, percentages, metrics) to demonstrate impact.');
+  if (!hasActionVerbs) improvementSuggestions.push('Use stronger action verbs (developed, implemented, led, improved) to describe accomplishments.');
+
+  if (improvementSuggestions.length === 0) {
+    improvementSuggestions.push('Tailor keywords to the target job description for better ATS matching.');
+    improvementSuggestions.push('Keep formatting clean: consistent dates, bullet points, and section headings.');
+  }
+
+  const strengths = [
+    hasEmail && hasPhone ? 'Contact information is present' : null,
+    foundKeywords.length > 5 ? 'Good keyword usage' : null,
+    structureScore >= 35 ? 'Well-structured resume' : null,
+    hasActionVerbs ? 'Uses action verbs' : null,
+    hasNumbers ? 'Includes measurable impact' : null,
+  ].filter(Boolean);
 
   return {
-    atsScore: Math.min(100, score),
-    missingKeywords: [],
+    atsScore: totalScore,
+    strengths,
+    improvementSuggestions,
+    missingKeywords: commonKeywords.filter(k => !text.includes(k)).slice(0, 5),
     missingSkills: [],
     grammarIssues: [],
     formattingIssues: [],
     clarityIssues: [],
-    improvementSuggestions: suggestions,
-    strengths: [
-      hasEmail && hasPhone ? 'Contact information is present' : null,
-      hasEducation ? 'Education section found' : null,
-      hasExperience ? 'Experience section found' : null,
-    ].filter(Boolean),
-    overallFeedback: 'Basic resume analysis completed. For detailed ATS optimization, please configure the AI service. ' + 
-      (suggestions.length > 0 ? 'Consider addressing the improvement suggestions listed above.' : 'Your resume has good basic structure.')
+    overallFeedback: `Basic analysis completed. Your resume scored ${totalScore}/100. Configure the AI service for a deeper ATS analysis.`,
+    isAI: false,
   };
 }
 

@@ -9,19 +9,25 @@ import {
   Target,
   Award,
   Lightbulb,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import * as pdfjsLib from 'pdfjs-dist';
+import { formatFileSize } from '../../utils/resumeUtils';
 
-// Set up PDF.js worker with proper HTTPS URL
-// Use unpkg CDN which is more reliable than cdnjs for workers
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+// Set up PDF.js worker - use worker from installed package (Vite-compatible)
+// This ensures version match and avoids CDN fetch issues
+// Using ?url suffix for Vite to properly handle the worker file as a URL
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export default function ResumeAnalyzer({ resumeInfo, userId }) {
+export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onResumeSelect }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showResumeSelector, setShowResumeSelector] = useState(false);
+  const [selectedResume, setSelectedResume] = useState(null);
 
   // Extract text from PDF URL (use backend proxy as primary method)
   const extractTextFromPDFUrl = async (pdfUrl) => {
@@ -160,19 +166,47 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
     }
   };
 
+  // Handle resume selection
+  const handleResumeSelect = (resume) => {
+    setSelectedResume(resume);
+    setShowResumeSelector(false);
+    // Clear previous analysis when selecting a new resume
+    setAnalysis(null);
+    setError(null);
+  };
+
+  // Handle "Analyze Another Resume" - show selector and clear current analysis
+  const handleAnalyzeAnother = () => {
+    setShowResumeSelector(true);
+    setAnalysis(null);
+    setError(null);
+    setSelectedResume(null);
+  };
+
   // Real analysis function using Gemini API
   const analyzeResume = async () => {
-    if (!resumeInfo?.hasResume || !resumeInfo?.resumeUrl) {
+    // Determine which resume to analyze
+    const resumeToAnalyze = selectedResume || resumeInfo;
+    
+    if (!resumeToAnalyze?.fileUrl && !resumeToAnalyze?.resumeUrl) {
+      // If multiple resumes exist, show selector
+      if (resumes && resumes.length > 1) {
+        setShowResumeSelector(true);
+        return;
+      }
       setError('Resume URL is required for analysis');
       return;
     }
+
+    const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
+    const resumeId = resumeToAnalyze.id || resumeToAnalyze.resumeId;
 
     setLoading(true);
     setError(null);
     
     try {
       // Step 1: Extract text from PDF
-      const resumeText = await extractTextFromPDFUrl(resumeInfo.resumeUrl);
+      const resumeText = await extractTextFromPDFUrl(resumeUrl);
       
       if (!resumeText || resumeText.trim().length === 0) {
         throw new Error('Could not extract text from PDF. The PDF might be image-based or corrupted.');
@@ -185,11 +219,11 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       }
 
       console.log('📊 [ATS Analysis] Calling backend API with resume text length:', resumeText.length);
-      
+
       // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
+
       let response;
       try {
         response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
@@ -200,7 +234,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
           },
           body: JSON.stringify({
             resumeText: resumeText,
-            resumeId: resumeInfo.resumeId || null,
+            resumeId: resumeId || null,
           }),
           signal: controller.signal,
         });
@@ -215,7 +249,6 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         }
         throw fetchError;
       }
-
       console.log('📊 [ATS Analysis] Response status:', response.status);
       
       if (!response.ok) {
@@ -228,7 +261,9 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       console.log('📊 [ATS Analysis] Analysis received:', {
         success: data.success,
         hasAnalysis: !!data.analysis,
-        atsScore: data.analysis?.atsScore
+        atsScore: data.analysis?.atsScore,
+        improvementsCount: data.analysis?.improvementSuggestions?.length || 0,
+        improvements: data.analysis?.improvementSuggestions
       });
       
       if (!data.success || !data.analysis) {
@@ -241,7 +276,9 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         atsCompatibility: data.analysis.atsScore,
         readabilityScore: 0, // Not provided by API, can be calculated or removed
         strengths: data.analysis.strengths || [],
-        improvements: data.analysis.improvementSuggestions || [],
+        improvements: Array.isArray(data.analysis.improvementSuggestions) 
+          ? data.analysis.improvementSuggestions 
+          : (data.analysis.improvements || []),
         keywords: {
           found: [], // API doesn't provide found keywords separately
           missing: data.analysis.missingKeywords || [],
@@ -252,6 +289,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         formattingIssues: data.analysis.formattingIssues || [],
         clarityIssues: data.analysis.clarityIssues || [],
         overallFeedback: data.analysis.overallFeedback || '',
+        isAI: data.isAI !== false, // Default to true, false only if explicitly set
       };
       
       setAnalysis(transformedAnalysis);
@@ -262,15 +300,14 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         message: err.message,
         stack: err.stack
       });
-      
+
       // Provide more helpful error messages
       let errorMessage = err.message || 'Failed to analyze resume. Please try again.';
-      
       // Enhance error messages for common issues
       if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
         errorMessage = 'Analysis timed out. The server may be slow or unresponsive. Please try again or check if the backend server is running.';
       } else if (errorMessage.includes('Cannot connect to server') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
-        errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:3000 and try again.';
+        errorMessage = 'Cannot connect to server. Please check your network connection and try again.';
       } else if (errorMessage.includes('CORS')) {
         errorMessage = 'CORS Error: The PDF cannot be accessed due to security restrictions. Please contact support or try uploading the resume again.';
       } else if (errorMessage.includes('Network error')) {
@@ -286,7 +323,8 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       }
       
       setError(errorMessage);
-      setLoading(false); // Ensure loading is cleared on error
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -317,12 +355,91 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
     }
   };
 
-  if (!resumeInfo?.hasResume) {
+  // Check if we have any resumes
+  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0);
+  const currentResume = selectedResume || (resumes && resumes.length > 0 ? resumes[0] : null) || resumeInfo;
+
+  if (!hasAnyResume) {
     return (
       <div className="text-center py-8">
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No Resume to Analyze</h3>
         <p className="text-gray-500">Upload a resume to get detailed analysis and improvement suggestions.</p>
+      </div>
+    );
+  }
+
+  // Resume Selection Modal
+  if (showResumeSelector && resumes && resumes.length > 1) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-4">
+          <BarChart3 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select Resume to Analyze</h3>
+          <p className="text-gray-500 mb-6">Choose which resume you want to analyze for ATS compatibility.</p>
+        </div>
+        
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {resumes.map((resume) => (
+            <button
+              key={resume.id}
+              onClick={() => handleResumeSelect(resume)}
+              className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
+                selectedResume?.id === resume.id
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-gray-900 truncate">
+                      {resume.fileName || resume.title || 'Resume'}
+                    </h4>
+                    <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                      {resume.fileSize && (
+                        <span>{formatFileSize(resume.fileSize)}</span>
+                      )}
+                      {resume.uploadedAt && (
+                        <span>• Uploaded {new Date(resume.uploadedAt).toLocaleDateString()}</span>
+                      )}
+                      {resume.isDefault && (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                          Default
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {selectedResume?.id === resume.id && (
+                  <CheckCircle className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowResumeSelector(false)}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          {selectedResume && (
+            <button
+              onClick={() => {
+                setShowResumeSelector(false);
+                analyzeResume();
+              }}
+              className="flex-1 inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Analyze Selected Resume
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -333,14 +450,35 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       <div className="text-center py-8">
         <BarChart3 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Analyze</h3>
-        <p className="text-gray-500 mb-6">Click the button below to analyze your resume for ATS compatibility.</p>
-        <button
-          onClick={analyzeResume}
-          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          <BarChart3 className="h-5 w-5 mr-2" />
-          Analyze Resume
-        </button>
+        <p className="text-gray-500 mb-2">
+          {resumes && resumes.length > 1 
+            ? `You have ${resumes.length} resumes. Select one to analyze for ATS compatibility.`
+            : 'Click the button below to analyze your resume for ATS compatibility.'}
+        </p>
+        {resumes && resumes.length > 1 && currentResume && (
+          <p className="text-sm text-gray-400 mb-4">
+            Currently selected: <span className="font-medium">{currentResume.fileName || currentResume.title || 'Resume'}</span>
+          </p>
+        )}
+        <div className="flex gap-3 justify-center">
+          {resumes && resumes.length > 1 && (
+            <button
+              onClick={() => setShowResumeSelector(true)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Select Resume
+            </button>
+          )}
+          <button
+            onClick={analyzeResume}
+            disabled={!currentResume}
+            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <BarChart3 className="h-5 w-5 mr-2" />
+            {selectedResume ? 'Analyze Selected Resume' : 'Analyze Resume'}
+          </button>
+        </div>
       </div>
     );
   }
@@ -384,14 +522,35 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
             <BarChart3 className="h-5 w-5 text-blue-600 mr-2" />
             Resume Analysis
+            {selectedResume && (
+              <span className="ml-3 text-sm font-normal text-gray-500">
+                ({selectedResume.fileName || selectedResume.title || 'Selected Resume'})
+              </span>
+            )}
           </h3>
-          <button
-            onClick={analyzeResume}
-            className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
-            title="Re-analyze"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {resumes && resumes.length > 1 && (
+              <button
+                onClick={() => {
+                  setShowResumeSelector(true);
+                  setAnalysis(null);
+                  setError(null);
+                }}
+                className="px-3 py-2 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-2"
+                title="Analyze different resume"
+              >
+                <FileText className="h-4 w-4" />
+                Change Resume
+              </button>
+            )}
+            <button
+              onClick={analyzeResume}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+              title="Re-analyze current resume"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="text-center mb-6">
@@ -414,6 +573,34 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
             <div className="text-2xl font-bold text-blue-600">{analysis.atsCompatibility}%</div>
             <div className="text-sm text-blue-700">ATS Compatibility Score</div>
           </div>
+        </div>
+      </div>
+
+      {/* Analysis Type Indicator */}
+      <div className={`border rounded-lg p-4 ${analysis.isAI ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
+        <div className="flex items-start gap-3">
+          {analysis.isAI ? (
+            <>
+              <Sparkles className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-900 mb-1">AI-Powered Analysis</h4>
+                <p className="text-sm text-blue-700">This analysis was generated using advanced AI technology for comprehensive resume evaluation.</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-amber-900 mb-1">Basic Analysis (AI Not Configured)</h4>
+                <p className="text-sm text-amber-700 mb-2">
+                  This is a basic analysis using simple keyword matching. For more detailed, AI-powered analysis with personalized suggestions, configure the AI service.
+                </p>
+                <p className="text-xs text-amber-600">
+                  <strong>To enable AI analysis:</strong> Set <code className="bg-amber-100 px-1 rounded">GOOGLE_AI_API_KEY</code> or <code className="bg-amber-100 px-1 rounded">GEMINI_API_KEY</code> in your backend <code className="bg-amber-100 px-1 rounded">.env</code> file.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -445,20 +632,34 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       </div>
 
       {/* Improvements */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Lightbulb className="h-5 w-5 text-yellow-600 mr-2" />
-          Suggested Improvements
-        </h4>
-        <div className="space-y-2">
-          {analysis.improvements.map((improvement, index) => (
-            <div key={index} className="flex items-start">
-              <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700">{improvement}</span>
-            </div>
-          ))}
+      {analysis.improvements && analysis.improvements.length > 0 ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Lightbulb className="h-5 w-5 text-yellow-600 mr-2" />
+            Suggested Improvements
+          </h4>
+          <div className="space-y-2">
+            {analysis.improvements.map((improvement, index) => (
+              <div key={index} className="flex items-start">
+                <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-700">{improvement}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Lightbulb className="h-5 w-5 text-yellow-600 mr-2" />
+            Suggested Improvements
+          </h4>
+          <div className="text-center py-4">
+            <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
+            <p className="text-gray-600">No specific improvements needed. Your resume looks good!</p>
+            <p className="text-sm text-gray-500 mt-2">Continue to refine your resume based on job requirements.</p>
+          </div>
+        </div>
+      )}
 
       {/* Missing Keywords */}
       {analysis.keywords?.missing && analysis.keywords.missing.length > 0 && (
@@ -546,6 +747,25 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
                 <span className="text-gray-700">{issue}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Analyze Another Resume Button - Show at bottom if multiple resumes exist */}
+      {resumes && resumes.length > 1 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-1">Analyze Another Resume</h4>
+              <p className="text-sm text-gray-600">You have {resumes.length} resumes. Select another one to analyze.</p>
+            </div>
+            <button
+              onClick={handleAnalyzeAnother}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Select Another Resume
+            </button>
           </div>
         </div>
       )}

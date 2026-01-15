@@ -108,7 +108,7 @@
 3. **Transaction/Connection Pool**: Connection pool exhaustion
    - **Possible** - Multiple concurrent requests
 
-4. **SQLite Locking**: SQLite doesn't handle concurrent writes well
+4. **Database locking**: ensure the database supports safe concurrent writes (PostgreSQL does)
    - **Possible** - Multiple reads might conflict
 
 ### C. Data Integrity Issues
@@ -155,8 +155,8 @@ The backend has detailed logging at:
 - Wrap `include` in try-catch
 - Load users separately if needed
 
-### If Issue is SQLite Concurrency:
-- Use `WAL` mode for SQLite
+### If Issue is database concurrency:
+- Use PostgreSQL (Neon) and rely on proper connection pooling
 - Or: Switch to PostgreSQL for production
 
 ### If Issue is Date Serialization:

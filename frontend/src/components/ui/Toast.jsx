@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 // Toast Context
@@ -9,7 +9,8 @@ export const TOAST_TYPES = {
   SUCCESS: 'success',
   ERROR: 'error',
   WARNING: 'warning',
-  INFO: 'info'
+  INFO: 'info',
+  LOADING: 'info' // Loading uses info type with infinite duration
 };
 
 // Toast Component
@@ -205,6 +206,18 @@ export const ToastProvider = ({ children }) => {
     clear: removeAllToasts,
     remove: removeToast
   }, [addToast, removeToast, removeAllToasts]);
+
+  // Initialize toast utility on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Dynamic import to avoid circular dependency
+      import('../../utils/toast.js').then((toastUtils) => {
+        toastUtils.initToast(toast);
+      }).catch(err => {
+        console.warn('Failed to initialize toast utility:', err);
+      });
+    }
+  }, [toast]);
 
   const contextValue = {
     toasts,

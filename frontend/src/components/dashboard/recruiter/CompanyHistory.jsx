@@ -17,73 +17,7 @@ const CompanyHistory = () => {
   const loadCompanyHistory = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const data = await api.getCompanyHistory();
-      
-      // Mock data - only show if company has past drives
-      const mockData = {
-        hasPastDrives: true,
-        pastPlacements: [
-          {
-            id: 1,
-            studentName: 'John Doe',
-            jobTitle: 'Software Engineer',
-            placementDate: '2024-01-15',
-            package: '12 LPA',
-            school: 'SOT',
-            center: 'Bangalore'
-          },
-          {
-            id: 2,
-            studentName: 'Jane Smith',
-            jobTitle: 'Data Analyst',
-            placementDate: '2024-02-20',
-            package: '10 LPA',
-            school: 'SOM',
-            center: 'Pune'
-          }
-        ],
-        visitDates: [
-          { date: '2024-01-10', type: 'Drive', location: 'Bangalore Campus' },
-          { date: '2024-02-15', type: 'Interview', location: 'Pune Campus' },
-          { date: '2024-03-05', type: 'Drive', location: 'Lucknow Campus' }
-        ],
-        conversionRates: {
-          applications: 150,
-          shortlisted: 45,
-          interviewed: 30,
-          offers: 12,
-          conversionRate: 8.0
-        },
-        feedback: [
-          {
-            id: 1,
-            date: '2024-01-20',
-            rating: 4.5,
-            comment: 'Great experience with the recruitment process. Very professional.',
-            studentName: 'John Doe'
-          },
-          {
-            id: 2,
-            date: '2024-02-25',
-            rating: 5.0,
-            comment: 'Excellent communication and smooth process.',
-            studentName: 'Jane Smith'
-          }
-        ],
-        engagementLevel: {
-          score: 85,
-          level: 'High',
-          description: 'Active engagement with students and regular participation in drives'
-        }
-      };
-      
-      // Only set data if company has past drives
-      if (mockData.hasPastDrives) {
-        setHistoryData(mockData);
-      } else {
-        setHistoryData(null);
-      }
+      setHistoryData(null);
     } catch (err) {
       console.error('Error loading company history:', err);
       setError(err.message || 'Failed to load company history');

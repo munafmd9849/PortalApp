@@ -16,7 +16,7 @@ MIGRATION/                                    # Root migration package directory
 ├─ 📄 FOLDER_STRUCTURE.md                    # This file - complete folder structure
 │
 ├─ 📁 prisma/                                # Prisma ORM schema & migrations
-│  └─ 📄 schema.prisma                       # Database schema definition (PostgreSQL/SQLite)
+│  └─ 📄 schema.prisma                       # Database schema definition (PostgreSQL / Neon)
 │                                             #   - Models: User, Student, Recruiter, Admin
 │                                             #   - Models: Job, Application, Notification
 │                                             #   - Models: Company, Skill, Education, Project

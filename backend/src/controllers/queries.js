@@ -8,11 +8,12 @@ const QUERY_NOTIFICATION_TYPES = {
   question: 'question_request',
   cgpa: 'cgpa_request',
   calendar: 'calendar_request',
+  backlog: 'backlog_request',
 };
 
 function normalizeType(type = 'question') {
   const normalized = (type || 'question').toLowerCase();
-  if (['question', 'cgpa', 'calendar', 'endorsement'].includes(normalized)) {
+  if (['question', 'cgpa', 'calendar', 'endorsement', 'backlog'].includes(normalized)) {
     return normalized;
   }
   return 'question';
@@ -130,6 +131,7 @@ export async function createStudentQuery(req, res) {
       message,
       type,
       cgpa,
+      backlogs,
       startDate,
       endDate,
       timeSlot,
@@ -193,9 +195,42 @@ export async function createStudentQuery(req, res) {
       validatedCgpa = cgpaStr;
     }
 
+    // Validate backlogs if provided (for backlog update queries)
+    let validatedBacklogs = null;
+    if (normalizedType === 'backlog' && backlogs !== undefined && backlogs !== null) {
+      const backlogsStr = String(backlogs).trim();
+      
+      // Validate backlogs format: should be a non-negative integer or "0"
+      if (backlogsStr === '' || backlogsStr === 'null' || backlogsStr === 'undefined') {
+        return res.status(400).json({ 
+          error: 'Backlogs count is required for backlog update queries' 
+        });
+      }
+
+      // Allow formats: "0", "1", "2", "3+", etc.
+      const backlogsRegex = /^(\d+|\d+\+)$/;
+      if (!backlogsRegex.test(backlogsStr)) {
+        return res.status(400).json({ 
+          error: 'Invalid backlogs format. Backlogs must be a non-negative integer (e.g., 0, 1, 2, 3+)' 
+        });
+      }
+
+      // Extract numeric value (remove + if present)
+      const numericValue = parseInt(backlogsStr.replace('+', ''), 10);
+      if (isNaN(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          error: 'Backlogs must be a non-negative integer' 
+        });
+      }
+
+      // Store as string to preserve format (e.g., "3+")
+      validatedBacklogs = backlogsStr;
+    }
+
     const metadata = {
       referenceId,
       cgpa: validatedCgpa,
+      backlogs: validatedBacklogs,
       startDate: startDate || null,
       endDate: endDate || null,
       timeSlot: timeSlot || null,
@@ -440,11 +475,45 @@ export async function respondToStudentQuery(req, res) {
       return res.status(404).json({ error: 'Query not found' });
     }
 
+    const queryMetadata = parseMetadata(query.metadata);
+    const finalStatus = status || 'RESOLVED';
+
+    // If query is resolved and it's a CGPA or backlog update query, update student profile
+    if (finalStatus === 'RESOLVED' || finalStatus === 'resolved') {
+      if (query.type === 'cgpa' && queryMetadata.cgpa) {
+        // Update student CGPA
+        const student = await prisma.student.findUnique({
+          where: { userId: query.studentId },
+        });
+
+        if (student) {
+          await prisma.student.update({
+            where: { id: student.id },
+            data: { cgpa: queryMetadata.cgpa },
+          });
+          logger.info(`Updated CGPA for student ${student.id} to ${queryMetadata.cgpa} via query ${queryId}`);
+        }
+      } else if (query.type === 'backlog' && queryMetadata.backlogs !== undefined && queryMetadata.backlogs !== null) {
+        // Update student backlogs
+        const student = await prisma.student.findUnique({
+          where: { userId: query.studentId },
+        });
+
+        if (student) {
+          await prisma.student.update({
+            where: { id: student.id },
+            data: { backlogs: String(queryMetadata.backlogs) },
+          });
+          logger.info(`Updated backlogs for student ${student.id} to ${queryMetadata.backlogs} via query ${queryId}`);
+        }
+      }
+    }
+
     const updatedQuery = await prisma.studentQuery.update({
       where: { id: queryId },
       data: {
         response: adminResponse,
-        status: status || 'RESOLVED',
+        status: finalStatus,
         respondedBy: adminId,
         respondedAt: new Date(),
       },

@@ -11,7 +11,6 @@ import {
   deleteSkillArray,
   getStudentSkills
 } from '../../../services/students';
-import { mockSkills, shouldUseMockData } from '../../../utils/mockData';
 
 function getPointOnQuadraticBezier(t, p0, p1, p2) {
   const x = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * p1.x + t * t * p2.x;
@@ -67,8 +66,8 @@ const SkillsSection = ({ isAdminView = false }) => {
         setLoading(true);
         const skillsData = await getStudentSkills(user.id);
         if (isMounted) {
-          const realSkills = skillsData || [];
-          setSkills(realSkills.length > 0 ? realSkills : (shouldUseMockData() ? mockSkills : []));
+          const realSkills = Array.isArray(skillsData) ? skillsData : (skillsData ? [skillsData] : []);
+          setSkills(realSkills);
         }
       } catch (error) {
         console.error('Error loading skills:', error);

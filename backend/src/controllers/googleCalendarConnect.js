@@ -500,7 +500,8 @@ function sendOAuthResponse(res, result) {
   const { status, reason, calendarEmail, error } = result;
 
   // Get frontend origin for postMessage security
-  const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+  const frontendOrigin = process.env.FRONTEND_URL;
   const frontendOriginUrl = new URL(frontendOrigin);
   const allowedOrigin = `${frontendOriginUrl.protocol}//${frontendOriginUrl.host}`;
 
@@ -646,6 +647,9 @@ function sendOAuthResponse(res, result) {
  * GET /api/google/calendar/status
  * Check if calendar is connected
  * Returns: { connected: true/false }
+ * 
+ * IMPORTANT: Calendar tokens persist in the database across logout/login cycles.
+ * This endpoint checks the database for existing tokens, which are never cleared on logout.
  */
 export const getCalendarStatus = async (req, res) => {
   try {
@@ -657,10 +661,12 @@ export const getCalendarStatus = async (req, res) => {
     const role = req.user.role;
 
     // Use unified GoogleCalendarToken model
+    // These tokens persist in the database and are NOT cleared on logout
     const token = await prisma.googleCalendarToken.findUnique({
       where: { userId },
       select: {
         connectedGoogleEmail: true,
+        accessToken: true, // Check if token actually exists
       },
     });
 
@@ -673,7 +679,11 @@ export const getCalendarStatus = async (req, res) => {
       },
     });
 
-    const connected = !!(user?.googleCalendarConnected && token);
+    // Calendar is connected if:
+    // 1. User has googleCalendarConnected flag set to true, AND
+    // 2. A valid GoogleCalendarToken exists in the database
+    // Note: Tokens persist across logout/login, so calendar remains connected
+    const connected = !!(user?.googleCalendarConnected && token && token.accessToken);
 
     res.json({ 
       connected,

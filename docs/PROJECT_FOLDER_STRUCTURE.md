@@ -295,7 +295,7 @@ Portal-main/                                  # Root project directory
    └─ 📄 FOLDER_STRUCTURE.md                 # Migration folder structure
    │
    ├─ 📁 prisma/                             # Database schema
-   │  └─ 📄 schema.prisma                    # Prisma schema (PostgreSQL/SQLite)
+   │  └─ 📄 schema.prisma                    # Prisma schema (PostgreSQL / Neon)
    │
    ├─ 📁 backend/                            # Express backend
    │  ├─ 📄 package.json                     # Backend dependencies
@@ -348,7 +348,7 @@ Portal-main/                                  # Root project directory
 ### **Tech Stack (Migrated)**
 - **Frontend**: React 19, Vite 7, Tailwind CSS 4 (same)
 - **Backend**: Node.js 20, Express 5
-- **Database**: PostgreSQL (prod), SQLite (dev)
+- **Database**: PostgreSQL (Neon)
 - **ORM**: Prisma 5
 - **Real-time**: Socket.IO
 - **Task Queue**: BullMQ + Redis

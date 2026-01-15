@@ -331,6 +331,10 @@ router.post('/refresh', verifyRefreshToken, async (req, res) => {
 /**
  * POST /auth/logout
  * Logout user (invalidate refresh token)
+ * 
+ * IMPORTANT: This endpoint ONLY clears refresh tokens for session management.
+ * Google Calendar tokens are NOT cleared on logout - they persist in the database
+ * so the calendar remains connected when the user logs back in.
  */
 router.post('/logout', authenticate, async (req, res) => {
   try {
@@ -338,6 +342,8 @@ router.post('/logout', authenticate, async (req, res) => {
     const refreshToken = req.body.refreshToken;
 
     // Delete refresh token if provided
+    // NOTE: We explicitly do NOT delete GoogleCalendarToken records here.
+    // Calendar connection should persist across logout/login cycles.
     if (refreshToken) {
       await prisma.refreshToken.deleteMany({
         where: { token: refreshToken },
@@ -491,13 +497,13 @@ router.post('/reset-password', [
       
       // Return consistent format but don't create OTP (security: don't reveal if email exists)
       // Frontend will show UI, but OTP verification will fail (which is fine for security)
-      const fakeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
       
       return res.json({ 
         success: true,
         message: 'If email exists, password reset OTP sent',
         otpStatus: 'PENDING_VERIFICATION',
-        otpExpiresAt: fakeExpiresAt.toISOString(),
+        otpExpiresAt: expiresAt.toISOString(),
       });
     }
     

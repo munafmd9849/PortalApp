@@ -8,7 +8,7 @@ import { useAuth } from '../hooks/useAuth';
  * Only redirects AFTER user is loaded and only when necessary
  */
 export default function AuthRedirect() {
-  const { user, role, userStatus, loading, emailVerified } = useAuth();
+  const { user, role, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const hasRedirectedRef = useRef(false);
@@ -45,13 +45,20 @@ export default function AuthRedirect() {
 
       // Public paths that authenticated users can visit without redirect
       const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
-      const isPublicPath = publicPaths.includes(currentPath) || currentPath.startsWith('/job/');
+      const isPublicPath = publicPaths.includes(currentPath) 
+        || currentPath.startsWith('/job/')
+        || currentPath.startsWith('/profile/') // Public profile sharing (no auth required)
+        || currentPath.startsWith('/endorse/')
+        || currentPath.startsWith('/endorsement/')
+        || currentPath.startsWith('/interview/')
+        || currentPath.startsWith('/recruiter/screening');
       
       // Admin sub-routes that should not redirect
       const isAdminSubRoute = roleLower === 'admin' && (
         currentPath.startsWith('/admin/interview-session/') ||
         currentPath.startsWith('/admin/assessment/') ||
         currentPath.startsWith('/admin/job/') ||
+        currentPath.startsWith('/admin/jobs/') || // Admin applicants tracking pages
         currentPath.startsWith('/job/')
       );
 

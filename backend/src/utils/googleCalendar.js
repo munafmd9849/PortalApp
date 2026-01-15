@@ -12,7 +12,12 @@ import logger from '../config/logger.js';
 export function getOAuthClient() {
   // Use environment variable if set, otherwise default to new callback path
   // Support both old and new paths for compatibility
-  const defaultRedirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
+  // GOOGLE_REDIRECT_URI should be set in environment variables
+  // It's the backend callback URL (not frontend URL)
+  if (!process.env.GOOGLE_REDIRECT_URI) {
+    throw new Error('GOOGLE_REDIRECT_URI environment variable is required. Set it to your backend callback URL (e.g., https://api.yourdomain.com/auth/google/callback)');
+  }
+  const defaultRedirectUri = process.env.GOOGLE_REDIRECT_URI;
   
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,

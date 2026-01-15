@@ -1,13 +1,13 @@
 // Prisma Schema for PWIOI Placement Portal
-// Migrated from Firebase Firestore to PostgreSQL/SQLite
-// Compatible with both for development (SQLite) and production (PostgreSQL)
+// Migrated from Firebase Firestore to Neon (PostgreSQL)
+// This project uses PostgreSQL exclusively.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite" // SQLite for development, PostgreSQL for production
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -29,7 +29,7 @@ model User {
   displayName  String?
   profilePhoto String? // S3 URL
 
-  // Block info (stored as JSON string for SQLite)
+  // Block info (stored as JSON string)
   blockInfo String? // { type, endDate, reason, notes, blockedBy, blockedAt } as JSON string
 
   // Google Calendar integration
@@ -58,7 +58,7 @@ model User {
   @@map("users")
 }
 
-// Enums converted to String for SQLite compatibility
+// Enums stored as String for simplicity
 // UserRole: "STUDENT", "RECRUITER", "ADMIN", "SUPER_ADMIN"
 // UserStatus: "ACTIVE", "PENDING", "REJECTED", "BLOCKED"
 
@@ -103,7 +103,8 @@ model Student {
   email        String   @unique
   phone        String
   enrollmentId String?  @unique // Optional during registration, user provides it later
-  cgpa         Decimal? // Stored as Decimal type (SQLite uses TEXT for Decimal, preserves precision)
+  cgpa         Decimal?
+  backlogs     String? // Number of backlogs (e.g., "0", "1", "2", "3+")
 
   // Academic Info
   batch  String // e.g., "25-29"
@@ -146,7 +147,12 @@ model Student {
   // Email preferences
   emailNotificationsDisabled Boolean @default(false)
 
-  // Endorsements (stored as JSON string for SQLite compatibility - magic link system)
+  // Public Profile Sharing
+  publicProfileId String? @unique // UUID for public profile access (non-guessable)
+  publicProfileShowEmail Boolean @default(true) // Toggle for email visibility in public profile
+  publicProfileShowPhone Boolean @default(false) // Toggle for phone visibility in public profile
+
+  // Endorsements (stored as JSON string - magic link system)
   endorsementsData String? // JSON array: [{ endorserName, endorserEmail, endorserRole, organization, message, relatedSkills, verified, submittedAt }]
 
   // Timestamps
@@ -199,7 +205,7 @@ model Education {
   institution String
   startYear   Int?
   endYear     Int?
-  cgpa        Decimal? // Stored as Decimal type (SQLite uses TEXT for Decimal, preserves precision)
+  cgpa        Decimal?
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -371,6 +377,9 @@ model Job {
   companyId   String?
   recruiterId String?
   companyName String? // Fallback if companyId is null
+  recruiterEmail String? // REQUIRED for new jobs: Primary email for recruiter/HR screening access (token-based) - kept for backward compatibility
+  recruiterName  String? // Optional: Name of primary recruiter/HR contact - kept for backward compatibility
+  recruiterEmails String? // JSON string: Array of recruiter/HR contacts [{email: string, name: string|null}] - supports multiple emails
 
   // Compensation
   salary      String? // Can be number or range string
@@ -387,6 +396,15 @@ model Job {
   jobType         String? // 'Full-time', 'Internship', etc.
   experienceLevel String?
   driveVenues     String // Array of venue strings (stored as JSON string)
+  
+  // Eligibility Requirements
+  qualification   String? // Required qualification (e.g., "B.Tech", "M.Tech")
+  specialization  String? // Specialization (e.g., "Computer Science", "Electronics")
+  yop             String? // Year of Passing (e.g., "2024", "2025")
+  minCgpa         String? // Minimum CGPA requirement (e.g., "7.00", "8.50", "70%")
+  gapAllowed      String? // Gap allowed (e.g., "Yes", "No", "1 year")
+  gapYears        String? // Maximum gap years allowed
+  backlogs        String? // Backlogs allowed (e.g., "0", "1-2", "No")
 
   // SPOCs (Single Point of Contact) (stored as JSON string)
   spocs String // Array of { fullName, email, phone } as JSON string
@@ -424,6 +442,7 @@ model Job {
   jobTracking      JobTracking[]
   interviews       Interview[]
   interviewSession InterviewSession?
+  screeningSession RecruiterScreeningSession?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
@@ -470,6 +489,11 @@ model Application {
   appliedDate   DateTime  @default(now()) // Date only (YYYY-MM-DD)
   interviewDate DateTime?
 
+  // Pre-interview screening status (REQUIRED before interview)
+  screeningStatus String? @default("APPLIED") // ScreeningStatus: APPLIED, RESUME_REJECTED, RESUME_SELECTED, TEST_REJECTED, TEST_SELECTED
+  screeningRemarks String? // Optional remarks from recruiter during screening
+  screeningCompletedAt DateTime? // When screening was finalized
+
   // Interview status tracking (for new interview system)
   interviewStatus  String? // Final status: "SELECTED", "REJECTED_IN_ROUND_1", "REJECTED_IN_ROUND_2", etc.
   lastRoundReached Int?    @default(0) // Last round number reached (0 = not started)
@@ -491,6 +515,7 @@ model Application {
   @@index([jobId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
   @@index([interviewStatus])
+  @@index([screeningStatus])
   @@map("applications")
 }
 
@@ -638,7 +663,7 @@ model Endorsement {
 
   // Endorsement Content
   message      String // REQUIRED - Endorsement message (10-2000 chars)
-  skills       String  @default("[]") // JSON array of skills (stored as string for SQLite)
+  skills       String  @default("[]") // JSON array of skills (stored as string)
   skillRatings String? // JSON object: { skill: rating } (optional)
 
   // Rating
@@ -942,3 +967,23 @@ model RoundEvaluation {
 }
 
 // EvaluationStatus: "SELECTED", "REJECTED", "ON_HOLD"
+
+// ============================================================================
+// RECRUITER SCREENING SESSIONS
+// ============================================================================
+
+model RecruiterScreeningSession {
+  id        String   @id @default(uuid())
+  jobId     String   @unique
+  token     String   @unique // Secure random token or JWT for access
+  expiresAt DateTime // Token expiration (7-14 days)
+  createdAt DateTime @default(now())
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([jobId])
+  @@index([expiresAt])
+  @@map("recruiter_screening_sessions")
+}

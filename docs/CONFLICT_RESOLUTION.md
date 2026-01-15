@@ -95,3 +95,4 @@ After resolving, verify no conflicts remain:
 git status
 git diff --check  # Check for conflict markers
 ```
+
