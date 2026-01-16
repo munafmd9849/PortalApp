@@ -11,6 +11,7 @@ import {
   Users, Filter, Search, AlertCircle, Lock, Mail, Building2
 } from 'lucide-react';
 import api from '../../services/api';
+import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 
 const RecruiterScreening = () => {
   const [searchParams] = useSearchParams();
@@ -44,19 +45,20 @@ const RecruiterScreening = () => {
       setLoading(true);
       setError(null);
 
-      const response = await api.get(`/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`);
+      // NOTE: our API client returns `{ data }` for `api.get`
+      const { data } = await api.get(`/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`);
       
-      setSession(response.session);
-      setJob(response.job);
-      setApplications(response.applications || []);
-      setSummary(response.summary || {});
+      setSession(data?.session || null);
+      setJob(data?.job || null);
+      setApplications(data?.applications || []);
+      setSummary(data?.summary || {});
 
       // Check if screening is finalized (all applications decided)
-      const allDecided = (response.applications || []).every(app => {
+      const allDecided = (data?.applications || []).every(app => {
         const status = app.screeningStatus || 'APPLIED';
         return status !== 'APPLIED' && status !== 'RESUME_SELECTED';
       });
-      setFinalized(allDecided && response.applications.length > 0);
+      setFinalized(allDecided && (data?.applications || []).length > 0);
     } catch (err) {
       console.error('Error fetching screening data:', err);
       setError(err.response?.data?.error || err.message || 'Failed to load screening data');
@@ -70,13 +72,22 @@ const RecruiterScreening = () => {
       await api.patch(`/recruiter/screening/application/${applicationId}?token=${encodeURIComponent(token)}`, {
         screeningStatus: newStatus,
         screeningRemarks: remarks || null
-      });
+      }, { silent: true }); // Silent to show custom message
+
+      // Show success message based on action
+      const statusMessages = {
+        'RESUME_SELECTED': 'Resume selected successfully',
+        'RESUME_REJECTED': 'Resume rejected',
+        'TEST_SELECTED': 'Candidate passed the test',
+        'TEST_REJECTED': 'Candidate failed the test'
+      };
+      showSuccess(statusMessages[newStatus] || 'Screening decision saved');
 
       // Refresh data
       await fetchScreeningData();
     } catch (err) {
       console.error('Error updating screening status:', err);
-      alert(err.response?.data?.error || 'Failed to update screening status');
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to save screening decision. Please try again.');
     }
   };
 
@@ -85,17 +96,23 @@ const RecruiterScreening = () => {
       return;
     }
 
+    let loadingToastId = null;
     try {
+      loadingToastId = showLoading('Finalizing screening...');
+      
       await api.post(`/recruiter/screening/finalize?token=${encodeURIComponent(token)}`, {
         jobId
-      });
+      }, { silent: true }); // Silent to show custom message
 
       setFinalized(true);
-      alert('Screening finalized successfully!');
+      replaceLoadingToast(loadingToastId, 'success', 'Screening finalized successfully! All decisions are now locked.');
       await fetchScreeningData();
     } catch (err) {
       console.error('Error finalizing screening:', err);
-      alert(err.response?.data?.error || 'Failed to finalize screening');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to finalize screening. Please ensure all candidates have been decided.');
     }
   };
 
@@ -300,15 +317,19 @@ const RecruiterScreening = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">{student.enrollmentId || 'N/A'}</td>
                       <td className="px-6 py-4">
                         {student.resumeUrl ? (
-                          <a
-                            href={student.resumeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => {
+                              // Open PDF in new window/tab for inline viewing
+                              const pdfWindow = window.open(student.resumeUrl, '_blank');
+                              if (pdfWindow) {
+                                pdfWindow.focus();
+                              }
+                            }}
                             className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors text-sm"
                           >
                             <FileText className="w-4 h-4" />
                             View
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-gray-400 text-sm">No resume</span>
                         )}

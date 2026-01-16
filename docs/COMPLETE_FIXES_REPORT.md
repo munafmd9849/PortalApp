@@ -257,9 +257,9 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
 **File**: `backend/src/controllers/jobs.js:67-179`
 
-**Problem**: Prisma query used `isEmpty` and `has` operators which don't work with SQLite JSON strings.
+**Problem**: Prisma query used `isEmpty` and `has` operators which don't work with JSON-string targeting fields.
 
-**Fix**: Changed to fetch all jobs and filter in memory (SQLite compatible).
+**Fix**: Changed to fetch all jobs and filter in memory.
 
 **Error Handling**: Added detailed error logging with development mode details.
 

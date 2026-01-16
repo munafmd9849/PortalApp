@@ -59,40 +59,10 @@ const RecruiterAnalytics = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // TODO: Replace with actual API call
-      // const data = await api.getRecruiterAnalytics(currentFilters);
-      
-      // Mock data for now
-      const mockData = {
-        statsData: {
-          totalHRs: 45,
-          totalManagers: 12,
-          totalDrives: 28,
-          jobPostingFrequency: 15
-        },
-        chartData: {
-          hrDistribution: {
-            labels: ['Lucknow', 'Pune', 'Bangalore', 'Delhi'],
-            data: [12, 15, 10, 8]
-          },
-          managerDistribution: {
-            labels: ['Lucknow', 'Pune', 'Bangalore', 'Delhi'],
-            data: [3, 4, 3, 2]
-          },
-          driveParticipation: {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-            data: [5, 4, 6, 3, 5, 5]
-          },
-          jobPostingFrequency: {
-            labels: ['SOT', 'SOM', 'SOH'],
-            data: [8, 4, 3]
-          }
-        }
-      };
-      
-      setStatsData(mockData.statsData);
-      setChartData(mockData.chartData);
+
+      // No recruiter analytics endpoint available yet; show empty state.
+      setStatsData({});
+      setChartData({});
       setLoading(false);
     } catch (err) {
       console.error('❌ Failed to load RecruiterAnalytics data:', err);

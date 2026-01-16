@@ -9,6 +9,7 @@ import { addJobToQueue } from '../workers/queues.js';
 import { sendJobPostedNotification, sendBulkJobNotifications } from '../services/emailService.js';
 import { createNotification } from './notifications.js';
 import logger from '../config/logger.js';
+import { sendServerError } from '../utils/response.js';
 
 /**
  * Get all jobs with filters
@@ -21,7 +22,11 @@ export async function getJobs(req, res) {
     const where = {};
     if (status) where.status = status;
     if (recruiterId) where.recruiterId = recruiterId;
-    if (isPosted !== undefined) where.isPosted = isPosted === 'true';
+    if (isPosted !== undefined) {
+      // Handle both string 'true'/'false' and boolean
+      const isPostedValue = isPosted === 'true' || isPosted === true;
+      where.isPosted = isPostedValue;
+    }
 
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
@@ -47,6 +52,7 @@ export async function getJobs(req, res) {
     ]);
 
     res.json({
+      success: true,
       jobs,
       pagination: {
         page: parseInt(page),
@@ -56,8 +62,13 @@ export async function getJobs(req, res) {
       },
     });
   } catch (error) {
-    console.error('Get jobs error:', error);
-    res.status(500).json({ error: 'Failed to get jobs' });
+    console.error('Get jobs error:', {
+      message: error.message,
+      stack: error.stack,
+      query: req.query,
+      userId: req.userId,
+    });
+    sendServerError(res, 'Failed to load jobs. Please try again.');
   }
 }
 
@@ -99,7 +110,7 @@ export async function getTargetedJobs(req, res) {
       return res.json(jobs);
     }
 
-    // Get all posted jobs first (targeting is done in memory for SQLite compatibility)
+    // Get all posted jobs first (targeting is done in memory)
     const allJobs = await prisma.job.findMany({
       where: {
         status: 'POSTED',
@@ -112,9 +123,9 @@ export async function getTargetedJobs(req, res) {
       take: 200, // Get more to filter in memory
     });
 
-    // Filter jobs based on targeting (handle JSON strings in SQLite)
+    // Filter jobs based on targeting (handle JSON-string fields)
     const targetedJobs = allJobs.filter(job => {
-      // Parse targeting arrays (stored as JSON strings in SQLite)
+      // Parse targeting arrays (stored as JSON strings)
       let targetSchools = [];
       let targetCenters = [];
       let targetBatches = [];
@@ -207,13 +218,20 @@ export async function getJob(req, res) {
     });
 
     if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Job not found',
+        message: 'The requested job does not exist.'
+      });
     }
 
-    res.json(job);
+    res.json({
+      success: true,
+      data: job,
+    });
   } catch (error) {
     console.error('Get job error:', error);
-    res.status(500).json({ error: 'Failed to get job' });
+    sendServerError(res, 'Failed to load job details. Please try again.');
   }
 }
 
@@ -227,25 +245,78 @@ export async function createJob(req, res) {
     const userRole = req.user.role;
     const jobData = req.body;
 
-    // VALIDATE REQUIRED RECRUITER EMAIL
-    const recruiterEmail = jobData.recruiterEmail?.trim();
-    if (!recruiterEmail) {
+    // VALIDATE REQUIRED RECRUITER EMAILS (support both old single email and new array format)
+    let recruiterEmails = [];
+    
+    // Handle backward compatibility: if recruiterEmail exists, convert to array format
+    if (jobData.recruiterEmail) {
+      recruiterEmails = [{
+        email: jobData.recruiterEmail.trim(),
+        name: (jobData.recruiterName || '').trim() || null
+      }];
+    } else if (jobData.recruiterEmails && Array.isArray(jobData.recruiterEmails)) {
+      recruiterEmails = jobData.recruiterEmails;
+    }
+
+    // Validate at least one email is provided
+    if (!recruiterEmails || recruiterEmails.length === 0) {
       return res.status(400).json({ 
+        success: false,
         error: 'Recruiter/HR email is required',
-        field: 'recruiterEmail',
-        message: 'Please provide a valid email address for the recruiter or HR contact who will handle screening.'
+        field: 'recruiterEmails',
+        message: 'Please provide at least one valid email address for the recruiter or HR contact who will handle screening.'
       });
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(recruiterEmail)) {
+    // Validate applicationDeadline is required
+    if (!jobData.applicationDeadline) {
       return res.status(400).json({ 
-        error: 'Invalid recruiter email format',
-        field: 'recruiterEmail',
-        message: 'Please provide a valid email address.'
+        success: false,
+        error: 'Application deadline is required',
+        field: 'applicationDeadline',
+        message: 'Please provide an application deadline. Recruiters will receive screening links after this date.'
       });
     }
+
+    // Validate all emails
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validEmails = [];
+    const invalidEmails = [];
+
+    for (let i = 0; i < recruiterEmails.length; i++) {
+      const rec = recruiterEmails[i];
+      const email = rec?.email?.trim();
+      
+      if (!email) {
+        invalidEmails.push({ index: i, reason: 'Email is required' });
+        continue;
+      }
+
+      if (!emailRegex.test(email)) {
+        invalidEmails.push({ index: i, email, reason: 'Invalid email format' });
+        continue;
+      }
+
+      validEmails.push({
+        email: email,
+        name: rec?.name?.trim() || null
+      });
+    }
+
+    if (validEmails.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid recruiter email format',
+        field: 'recruiterEmails',
+        message: 'Please provide at least one valid email address.',
+        details: invalidEmails
+      });
+    }
+
+    // Use first email as primary for backward compatibility (stored in recruiterEmail field)
+    const primaryRecruiter = validEmails[0];
+    const recruiterEmail = primaryRecruiter.email;
+    const recruiterName = primaryRecruiter.name;
 
     // Get recruiter profile (if recruiter) or use admin
     let recruiterId = null;
@@ -321,11 +392,20 @@ export async function createJob(req, res) {
       ? mappedData.spocs.filter(spoc => spoc && (spoc.fullName || spoc.email || spoc.phone))
       : [];
 
-    // Convert array fields to JSON strings for database storage (SQLite compatibility)
+    // Convert array fields to JSON strings for database storage
     // Only include fields that exist in the schema
+    // Clean jobTitle: remove any labels that might have been included
+    let cleanJobTitle = (mappedData.jobTitle || '').trim();
+    // Remove common prefixes/labels that might have been captured
+    cleanJobTitle = cleanJobTitle.replace(/^(?:job\s*description\s*)?job\s*title[:\s]*/i, '');
+    cleanJobTitle = cleanJobTitle.replace(/^(?:job\s*description\s*)?position[:\s]*/i, '');
+    cleanJobTitle = cleanJobTitle.replace(/^(?:job\s*description\s*)?role[:\s]*/i, '');
+    cleanJobTitle = cleanJobTitle.replace(/^(?:job\s*description\s*)?title[:\s]*/i, '');
+    cleanJobTitle = cleanJobTitle.trim();
+    
     const processedData = {
       // Required fields
-      jobTitle: mappedData.jobTitle || '',
+      jobTitle: cleanJobTitle || '',
       description: mappedData.description || '',
       requirements: typeof finalRequirements === 'string' ? finalRequirements : '[]',
       requiredSkills: Array.isArray(mappedData.requiredSkills) ? JSON.stringify(mappedData.requiredSkills) : (mappedData.requiredSkills || '[]'),
@@ -334,21 +414,58 @@ export async function createJob(req, res) {
       targetCenters: Array.isArray(mappedData.targetCenters) ? JSON.stringify(mappedData.targetCenters) : (mappedData.targetCenters || '[]'),
       targetBatches: Array.isArray(mappedData.targetBatches) ? JSON.stringify(mappedData.targetBatches) : (mappedData.targetBatches || '[]'),
       spocs: JSON.stringify(cleanSpocs),
-      // Optional fields
-      companyId: companyId || null,
-      recruiterId: recruiterId || null,
+      // Optional fields - use relation syntax for Prisma
+      ...(companyId ? { company: { connect: { id: companyId } } } : {}),
+      ...(recruiterId ? { recruiter: { connect: { id: recruiterId } } } : {}),
       companyName: companyName || null,
-      recruiterEmail: recruiterEmail, // REQUIRED: Email for recruiter screening access
-      recruiterName: jobData.recruiterName?.trim() || null, // Optional recruiter name
-      salary: mappedData.salary || null,
-      ctc: mappedData.ctc || null,
-      salaryRange: mappedData.salaryRange || null,
+      recruiterEmail: recruiterEmail, // REQUIRED: Primary email for recruiter screening access (backward compatibility)
+      recruiterName: recruiterName || null, // Optional primary recruiter name (backward compatibility)
+      recruiterEmails: JSON.stringify(validEmails), // Store all recruiter emails as JSON string for multiple emails support
+      // Set default "As per industry standards" if salary/stipend not specified
+      salary: (() => {
+        // Check salary first
+        if (mappedData.salary) {
+          const salaryStr = String(mappedData.salary).trim();
+          if (salaryStr !== '' && salaryStr !== 'null' && salaryStr !== 'undefined') {
+            return salaryStr;
+          }
+        }
+        // Check stipend for internships
+        if (mappedData.stipend) {
+          const stipendStr = String(mappedData.stipend).trim();
+          if (stipendStr !== '' && stipendStr !== 'null' && stipendStr !== 'undefined') {
+            return stipendStr;
+          }
+        }
+        // Default value
+        return 'As per industry standards';
+      })(),
+      ctc: (() => {
+        if (mappedData.ctc) {
+          const ctcStr = String(mappedData.ctc).trim();
+          if (ctcStr !== '' && ctcStr !== 'null' && ctcStr !== 'undefined') {
+            return ctcStr;
+          }
+        }
+        return 'As per industry standards';
+      })(),
+      salaryRange: (mappedData.salaryRange && mappedData.salaryRange.trim() !== '') 
+        ? mappedData.salaryRange 
+        : null,
       location: mappedData.location || null,
       companyLocation: mappedData.companyLocation || null,
       driveDate: mappedData.driveDate || null,
       applicationDeadline: mappedData.applicationDeadline || null,
       jobType: mappedData.jobType || null,
       experienceLevel: mappedData.experienceLevel || null,
+      // Eligibility Requirements
+      qualification: mappedData.qualification || null,
+      specialization: mappedData.specialization || null,
+      yop: mappedData.yop || null,
+      minCgpa: mappedData.minCgpa || null, // Minimum CGPA requirement (e.g., "7.00", "8.50", "70%")
+      gapAllowed: mappedData.gapAllowed || null,
+      gapYears: mappedData.gapYears || null,
+      backlogs: mappedData.backlogs || null,
       // Status fields
       status: userRole === 'ADMIN' ? 'POSTED' : 'IN_REVIEW',
       isActive: false,
@@ -417,7 +534,11 @@ export async function createJob(req, res) {
       }
     }
 
-    res.status(201).json(job);
+    res.status(201).json({
+      success: true,
+      message: 'Job created successfully. It has been sent for review and will appear in the "In Review" section.',
+      data: job,
+    });
   } catch (error) {
     console.error('Create job error:', error);
     console.error('Error stack:', error.stack);

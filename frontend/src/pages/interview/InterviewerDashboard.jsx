@@ -227,19 +227,19 @@ const InterviewerDashboard = () => {
   const getStatusBadge = (status) => {
     const badges = {
       NOT_STARTED: (
-        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium flex items-center gap-2">
+        <span className="px-4 py-2 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
           <Clock className="w-4 h-4" />
           Not Started
         </span>
       ),
       ONGOING: (
-        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex items-center gap-2">
+        <span className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
           <PlayCircle className="w-4 h-4" />
           Ongoing
         </span>
       ),
       COMPLETED: (
-        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-2">
+        <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
           <CheckCircle className="w-4 h-4" />
           Completed
         </span>
@@ -251,24 +251,24 @@ const InterviewerDashboard = () => {
   const getRoundStatusBadge = (round) => {
     if (round.status === 'LOCKED') {
       return (
-        <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium flex items-center gap-1">
-          <Lock className="w-3 h-3" />
+        <span className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm border border-gray-300">
+          <Lock className="w-3.5 h-3.5" />
           Locked
         </span>
       );
     }
     if (round.status === 'ACTIVE') {
       return (
-        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium flex items-center gap-1">
-          <PlayCircle className="w-3 h-3" />
+        <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm border border-blue-300">
+          <PlayCircle className="w-3.5 h-3.5" />
           Active
         </span>
       );
     }
     if (round.status === 'ENDED') {
       return (
-        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium flex items-center gap-1">
-          <CheckCircle className="w-3 h-3" />
+        <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm border border-green-300">
+          <CheckCircle className="w-3.5 h-3.5" />
           Ended
         </span>
       );
@@ -277,105 +277,127 @@ const InterviewerDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-start justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Interview Session</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  <span className="font-medium">{session.job.jobTitle}</span>
-                </div>
-                {session.job.company && (
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    <span>{session.job.company.name}</span>
-                  </div>
-                )}
-              </div>
+              <h1 className="text-3xl font-bold text-gray-900">Interview Session</h1>
             </div>
-            {getStatusBadge(session.status)}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-200">
+                <Briefcase className="w-5 h-5 text-indigo-600" />
+                <span className="font-semibold text-gray-800">{session.job.jobTitle}</span>
+              </div>
+              {getStatusBadge(session.status)}
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* Main Content */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Rounds Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Interview Rounds</h2>
-
-          {session.rounds.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No rounds configured yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {session.rounds.map((round) => (
-                <div
-                  key={round.id}
-                  className={`border rounded-lg p-4 transition-all ${
-                    round.status === 'ACTIVE'
-                      ? 'border-blue-500 bg-blue-50'
-                      : round.status === 'ENDED'
-                      ? 'border-green-200 bg-green-50'
-                      : 'border-gray-200 bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-700 font-semibold">
-                        {round.roundNumber}
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{round.name}</h3>
-                        {round.startedAt && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Started: {new Date(round.startedAt).toLocaleString()}
-                          </p>
-                        )}
-                        {round.endedAt && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Ended: {new Date(round.endedAt).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {getRoundStatusBadge(round)}
-                      {round.status === 'LOCKED' && (
-                        <button
-                          onClick={() => handleStartRound(round.id)}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
-                        >
-                          <PlayCircle className="w-4 h-4" />
-                          Start Round
-                        </button>
-                      )}
-                      {round.status === 'ACTIVE' && (
-                        <button
-                          onClick={() => handleRoundClick(round)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
-                        >
-                          Evaluate Candidates
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      )}
-                      {round.status === 'ENDED' && (
-                        <span className="text-sm text-gray-500">Completed</span>
-                      )}
-                    </div>
+        <div className="bg-white rounded-xl border-2 border-[#8ec5ff] shadow-lg">
+          <div className="p-5 sm:p-6 lg:p-8">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
+                Interview Rounds
+              </h2>
+              {/* Active Round Banner - Compact at top */}
+              {activeRound && (
+                <div className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg shadow-sm border border-purple-400">
+                  <div className="flex items-center gap-2">
+                    <PlayCircle className="w-4 h-4 animate-pulse" />
+                    <span className="text-sm font-semibold">Active: {activeRound.name}</span>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          )}
 
-          {activeRound && (
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Active Round:</strong> {activeRound.name}
-              </p>
-            </div>
-          )}
+            {session.rounds.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No rounds configured yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {session.rounds.map((round) => (
+                  <div
+                    key={round.id}
+                    className={`group relative bg-white rounded-lg border-2 p-4 transition-all duration-200 hover:shadow-md ${
+                      round.status === 'ACTIVE'
+                        ? 'border-blue-400 shadow-md bg-gradient-to-r from-blue-50 to-indigo-50'
+                        : round.status === 'ENDED'
+                        ? 'border-green-300 bg-gradient-to-r from-green-50 to-emerald-50'
+                        : 'border-gray-300 hover:border-blue-400 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-4 relative">
+                      {/* Left Side - Round Info */}
+                      <div className="flex items-center gap-4 flex-1 min-w-0 max-w-[40%]">
+                        {/* Round Number */}
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                          {round.roundNumber}
+                        </div>
+                        
+                        {/* Round Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center mb-2">
+                            <h3 className="text-base font-semibold text-gray-900 truncate">{round.name}</h3>
+                          </div>
+                          {round.startedAt && (
+                            <p className="text-xs text-gray-600 mt-1 truncate">
+                              Started: <span className="font-medium">{new Date(round.startedAt).toLocaleString()}</span>
+                            </p>
+                          )}
+                          {round.endedAt && (
+                            <p className="text-xs text-gray-600 mt-1 truncate">
+                              Ended: <span className="font-medium">{new Date(round.endedAt).toLocaleString()}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Center - Status Badge */}
+                      <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center justify-center z-10">
+                        {getRoundStatusBadge(round)}
+                      </div>
+
+                      {/* Right Side - Action Button */}
+                      <div className="flex-shrink-0 max-w-[40%]">
+                        {round.status === 'LOCKED' && (
+                          <button
+                            onClick={() => handleStartRound(round.id)}
+                            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md text-sm"
+                          >
+                            <PlayCircle className="w-4 h-4" />
+                            Start Round
+                          </button>
+                        )}
+                        {round.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => handleRoundClick(round)}
+                            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-sm hover:shadow-md text-sm"
+                          >
+                            <PlayCircle className="w-4 h-4" />
+                            Evaluate Candidates
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
+                        {round.status === 'ENDED' && (
+                          <span className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium flex items-center gap-2 text-sm shadow-sm">
+                            <CheckCircle className="w-4 h-4" />
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

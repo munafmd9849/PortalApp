@@ -72,7 +72,6 @@
 
 ### Test Script Created:
 - `backend/scripts/testProfileAPI.js` - Verifies data structure
-- `backend/scripts/insertMockData.js` - Inserts mock data by email
 
 ### Verification Results:
 ```

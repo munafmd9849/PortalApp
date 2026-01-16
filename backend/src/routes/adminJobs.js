@@ -1,0 +1,22 @@
+/**
+ * Admin Jobs Routes
+ * Admin-only endpoints for job management & reporting
+ */
+
+import express from 'express';
+import { authenticate } from '../middleware/auth.js';
+import { requireRole } from '../middleware/roles.js';
+import * as applicationController from '../controllers/applications.js';
+
+const router = express.Router({ mergeParams: true });
+
+// GET /api/admin/jobs/:jobId/applications
+router.get(
+  '/jobs/:jobId/applications',
+  authenticate,
+  requireRole(['ADMIN']),
+  applicationController.getAdminJobApplications
+);
+
+export default router;
+

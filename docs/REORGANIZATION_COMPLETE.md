@@ -88,7 +88,7 @@ Portal-main/
 │  │     ├─ email.js         # Nodemailer
 │  │     └─ socket.js        # Socket.IO server
 │  ├─ prisma/                # Database schema
-│  │  └─ schema.prisma       # Prisma schema (PostgreSQL/SQLite)
+│  │  └─ schema.prisma       # Prisma schema (PostgreSQL / Neon)
 │  └─ package.json           # Backend dependencies
 │
 ├─ scripts/                  # Utility scripts

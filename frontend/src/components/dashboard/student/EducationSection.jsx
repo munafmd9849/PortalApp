@@ -9,7 +9,6 @@ import {
   deleteEducationArray,
   getStudentProfile
 } from '../../../services/students';
-import { mockEducation, shouldUseMockData } from '../../../utils/mockData';
 
 const EducationSection = ({ isAdminView = false }) => {
   const { user } = useAuth();
@@ -92,14 +91,8 @@ const EducationSection = ({ isAdminView = false }) => {
           console.log('✅ [EducationSection] Setting real education:', mappedEducation);
           setEducationEntries(mappedEducation);
         } else {
-          // Only use mock data if explicitly enabled AND no real data
-          if (shouldUseMockData()) {
-            console.log('📦 [EducationSection] No real education, using mock data. Count:', mockEducation.length);
-            setEducationEntries(mockEducation);
-          } else {
-            console.log('📭 [EducationSection] No real education, mock data disabled. Using empty array.');
-            setEducationEntries([]);
-          }
+          console.log('📭 [EducationSection] No education found. Using empty array.');
+          setEducationEntries([]);
         }
       } catch (error) {
         console.error('❌ [EducationSection] Error loading education:', error);

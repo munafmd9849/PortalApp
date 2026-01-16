@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '../../components/dashboard/shared/AdminLayout';
 import AdminHome from '../../components/dashboard/admin/AdminHome';
 import CreateJob from '../../components/dashboard/admin/CreateJob';
@@ -12,6 +12,8 @@ import AdminPanel from '../../components/dashboard/admin/AdminPanel';
 import Notifications from '../../components/dashboard/admin/Notifications';
 import AdminProfile from '../../components/dashboard/admin/AdminProfile';
 import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
+import AdminJobApplications from '../../components/dashboard/admin/AdminJobApplications';
+import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import { Home, FilePlus2, Briefcase, ClipboardList, GripVertical, LogOut, Users, Bell, Settings, User, Calendar } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,31 +29,47 @@ export default function AdminDashboard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
+  const location = useLocation();
+  const isJobDetailPage = location.pathname.includes('/admin/job/');
+  const isJobApplicationsPage = location.pathname.includes('/admin/jobs/') && location.pathname.endsWith('/applications');
+
   // Sync activeTab with URL params
   useEffect(() => {
+    // Special pages are driven by pathname, not ?tab=...
+    if (isJobApplicationsPage) {
+      if (activeTab !== 'jobApplications') setActiveTab('jobApplications');
+      return;
+    }
+    if (isJobDetailPage) {
+      if (activeTab !== 'manageJobs') setActiveTab('manageJobs');
+      return;
+    }
+
     const tab = searchParams.get('tab') || 'dashboard';
     if (tab !== activeTab) {
       setActiveTab(tab);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage]);
 
   // Listen for editProfileClicked event
   useEffect(() => {
     const handleEditProfileClick = () => {
       setActiveTab('profile');
-      setSearchParams({ tab: 'profile' });
+      // Ensure we leave special sub-routes like /admin/job/:id or /admin/jobs/:id/applications
+      navigate('/admin?tab=profile');
     };
 
     window.addEventListener('editProfileClicked', handleEditProfileClick);
     return () => {
       window.removeEventListener('editProfileClicked', handleEditProfileClick);
     };
-  }, [setSearchParams]);
+  }, [navigate]);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'createJob', label: 'Create Job', icon: FilePlus2 },
     { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase },
+    { id: 'jobApplications', label: 'Applicants', icon: Users },
     // { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar }, // Commented out - replaced by InterviewScheduling
     { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
@@ -110,13 +128,21 @@ export default function AdminDashboard() {
     }
   };
 
-  const location = useLocation();
-  const isJobDetailPage = location.pathname.includes('/admin/job/');
+  // Sidebar highlight should reflect where we are, even on special pages
+  const sidebarActiveTab = useMemo(() => {
+    if (isJobApplicationsPage) return 'jobApplications';
+    if (isJobDetailPage) return 'manageJobs';
+    return activeTab;
+  }, [activeTab, isJobApplicationsPage, isJobDetailPage]);
 
   const renderContent = () => {
     // Check if we're on a job detail page
     if (isJobDetailPage) {
       return <AdminJobDetail />;
+    }
+    // New: Admin Job -> Applicants -> Interview Progress (read-only)
+    if (isJobApplicationsPage) {
+      return <AdminJobApplications />;
     }
 
     switch (activeTab) {
@@ -126,6 +152,8 @@ export default function AdminDashboard() {
         return <CreateJob onCreated={() => setActiveTab('manageJobs')} />;
       case 'manageJobs':
         return <ManageJobs />;
+      case 'jobApplications':
+        return <AdminApplicantsHub />;
       // case 'scheduleInterview':
       //   return <ScheduleInterview />; // Commented out - replaced by InterviewScheduling
       case 'interviewScheduling':
@@ -171,10 +199,12 @@ export default function AdminDashboard() {
                       <button
                         onClick={() => {
                           setActiveTab(tab.id);
-                          setSearchParams({ tab: tab.id });
+                          // IMPORTANT: Always navigate to the base admin route so
+                          // special pages (job detail / job applications) don't trap navigation.
+                          navigate(`/admin?tab=${encodeURIComponent(tab.id)}`);
                         }}
                         className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${
-                          activeTab === tab.id
+                          sidebarActiveTab === tab.id
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                             : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                         } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}

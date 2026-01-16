@@ -238,11 +238,10 @@ export default function DashboardLayout({ children }) {
 
                       <button
                         onClick={() => {
-                          navigate('/student?tab=editProfile');
-                          // Force a small delay to ensure navigation completes
-                          setTimeout(() => {
-                            window.dispatchEvent(new CustomEvent('editProfileClicked'));
-                          }, 100);
+                          // Navigate first, then dispatch event to ensure tab is set
+                          navigate('/student?tab=editProfile', { replace: true });
+                          // Dispatch event immediately - the useEffect will handle it
+                          window.dispatchEvent(new CustomEvent('editProfileClicked'));
                         }}
                         className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50 cursor-pointer"
                         aria-label="Edit profile"

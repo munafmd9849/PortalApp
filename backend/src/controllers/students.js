@@ -23,6 +23,7 @@ async function updateUserProfilePhoto(userId, profilePhotoValue) {
   });
 }
 
+
 /**
  * Get student profile
  * Replaces: getStudentProfile()
@@ -249,7 +250,7 @@ export async function updateStudentProfile(req, res) {
       };
 
       const allowedFields = [
-        'fullName', 'email', 'phone', 'enrollmentId', 'cgpa',
+        'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
         'batch', 'center', 'school',
         'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
         'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
@@ -428,15 +429,15 @@ export async function updateStudentProfile(req, res) {
     };
 
     // List of allowed Student model fields (exclude relations, computed fields)
-    const allowedFields = [
-      'fullName', 'email', 'phone', 'enrollmentId', 'cgpa',
-      'batch', 'center', 'school',
-      'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
-      'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
-      'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
-      'statsApplied', 'statsShortlisted', 'statsInterviewed', 'statsOffers',
-      'emailNotificationsDisabled'
-    ];
+      const allowedFields = [
+        'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
+        'batch', 'center', 'school',
+        'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
+        'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
+        'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
+        'statsApplied', 'statsShortlisted', 'statsInterviewed', 'statsOffers',
+        'emailNotificationsDisabled'
+      ];
 
     // URL fields that need normalization
     const urlFields = ['linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank'];
@@ -1301,11 +1302,28 @@ export async function deleteResume(req, res) {
     const userId = req.userId;
     const { resumeId } = req.params;
 
+    if (!resumeId) {
+      return res.status(400).json({ error: 'Resume ID is required' });
+    }
+
+    // Get student record first to verify ownership
+    const student = await prisma.student.findUnique({
+      where: { userId },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
     // Verify the resume belongs to this student
+    // Check both userId and studentId to handle all cases
     const resumeFile = await prisma.studentResumeFile.findFirst({
       where: {
         id: resumeId,
-        userId: userId,
+        OR: [
+          { userId: userId },
+          { studentId: student.id }
+        ]
       },
       include: {
         student: true,
@@ -1313,7 +1331,12 @@ export async function deleteResume(req, res) {
     });
 
     if (!resumeFile) {
-      return res.status(404).json({ error: 'Resume not found' });
+      console.error('Resume not found for deletion:', {
+        resumeId,
+        userId,
+        studentId: student.id
+      });
+      return res.status(404).json({ error: 'Resume not found or does not belong to you' });
     }
 
     const wasDefault = resumeFile.isDefault;
@@ -1349,10 +1372,20 @@ export async function deleteResume(req, res) {
       }
     }
 
+    console.log('Resume deleted successfully:', { resumeId, userId, studentId: resumeFile.studentId });
     res.json({ message: 'Resume deleted successfully' });
   } catch (error) {
     console.error('Delete resume error:', error);
-    res.status(500).json({ error: 'Failed to delete resume' });
+    console.error('Error details:', {
+      resumeId: req.params.resumeId,
+      userId: req.userId,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Failed to delete resume',
+      message: error.message || 'An unexpected error occurred while deleting the resume'
+    });
   }
 }
 
@@ -1917,6 +1950,100 @@ async function syncCodingProfiles(userId, profileData) {
 }
 
 /**
+ * Extract text from resume PDF
+ * POST /api/students/resume/extract-text
+ * Body: { resumeUrl, resumeId? }
+ * Auth: Student only
+ */
+export async function extractResumeText(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeUrl, resumeId } = req.body;
+
+    // Validate input
+    if (!resumeUrl || typeof resumeUrl !== 'string' || resumeUrl.trim().length === 0) {
+      return res.status(400).json({ error: 'Resume URL is required' });
+    }
+
+    // Optional: Verify resume belongs to student if resumeId is provided
+    if (resumeId) {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      const resume = await prisma.studentResumeFile.findFirst({
+        where: {
+          id: resumeId,
+          studentId: student.id,
+        },
+      });
+
+      if (!resume) {
+        return res.status(403).json({ error: 'Resume not found or access denied' });
+      }
+    }
+
+    // Import pdf-parse
+    const pdfParse = (await import('pdf-parse')).default;
+
+    // Fetch PDF from URL
+    let pdfBuffer;
+    try {
+      const response = await fetch(resumeUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      pdfBuffer = Buffer.from(arrayBuffer);
+    } catch (fetchError) {
+      console.error('Error fetching PDF:', fetchError);
+      return res.status(400).json({ 
+        error: 'Failed to fetch PDF from URL',
+        details: fetchError.message 
+      });
+    }
+
+    // Extract text from PDF
+    let resumeText;
+    try {
+      const pdfData = await pdfParse(pdfBuffer);
+      resumeText = pdfData.text;
+      
+      if (!resumeText || resumeText.trim().length === 0) {
+        return res.status(400).json({ 
+          error: 'No text could be extracted from PDF. The PDF might be image-based (scanned) or contain only images.' 
+        });
+      }
+    } catch (parseError) {
+      console.error('Error parsing PDF:', parseError);
+      return res.status(400).json({ 
+        error: 'Failed to parse PDF',
+        details: parseError.message 
+      });
+    }
+
+    // Return extracted text
+    res.json({
+      success: true,
+      resumeText: resumeText.trim(),
+      textLength: resumeText.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Extract resume text error:', error);
+    res.status(500).json({ 
+      error: 'Failed to extract text from resume',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}
+
+/**
  * Analyze resume for ATS compatibility
  * POST /api/students/resume/ats-analysis
  * Body: { resumeText, resumeId? }
@@ -1961,6 +2088,9 @@ export async function analyzeATSResume(req, res) {
     // Call AI service for analysis
     const analysis = await analyzeATS(resumeText);
 
+    // Check if this is AI-generated or fallback
+    const isAI = analysis.isAI !== false; // Default to true if not specified, false only if explicitly set
+    
     // Return formatted response
     res.json({
       success: true,
@@ -1975,10 +2105,13 @@ export async function analyzeATSResume(req, res) {
         strengths: analysis.strengths,
         overallFeedback: analysis.overallFeedback,
       },
+      isAI: isAI,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('ATS analysis error:', error);
+    console.error('❌ [analyzeATSResume] Error:', error);
+    console.error('❌ [analyzeATSResume] Error message:', error.message);
+    console.error('❌ [analyzeATSResume] Error stack:', error.stack);
     
     // Handle specific error types
     if (error.message.includes('not configured') || error.message.includes('not available')) {
@@ -1992,10 +2125,11 @@ export async function analyzeATSResume(req, res) {
       return res.status(400).json({ error: error.message });
     }
 
-    // Generic error response
+    // Generic error response with more details in development
     res.status(500).json({ 
       error: 'Failed to analyze resume. Please try again.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }

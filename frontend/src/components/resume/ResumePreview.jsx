@@ -608,7 +608,7 @@ function ProjectsSection({ items, template }) {
                   className="hover:underline"
                   style={{ color: template.colors.primary }}
                 >
-                  Live Demo
+                  View Link
                 </a>
               )}
             </div>

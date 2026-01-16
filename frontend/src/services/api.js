@@ -4,7 +4,31 @@
  * Centralized API client for all backend requests
  */
 
-import { API_BASE_URL, getBackendPort } from '../config/api.js';
+import { API_BASE_URL } from '../config/api.js';
+
+// Lazy import toast utility to avoid circular dependency
+let toastUtils = null;
+async function getToastUtils() {
+  if (!toastUtils) {
+    toastUtils = await import('../utils/toast.js');
+  }
+  return toastUtils;
+}
+
+/**
+ * Build query string from params, omitting undefined/null.
+ * NOTE: URLSearchParams will stringify `undefined` as "undefined" if you pass it directly.
+ */
+function toQueryString(params = {}) {
+  const sp = new URLSearchParams();
+  if (!params || typeof params !== 'object') return '';
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    sp.append(key, String(value));
+  }
+  return sp.toString();
+}
 
 /**
  * Get auth token from storage
@@ -72,8 +96,16 @@ async function refreshAccessToken() {
 
 /**
  * API request wrapper with auth and error handling
+ * Automatically shows toast notifications for errors and optional success messages
+ * 
+ * @param {string} endpoint - API endpoint
+ * @param {object} options - Request options
+ * @param {boolean} options.silent - If true, don't show toast notifications
+ * @param {boolean} options.showSuccess - If true, show success toast if response has message
+ * @returns {Promise} API response data
  */
 async function apiRequest(endpoint, options = {}) {
+  const { silent = false, showSuccess = false, ...fetchOptions } = options;
   const token = getAuthToken();
 
   const headers = {
@@ -89,7 +121,7 @@ async function apiRequest(endpoint, options = {}) {
     let response;
     try {
       response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
@@ -102,15 +134,14 @@ async function apiRequest(endpoint, options = {}) {
         type: fetchError.name,
       });
       
-      // Provide helpful error message
+      // Provide helpful error message (production-safe, no localhost references)
       let errorMessage = 'Failed to connect to server. ';
       if (fetchError.name === 'AbortError' || fetchError.message.includes('timeout')) {
-        errorMessage += 'Request timed out. The server may be slow or unresponsive.';
+        errorMessage += 'Request timed out. Please try again.';
       } else if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
-        errorMessage += 'CORS error. Check if the backend server is running and CORS is configured correctly.';
+        errorMessage += 'Connection error. Please check your network connection and try again.';
       } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-        const port = getBackendPort();
-        errorMessage += `Cannot reach the server. Please check:\n1. Backend server is running on http://localhost:${port}\n2. No firewall blocking the connection\n3. Backend server is accessible`;
+        errorMessage += 'Cannot reach the server. Please check your network connection and ensure the service is available.';
       } else {
         errorMessage += fetchError.message || 'Unknown network error.';
       }
@@ -120,6 +151,17 @@ async function apiRequest(endpoint, options = {}) {
       error.originalError = fetchError;
       error.endpoint = endpoint;
       error.url = url;
+      
+      // Automatically show network error toast unless silent
+      if (!silent) {
+        getToastUtils().then(utils => {
+          utils.handleApiError(error);
+        }).catch(() => {
+          // Toast not initialized yet, just log
+          console.error('Network Error:', error.message);
+        });
+      }
+      
       throw error;
     }
 
@@ -129,7 +171,7 @@ async function apiRequest(endpoint, options = {}) {
         const newToken = await refreshAccessToken();
         headers.Authorization = `Bearer ${newToken}`;
         response = await fetch(url, {
-          ...options,
+          ...fetchOptions,
           headers,
         });
       } catch (error) {
@@ -161,6 +203,17 @@ async function apiRequest(endpoint, options = {}) {
         statusText: response.statusText,
       };
       error.status = response.status;
+      
+      // Automatically show error toast unless silent
+      if (!silent) {
+        getToastUtils().then(utils => {
+          utils.handleApiError(error);
+        }).catch(() => {
+          // Toast not initialized yet, just log
+          console.error('API Error:', error.message);
+        });
+      }
+      
       throw error;
     }
 
@@ -177,6 +230,27 @@ async function apiRequest(endpoint, options = {}) {
         hasCertifications: Array.isArray(data?.certifications),
         certificationsCount: data?.certifications?.length || 0,
         fullResponse: data,
+      });
+    }
+    
+    // CRITICAL: Log applications API responses for debugging
+    if (endpoint.includes('/applications/student')) {
+      console.log('📥 [API] Applications response received:', {
+        endpoint,
+        isArray: Array.isArray(data),
+        length: data?.length || 0,
+        type: typeof data,
+        firstItem: data?.[0] || null,
+        fullResponse: data,
+      });
+    }
+
+    // Show success toast if requested and message exists
+    if (!silent && showSuccess && data?.message) {
+      getToastUtils().then(utils => {
+        utils.showSuccess(data.message);
+      }).catch(() => {
+        // Toast not initialized, ignore
       });
     }
     
@@ -339,8 +413,38 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  
+  // Public Profile (NO AUTH - public access)
+  getPublicProfile: (publicProfileId) => {
+    // Public endpoint - no auth token needed
+    return fetch(`${API_BASE_URL}/public/profile/${publicProfileId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) {
+        throw { response, status: response.status, ...data };
+      }
+      return data;
+    });
+  },
+  
+  // Public Profile Management (AUTH REQUIRED - student only)
+  generatePublicProfileId: () => apiRequest('/students/public-profile/generate', {
+    method: 'POST',
+  }),
+  regeneratePublicProfileId: () => apiRequest('/students/public-profile/regenerate', {
+    method: 'POST',
+  }),
+  getPublicProfileSettings: () => apiRequest('/students/public-profile/settings'),
+  updatePublicProfileSettings: (settings) => apiRequest('/students/public-profile/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  }),
   getAllStudents: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = toQueryString(params);
     return apiRequest(`/students?${query}`);
   },
   getStudentSkills: () => apiRequest('/students/skills'),
@@ -464,7 +568,7 @@ export const api = {
   // Jobs
   getTargetedJobs: () => apiRequest('/jobs/targeted'),
   getJobs: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = toQueryString(params);
     return apiRequest(`/jobs?${query}`);
   },
   getJob: (jobId) => apiRequest(`/jobs/${jobId}`),
@@ -496,7 +600,7 @@ export const api = {
 
   // Applications
   getAllApplications: (filters = {}) => {
-    const query = new URLSearchParams(filters).toString();
+    const query = toQueryString(filters);
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
   getStudentApplications: () => apiRequest('/applications/student'),
@@ -513,7 +617,7 @@ export const api = {
 
   // Notifications
   getNotifications: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = toQueryString(params);
     return apiRequest(`/notifications?${query}`);
   },
   markNotificationRead: (notificationId) => apiRequest(`/notifications/${notificationId}/read`, {
@@ -557,7 +661,7 @@ export const api = {
   }),
   getPendingAdminRequests: () => apiRequest('/admin-requests/pending'),
   getAllAdminRequests: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = toQueryString(params);
     return apiRequest(`/admin-requests${query ? `?${query}` : ''}`);
   },
   approveAdminRequest: (requestId) => apiRequest(`/admin-requests/${requestId}/approve`, {
@@ -589,38 +693,51 @@ export const api = {
 
   // Generic HTTP methods for calendar and other services
   get: (endpoint, config = {}) => {
-    const query = config.params ? new URLSearchParams(config.params).toString() : '';
+    const { silent, showSuccess, params, ...restConfig } = config;
+    const query = toQueryString(params);
     const url = query ? `${endpoint}?${query}` : endpoint;
-    return apiRequest(url).then(data => ({ data }));
+    return apiRequest(url, { silent, showSuccess, ...restConfig }).then(data => ({ data }));
   },
   post: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response })).catch(error => {
       // Re-throw to preserve error structure
       throw error;
     });
   },
   put: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
   delete: (endpoint, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'DELETE',
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
   patch: (endpoint, data, config = {}) => {
+    const { silent, showSuccess, ...restConfig } = config;
     return apiRequest(endpoint, {
       method: 'PATCH',
       body: JSON.stringify(data),
-      ...config,
+      silent,
+      showSuccess,
+      ...restConfig,
     }).then(response => ({ data: response }));
   },
 };

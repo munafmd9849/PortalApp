@@ -172,11 +172,17 @@ const InterviewSessionToken = () => {
    * Start a round
    */
   const handleStartRound = async (roundName) => {
+    let loadingToastId = null;
     try {
-      await api.post(`/interview/session/${token}/round/${roundName}/start`);
+      loadingToastId = showLoading(`Starting ${roundName}...`);
+      await api.post(`/interview/session/${token}/round/${roundName}/start`, {}, { silent: true });
+      replaceLoadingToast(loadingToastId, 'success', `${roundName} started successfully`);
       await fetchSession();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to start round');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      showError(err.response?.data?.error || err.response?.data?.message || 'Failed to start round. Please try again.');
     }
   };
 
@@ -188,12 +194,19 @@ const InterviewSessionToken = () => {
       return;
     }
 
+    let loadingToastId = null;
     try {
-      const response = await api.post(`/interview/session/${token}/round/${roundName}/end`);
-      alert(response.data.message || 'Round ended successfully');
+      loadingToastId = showLoading(`Ending ${roundName}...`);
+      const response = await api.post(`/interview/session/${token}/round/${roundName}/end`, {}, { silent: true });
+      const message = response.data?.message || `${roundName} ended successfully. Only selected candidates will proceed.`;
+      replaceLoadingToast(loadingToastId, 'success', message);
       await fetchSession();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to end round');
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+      }
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to end round. Please ensure all candidates are evaluated.';
+      showError(errorMsg);
     }
   };
 
@@ -650,14 +663,18 @@ const InterviewSessionToken = () => {
                       <FaFilePdf className="text-red-600" />
                       Resume
                     </h4>
-                    <a
-                      href={candidate.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        // Open PDF in new window/tab for inline viewing
+                        const pdfWindow = window.open(candidate.resumeUrl, '_blank');
+                        if (pdfWindow) {
+                          pdfWindow.focus();
+                        }
+                      }}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                     >
-                      <FaDownload /> View/Download Resume
-                    </a>
+                      <FaFilePdf /> View Resume
+                    </button>
                     {candidate.resumeFileName && (
                       <p className="text-xs text-gray-500 mt-1">{candidate.resumeFileName}</p>
                     )}

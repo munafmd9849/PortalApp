@@ -170,10 +170,10 @@ function extractJobData(text) {
   
   // Extract job title (look for common patterns - improved)
   const titlePatterns = [
-    /job\s*title[:\s]+([^\n]+)/i,
-    /position[:\s]+([^\n]+)/i,
-    /role[:\s]+([^\n]+)/i,
-    /title[:\s]+([^\n]+)/i,
+    /(?:^|\n)\s*job\s*title[:\s]+([^\n]+)/i, // More specific: must be at start of line or after newline
+    /(?:^|\n)\s*position[:\s]+([^\n]+)/i,
+    /(?:^|\n)\s*role[:\s]+([^\n]+)/i,
+    /(?:^|\n)\s*title[:\s]+([^\n]+)/i,
     /^([A-Z][^\n]{5,50}(?:developer|engineer|manager|analyst|specialist|coordinator|architect|designer|consultant|executive|lead|senior|junior|intern|trainee))/im,
     /^([A-Z][^\n]{5,50})\s*\n/i, // First line if it looks like a title
   ];
@@ -181,7 +181,15 @@ function extractJobData(text) {
   for (const pattern of titlePatterns) {
     const match = normalizedText.match(pattern);
     if (match && match[1]) {
-      const title = match[1].trim();
+      let title = match[1].trim();
+      
+      // Clean up: Remove any remaining labels that might have been captured
+      title = title.replace(/^(?:job\s*description\s*)?job\s*title[:\s]*/i, '');
+      title = title.replace(/^(?:job\s*description\s*)?position[:\s]*/i, '');
+      title = title.replace(/^(?:job\s*description\s*)?role[:\s]*/i, '');
+      title = title.replace(/^(?:job\s*description\s*)?title[:\s]*/i, '');
+      title = title.trim();
+      
       if (title.length > 3 && title.length < 100) {
         data.title = title;
         break;

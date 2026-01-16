@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api.js';
 import { Loader2, Mail, User, Building2, Star, CheckCircle, ExternalLink, Copy } from 'lucide-react';
-import { mockEndorsements, shouldUseMockData } from '../../../utils/mockData';
 
 // Individual Endorsement Card Component
 const EndorsementCard = ({ endorsement, index }) => {
@@ -251,12 +250,8 @@ const Endorsements = ({ isAdminView = false, studentId = null, profileData = nul
         // Otherwise, fetch from API (for student view or if profileData doesn't have endorsements)
         // In admin view, don't call API as it will use admin's ID - use profileData instead
         if (isAdminView) {
-          // If we're in admin view and profileData doesn't have endorsements, show empty or mock
-          if (shouldUseMockData()) {
-            setEndorsements(mockEndorsements);
-          } else {
-            setEndorsements([]);
-          }
+          // Admin view: if profileData didn't include endorsementsData, treat as empty.
+          setEndorsements([]);
           setLoading(false);
           return;
         }
@@ -297,19 +292,11 @@ const Endorsements = ({ isAdminView = false, studentId = null, profileData = nul
           };
         });
         
-        if (normalizedEndorsements.length === 0 && shouldUseMockData()) {
-          setEndorsements(mockEndorsements);
-        } else {
-          setEndorsements(normalizedEndorsements);
-        }
+        setEndorsements(normalizedEndorsements);
       } catch (err) {
         console.error('Error loading endorsements:', err);
         setError('Failed to load endorsements');
-        if (shouldUseMockData()) {
-          setEndorsements(mockEndorsements);
-        } else {
-          setEndorsements([]);
-        }
+        setEndorsements([]);
       } finally {
         setLoading(false);
       }
@@ -319,9 +306,7 @@ const Endorsements = ({ isAdminView = false, studentId = null, profileData = nul
   }, [user?.id]);
 
   // Determine which endorsements to display
-  const displayEndorsements = endorsements.length > 0 
-    ? endorsements 
-    : (shouldUseMockData() && mockEndorsements.length > 0 ? mockEndorsements : []);
+  const displayEndorsements = Array.isArray(endorsements) ? endorsements : [];
 
   // Show loading state
   if (loading) {
@@ -337,7 +322,7 @@ const Endorsements = ({ isAdminView = false, studentId = null, profileData = nul
     );
   }
 
-  // Don't render if there's an error and no data (mock or real) to show
+  // Don't render if there's an error and no data to show
   if (error && displayEndorsements.length === 0) {
     return null;
   }

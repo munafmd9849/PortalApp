@@ -5,14 +5,16 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
+    "check:postgres-only": "node scripts/check-postgres-only.js",
+    "predev": "node scripts/check-postgres-only.js",
     "dev": "node --watch src/server.js",
+    "prestart": "node scripts/check-postgres-only.js",
+    "prebuild": "node scripts/check-postgres-only.js",
+    "build": "prisma generate",
     "start": "node src/server.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:seed": "node src/scripts/seed.js",
-    "db:mock": "node scripts/insertMockData.js",
-    "db:mock-resumes": "node scripts/insertMockResumes.js",
-    "db:mock-jobs": "node scripts/insertMockJobs.js",
+    "db:seed": "tsx prisma/seed.ts",
     "worker": "node src/workers/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:google-ai": "node test-google-ai.js"
@@ -48,6 +50,7 @@
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "tsx": "^4.21.0"
   }
 }

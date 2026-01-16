@@ -208,7 +208,8 @@ export async function sendNewJobNotification(student, job) {
     description = description.replace(/<[^>]*>/g, ''); // Remove HTML tags
     description = description.length > 300 ? description.substring(0, 300) + '...' : description;
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const jobUrl = `${frontendUrl}/dashboard/student?tab=jobs&jobId=${job.id}`;
 
     const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
@@ -512,7 +513,7 @@ export async function sendApplicationStatusUpdateNotification(student, job, appl
           ${application.notes ? `<p><strong>Notes:</strong> ${application.notes}</p>` : ''}
         </div>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/student" 
+          <a href="${process.env.FRONTEND_URL}/student" 
              style="background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
             View Application Status
           </a>
@@ -542,7 +543,8 @@ export async function sendApplicationStatusUpdateNotification(student, job, appl
  */
 export async function sendPasswordResetOTP(email, otp) {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const resetPasswordUrl = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}`;
     
     const subject = 'Password Reset - PWIOI Portal';
@@ -722,7 +724,8 @@ This is an automated email from PWIOI Placement Portal.
  */
 export async function sendEndorsementRequestEmail(teacherEmail, studentName, endorsementLink, studentMessage = null) {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
+    const frontendUrl = process.env.FRONTEND_URL;
     const fullLink = `${frontendUrl}${endorsementLink}`;
     
     const subject = `Endorsement Request from ${studentName}`;

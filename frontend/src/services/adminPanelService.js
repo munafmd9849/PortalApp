@@ -1,76 +1,81 @@
 /**
- * Admin Panel Service - Mock Implementation
- * TODO: Replace with real backend API calls
+ * Admin Panel Service
+ * Computes analytics from real API data only.
  */
+import api from './api.js';
 
-const MOCK_ADMINS = [
-  { id: 'admin_1', name: 'Anika Sharma' },
-  { id: 'admin_2', name: 'Rohit Malhotra' },
-  { id: 'admin_3', name: 'Priya Verma' },
-  { id: 'admin_4', name: 'Karthik Reddy' },
-  { id: 'admin_5', name: 'Meera Joshi' },
-];
-
-const MONTH_LABELS = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const STATUS_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444'];
-
-const sleep = (ms = 400) => new Promise(resolve => setTimeout(resolve, ms));
-
-function randomWithin(base, variance = 0.08) {
-  const jitter = 1 + (Math.random() * 2 - 1) * variance;
-  return Math.max(0, Math.round(base * jitter));
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
 }
 
-function generateStats(filters = {}, dayWindow = 90) {
-  const scaleFactor = Math.max(0.6, Math.min(1.2, dayWindow / 90));
-  const baseStats = {
-    totalStudents: 1620,
-    placedStudents: 1184,
-    placementRate: 73.1,
-    totalJobs: 215,
-    activeRecruiters: 64,
-    pendingQueries: 37,
-    totalApplications: 8421,
-    averageApplications: 5.2,
-  };
-
-  return {
-    totalStudents: randomWithin(baseStats.totalStudents * scaleFactor),
-    placedStudents: randomWithin(baseStats.placedStudents * scaleFactor),
-    placementRate: Number((baseStats.placementRate + (Math.random() * 6 - 3)).toFixed(1)),
-    totalJobs: randomWithin(baseStats.totalJobs * scaleFactor),
-    activeRecruiters: randomWithin(baseStats.activeRecruiters, 0.15),
-    pendingQueries: randomWithin(baseStats.pendingQueries, 0.3),
-    totalApplications: randomWithin(baseStats.totalApplications * scaleFactor),
-    averageApplications: Number((baseStats.averageApplications + (Math.random() * 0.8 - 0.4)).toFixed(1)),
-  };
+function toNumber(v) {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function generatePlacementStatus() {
-  const statuses = ['Placed', 'Shortlisted', 'Interviewing', 'Pending'];
-  const totals = statuses.map((_, idx) => randomWithin(400 - idx * 70, 0.3));
+function buildPlacementStatusChart(applications = []) {
+  const statusCounts = new Map();
+  for (const a of applications) {
+    const raw = String(a?.status || a?.finalStatus || a?.interviewStatus || 'PENDING').toUpperCase();
+    const key =
+      raw === 'SELECTED' || raw === 'OFFERED' || raw === 'ACCEPTED' ? 'Placed' :
+      raw.includes('SHORT') ? 'Shortlisted' :
+      raw.includes('INTERVIEW') ? 'Interviewing' :
+      'Pending';
+    statusCounts.set(key, (statusCounts.get(key) || 0) + 1);
+  }
+
+  const labels = ['Placed', 'Shortlisted', 'Interviewing', 'Pending'];
+  const data = labels.map(l => statusCounts.get(l) || 0);
 
   return {
-    labels: statuses,
+    labels,
     datasets: [
       {
-        label: 'Students',
-        data: totals,
-        backgroundColor: STATUS_COLORS,
+        label: 'Applications',
+        data,
+        backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444'],
         borderRadius: 8,
       },
     ],
   };
 }
 
-function generateMonthlyTrend() {
-  const jobsPosted = MONTH_LABELS.map(() => randomWithin(40, 0.35));
-  const offersMade = MONTH_LABELS.map(() => randomWithin(32, 0.3));
-  const applications = MONTH_LABELS.map(() => randomWithin(720, 0.25));
+function buildMonthlyTrendChart(jobs = [], applications = [], monthCount = 6) {
+  const now = new Date();
+  const months = [];
+  for (let i = monthCount - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleString('en-US', { month: 'short' }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+    });
+  }
+
+  const countByMonth = (items, dateGetter) => {
+    const map = new Map(months.map(m => [m.key, 0]));
+    for (const it of items) {
+      const dtRaw = dateGetter(it);
+      if (!dtRaw) continue;
+      const dt = new Date(dtRaw);
+      if (Number.isNaN(dt.getTime())) continue;
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      if (map.has(key)) map.set(key, (map.get(key) || 0) + 1);
+    }
+    return months.map(m => map.get(m.key) || 0);
+  };
+
+  const jobsPosted = countByMonth(jobs.filter(j => j?.isPosted === true || String(j?.status || '').toUpperCase() === 'POSTED'), j => j.postedAt || j.createdAt);
+  const offersMade = countByMonth(applications.filter(a => {
+    const s = String(a?.status || a?.finalStatus || a?.interviewStatus || '').toUpperCase();
+    return s === 'SELECTED' || s === 'OFFERED' || s === 'ACCEPTED';
+  }), a => a.updatedAt || a.appliedDate || a.createdAt);
+  const appsCount = countByMonth(applications, a => a.appliedDate || a.createdAt);
 
   return {
-    labels: MONTH_LABELS,
+    labels: months.map(m => m.label),
     datasets: [
       {
         label: 'Jobs Posted',
@@ -90,7 +95,7 @@ function generateMonthlyTrend() {
       },
       {
         label: 'Applications',
-        data: applications,
+        data: appsCount,
         borderColor: '#a855f7',
         borderDash: [6, 6],
         tension: 0.35,
@@ -100,66 +105,97 @@ function generateMonthlyTrend() {
   };
 }
 
-function generateAdminPerformance() {
-  return MOCK_ADMINS.map((admin, index) => {
-    const jobsPosted = randomWithin(18 - index * 2, 0.2);
-    const applications = jobsPosted * randomWithin(40, 0.3);
-    const placements = Math.round(jobsPosted * (0.8 - index * 0.05));
-    return {
-      admin: admin.name,
-      jobsPosted,
-      applications,
-      placements,
-      successRate: Number(((placements / Math.max(1, jobsPosted)) * 100).toFixed(1)),
-    };
-  });
-}
+export async function getAdminPanelData(filters = {}, dayWindow = 90) {
+  const [jobsRes, applicationsRes, studentsRes, recruitersRes, queriesRes] = await Promise.allSettled([
+    api.getJobs({ limit: 1000 }),
+    api.getAllApplications({ limit: 1000 }),
+    api.getAllStudents({ limit: 1000 }),
+    api.getRecruiterDirectory(),
+    api.getAdminQueries(),
+  ]);
 
-function buildMockAdminPanelData(filters = {}, dayWindow = 90) {
+  const jobsPayload = jobsRes.status === 'fulfilled' ? jobsRes.value : null;
+  const jobs = safeArray(jobsPayload?.jobs).length ? safeArray(jobsPayload?.jobs) : safeArray(jobsPayload);
+
+  const applicationsPayload = applicationsRes.status === 'fulfilled' ? applicationsRes.value : null;
+  const applications = safeArray(applicationsPayload?.applications).length ? safeArray(applicationsPayload?.applications) : safeArray(applicationsPayload);
+
+  const studentsPayload = studentsRes.status === 'fulfilled' ? studentsRes.value : null;
+  const students = safeArray(studentsPayload?.students).length ? safeArray(studentsPayload?.students) : safeArray(studentsPayload);
+
+  const recruitersPayload = recruitersRes.status === 'fulfilled' ? recruitersRes.value : null;
+  const recruiters = safeArray(recruitersPayload?.recruiters).length ? safeArray(recruitersPayload?.recruiters) : safeArray(recruitersPayload);
+
+  const queriesPayload = queriesRes.status === 'fulfilled' ? queriesRes.value : null;
+  const queries = safeArray(queriesPayload?.queries).length ? safeArray(queriesPayload?.queries) : safeArray(queriesPayload?.data).length ? safeArray(queriesPayload?.data) : safeArray(queriesPayload);
+
+  const placedStudentIds = new Set(
+    applications
+      .filter(a => {
+        const s = String(a?.status || a?.finalStatus || a?.interviewStatus || '').toUpperCase();
+        return s === 'SELECTED' || s === 'OFFERED' || s === 'ACCEPTED';
+      })
+      .map(a => a?.studentId)
+      .filter(Boolean)
+  );
+
+  const pendingQueries = queries.filter(q => {
+    const s = String(q?.status || '').toLowerCase();
+    return s === 'pending' || s === 'open' || s === 'unresolved';
+  }).length;
+
+  const totalStudents = students.length;
+  const totalApplications = applications.length;
+  const placedStudents = placedStudentIds.size;
+  const placementRate = totalStudents > 0 ? (placedStudents / totalStudents) * 100 : 0;
+  const averageApplications = totalStudents > 0 ? totalApplications / totalStudents : 0;
+
   return {
-    statsData: generateStats(filters, dayWindow),
+    statsData: {
+      totalStudents,
+      placedStudents,
+      placementRate,
+      totalJobs: jobs.length,
+      activeRecruiters: recruiters.length,
+      pendingQueries,
+      totalApplications,
+      averageApplications,
+    },
     chartData: {
-      placementStatus: generatePlacementStatus(),
-      monthlyTrend: generateMonthlyTrend(),
-      adminPerformance: generateAdminPerformance(),
+      placementStatus: buildPlacementStatusChart(applications),
+      monthlyTrend: buildMonthlyTrendChart(jobs, applications),
+      adminPerformance: [], // Not available without backend support
     },
   };
 }
 
-export async function getAdminPanelData(filters = {}, dayWindow = 90) {
-  console.info('ℹ️ getAdminPanelData: returning mock data', { filters, dayWindow });
-  await sleep();
-  return buildMockAdminPanelData(filters, dayWindow);
-}
-
 export async function exportReportCSV(filters = {}, dayWindow = 90) {
-  console.info('ℹ️ exportReportCSV: generating mock CSV', { filters, dayWindow });
-  await sleep(250);
-  return 'report-generated-mock.csv';
+  throw new Error('Export is not available yet (backend support required).');
 }
 
 export async function downloadDataCSV(filters = {}, dataType = 'applications', dayWindow = 90) {
-  console.info('ℹ️ downloadDataCSV: generating mock data download', { filters, dataType, dayWindow });
-  await sleep(250);
-  return `${dataType}-mock.csv`;
+  throw new Error('Download is not available yet (backend support required).');
 }
 
 export function subscribeToAdminPanelData(callback, filters = {}, dayWindow = 90) {
-  console.info('ℹ️ subscribeToAdminPanelData: using mock poller', { filters, dayWindow });
-  
-  let isActive = true;
+  let active = true;
 
-  const emit = () => {
-    if (!isActive) return;
-    callback(buildMockAdminPanelData(filters, dayWindow));
+  const emit = async () => {
+    if (!active) return;
+    try {
+      const data = await getAdminPanelData(filters, dayWindow);
+      if (active) callback(data);
+    } catch (e) {
+      // Let the caller handle error state; do not fabricate data.
+      if (active) callback(null);
+    }
   };
 
   emit();
-
-  const intervalId = setInterval(emit, 15000); // refresh every 15s
+  const intervalId = setInterval(emit, 15000);
 
   return () => {
-    isActive = false;
+    active = false;
     clearInterval(intervalId);
   };
 }

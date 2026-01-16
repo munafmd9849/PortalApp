@@ -8,7 +8,6 @@ import { Plus, Edit2, Trash2, Briefcase } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { getStudentProfile } from '../../../services/students';
-import { mockExperience, shouldUseMockData } from '../../../utils/mockData';
 
 const ExperienceSection = () => {
   const { user } = useAuth();
@@ -42,7 +41,7 @@ const ExperienceSection = () => {
         const profile = await getStudentProfile(user.id);
         if (isMounted) {
           const realExperiences = profile?.experiences || [];
-          setExperiences(realExperiences.length > 0 ? realExperiences : (shouldUseMockData() ? mockExperience : []));
+          setExperiences(Array.isArray(realExperiences) ? realExperiences : []);
         }
       } catch (error) {
         console.error('Error loading experiences:', error);

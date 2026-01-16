@@ -135,7 +135,7 @@ app.use(cors({
 
 **Check backend `.env` file:**
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://<user>:<password>@<neon-host>/<db>?sslmode=require"
 JWT_SECRET="your-secret-key"
 CORS_ORIGIN="http://localhost:5173"
 PORT=3001

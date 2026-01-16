@@ -3,7 +3,7 @@
 ## 🎯 What's Included
 
 Complete migration package from Firebase to PostgreSQL + Express + Socket.IO with:
-- ✅ Prisma schema (PostgreSQL/SQLite)
+- ✅ Prisma schema (PostgreSQL / Neon)
 - ✅ Express backend (routes, controllers, middleware)
 - ✅ BullMQ workers (job distribution, emails)
 - ✅ Socket.IO setup (real-time updates)

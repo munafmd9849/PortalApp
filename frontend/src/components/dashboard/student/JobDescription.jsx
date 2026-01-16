@@ -230,54 +230,59 @@ const JobDescription = ({ job, isOpen, onClose }) => {
       // Try to extract interview rounds from requirements text
       const requirementsText = displayJob.requirements;
       const roundPatterns = [
+        // Roman numerals: "I Round:", "II Round:", "III Round:", etc.
+        /([IVX]+)\s+Round[:]\s*([^\n\r]+)/gi,
+        // Arabic numerals: "Round 1:", "Round 2:", etc.
         /Round\s*(\d+)[:]\s*([^\n\r]+)/gi,
+        // Numbered list: "1.", "2.", etc.
         /(\d+)[.]\s*([^\n\r]+)/gi,
+        // Any text with colon: "Round Name: Description"
         /([A-Z][^:]+):\s*([^\n\r]+)/g,
       ];
       
       let foundRounds = [];
+      const seenRounds = new Set(); // To avoid duplicates
+      
       roundPatterns.forEach(pattern => {
         const matches = [...requirementsText.matchAll(pattern)];
-        matches.forEach((match, index) => {
+        matches.forEach((match) => {
           if (match[1] && match[2]) {
-            foundRounds.push({
-              label: match[1].trim(),
-              description: match[2].trim(),
-            });
+            const roundKey = `${match[1].trim()}-${match[2].trim()}`;
+            if (!seenRounds.has(roundKey)) {
+              seenRounds.add(roundKey);
+              foundRounds.push({
+                label: match[1].trim(),
+                description: match[2].trim(),
+              });
+            }
           }
         });
       });
       
       if (foundRounds.length > 0) {
-        rounds = foundRounds.map((round, index) => ({
-          label: round.label || `Round ${index + 1}`,
-          description: round.description || "Interview round details will be shared.",
-          color: roundColors[index % roundColors.length],
-          number: String(index + 1),
-          icon: getRoundIcon(round.label),
-        }));
+        rounds = foundRounds.map((round, index) => {
+          // Convert Roman numerals to readable format
+          let roundLabel = round.label;
+          const romanToNumber = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10 };
+          if (romanToNumber[round.label]) {
+            roundLabel = `Round ${romanToNumber[round.label]}`;
+          } else if (!round.label.toLowerCase().includes('round')) {
+            roundLabel = `Round ${index + 1}: ${round.label}`;
+          }
+          
+          return {
+            label: roundLabel,
+            description: round.description || "Interview round details will be shared.",
+            color: roundColors[index % roundColors.length],
+            number: String(index + 1),
+            icon: getRoundIcon(round.description || round.label),
+          };
+        });
       }
     }
     
-    // If we found rounds, return them; otherwise use default timeline
-    if (rounds.length > 0) {
-      // Add Offer and Onboarding steps at the end
-      rounds.push({
-        label: "OFFER",
-        description: "Formal job offer extended to selected candidates.",
-        color: "bg-teal-500",
-        number: String(rounds.length + 1),
-        icon: <FaCheckCircle className="text-white" size={18} />,
-      });
-      rounds.push({
-        label: "Onboarding",
-        description: "Orientation and integration process for new hires.",
-        color: "bg-red-500",
-        number: String(rounds.length + 1),
-        icon: <FaEnvelopeOpen className="text-white" size={18} />,
-      });
-      return rounds;
-    }
+    // If we found rounds, return ONLY those rounds (no auto-added steps).
+    if (rounds.length > 0) return rounds;
     
     // Fallback to default timeline
     return defaultInterviewTimeline;

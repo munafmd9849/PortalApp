@@ -11,7 +11,7 @@ This is a complete full-stack placement portal application with:
 - **Backend**: Node.js 20 + Express 5 + PostgreSQL
 - **Real-time**: Socket.IO
 - **Task Queue**: BullMQ + Redis
-- **Database**: Prisma 5 ORM (PostgreSQL/SQLite)
+- **Database**: Prisma 5 ORM (PostgreSQL / Neon)
 
 The project has been reorganized with a clean separation between frontend and backend code.
 
@@ -98,7 +98,7 @@ Portal-main/
 │  │     ├─ email.js              # Nodemailer transporter
 │  │     └─ socket.js             # Socket.IO server
 │  ├─ prisma/
-│  │  └─ schema.prisma            # Database schema (PostgreSQL/SQLite)
+│  │  └─ schema.prisma            # Database schema (PostgreSQL / Neon)
 │  ├─ package.json                # Backend dependencies
 │  └─ .env                        # Backend environment variables ⚠️
 │

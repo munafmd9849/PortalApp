@@ -195,7 +195,7 @@ All jobs flow operations tested and verified with automated test script.
 **Problem**: Validation middleware expects arrays, but database schema stores them as JSON strings
 **Fix**: Updated controller to convert arrays to JSON strings before saving to database
 **File**: `backend/src/controllers/jobs.js:220-230`
-**Note**: Frontend/API sends arrays, controller converts to JSON strings for SQLite compatibility
+**Note**: Frontend/API sends arrays, controller converts to JSON strings for database storage
 
 ---
 

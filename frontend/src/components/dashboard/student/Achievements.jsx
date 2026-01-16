@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
-import { mockAchievements, mockCertifications, shouldUseMockData } from '../../../utils/mockData';
 
 const Achievements = ({ isAdminView = false }) => {
   const { user } = useAuth();
@@ -74,15 +73,8 @@ const Achievements = ({ isAdminView = false }) => {
           console.log('✅ [Achievements] Setting real achievements/certifications:', allItems);
           setAchievements(allItems);
         } else {
-          // Only use mock data if explicitly enabled AND no real data
-          if (shouldUseMockData()) {
-            const mockData = [...mockAchievements, ...mockCertifications];
-            console.log('📦 [Achievements] No real data, using mock data. Count:', mockData.length);
-            setAchievements(mockData);
-          } else {
-            console.log('📭 [Achievements] No real data, mock data disabled. Using empty array.');
-            setAchievements([]);
-          }
+          console.log('📭 [Achievements] No achievements/certifications found. Using empty array.');
+          setAchievements([]);
         }
       } catch (error) {
         console.error('❌ [Achievements] Error loading achievements:', error);

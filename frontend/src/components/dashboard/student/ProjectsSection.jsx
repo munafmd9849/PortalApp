@@ -8,7 +8,6 @@ import {
   getStudentProfile,
   generateProjectContent
 } from '../../../services/students';
-import { mockProjects, shouldUseMockData } from '../../../utils/mockData';
 
 const ProjectsSection = ({ studentId, isAdminView = false }) => {
   const { user } = useAuth();
@@ -72,14 +71,8 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
           console.log('✅ [ProjectsSection] Setting real projects:', realProjects);
           setProjects(realProjects);
         } else {
-          // Only use mock data if explicitly enabled AND no real data
-          if (shouldUseMockData()) {
-            console.log('📦 [ProjectsSection] No real projects, using mock data. Count:', mockProjects.length);
-            setProjects(mockProjects);
-          } else {
-            console.log('📭 [ProjectsSection] No real projects, mock data disabled. Using empty array.');
-            setProjects([]);
-          }
+          console.log('📭 [ProjectsSection] No projects found. Using empty array.');
+          setProjects([]);
         }
       } catch (error) {
         console.error('❌ [ProjectsSection] Error loading projects:', error);
@@ -417,7 +410,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                   type="url"
                   value={editedProject.liveUrl}
                   onChange={(e) => handleChange('liveUrl', e.target.value)}
-                  placeholder="Live Demo URL"
+                  placeholder="Project URL"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
                 
@@ -511,7 +504,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                     type="url"
                     value={editedProject.liveUrl}
                     onChange={(e) => handleChange('liveUrl', e.target.value)}
-                    placeholder="Live Demo URL"
+                    placeholder="Project URL"
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                   />
                   

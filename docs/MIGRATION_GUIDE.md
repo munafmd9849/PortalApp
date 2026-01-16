@@ -22,7 +22,7 @@ This guide provides step-by-step instructions for migrating the PWIOI Placement 
 
 ### Required Software
 - Node.js 20+
-- PostgreSQL 14+ (or SQLite for development)
+- PostgreSQL 14+ (Neon recommended)
 - Redis 7+
 - AWS Account (for S3)
 - Git

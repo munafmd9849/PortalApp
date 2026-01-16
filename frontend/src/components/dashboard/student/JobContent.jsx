@@ -64,58 +64,7 @@ function sanitizeHTML(html) {
     .replace(/'/g, '&#039;');
 }
 
-// Default timeline steps (fallback when no job-specific data)
-const defaultInterviewTimeline = [
-  {
-    label: "Round 1: Aptitude Test",
-    description: "Initial screening test covering quantitative, logical, and verbal reasoning. This round assesses your fundamental problem-solving abilities and analytical thinking.",
-    color: "bg-blue-500",
-    number: "1",
-    icon: <FaClipboardList className="text-white" size={20} />,
-  },
-  {
-    label: "Round 2: Technical Interview",
-    description: "In-depth discussion of technical skills, problem-solving, and domain knowledge. Be prepared to demonstrate your coding abilities and technical expertise.",
-    color: "bg-purple-500",
-    number: "2",
-    icon: <FaPhone className="text-white" size={20} />,
-  },
-  {
-    label: "Round 3: HR Interview",
-    description: "Evaluation of cultural fit, communication skills, and career aspirations. This round focuses on understanding your personality, values, and long-term goals.",
-    color: "bg-green-500",
-    number: "3",
-    icon: <FaTasks className="text-white" size={20} />,
-  },
-  {
-    label: "Round 4: Group Discussion",
-    description: "Assessment of teamwork, leadership, and communication abilities. You'll participate in group activities to demonstrate your collaborative skills.",
-    color: "bg-yellow-500",
-    number: "4",
-    icon: <FaUserCheck className="text-white" size={20} />,
-  },
-  {
-    label: "Round 5: Final Decision",
-    description: "Selection committee review and final decision making. The hiring team evaluates all candidates and makes the final selection.",
-    color: "bg-indigo-500",
-    number: "5",
-    icon: <FaUsers className="text-white" size={20} />,
-  },
-  {
-    label: "OFFER",
-    description: "Formal job offer extended to selected candidates. Congratulations! You'll receive the official offer letter with compensation and benefits details.",
-    color: "bg-teal-500",
-    number: "6",
-    icon: <FaCheckCircle className="text-white" size={20} />,
-  },
-  {
-    label: "Onboarding",
-    description: "Orientation and integration process for new hires. Welcome to the team! You'll go through orientation, training, and meet your colleagues.",
-    color: "bg-red-500",
-    number: "7",
-    icon: <FaEnvelopeOpen className="text-white" size={20} />,
-  },
-];
+// No default interview timeline in production.
 
 // Color palette for dynamic rounds
 const roundColors = [
@@ -218,11 +167,36 @@ const JobContent = React.memo(({
     return {
       ...job,
       // Company
-      companyName: job.company?.name || job.companyName || job.company || "Company Name",
+      companyName: job.company?.name || job.companyName || job.company || "",
       logoUrl: job.company?.logoUrl || job.company?.logo || job.logoUrl,
       website: job.company?.website || job.website || job.companyWebsite,
+      // Description (backend uses `description`)
+      jobDescription: job.jobDescription || job.description || job.responsibilities || "",
+      // Many places in UI expect responsibilities separately; fall back to description
+      responsibilities: job.responsibilities || job.description || job.jobDescription || "",
       // Skills
-      skills: job.requiredSkills || job.skillsRequired || job.skills || [],
+      skills: (() => {
+        const raw = job.requiredSkills || job.skillsRequired || job.skills || [];
+        // Backend stores requiredSkills as a JSON string
+        if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (!trimmed) return [];
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          }
+          // Comma/newline separated string
+          return trimmed
+            .split(/[,;•\n\r]/)
+            .map(s => s.trim())
+            .filter(Boolean);
+        }
+        return Array.isArray(raw) ? raw : [];
+      })(),
       // Salary
       salary: job.salary || job.stipend || job.ctc || job.salaryRange,
       // Dates
@@ -237,9 +211,9 @@ const JobContent = React.memo(({
       gapYears: job.gapYears,
       backlogs: job.backlogs,
       // Additional fields
-      reportingTime: job.reportingTime || "9:00 AM",
-      documentsRequired: job.documentsRequired || "Resume, ID Proof, Academic Certificates",
-      dressCode: job.dressCode || "Formal",
+      reportingTime: job.reportingTime,
+      documentsRequired: job.documentsRequired,
+      dressCode: job.dressCode,
     };
   }, [job]);
 
@@ -253,9 +227,9 @@ const JobContent = React.memo(({
 
   // Calculate countdown
   const countdown = useMemo(() => {
-    const deadline = displayJob.deadline 
-      ? new Date(displayJob.deadline).getTime()
-      : Date.now() + 3 * 24 * 60 * 60 * 1000;
+    if (!displayJob.deadline) return null;
+    const deadline = new Date(displayJob.deadline).getTime();
+    if (Number.isNaN(deadline)) return null;
     
     const diff = deadline - now;
     if (diff <= 0) return "Deadline passed";
@@ -312,36 +286,16 @@ const JobContent = React.memo(({
         .filter(skill => skill.length > 0);
     }
     
-    // Default skills
-    return [
-      "Problem Solving",
-      "JavaScript & ES6+",
-      "React.js & Node.js",
-      "Git & Version Control",
-      "Database Management",
-      "Team Collaboration",
-      "REST APIs",
-      "Agile Methodology",
-    ];
+    return [];
   }, [displayJob.skills]);
 
-  // Extract job description with mock data
+  // Extract job description
   const jobDescription = useMemo(() => {
     if (displayJob.jobDescription && typeof displayJob.jobDescription === 'string' && displayJob.jobDescription.trim()) {
       return displayJob.jobDescription;
     }
     
-    // Mock job description
-    return `We are seeking a talented and motivated ${displayJob.jobTitle || 'Software Engineer'} to join our dynamic team. In this role, you will work on cutting-edge projects, collaborate with experienced professionals, and contribute to innovative solutions that drive business growth.
-
-As a key member of our team, you will have the opportunity to:
-• Work on challenging projects that push the boundaries of technology
-• Collaborate with cross-functional teams including product managers, designers, and other engineers
-• Contribute to architectural decisions and technical strategy
-• Mentor junior developers and share knowledge with the team
-• Stay updated with the latest industry trends and best practices
-
-This position offers excellent growth opportunities, competitive compensation, and a supportive work environment where your ideas and contributions are valued. We are looking for someone who is passionate about technology, eager to learn, and ready to make a significant impact.`;
+    return '';
   }, [displayJob.jobDescription, displayJob.jobTitle]);
 
   // Extract responsibilities
@@ -363,17 +317,7 @@ This position offers excellent growth opportunities, competitive compensation, a
         .filter(item => item.length > 0)
         .map(item => item.replace(/^[-•*]\s*/, ''));
     } else {
-      // Enhanced mock responsibilities
-      items = [
-        "Design, develop, and maintain scalable software applications using modern technologies",
-        "Collaborate with cross-functional teams including product managers, designers, and QA engineers",
-        "Write clean, efficient, and well-documented code following industry best practices",
-        "Participate in code reviews, technical discussions, and knowledge sharing sessions",
-        "Debug, troubleshoot, and resolve software defects and performance issues",
-        "Contribute to architectural decisions and help shape technical strategy",
-        "Stay updated with emerging technologies and industry trends",
-        "Mentor junior developers and provide technical guidance when needed"
-      ];
+      items = [];
     }
     
     return items;
@@ -387,7 +331,7 @@ This position offers excellent growth opportunities, competitive compensation, a
     if (displayJob.interviewRounds && Array.isArray(displayJob.interviewRounds) && displayJob.interviewRounds.length > 0) {
       rounds = displayJob.interviewRounds.map((round, index) => ({
         label: round.title || `Round ${index + 1}`,
-        description: round.detail || round.description || "Interview round details will be shared.",
+        description: round.detail || round.description || '',
         color: roundColors[index % roundColors.length],
         number: String(index + 1),
         icon: getRoundIcon(round.title || `Round ${index + 1}`),
@@ -411,7 +355,7 @@ This position offers excellent growth opportunities, competitive compensation, a
         } else if (round && typeof round === 'object' && round.title) {
           rounds.push({
             label: round.title || `Round ${index + 1}`,
-            description: round.detail || round.description || "Interview round details will be shared.",
+            description: round.detail || round.description || '',
             color: roundColors[index % roundColors.length],
             number: String(index + 1),
             icon: getRoundIcon(round.title),
@@ -424,7 +368,7 @@ This position offers excellent growth opportunities, competitive compensation, a
         if (round && typeof round === 'object') {
           rounds.push({
             label: round.title || `Round ${baseRounds.length + index + 1}`,
-            description: round.detail || round.description || "Interview round details will be shared.",
+            description: round.detail || round.description || '',
             color: roundColors[(baseRounds.length + index) % roundColors.length],
             number: String(baseRounds.length + index + 1),
             icon: getRoundIcon(round.title),
@@ -435,57 +379,49 @@ This position offers excellent growth opportunities, competitive compensation, a
     // Method 3: Parse from requirements field
     else if (displayJob.requirements && typeof displayJob.requirements === 'string') {
       const requirementsText = displayJob.requirements;
-      const roundPatterns = [
-        /Round\s*(\d+)[:]\s*([^\n\r]+)/gi,
-        /(\d+)[.]\s*([^\n\r]+)/gi,
-        /([A-Z][^:]+):\s*([^\n\r]+)/g,
-      ];
-      
-      let foundRounds = [];
-      roundPatterns.forEach(pattern => {
-        const matches = [...requirementsText.matchAll(pattern)];
-        matches.forEach((match) => {
-          if (match[1] && match[2]) {
-            foundRounds.push({
-              label: match[1].trim(),
-              description: match[2].trim(),
-            });
-          }
-        });
-      });
-      
+      // IMPORTANT:
+      // The requirements text often contains lines like:
+      //   "I Round: DSA"
+      //   "II Round: HR"
+      // If we run a generic "Anything: value" pattern as well, it double-counts the same
+      // lines (e.g., "I" and "I Round" both match), producing duplicate rounds.
+      //
+      // So we only fall back to the generic pattern IF none of the specific patterns match.
+      const romanPattern = /([IVX]+)\s+Round[:]\s*([^\n\r]+)/gi;
+      const numericRoundPattern = /Round\s*(\d+)[:]\s*([^\n\r]+)/gi;
+      const numberedListPattern = /(\d+)[.]\s*([^\n\r]+)/gi;
+      const genericLabelPattern = /([A-Z][^:]+):\s*([^\n\r]+)/g;
+
+      const extractMatches = (pattern) =>
+        [...requirementsText.matchAll(pattern)]
+          .filter((m) => m?.[1] && m?.[2])
+          .map((m) => ({ label: String(m[1]).trim(), description: String(m[2]).trim() }));
+
+      let foundRounds = extractMatches(romanPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(numericRoundPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(numberedListPattern);
+      if (foundRounds.length === 0) foundRounds = extractMatches(genericLabelPattern);
+
       if (foundRounds.length > 0) {
-        rounds = foundRounds.map((round, index) => ({
-          label: round.label || `Round ${index + 1}`,
-          description: round.description || "Interview round details will be shared.",
-          color: roundColors[index % roundColors.length],
-          number: String(index + 1),
-          icon: getRoundIcon(round.label),
-        }));
+        const romanToNumber = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 };
+        rounds = foundRounds.map((round, index) => {
+          const rawLabel = round.label || `Round ${index + 1}`;
+          const normalizedLabel = romanToNumber[rawLabel] ? `Round ${romanToNumber[rawLabel]}` : rawLabel;
+          return {
+            label: normalizedLabel,
+            description: round.description || '',
+            color: roundColors[index % roundColors.length],
+            number: String(index + 1),
+            icon: getRoundIcon(normalizedLabel),
+          };
+        });
       }
     }
     
-    // If we found rounds, add Offer and Onboarding
-    if (rounds.length > 0) {
-      rounds.push({
-        label: "OFFER",
-        description: "Formal job offer extended to selected candidates.",
-        color: "bg-teal-500",
-        number: String(rounds.length + 1),
-        icon: <FaCheckCircle className="text-white" size={18} />,
-      });
-      rounds.push({
-        label: "Onboarding",
-        description: "Orientation and integration process for new hires.",
-        color: "bg-red-500",
-        number: String(rounds.length + 1),
-        icon: <FaEnvelopeOpen className="text-white" size={18} />,
-      });
-      return rounds;
-    }
+    // If we found rounds, return ONLY those rounds (no auto-added steps).
+    if (rounds.length > 0) return rounds;
     
-    // Fallback to default timeline
-    return defaultInterviewTimeline;
+    return [];
   }, [displayJob]);
 
   // Handle share
@@ -738,7 +674,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">Job Type</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.jobType || "Full-time"}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.jobType || '—'}</p>
       </div>
       <div 
         className="group relative p-6 rounded-2xl border border-green-100 bg-gradient-to-br from-green-50 to-green-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
@@ -753,7 +689,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">Work Mode</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.workMode || "Onsite"}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.workMode || '—'}</p>
       </div>
       <div 
         className="group relative p-6 rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-red-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
@@ -768,7 +704,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">Location</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.location || "Bangalore"}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.location || '—'}</p>
       </div>
       <div 
         className="group relative p-6 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
@@ -787,48 +723,53 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
       </div>
     </div>
 
-    {/* Countdown Timer - Enhanced */}
-    <div className="bg-gradient-to-r from-blue-50 via-blue-100/50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-md">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="font-semibold text-gray-900 text-base md:text-lg mb-1">Application Deadline</h3>
-          <p className="text-sm text-gray-600 font-medium">
-            Drive Date: <span className="text-gray-800">{formatDriveDate(displayJob.driveDate)}</span>
-          </p>
-        </div>
-        <div className="text-right w-full sm:w-auto">
-          {countdown === "Deadline passed" ? (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold">
-              <span>⏰</span>
-              <span>Deadline passed</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="text-center">
-                <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
-                  <span className="text-2xl font-bold text-gray-900 block">{countdown.days}</span>
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Days</span>
+    {(displayJob.deadline || displayJob.driveDate) ? (
+      <div className="bg-gradient-to-r from-blue-50 via-blue-100/50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-md">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-base md:text-lg mb-1">Application Deadline</h3>
+            <p className="text-sm text-gray-600 font-medium">
+              Drive Date: <span className="text-gray-800">{formatDriveDate(displayJob.driveDate)}</span>
+            </p>
+          </div>
+          <div className="text-right w-full sm:w-auto">
+            {countdown === null ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold">
+                <span>—</span>
+              </div>
+            ) : countdown === "Deadline passed" ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold">
+                <span>⏰</span>
+                <span>Deadline passed</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="text-center">
+                  <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
+                    <span className="text-2xl font-bold text-gray-900 block">{countdown.days}</span>
+                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Days</span>
+                  </div>
+                </div>
+                <span className="text-2xl font-bold text-gray-400">:</span>
+                <div className="text-center">
+                  <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
+                    <span className="text-2xl font-bold text-gray-900 block">{countdown.hours}</span>
+                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Hours</span>
+                  </div>
+                </div>
+                <span className="text-2xl font-bold text-gray-400">:</span>
+                <div className="text-center">
+                  <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
+                    <span className="text-2xl font-bold text-gray-900 block">{countdown.minutes}</span>
+                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Mins</span>
+                  </div>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-gray-400">:</span>
-              <div className="text-center">
-                <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
-                  <span className="text-2xl font-bold text-gray-900 block">{countdown.hours}</span>
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Hours</span>
-                </div>
-              </div>
-              <span className="text-2xl font-bold text-gray-400">:</span>
-              <div className="text-center">
-                <div className="bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 min-w-[70px]">
-                  <span className="text-2xl font-bold text-gray-900 block">{countdown.minutes}</span>
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Mins</span>
-                </div>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    ) : null}
 
     {/* Description */}
     <div>
@@ -902,7 +843,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
       </div>
     </div>
 
-    {/* Eligibility - Premium design with mock data */}
+    {/* Eligibility */}
     <div>
       <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Eligibility Criteria</h3>
       <div 

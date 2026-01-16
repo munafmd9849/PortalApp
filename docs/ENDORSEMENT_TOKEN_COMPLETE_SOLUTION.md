@@ -196,7 +196,7 @@ SET timezone = 'UTC';
 -- For MySQL
 SET time_zone = '+00:00';
 
--- For SQLite (always UTC)
+-- Timestamps are stored in UTC
 -- No action needed
 ```
 

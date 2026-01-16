@@ -63,14 +63,13 @@ const HelpSupport = () => {
       // TODO: Replace with actual API call
       // const data = await api.getCompanyDetails();
       
-      // Mock data
       setCompanyDetails({
-        companyName: 'TechCorp Solutions',
-        registrationNumber: 'REG-2024-001',
-        email: 'contact@techcorp.com',
-        phone: '+91 9876543210',
-        address: '123 Tech Street, Bangalore, Karnataka 560001',
-        website: 'www.techcorp.com'
+        companyName: '',
+        registrationNumber: '',
+        email: '',
+        phone: '',
+        address: '',
+        website: ''
       });
     } catch (error) {
       console.error('Error loading company details:', error);
@@ -82,11 +81,7 @@ const HelpSupport = () => {
       // TODO: Replace with actual API call
       // const documents = await api.getMouDocuments();
       
-      // Mock data
-      setMouDocuments([
-        { id: 1, name: 'MOU_2024.pdf', uploadDate: '2024-01-15', url: '#' },
-        { id: 2, name: 'MOU_Amendment_2024.pdf', uploadDate: '2024-03-20', url: '#' }
-      ]);
+      setMouDocuments([]);
     } catch (error) {
       console.error('Error loading MOU documents:', error);
     }
@@ -96,9 +91,7 @@ const HelpSupport = () => {
     try {
       // TODO: Replace with actual API call
       // await api.updateCompanyDetails(companyDetails);
-      
-      setEditingDetails(false);
-      alert('Company details updated successfully!');
+      alert('Saving company details is not available yet.');
     } catch (error) {
       console.error('Error saving company details:', error);
       alert('Failed to update company details. Please try again.');
@@ -121,17 +114,7 @@ const HelpSupport = () => {
       // const formData = new FormData();
       // formData.append('mou', file);
       // const result = await api.uploadMouDocument(formData);
-      
-      // Mock: Add to local state
-      const newDocument = {
-        id: Date.now(),
-        name: file.name,
-        uploadDate: new Date().toISOString().split('T')[0],
-        url: URL.createObjectURL(file)
-      };
-      
-      setMouDocuments(prev => [...prev, newDocument]);
-      alert('MOU document uploaded successfully!');
+      alert('MOU upload is not available yet.');
     } catch (error) {
       console.error('Error uploading MOU:', error);
       alert('Failed to upload MOU document. Please try again.');

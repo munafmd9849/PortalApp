@@ -12,7 +12,7 @@ This migration package contains everything needed to migrate PWIOI Placement Por
 - ✅ **`prisma/schema.prisma`** - Complete PostgreSQL schema
   - All Firestore collections migrated
   - Proper relationships, indexes, constraints
-  - Compatible with SQLite (dev) and PostgreSQL (prod)
+  - PostgreSQL (Neon) only
 
 ### 2. Backend Structure
 - ✅ **`backend/src/config/`** - Configuration files

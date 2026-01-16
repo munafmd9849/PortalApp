@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
-import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
 const InterviewSessionPage = () => {
@@ -11,6 +11,7 @@ const InterviewSessionPage = () => {
   const { user, role } = useAuth();
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [interviewData, setInterviewData] = useState(null);
   const [editingRound, setEditingRound] = useState(null);
   const [roundName, setRoundName] = useState('');
@@ -50,8 +51,13 @@ const InterviewSessionPage = () => {
     const loadInterviewData = async () => {
       if (!interviewId) return;
       
+      // Record start time for minimum loading duration
+      const startTime = Date.now();
+      const minimumLoadingTime = 10000; // 10 seconds in milliseconds
+      
       try {
         setLoading(true);
+        setError('');
         const token = localStorage.getItem('accessToken');
         
         // Wrap fetch in try-catch to handle network errors gracefully
@@ -73,12 +79,9 @@ const InterviewSessionPage = () => {
           
           if (timeoutId) clearTimeout(timeoutId);
         } catch (fetchError) {
-          // Network error - use fallback data
-          console.warn('Network error loading interview session (backend may be down), using fallback data:', fetchError);
-          // Don't throw - allow fallback data to be used
-          response = null;
           // Clear timeout if it exists
           if (timeoutId) clearTimeout(timeoutId);
+          throw fetchError;
         }
 
         if (response && response.ok) {
@@ -95,22 +98,13 @@ const InterviewSessionPage = () => {
             }
           }
 
-          // If no rounds exist, create default rounds
-          if (rounds.length === 0) {
-            rounds = [
-              { name: 'Technical Round 1', criteria: 'Technical skills assessment', status: 'pending' },
-              { name: 'Technical Round 2', criteria: 'Advanced technical evaluation', status: 'pending' },
-              { name: 'HR Round', criteria: 'Cultural fit and communication', status: 'pending' }
-            ];
-          }
-
           // Format the data for the component
           const formattedData = {
             id: data.id,
-            company: data.job?.company?.name || data.job?.companyName || 'Company',
-            job: data.job?.jobTitle || 'Job Title',
-            round: data.currentRound || rounds[0]?.name || 'Round 1',
-            status: data.status?.toLowerCase() || 'ongoing',
+            company: data.job?.company?.name || data.job?.companyName || '',
+            job: data.job?.jobTitle || '',
+            round: data.currentRound || rounds[0]?.name || '',
+            status: data.status?.toLowerCase() || '',
             stats: {
               total: data.totalCandidates || 0,
               done: data.doneCandidates || 0,
@@ -120,46 +114,32 @@ const InterviewSessionPage = () => {
             },
             rounds: rounds.map((round, index) => ({
               id: index + 1,
-              name: round.name || `Round ${index + 1}`,
-              criteria: round.criteria || 'Assessment criteria',
-              status: round.status || 'pending'
+              name: round.name || '',
+              criteria: round.criteria || '',
+              status: round.status || ''
             }))
           };
           
           setInterviewData(formattedData);
         } else {
-          // No response or error response - use fallback data (don't throw, just use fallback)
-          // This allows the page to render even when backend is down
-          console.warn('API call failed or no response, using fallback data');
-          throw new Error('API call failed - using fallback data');
+          throw new Error(`Failed to load interview session${response ? ` (HTTP ${response.status})` : ''}`);
         }
       } catch (error) {
         console.error('Error loading interview session:', error);
-        // Fallback to mock data if API fails - this allows the page to still render
-        // The user can see the page structure even if data can't be loaded
-        const mockData = {
-          id: interviewId,
-          company: 'Company Name',
-          job: 'Job Title',
-          round: 'Technical Round 1',
-          status: 'ongoing',
-          stats: {
-            total: 0,
-            done: 0,
-            pending: 0,
-            selected: 0,
-            onHold: 0
-          },
-          rounds: [
-            { id: 1, name: 'Technical Round 1', criteria: 'Technical skills assessment', status: 'pending' },
-            { id: 2, name: 'Technical Round 2', criteria: 'Advanced technical evaluation', status: 'pending' },
-            { id: 3, name: 'HR Round', criteria: 'Cultural fit and communication', status: 'pending' }
-          ]
-        };
-        setInterviewData(mockData);
-        // Don't show error alert - just use fallback data so page can render
+        setInterviewData(null);
+        setError(error?.message || 'Failed to load interview session.');
       } finally {
-        setLoading(false);
+        // Ensure minimum loading time of 10 seconds
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = minimumLoadingTime - elapsedTime;
+        
+        if (remainingTime > 0) {
+          setTimeout(() => {
+            setLoading(false);
+          }, remainingTime);
+        } else {
+          setLoading(false);
+        }
       }
     };
 
@@ -449,6 +429,7 @@ const InterviewSessionPage = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Interview Session Not Found</h2>
+          {error ? <p className="text-gray-600">{error}</p> : null}
           <button
             onClick={() => navigate('/admin?tab=scheduleInterview')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mt-4"
@@ -464,30 +445,32 @@ const InterviewSessionPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Interview Session</h1>
-              <div className="flex items-center gap-6 mt-2 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  <span>{interviewData.company}</span>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">Interview Session</h1>
+              <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-sm">
+                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                  <Building2 className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-gray-800">{interviewData.company}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  <span>{interviewData.job}</span>
+                <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-200">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                  <span className="font-semibold text-gray-800">{interviewData.job}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>{interviewData.round}</span>
+                <div className="flex items-center gap-2 bg-purple-50 px-4 py-2 rounded-lg border border-purple-200">
+                  <Calendar className="w-5 h-5 text-purple-600" />
+                  <span className="font-semibold text-gray-800">{interviewData.round}</span>
                 </div>
                 <div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    interviewData.status === 'ongoing' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
+                  <span className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm ${
+                    interviewData.status === 'ongoing' || interviewData.status === 'not_started'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' 
+                      : interviewData.status === 'completed'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                      : 'bg-gray-200 text-gray-700'
                   }`}>
-                    {interviewData.status.toUpperCase()}
+                    {interviewData.status === 'not_started' ? 'Not Started' : interviewData.status.toUpperCase()}
                   </span>
                 </div>
               </div>
@@ -515,16 +498,16 @@ const InterviewSessionPage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Real-time Dashboard - Using Student Dashboard Style */}
-        <div className="w-full mb-8">
-          <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+        <div className="w-full mb-6 lg:mb-8">
+          <fieldset className="bg-white rounded-xl border-2 border-[#8ec5ff] py-5 px-4 sm:px-6 lg:px-8 transition-all duration-200 shadow-lg">
             <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
               Interview Statistics
             </legend>
 
             <div className="mb-3 mt-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
                 {/* Total */}
                 <div className="bg-gradient-to-br from-white to-gray-100 p-4 rounded-xl border border-gray-200 hover:border-[#3c80a7] hover:shadow-md transition-all duration-200 min-h-[120px] flex flex-col justify-between">
                   <div className="flex items-center">
@@ -595,9 +578,9 @@ const InterviewSessionPage = () => {
         </div>
 
         {/* Rounds Section - Using Student Dashboard Style */}
-        <div className="w-full mb-8">
-          <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
-            <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
+        <div className="w-full mb-6 lg:mb-8">
+          <fieldset className="bg-white rounded-xl border-2 border-[#8ec5ff] py-5 px-4 sm:px-6 lg:px-8 transition-all duration-200 shadow-lg">
+            <legend className="text-lg sm:text-xl font-bold px-3 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
               Interview Rounds
             </legend>
 
@@ -664,110 +647,115 @@ const InterviewSessionPage = () => {
                 </div>
               )}
 
-              <div className="space-y-4 mt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6 mt-4">
               {interviewData.rounds.map((round, index) => (
                 <div
                   key={round.id}
-                  className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl relative
-                    bg-gradient-to-r 
-                    ${index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'}
-                    hover:shadow-md transition`}
+                  className={`group relative bg-white rounded-xl border-2 ${
+                    round.status === 'pending' 
+                      ? 'border-gray-300 hover:border-blue-400' 
+                      : round.status === 'ongoing'
+                      ? 'border-blue-400 shadow-lg shadow-blue-100'
+                      : 'border-green-300'
+                  } p-5 lg:p-6 transition-all duration-300 hover:shadow-xl`}
                 >
-                  <div className="md:col-span-3">
-                    {editingRound === round.id ? (
-                      /* Edit Mode - Both Name and Criteria */
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Round Name:</label>
-                          <input
-                            type="text"
-                            value={roundName}
-                            onChange={(e) => setRoundName(e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            autoFocus
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Criteria:</label>
-                          <textarea
-                            value={criteriaText}
-                            onChange={(e) => setCriteriaText(e.target.value)}
-                            rows={2}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSaveRound(round.id)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
-                          >
-                            <Save className="w-4 h-4" />
-                            Save
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center gap-2"
-                          >
-                            <X className="w-4 h-4" />
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* View Mode */
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-base font-semibold text-black">{round.name}</h3>
-                          <button
-                            onClick={() => handleEditRound(round)}
-                            className="p-1 text-black relative hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50 cursor-pointer"
-                            title="Edit round"
-                            aria-label="Edit round"
-                          >
-                            <SquarePen className="h-3 w-3 absolute start-0" />
-                          </button>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-1 block">Criteria:</label>
-                          <p className="text-gray-700 text-sm">{round.criteria}</p>
-                        </div>
-                      </div>
-                    )}
+                  {/* Round Number Badge */}
+                  <div className="absolute -top-3 -left-3 w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                    {round.id || index + 1}
                   </div>
 
-                  {/* Start Assessment Button - Only show for pending rounds when not editing */}
-                  {editingRound !== round.id && round.status === 'pending' && (
-                    <div className="md:col-span-1 flex items-center justify-end pr-2">
-                      <button
-                        onClick={() => handleStartAssessment(round.name)}
-                        disabled={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)}
-                        className={`rounded-full p-2 shadow transition flex items-center justify-center ${
-                          interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-green-600 hover:bg-green-700'
-                        }`}
-                        title={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name) 
-                          ? 'Another round is currently ongoing' 
-                          : 'Start Assessment'}
-                        aria-label="Start Assessment"
-                      >
-                        <PlayCircle size={18} className="text-white" />
-                      </button>
-                    </div>
+                  {/* Edit Button - Top Right */}
+                  {editingRound !== round.id && (
+                    <button
+                      onClick={() => handleEditRound(round)}
+                      className="absolute top-4 right-4 p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                      title="Edit round"
+                    >
+                      <SquarePen className="h-4 w-4" />
+                    </button>
                   )}
-                  
-                  {/* Status Badge for ongoing/completed rounds */}
-                  {editingRound !== round.id && round.status !== 'pending' && (
-                    <div className="md:col-span-1 flex items-center justify-end pr-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        round.status === 'ongoing' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : round.status === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {round.status === 'ongoing' ? 'Ongoing' : round.status === 'completed' ? 'Completed' : 'Pending'}
-                      </span>
+
+                  {editingRound === round.id ? (
+                    /* Edit Mode */
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Round Name:</label>
+                        <input
+                          type="text"
+                          value={roundName}
+                          onChange={(e) => setRoundName(e.target.value)}
+                          className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Criteria:</label>
+                        <textarea
+                          value={criteriaText}
+                          onChange={(e) => setCriteriaText(e.target.value)}
+                          rows={3}
+                          className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          onClick={() => handleSaveRound(round.id)}
+                          className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all font-semibold shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save Changes
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all font-semibold flex items-center justify-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* View Mode */
+                    <div className="pt-2">
+                      <div className="mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">{round.name}</h3>
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <p className="text-sm text-gray-600 mb-1 font-medium">Assessment Criteria:</p>
+                          <p className="text-gray-800 text-sm leading-relaxed">{round.criteria || 'No criteria specified'}</p>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="mt-6">
+                        {round.status === 'pending' ? (
+                          <button
+                            onClick={() => handleStartAssessment(round.name)}
+                            disabled={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)}
+                            className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
+                              interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name)
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed border-2 border-gray-300'
+                                : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
+                            }`}
+                            title={interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name) 
+                              ? 'Another round is currently ongoing' 
+                              : 'Start this round'}
+                          >
+                            <Lock className={`w-5 h-5 ${interviewData.rounds.some(r => r.status === 'ongoing' && r.name !== round.name) ? '' : 'hidden'}`} />
+                            <PlayCircle className="w-5 h-5" />
+                            Start Round
+                          </button>
+                        ) : round.status === 'ongoing' ? (
+                          <div className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 shadow-lg">
+                            <PlayCircle className="w-5 h-5 animate-pulse" />
+                            Round Active
+                          </div>
+                        ) : (
+                          <div className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold flex items-center justify-center gap-2 shadow-lg">
+                            <CheckCircle className="w-5 h-5" />
+                            Round Completed
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

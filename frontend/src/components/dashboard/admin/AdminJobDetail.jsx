@@ -175,14 +175,25 @@ export default function AdminJobDetail() {
           <FaArrowLeft className="text-sm" />
           <span>Back</span>
         </button>
-        <span className={`px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-          job.status === 'POSTED' || job.status === 'posted' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 
-          job.status === 'DRAFT' || job.status === 'draft' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-          job.status === 'IN_REVIEW' || job.status === 'in_review' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-          'bg-slate-100 text-slate-700 border border-slate-200'
-        }`}>
-          {job.status === 'POSTED' || job.status === 'posted' ? 'Active' : (job.status || 'Draft')}
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(`/admin/jobs/${jobId}/applications`)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+            title="View Applicants"
+          >
+            <FaUsers className="text-sm" />
+            <span>View Applicants</span>
+          </button>
+
+          <span className={`px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+            job.status === 'POSTED' || job.status === 'posted' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 
+            job.status === 'DRAFT' || job.status === 'draft' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+            job.status === 'IN_REVIEW' || job.status === 'in_review' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+            'bg-slate-100 text-slate-700 border border-slate-200'
+          }`}>
+            {job.status === 'POSTED' || job.status === 'posted' ? 'Active' : (job.status || 'Draft')}
+          </span>
+        </div>
       </div>
 
       {/* Job Header */}

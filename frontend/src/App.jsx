@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import './App.css'
 import Header from './components/landing/Header'
@@ -16,10 +16,6 @@ import Records from './components/landing/Records'
 import LoginModal from './components/landing/LoginModal'
 import NotificationModal from './components/Notification'
 import DevTeam from './components/landing/DevTeam'
-// Placement Policy PDF path
-// TODO: Add PlacementPolicy.pdf to frontend/public/ folder
-// For now, using a placeholder path - will work once file is added to public/
-const placementPolicy = '/PlacementPolicy.pdf' // Served from public/ folder
 import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
@@ -35,6 +31,7 @@ import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
 import Endorsement from './pages/Endorsement'
+import PublicProfile from './pages/PublicProfile'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
@@ -186,6 +183,7 @@ function AppContent() {
         <Route path="/dev-team" element={<DevTeam />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/profile/:publicProfileId" element={<PublicProfile />} />
         <Route path="/endorse/:token" element={<Endorsement />} />
         <Route path="/endorsement/:token" element={<Endorsement />} /> {/* Legacy route support */}
         <Route path="/interview/:token" element={<InterviewSessionToken />} /> {/* Legacy token-based interview session */}
@@ -207,6 +205,7 @@ function AppContent() {
           <Route path="/admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
+          <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
 

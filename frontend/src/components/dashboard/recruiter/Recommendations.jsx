@@ -251,45 +251,10 @@ const Recommendations = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // TODO: Replace with actual API call
-      // const recommended = await api.getRecommendedStudents();
-      // const applied = await api.getAppliedStudents();
-      
-      // Mock data - students recommended by admin or who applied
-      const mockStudents = [
-        {
-          id: '1',
-          fullName: 'John Doe',
-          email: 'john.doe@example.com',
-          phone: '+91 9876543210',
-          enrollmentId: 'ENR-2024-001',
-          school: 'SOT',
-          center: 'Bangalore',
-          cgpa: 8.5,
-          batch: '2023-2027',
-          source: 'recommended', // or 'applied'
-          recommendedBy: 'Admin Name',
-          appliedJob: null
-        },
-        {
-          id: '2',
-          fullName: 'Jane Smith',
-          email: 'jane.smith@example.com',
-          phone: '+91 9876543211',
-          enrollmentId: 'ENR-2024-002',
-          school: 'SOM',
-          center: 'Pune',
-          cgpa: 9.0,
-          batch: '2023-2027',
-          source: 'applied',
-          recommendedBy: null,
-          appliedJob: 'Software Engineer'
-        }
-      ];
-      
-      setStudents(mockStudents);
-      setFilteredStudents(mockStudents);
+
+      // No recommendations endpoint available yet.
+      setStudents([]);
+      setFilteredStudents([]);
     } catch (err) {
       console.error('Error loading students:', err);
       setError(err.message || 'Failed to load students');

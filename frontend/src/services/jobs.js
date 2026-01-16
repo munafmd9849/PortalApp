@@ -5,55 +5,23 @@
 
 import api from './api.js';
 
-// Set to true to force use of mock data (for testing/development)
-const USE_MOCK_DATA = false; // Change to true to see mock data
-
 /**
  * List jobs with filters
  */
 export async function listJobs({ limitTo = 50, recruiterId, status } = {}) {
   try {
-    // For now, always use mock data to ensure the page displays properly
-    // TODO: Re-enable real API fetching once backend is fully robust
-    const mockJobs = getMockJobs();
-    
-    // Apply filters
-    let filteredJobs = mockJobs;
-    if (status) {
-      if (status === 'POSTED' || status === 'posted') {
-        filteredJobs = mockJobs.filter(j => j.isPosted || j.status === 'posted');
-      } else if (status === 'DRAFT' || status === 'draft') {
-        filteredJobs = mockJobs.filter(j => !j.isPosted && j.status === 'draft');
-      }
-    }
-    
-    if (limitTo) {
-      filteredJobs = filteredJobs.slice(0, limitTo);
-    }
-    
-    return filteredJobs;
-
-    // TODO: Uncomment when ready to use real data
-    /*
     const params = {};
     if (limitTo) params.limit = limitTo;
     if (recruiterId) params.recruiterId = recruiterId;
     if (status) params.status = status;
     
-    const jobs = await api.getJobs(params);
-    if (jobs && jobs.length > 0) {
-      return jobs;
-    }
-    
-    // Fallback to mock data
-    const mockJobs = getMockJobs();
-    return mockJobs.slice(0, limitTo || 50);
-    */
+    const response = await api.getJobs(params);
+    const jobs = Array.isArray(response?.jobs) ? response.jobs : (Array.isArray(response) ? response : []);
+    return limitTo ? jobs.slice(0, limitTo) : jobs;
   } catch (error) {
     console.error('listJobs error:', error);
-    // Return mock data on error
-    const mockJobs = getMockJobs();
-    return mockJobs.slice(0, limitTo || 50);
+    // No fallback data: let UI show empty/error state
+    return [];
   }
 }
 
@@ -62,8 +30,10 @@ export async function listJobs({ limitTo = 50, recruiterId, status } = {}) {
  */
 export async function getJob(jobId) {
   try {
-    const job = await api.getJob(jobId);
-    return job;
+    const res = await api.getJob(jobId);
+    // Backend commonly wraps responses as: { success: true, data: {...} }
+    // Normalize to always return the job object itself.
+    return res && typeof res === 'object' && 'data' in res ? res.data : res;
   } catch (error) {
     console.error('getJob error:', error);
     throw error;
@@ -108,25 +78,8 @@ export async function updateJob(jobId, jobData) {
  */
 export async function deleteJob(jobId) {
   try {
-    // Try real API first
-    try {
-      await api.deleteJob(jobId);
-      // Remove from mock cache if exists
-      if (cachedMockJobs) {
-        cachedMockJobs = cachedMockJobs.filter(j => j.id !== jobId);
-      }
-      return { success: true };
-    } catch (apiError) {
-      // If API fails, handle mock data
-      if (cachedMockJobs) {
-        const index = cachedMockJobs.findIndex(j => j.id === jobId);
-        if (index !== -1) {
-          cachedMockJobs.splice(index, 1);
-          return { success: true };
-        }
-      }
-      throw apiError;
-    }
+    await api.deleteJob(jobId);
+    return { success: true };
   } catch (error) {
     console.error('deleteJob error:', error);
     throw error;
@@ -145,7 +98,7 @@ export async function getTargetedJobsForStudent(studentId) {
     if (jobs && jobs.length > 0) {
       // Transform jobs to match expected format
       const transformedJobs = jobs.map(job => {
-        // Handle date objects (from database or mock data)
+        // Handle date values (from database)
         const parseDate = (dateValue) => {
           if (!dateValue) return null;
           if (typeof dateValue === 'string') return new Date(dateValue);
@@ -187,7 +140,7 @@ export async function getTargetedJobsForStudent(studentId) {
           openings: job.openings,
           qualification: job.qualification,
           minCgpa: job.minCgpa || job.cgpaRequirement,
-          // Parse targeting arrays (stored as JSON strings in SQLite)
+          // Parse targeting arrays (stored as JSON strings)
           targetSchools: Array.isArray(job.targetSchools) ? job.targetSchools :
             (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools || '[]') : []),
           targetCenters: Array.isArray(job.targetCenters) ? job.targetCenters :
@@ -200,164 +153,18 @@ export async function getTargetedJobsForStudent(studentId) {
       return transformedJobs;
     }
     
-    // If API returns empty, return empty array (don't use mock data)
+    // If API returns empty, return empty array
     console.log('No jobs found from API for student');
     return [];
   } catch (error) {
     console.error('getTargetedJobsForStudent error:', error);
-    // Return empty array on error (don't show mock data)
+    // Return empty array on error
     return [];
   }
 }
 
-// Mock data for development
-const MOCK_COMPANIES = [
-  { name: 'Tata Consultancy Services', location: 'Bangalore, KA' },
-  { name: 'Infosys', location: 'Hyderabad, TS' },
-  { name: 'Accenture', location: 'Mumbai, MH' },
-  { name: 'Amazon', location: 'Bangalore, KA' },
-  { name: 'Microsoft', location: 'Noida, UP' },
-  { name: 'Dell Technologies', location: 'Chennai, TN' },
-  { name: 'Wipro', location: 'Bangalore, KA' },
-  { name: 'Cognizant', location: 'Pune, MH' },
-  { name: 'Capgemini', location: 'Mumbai, MH' },
-  { name: 'Tech Mahindra', location: 'Noida, UP' },
-];
-
-const MOCK_JOB_TITLES = [
-  'Software Engineer',
-  'Data Analyst',
-  'Cloud Consultant',
-  'Frontend Developer',
-  'Backend Engineer',
-  'Product Specialist',
-  'DevOps Engineer',
-  'QA Automation Engineer',
-  'Business Analyst',
-  'Security Analyst',
-  'Full Stack Developer',
-  'Machine Learning Engineer',
-  'UI/UX Designer',
-  'Database Administrator',
-  'Network Engineer',
-];
-
-function randomFrom(array) {
-  return array[Math.floor(Math.random() * array.length)];
-}
-
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function randomCurrency(min, max, step = 1000) {
-  const value = randomInt(min / step, max / step) * step;
-  return value;
-}
-
-function generateMockJobs() {
-  const jobs = [];
-  const now = new Date();
-  
-  // Generate more jobs for better demo experience
-  for (let i = 0; i < 35; i++) {
-    const company = randomFrom(MOCK_COMPANIES);
-    const jobTitle = randomFrom(MOCK_JOB_TITLES);
-    const isPosted = i < 20; // First 20 are posted, rest are unposted
-    const jobType = i % 3 === 0 ? 'Internship' : 'Full-time';
-    
-    // Create dates
-    const createdAt = new Date(now.getTime() - randomInt(1, 60) * 24 * 60 * 60 * 1000);
-    const driveDate = new Date(now.getTime() + randomInt(-10, 45) * 24 * 60 * 60 * 1000);
-    const postedAt = isPosted ? new Date(createdAt.getTime() + randomInt(1, 5) * 24 * 60 * 60 * 1000) : null;
-    
-    // Mock date object with toDate method for compatibility
-    const mockDate = (date) => ({
-      toDate: () => date,
-      getTime: () => date.getTime(),
-      toISOString: () => date.toISOString(),
-    });
-    
-    const allSkills = [
-      'React', 'Node.js', 'SQL', 'Cloud', 'CI/CD', 'Python', 'Java', 'JavaScript',
-      'TypeScript', 'Angular', 'Vue.js', 'Express.js', 'MongoDB', 'PostgreSQL',
-      'Redis', 'AWS', 'Docker', 'Kubernetes', 'GraphQL', 'REST API', 'Git',
-      'Agile', 'Scrum', 'Machine Learning', 'Data Structures', 'Algorithms'
-    ];
-    const selectedSkills = allSkills.sort(() => 0.5 - Math.random()).slice(0, randomInt(4, 8));
-    
-    const workModes = ['On-site', 'Remote', 'Hybrid'];
-    const qualifications = ['B.Tech', 'M.Tech', 'B.E', 'M.E', 'B.Sc', 'M.Sc'];
-    const experienceLevels = ['Fresher', '0-2 years', '2-5 years', '5+ years'];
-    
-    const job = {
-      id: `job_mock_${i + 1}`,
-      jobTitle: jobTitle,
-      jobType,
-      salary: jobType === 'Full-time' ? randomCurrency(600000, 1800000, 50000) : null,
-      stipend: jobType === 'Internship' ? randomCurrency(20000, 60000, 1000) : null,
-      company: company.name,
-      companyName: company.name,
-      companyLocation: company.location,
-      workMode: randomFrom(workModes),
-      openings: randomInt(5, 50),
-      qualification: randomFrom(qualifications),
-      experienceLevel: randomFrom(experienceLevels),
-      minCgpa: (Math.random() * 2 + 6).toFixed(1), // 6.0 to 8.0
-      driveDate: mockDate(driveDate),
-      createdAt: mockDate(createdAt),
-      postedAt: postedAt ? mockDate(postedAt) : null,
-      status: isPosted ? 'posted' : 'draft',
-      isPosted: isPosted,
-      posted: isPosted,
-      description: `We are looking for a talented ${jobTitle} to join our team at ${company.name}. This role offers an excellent opportunity to work on cutting-edge projects and collaborate with industry experts.`,
-      responsibilities: `• Collaborate with cross-functional teams to deliver high-quality product increments.
-• Build scalable and maintainable modules that support business workflows.
-• Participate in code reviews and contribute to technical discussions.
-• Mentor junior developers and interns during campus drives.
-• Contribute to platform stability with automated testing and QA processes.
-• Stay updated with latest technologies and best practices.`,
-      requiredSkills: selectedSkills,
-      skills: selectedSkills,
-      applicationDeadline: mockDate(new Date(driveDate.getTime() - randomInt(5, 15) * 24 * 60 * 60 * 1000)),
-    };
-    
-    // Add targeting data for posted jobs
-    if (isPosted) {
-      const schools = ['SOT', 'SOM', 'SOH'];
-      const batches = ['23-27', '24-28', '25-29', '26-30'];
-      const centers = ['BANGALORE', 'NOIDA', 'LUCKNOW', 'PUNE', 'PATNA', 'INDORE'];
-      
-      job.targetSchools = [randomFrom(schools)];
-      job.targetBatches = [randomFrom(batches)];
-      job.targetCenters = [randomFrom(centers)];
-      
-      // Some jobs have multiple selections
-      if (i % 3 === 0) {
-        job.targetSchools = schools.slice(0, randomInt(2, 3));
-        job.targetBatches = batches.slice(0, randomInt(2, 3));
-        job.targetCenters = centers.slice(0, randomInt(2, 4));
-      }
-    }
-    
-    jobs.push(job);
-  }
-  
-  return jobs;
-}
-
-// Cache mock jobs
-let cachedMockJobs = null;
-
-function getMockJobs() {
-  if (!cachedMockJobs) {
-    cachedMockJobs = generateMockJobs();
-  }
-  return cachedMockJobs;
-}
-
 /**
- * Subscribe to jobs (replaced with load-once pattern with mock data)
+ * Subscribe to jobs (polling-based)
  * For real-time updates, use Socket.IO instead
  * This function now returns an empty unsubscribe for backward compatibility
  */
@@ -461,41 +268,11 @@ export function subscribeJobs(callback, filters = {}) {
   // Load jobs once instead of real-time subscription
   (async () => {
     try {
-      // If USE_MOCK_DATA is true, skip API and use mock data directly
-      if (USE_MOCK_DATA) {
-        console.log('🎭 Using mock data (USE_MOCK_DATA flag is enabled)');
-        const mockJobs = getMockJobs();
-        callback(mockJobs);
-        return;
-      }
-      
-      // Try real API first, fallback to mock data
-      try {
-        const transformedJobs = await fetchJobsFromAPI(filters);
-        if (transformedJobs.length > 0) {
-          callback(transformedJobs);
-          return;
-        }
-        // If API returns 0 jobs, use mock data as fallback
-        console.log('API returned 0 jobs, using mock data as fallback');
-        const mockJobs = getMockJobs();
-        callback(mockJobs);
-      } catch (apiError) {
-        console.log('API call failed, using mock data:', apiError.message);
-        // Use mock data as fallback
-        const mockJobs = getMockJobs();
-        callback(mockJobs);
-      }
+      const transformedJobs = await fetchJobsFromAPI(filters);
+      callback(transformedJobs);
     } catch (error) {
       console.error('subscribeJobs error:', error);
-      // Even on error, try to show mock data
-      try {
-        const mockJobs = getMockJobs();
-        callback(mockJobs);
-      } catch (mockError) {
-        console.error('Failed to load mock data:', mockError);
-        callback([]);
-      }
+      callback([]);
     }
   })();
   
@@ -604,48 +381,8 @@ export async function addAnotherPositionDraft(jobData) {
  */
 export async function postJob(jobId, targeting = {}) {
   try {
-    // Try real API first
-    try {
-      const result = await api.postJob(jobId, targeting);
-      // Update mock cache if exists
-      if (cachedMockJobs) {
-        const job = cachedMockJobs.find(j => j.id === jobId);
-        if (job) {
-          job.isPosted = true;
-          job.posted = true;
-          job.status = 'posted';
-          job.postedAt = {
-            toDate: () => new Date(),
-            getTime: () => new Date().getTime(),
-            toISOString: () => new Date().toISOString(),
-          };
-          job.targetSchools = targeting.selectedSchools || [];
-          job.targetBatches = targeting.selectedBatches || [];
-          job.targetCenters = targeting.selectedCenters || [];
-        }
-      }
-      return { success: true, jobId, ...result };
-    } catch (apiError) {
-      // If API fails, handle mock data
-      if (cachedMockJobs) {
-        const job = cachedMockJobs.find(j => j.id === jobId);
-        if (job) {
-          job.isPosted = true;
-          job.posted = true;
-          job.status = 'posted';
-          job.postedAt = {
-            toDate: () => new Date(),
-            getTime: () => new Date().getTime(),
-            toISOString: () => new Date().toISOString(),
-          };
-          job.targetSchools = targeting.selectedSchools || [];
-          job.targetBatches = targeting.selectedBatches || [];
-          job.targetCenters = targeting.selectedCenters || [];
-          return { success: true, jobId };
-        }
-      }
-      throw apiError;
-    }
+    const result = await api.postJob(jobId, targeting);
+    return { success: true, jobId, ...result };
   } catch (error) {
     console.error('postJob error:', error);
     throw error;

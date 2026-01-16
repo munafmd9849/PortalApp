@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This is a **partially migrated** full-stack placement portal, transitioning from **Firebase** (Firestore, Auth, Storage) to a **Node.js/Express + React** stack with **JWT authentication** and **PostgreSQL/SQLite** database. The migration is **incomplete** - while the backend is fully migrated, the frontend contains **significant Firebase dependencies** and **mixed authentication contexts**.
+This is a **partially migrated** full-stack placement portal, transitioning from **Firebase** (Firestore, Auth, Storage) to a **Node.js/Express + React** stack with **JWT authentication** and **PostgreSQL (Neon)** database. The migration is **incomplete** - while the backend is fully migrated, the frontend contains **significant Firebase dependencies** and **mixed authentication contexts**.
 
 ---
 
@@ -77,7 +77,7 @@ Portal-main/
 │   │       ├── emailWorker.js        # ✅ Background worker for bulk emails
 │   │       └── index.js              # ✅ Worker entry point
 │   └── prisma/
-│       └── schema.prisma             # ✅ SQLite-compatible schema (enums → strings, arrays → JSON strings)
+│       └── schema.prisma             # ✅ PostgreSQL schema (enums → strings, arrays → JSON strings)
 │
 ├── frontend/                         # React 19 + Vite 7 + Tailwind 4
 │   ├── src/
@@ -324,11 +324,11 @@ Frontend receives: { success: true, message: 'OTP sent', expiresIn: 300 }
 - **Purpose**: Database schema definition
 - **Models**: User, Student, Recruiter, Admin, Job, Application, Notification, OTP, etc.
 - **Special Notes**:
-  - Provider: `sqlite` (for development, can switch to `postgresql`)
-  - Enums converted to `String` (SQLite compatibility)
+  - Provider: `postgresql`
+  - Enums converted to `String`
   - Arrays (`String[]`) converted to `String` (stored as JSON string)
   - JSON fields converted to `String` (stored as JSON string)
-- **Issues**: None (properly configured for SQLite)
+- **Issues**: None (configured for PostgreSQL)
 
 ---
 
@@ -877,7 +877,7 @@ useEffect(() => {
 │                 │                                       │
 │  ┌──────────────▼─────────────────────┐                │
 │  │      Database (Prisma)             │                │
-│  │  - SQLite (dev) / PostgreSQL       │                │
+│  │  - PostgreSQL (Neon)               │                │
 │  └────────────────────────────────────┘                │
 │                                                          │
 │  ┌────────────────────────────────────┐                │
