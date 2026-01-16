@@ -227,6 +227,26 @@ export async function createJob(req, res) {
     const userRole = req.user.role;
     const jobData = req.body;
 
+    // VALIDATE REQUIRED RECRUITER EMAIL
+    const recruiterEmail = jobData.recruiterEmail?.trim();
+    if (!recruiterEmail) {
+      return res.status(400).json({ 
+        error: 'Recruiter/HR email is required',
+        field: 'recruiterEmail',
+        message: 'Please provide a valid email address for the recruiter or HR contact who will handle screening.'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recruiterEmail)) {
+      return res.status(400).json({ 
+        error: 'Invalid recruiter email format',
+        field: 'recruiterEmail',
+        message: 'Please provide a valid email address.'
+      });
+    }
+
     // Get recruiter profile (if recruiter) or use admin
     let recruiterId = null;
     if (userRole === 'RECRUITER') {
@@ -318,37 +338,11 @@ export async function createJob(req, res) {
       companyId: companyId || null,
       recruiterId: recruiterId || null,
       companyName: companyName || null,
-      // Set default "As per industry standards" if salary/stipend not specified
-      salary: (() => {
-        // Check salary first
-        if (mappedData.salary) {
-          const salaryStr = String(mappedData.salary).trim();
-          if (salaryStr !== '' && salaryStr !== 'null' && salaryStr !== 'undefined') {
-            return salaryStr;
-          }
-        }
-        // Check stipend for internships
-        if (mappedData.stipend) {
-          const stipendStr = String(mappedData.stipend).trim();
-          if (stipendStr !== '' && stipendStr !== 'null' && stipendStr !== 'undefined') {
-            return stipendStr;
-          }
-        }
-        // Default value
-        return 'As per industry standards';
-      })(),
-      ctc: (() => {
-        if (mappedData.ctc) {
-          const ctcStr = String(mappedData.ctc).trim();
-          if (ctcStr !== '' && ctcStr !== 'null' && ctcStr !== 'undefined') {
-            return ctcStr;
-          }
-        }
-        return 'As per industry standards';
-      })(),
-      salaryRange: (mappedData.salaryRange && mappedData.salaryRange.trim() !== '') 
-        ? mappedData.salaryRange 
-        : null,
+      recruiterEmail: recruiterEmail, // REQUIRED: Email for recruiter screening access
+      recruiterName: jobData.recruiterName?.trim() || null, // Optional recruiter name
+      salary: mappedData.salary || null,
+      ctc: mappedData.ctc || null,
+      salaryRange: mappedData.salaryRange || null,
       location: mappedData.location || null,
       companyLocation: mappedData.companyLocation || null,
       driveDate: mappedData.driveDate || null,

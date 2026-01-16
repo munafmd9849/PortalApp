@@ -563,22 +563,61 @@ export default function StudentDashboard() {
   }, [user?.id]);
 
   const loadApplicationsData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('⚠️ [loadApplicationsData] No user ID, skipping');
+      return;
+    }
     
+    console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
       const applicationsData = await getStudentApplications(user.id);
-      console.log('📋 Loaded applications:', applicationsData?.length || 0, 'applications');
+      console.log('📋 [loadApplicationsData] API response:', {
+        isArray: Array.isArray(applicationsData),
+        length: applicationsData?.length || 0,
+        data: applicationsData
+      });
+      
       if (applicationsData && applicationsData.length > 0) {
-        console.log('📋 Application jobIds:', applicationsData.map(app => ({ 
+        console.log('📋 [loadApplicationsData] Application details:', applicationsData.map(app => ({ 
           appId: app.id, 
           jobId: app.jobId, 
-          jobIdFromJob: app.job?.id 
+          jobTitle: app.job?.jobTitle,
+          status: app.status,
+          companyName: app.company?.name || app.job?.company?.name
         })));
+      } else {
+        console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
+      
+      console.log('📋 [loadApplicationsData] About to set applications state:', {
+        applicationsDataLength: applicationsData?.length || 0,
+        isArray: Array.isArray(applicationsData),
+        firstApp: applicationsData?.[0] ? {
+          id: applicationsData[0].id,
+          jobId: applicationsData[0].jobId,
+          jobTitle: applicationsData[0].job?.jobTitle
+        } : null
+      });
+      
       setApplications(applicationsData || []);
+      
+      // Verify state was set correctly
+      setTimeout(() => {
+        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
+          // Note: We can't directly read state here, but we can log what we set
+          setValue: applicationsData?.length || 0
+        });
+      }, 100);
+      
+      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
     } catch (err) {
-      console.error('Failed to load applications:', err);
+      console.error('❌ [loadApplicationsData] Error loading applications:', err);
+      console.error('❌ [loadApplicationsData] Error details:', {
+        message: err.message,
+        stack: err.stack,
+        response: err.response
+      });
       setApplications([]);
     } finally {
       setLoadingApplications(false);
@@ -655,13 +694,21 @@ export default function StudentDashboard() {
           jobTitle: pendingJob.jobTitle,
           companyId: pendingJob.companyId,
           companyName: pendingJob.company?.name,
-          resumeId
+          resumeId,
+          studentId: user.id
         });
       }
       
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       // Pass resumeId in applicationData if backend supports it
-      const applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      let applicationResult;
+      try {
+        applicationResult = await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
+      } catch (applyError) {
+        // Re-throw with more context
+        console.error('❌ [handleResumeSelection] applyToJob error:', applyError);
+        throw applyError;
+      }
       
       // Immediately add to applications state for instant UI update
       if (applicationResult && pendingJob.id) {
@@ -704,45 +751,51 @@ export default function StudentDashboard() {
       }, 3000);
       
     } catch (error) {
+      console.error('❌ [handleApplyToJob] Full error:', error);
+      console.error('❌ [handleApplyToJob] Error response:', error.response);
+      console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
+      
       // Handle "Already applied" gracefully - just refresh and update button, no error shown
-      const errorData = error.response?.data || {};
-      if (errorData.error === 'Already applied to this job') {
+      const errorData = error.response?.data || error.response || {};
+      const errorMessage = errorData.error || errorData.message || error.message;
+      
+      if (errorMessage === 'Already applied to this job' || errorData.error === 'Already applied to this job') {
         // Silently refresh applications to update button state
         await loadApplicationsData();
         return; // Exit early, no error message needed
       }
       
       // Handle CGPA requirement error with precise message
-      if (error.response?.data || error.message) {
-        if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
-          // Clean and precise error message
-          const yourCgpa = errorData.yourCgpa || 'Not set';
-          const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
-          const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
-          
-          const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
-          setAlertMessage(fullMessage);
-          setAlertType('error');
-          setShowFloatingAlert(true);
-          
-          setTimeout(() => {
-            setShowFloatingAlert(false);
-            setAlertMessage(null);
-          }, 7000);
-        } else {
-          // Clean error message for other errors
-          const cleanMessage = errorData.message || error.message || 'Failed to apply to job. Please try again.';
-          setAlertMessage(cleanMessage);
-          setAlertType('error');
-          setShowFloatingAlert(true);
-          
-          setTimeout(() => {
-            setShowFloatingAlert(false);
-            setAlertMessage(null);
-          }, 5000);
-        }
+      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
+          errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+        // Clean and precise error message
+        const yourCgpa = errorData.yourCgpa || 'Not set';
+        const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
+        const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
+        
+        const fullMessage = `${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`;
+        setAlertMessage(fullMessage);
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 7000);
+      } else if (error.isNetworkError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        // Network error
+        setAlertMessage('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
+        setAlertType('error');
+        setShowFloatingAlert(true);
+        
+        setTimeout(() => {
+          setShowFloatingAlert(false);
+          setAlertMessage(null);
+        }, 5000);
       } else {
-        setAlertMessage('Failed to apply to job. Please check your connection and try again.');
+        // Clean error message for other errors
+        const cleanMessage = errorData.message || errorMessage || 'Failed to apply to job. Please try again.';
+        setAlertMessage(cleanMessage);
         setAlertType('error');
         setShowFloatingAlert(true);
         
@@ -851,19 +904,28 @@ export default function StudentDashboard() {
 
     const handleEditProfileClick = () => {
       setActiveTab('editProfile');
-      navigate('/student?tab=editProfile', { replace: true });
+      // Only navigate if URL doesn't already have the correct tab
+      if (tab !== 'editProfile') {
+        navigate('/student?tab=editProfile', { replace: true });
+      }
     };
     const handleNavigateToJobs = () => {
       setActiveTab('jobs');
-      navigate('/student?tab=jobs', { replace: true });
+      if (tab !== 'jobs') {
+        navigate('/student?tab=jobs', { replace: true });
+      }
     };
     const handleNavigateToApplications = () => {
       setActiveTab('applications');
-      navigate('/student?tab=applications', { replace: true });
+      if (tab !== 'applications') {
+        navigate('/student?tab=applications', { replace: true });
+      }
     };
     const handleNavigateToQuery = () => {
       setActiveTab('raiseQuery');
-      navigate('/student?tab=raiseQuery', { replace: true });
+      if (tab !== 'raiseQuery') {
+        navigate('/student?tab=raiseQuery', { replace: true });
+      }
     };
 
     window.addEventListener('editProfileClicked', handleEditProfileClick);
@@ -871,16 +933,9 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToApplications', handleNavigateToApplications);
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
+    // Set active tab based on URL parameter
     if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
-      const isRefresh = window.performance.navigation?.type === 1 ||
-        window.performance.getEntriesByType('navigation')[0]?.type === 'reload';
-
-      if (!isRefresh || tab !== 'editProfile') {
-        setActiveTab(tab);
-      } else {
-        setActiveTab('dashboard');
-        navigate('/student', { replace: true });
-      }
+      setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
       setActiveTab('dashboard');
@@ -927,19 +982,43 @@ export default function StudentDashboard() {
   
   // Load applications once (even without complete profile)
   useEffect(() => {
-    if (user?.id && !dataLoadingRef.current.applications) {
-      dataLoadingRef.current.applications = true;
-      loadApplicationsData();
+    console.log('📋 [useEffect applications] Triggered:', {
+      hasUserId: !!user?.id,
+      userId: user?.id,
+      alreadyLoaded: dataLoadingRef.current.applications,
+      currentApplicationsLength: applications.length
+    });
+    
+    if (user?.id) {
+      // Always load if we don't have applications yet, or if flag says not loaded
+      if (!dataLoadingRef.current.applications || applications.length === 0) {
+        console.log('📋 [useEffect] Loading applications for user:', user.id);
+        dataLoadingRef.current.applications = true;
+        loadApplicationsData();
+      } else {
+        console.log('📋 [useEffect] Applications already loaded, current count:', applications.length);
+      }
+    } else {
+      console.warn('⚠️ [useEffect] No user ID available for loading applications');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
 
-  // Load interview history when applications tab is active
+  // Load applications and interview history when applications tab is active
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
+      console.log('📋 [useEffect] Applications tab active, reloading data');
+      console.log('📋 [useEffect] Current applications state before reload:', {
+        length: applications.length,
+        loading: loadingApplications
+      });
+      
+      // Always reload when tab is opened to ensure fresh data
+      // Don't check dataLoadingRef - force reload every time tab opens
+      loadApplicationsData();
       loadInterviewHistory();
     }
-  }, [user?.id, activeTab, loadInterviewHistory]);
+  }, [user?.id, activeTab, loadApplicationsData, loadInterviewHistory]);
 
   // Validation helper functions
   const validateEmail = (email) => {
@@ -1926,6 +2005,28 @@ export default function StudentDashboard() {
 
       case 'applications':
         // Calculate application statistics
+        console.log('📊 [applications tab] Current applications state:', {
+          applicationsLength: applications.length,
+          applications: applications,
+          loadingApplications,
+          interviewHistoryLength: interviewHistory.length,
+          applicationsType: typeof applications,
+          isArray: Array.isArray(applications),
+          firstApp: applications[0] ? {
+            id: applications[0].id,
+            jobId: applications[0].jobId,
+            jobTitle: applications[0].job?.jobTitle
+          } : null
+        });
+        
+        // Force reload if applications is empty but we expect data
+        if (applications.length === 0 && !loadingApplications && user?.id) {
+          console.warn('⚠️ [applications tab] Applications is empty, forcing reload...');
+          setTimeout(() => {
+            loadApplicationsData();
+          }, 500);
+        }
+        
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
           const status = app.status?.toUpperCase();
@@ -2126,6 +2227,37 @@ export default function StudentDashboard() {
                             {/* Dropdown Content - Status and Round Details */}
                             {expandedApplications.has(record.id) && (
                               <div className="mb-6 space-y-6 border-t border-gray-200 pt-6">
+                                {/* Screening Status Badge (shown first, before interview status) */}
+                                {record.screeningStatusText && (
+                                  <div className={`p-4 border rounded-lg ${
+                                    record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                      ? 'bg-red-50 border-red-200'
+                                      : record.screeningStatus === 'TEST_SELECTED'
+                                      ? 'bg-green-50 border-green-200'
+                                      : 'bg-yellow-50 border-yellow-200'
+                                  }`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Info className={`w-5 h-5 ${
+                                        record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                          ? 'text-red-600'
+                                          : record.screeningStatus === 'TEST_SELECTED'
+                                          ? 'text-green-600'
+                                          : 'text-yellow-600'
+                                      }`} />
+                                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
+                                    </div>
+                                    <p className={`text-base font-bold ${
+                                      record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                        ? 'text-red-800'
+                                        : record.screeningStatus === 'TEST_SELECTED'
+                                        ? 'text-green-800'
+                                        : 'text-yellow-800'
+                                    }`}>
+                                      {record.screeningStatusText}
+                                    </p>
+                                  </div>
+                                )}
+                                
                                 {/* Status Badges */}
                                 <div className="flex items-center gap-3 justify-center md:justify-start">
                                   {isCracked && (
@@ -2338,8 +2470,38 @@ export default function StudentDashboard() {
                         }`}></div>
                         
                         <div className="p-8">
-                          {/* Interview Status Badge */}
-                          {application.interviewStatus?.hasSession && (
+                          {/* Screening Status Badge (shown first, before interview status) */}
+                          {application.screeningStatusText && (
+                            <div className={`mb-4 p-3 border rounded-lg ${
+                              application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                ? 'bg-red-50 border-red-200'
+                                : application.screeningStatus === 'TEST_SELECTED'
+                                ? 'bg-green-50 border-green-200'
+                                : 'bg-yellow-50 border-yellow-200'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <Info className={`w-4 h-4 ${
+                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                    ? 'text-red-600'
+                                    : application.screeningStatus === 'TEST_SELECTED'
+                                    ? 'text-green-600'
+                                    : 'text-yellow-600'
+                                }`} />
+                                <span className={`text-sm font-medium ${
+                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                    ? 'text-red-800'
+                                    : application.screeningStatus === 'TEST_SELECTED'
+                                    ? 'text-green-800'
+                                    : 'text-yellow-800'
+                                }`}>
+                                  {application.screeningStatusText}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Interview Status Badge (only if passed screening) */}
+                          {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
                             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Info className="w-4 h-4 text-blue-600" />

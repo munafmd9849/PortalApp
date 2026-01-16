@@ -55,6 +55,9 @@ export async function getAllApplications(req, res) {
       jobId: app.jobId,
       companyId: app.companyId,
       status: app.status,
+      screeningStatus: app.screeningStatus || 'APPLIED',
+      screeningRemarks: app.screeningRemarks || null,
+      screeningCompletedAt: app.screeningCompletedAt || null,
       appliedDate: app.appliedDate,
       interviewDate: app.interviewDate,
       company: app.job?.company || { name: 'Unknown Company' },
@@ -77,6 +80,77 @@ export async function getAllApplications(req, res) {
   } catch (error) {
     console.error('Get all applications error:', error);
     res.status(500).json({ error: 'Failed to get applications' });
+  }
+}
+
+/**
+ * Get screening summary for a job (admin only)
+ * GET /api/applications/job/:jobId/screening-summary
+ */
+export async function getJobScreeningSummary(req, res) {
+  try {
+    const { jobId } = req.params;
+
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+
+    // Get all applications for this job
+    const applications = await prisma.application.findMany({
+      where: { jobId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            enrollmentId: true,
+            batch: true,
+            center: true,
+            school: true,
+            resumeUrl: true,
+            resumeFileName: true
+          }
+        }
+      },
+      orderBy: { appliedDate: 'desc' }
+    });
+
+    // Calculate screening funnel
+    const summary = {
+      total: applications.length,
+      applied: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,
+      resumeSelected: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED').length,
+      resumeRejected: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED').length,
+      testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED').length,
+      testRejected: applications.filter(a => a.screeningStatus === 'TEST_REJECTED').length
+    };
+
+    // Group applications by screening status
+    const byStatus = {
+      APPLIED: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED'),
+      RESUME_SELECTED: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED'),
+      RESUME_REJECTED: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED'),
+      TEST_SELECTED: applications.filter(a => a.screeningStatus === 'TEST_SELECTED'),
+      TEST_REJECTED: applications.filter(a => a.screeningStatus === 'TEST_REJECTED')
+    };
+
+    res.json({
+      summary,
+      applications: applications.map(app => ({
+        id: app.id,
+        studentId: app.studentId,
+        student: app.student,
+        screeningStatus: app.screeningStatus || 'APPLIED',
+        screeningRemarks: app.screeningRemarks || null,
+        screeningCompletedAt: app.screeningCompletedAt || null,
+        appliedDate: app.appliedDate
+      })),
+      byStatus
+    });
+  } catch (error) {
+    console.error('Get job screening summary error:', error);
+    res.status(500).json({ error: 'Failed to get screening summary', details: error.message });
   }
 }
 
@@ -147,6 +221,22 @@ export async function getStudentApplications(req, res) {
     const formatted = applications.map(app => {
       const session = sessionMap.get(app.jobId);
       const evaluations = evaluationsByApp.get(app.id) || [];
+      
+      // Determine screening status text (PRIORITY: Screening status shown before interview status)
+      let screeningStatusText = null;
+      const screeningStatus = app.screeningStatus || 'APPLIED';
+      
+      if (screeningStatus === 'RESUME_REJECTED') {
+        screeningStatusText = 'Rejected in Resume Screening';
+      } else if (screeningStatus === 'TEST_REJECTED') {
+        screeningStatusText = 'Rejected in Screening Test';
+      } else if (screeningStatus === 'TEST_SELECTED') {
+        screeningStatusText = 'Qualified for Interview';
+      } else if (screeningStatus === 'RESUME_SELECTED') {
+        screeningStatusText = 'Resume Selected';
+      } else {
+        screeningStatusText = 'Applied (Screening Pending)';
+      }
       let interviewStatusText = null;
       let lastRoundStatus = null;
 
@@ -194,13 +284,16 @@ export async function getStudentApplications(req, res) {
           interviewStatusText = 'Interview Not Started';
         }
       } else {
-        // No interview session
-        if (app.status === 'SELECTED') {
+        // No interview session - but check if passed screening
+        if (screeningStatus === 'TEST_SELECTED') {
+          interviewStatusText = 'Qualified for Interview (Not Started)';
+        } else if (app.status === 'SELECTED') {
           interviewStatusText = 'Selected';
         } else if (app.status === 'REJECTED') {
           interviewStatusText = 'Rejected';
         } else {
-          interviewStatusText = 'Applied';
+          // Keep screening status text
+          interviewStatusText = screeningStatusText;
         }
       }
 
@@ -217,6 +310,8 @@ export async function getStudentApplications(req, res) {
           jobTitle: app.job?.jobTitle || 'Unknown Position',
           ...app.job,
         },
+        screeningStatus: screeningStatus, // Include raw screening status
+        screeningStatusText: screeningStatusText, // Human-readable screening status
         interviewStatus: {
           hasSession: !!session,
           statusText: interviewStatusText,
@@ -369,6 +464,22 @@ export async function getStudentInterviewHistory(req, res) {
       const session = sessionMap.get(app.jobId);
       const appEvaluations = evaluationMap.get(app.id) || [];
       
+      // Determine screening status text (PRIORITY: Screening status shown before interview status)
+      let screeningStatusText = null;
+      const screeningStatus = app.screeningStatus || 'APPLIED';
+      
+      if (screeningStatus === 'RESUME_REJECTED') {
+        screeningStatusText = 'Rejected in Resume Screening';
+      } else if (screeningStatus === 'TEST_REJECTED') {
+        screeningStatusText = 'Rejected in Screening Test';
+      } else if (screeningStatus === 'TEST_SELECTED') {
+        screeningStatusText = 'Qualified for Interview';
+      } else if (screeningStatus === 'RESUME_SELECTED') {
+        screeningStatusText = 'Resume Selected';
+      } else {
+        screeningStatusText = 'Applied (Screening Pending)';
+      }
+      
       // Get rounds from session
       const rounds = session?.rounds || [];
 
@@ -438,6 +549,8 @@ export async function getStudentInterviewHistory(req, res) {
         status: finalStatus,
         appliedDate: app.appliedDate,
         interviewDate: app.interviewDate,
+        screeningStatus: screeningStatus, // Include raw screening status
+        screeningStatusText: screeningStatusText, // Human-readable screening status
         company: app.job?.company || { name: 'Unknown Company' },
         job: {
           jobTitle: app.job?.jobTitle || 'Unknown Position',

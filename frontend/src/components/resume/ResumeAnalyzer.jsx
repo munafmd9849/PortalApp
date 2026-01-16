@@ -14,37 +14,149 @@ import {
 import { API_BASE_URL } from '../../config/api';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up PDF.js worker with proper HTTPS URL
+// Use unpkg CDN which is more reliable than cdnjs for workers
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 export default function ResumeAnalyzer({ resumeInfo, userId }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Extract text from PDF URL
+  // Extract text from PDF URL (use backend proxy as primary method)
   const extractTextFromPDFUrl = async (pdfUrl) => {
     try {
-      // Fetch the PDF
-      const response = await fetch(pdfUrl);
+      console.log('📄 Attempting to extract text from PDF:', pdfUrl);
+      
+      // Check if URL is valid
+      if (!pdfUrl || typeof pdfUrl !== 'string') {
+        throw new Error('Invalid PDF URL provided');
+      }
+
+      // Use backend proxy as primary method (more reliable, avoids CORS and worker issues)
+      console.log('📄 Using backend proxy to extract PDF text');
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
+      try {
+        const backendResponse = await fetch(`${API_BASE_URL}/students/resume/extract-text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            resumeUrl: pdfUrl,
+            resumeId: resumeInfo?.resumeId || null,
+          }),
+        });
+
+        if (!backendResponse.ok) {
+          const errorData = await backendResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || errorData.details || `Backend extraction failed (${backendResponse.status})`);
+        }
+
+        const backendData = await backendResponse.json();
+        if (!backendData.success || !backendData.resumeText) {
+          throw new Error(backendData.error || 'Failed to extract text from PDF');
+        }
+
+        console.log('📄 Text extracted via backend, length:', backendData.resumeText.length, 'characters');
+        return backendData.resumeText;
+      } catch (backendError) {
+        console.warn('⚠️ Backend extraction failed, trying frontend fallback:', backendError.message);
+        // Fall back to frontend PDF.js extraction if backend fails
+      }
+
+      // Frontend fallback: Try direct fetch and PDF.js extraction
+      console.log('📄 Attempting frontend PDF extraction as fallback');
+      let response;
+      try {
+        response = await fetch(pdfUrl, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'application/pdf,application/octet-stream,*/*'
+          }
+        });
+      } catch (fetchError) {
+        throw new Error(`Failed to fetch PDF: ${fetchError.message}. Please try again or contact support.`);
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('PDF not found. The resume URL may be invalid or the file has been removed.');
+        }
+        if (response.status === 403) {
+          throw new Error('Access denied. The PDF may require authentication or the URL has expired.');
+        }
+        throw new Error(`Failed to load PDF: HTTP ${response.status} ${response.statusText}`);
+      }
+
+      // Check if response is actually a PDF
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('pdf') && !contentType.includes('octet-stream')) {
+        console.warn('⚠️ Unexpected content type:', contentType);
+      }
+
       const arrayBuffer = await response.arrayBuffer();
       
-      // Load PDF document
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('PDF file is empty or corrupted.');
+      }
+
+      console.log('📄 PDF loaded, size:', arrayBuffer.byteLength, 'bytes');
+      
+      // Load PDF document with error handling
+      let pdf;
+      try {
+        pdf = await pdfjsLib.getDocument({ 
+          data: arrayBuffer,
+          verbosity: 0 // Suppress PDF.js warnings
+        }).promise;
+      } catch (pdfError) {
+        console.error('❌ PDF.js error:', pdfError);
+        if (pdfError.message.includes('Invalid PDF')) {
+          throw new Error('Invalid PDF format. The file may be corrupted or not a valid PDF.');
+        }
+        throw new Error(`Failed to parse PDF: ${pdfError.message}`);
+      }
+      
+      console.log('📄 PDF parsed successfully, pages:', pdf.numPages);
       
       // Extract text from all pages
       let fullText = '';
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
+        try {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          fullText += pageText + '\n';
+        } catch (pageError) {
+          console.warn(`⚠️ Error extracting text from page ${i}:`, pageError);
+          // Continue with other pages
+        }
       }
       
-      return fullText.trim();
+      const extractedText = fullText.trim();
+      console.log('📄 Text extracted, length:', extractedText.length, 'characters');
+      
+      if (extractedText.length === 0) {
+        throw new Error('No text could be extracted from the PDF. The PDF might be image-based (scanned) or contain only images. Please use a PDF with selectable text.');
+      }
+      
+      return extractedText;
     } catch (err) {
-      console.error('Error extracting text from PDF:', err);
-      throw new Error('Failed to extract text from PDF. Please ensure the PDF is accessible.');
+      console.error('❌ Error extracting text from PDF:', err);
+      // Re-throw with original message if it's already a user-friendly error
+      if (err.message && !err.message.includes('Failed to extract text from PDF')) {
+        throw err;
+      }
+      // Otherwise provide a generic error
+      throw new Error('Failed to extract text from PDF. Please ensure the PDF is accessible and contains selectable text (not just images).');
     }
   };
 
@@ -72,24 +184,52 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
         throw new Error('Authentication required. Please log in again.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          resumeText: resumeText,
-          resumeId: resumeInfo.resumeId || null,
-        }),
-      });
+      console.log('📊 [ATS Analysis] Calling backend API with resume text length:', resumeText.length);
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      let response;
+      try {
+        response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            resumeText: resumeText,
+            resumeId: resumeInfo.resumeId || null,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Analysis timed out. The server may be slow or unresponsive. Please try again.');
+        }
+        if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+          throw new Error('Cannot connect to server. Please ensure the backend server is running and try again.');
+        }
+        throw fetchError;
+      }
 
+      console.log('📊 [ATS Analysis] Response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `Analysis failed (${response.status})`);
+        console.error('❌ [ATS Analysis] API error:', errorData);
+        throw new Error(errorData.error || errorData.details || `Analysis failed (${response.status})`);
       }
 
       const data = await response.json();
+      console.log('📊 [ATS Analysis] Analysis received:', {
+        success: data.success,
+        hasAnalysis: !!data.analysis,
+        atsScore: data.analysis?.atsScore
+      });
       
       if (!data.success || !data.analysis) {
         throw new Error('Invalid response from analysis service');
@@ -116,10 +256,37 @@ export default function ResumeAnalyzer({ resumeInfo, userId }) {
       
       setAnalysis(transformedAnalysis);
     } catch (err) {
-      console.error('Resume analysis error:', err);
-      setError(err.message || 'Failed to analyze resume. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('❌ Resume analysis error:', err);
+      console.error('❌ Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
+      
+      // Provide more helpful error messages
+      let errorMessage = err.message || 'Failed to analyze resume. Please try again.';
+      
+      // Enhance error messages for common issues
+      if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
+        errorMessage = 'Analysis timed out. The server may be slow or unresponsive. Please try again or check if the backend server is running.';
+      } else if (errorMessage.includes('Cannot connect to server') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:3000 and try again.';
+      } else if (errorMessage.includes('CORS')) {
+        errorMessage = 'CORS Error: The PDF cannot be accessed due to security restrictions. Please contact support or try uploading the resume again.';
+      } else if (errorMessage.includes('Network error')) {
+        errorMessage = 'Network Error: Cannot connect to the server. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('image-based') || errorMessage.includes('No text could be extracted')) {
+        errorMessage = 'Text Extraction Failed: The PDF appears to be image-based (scanned). Please use a PDF with selectable text, or try converting your scanned PDF to text using OCR tools.';
+      } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+        errorMessage = 'PDF Not Found: The resume file may have been removed or the URL is invalid. Please upload your resume again.';
+      } else if (errorMessage.includes('Access denied') || errorMessage.includes('403')) {
+        errorMessage = 'Access Denied: The PDF URL may have expired or requires authentication. Please upload your resume again.';
+      } else if (errorMessage.includes('Authentication required')) {
+        errorMessage = 'Authentication Error: Please log in again and try analyzing your resume.';
+      }
+      
+      setError(errorMessage);
+      setLoading(false); // Ensure loading is cleared on error
     }
   };
 

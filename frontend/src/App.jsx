@@ -29,6 +29,7 @@ import InterviewSessionToken from './pages/InterviewSessionToken'
 import InterviewerDashboard from './pages/interview/InterviewerDashboard'
 import InterviewerRoundEvaluation from './pages/interview/InterviewerRoundEvaluation'
 import Assessment from './pages/Assessment'
+import RecruiterScreening from './pages/recruiter/RecruiterScreening'
 import JobDescriptionPage from './pages/JobDescriptionPage'
 import Login from './pages/Login'
 import Unsubscribe from './pages/Unsubscribe'
@@ -190,6 +191,7 @@ function AppContent() {
         <Route path="/interview/:token" element={<InterviewSessionToken />} /> {/* Legacy token-based interview session */}
         <Route path="/interview/session/:sessionId" element={<InterviewerDashboard />} /> {/* New interviewer dashboard */}
         <Route path="/interview/round/:roundId" element={<InterviewerRoundEvaluation />} /> {/* Interviewer round evaluation */}
+        <Route path="/recruiter/screening" element={<RecruiterScreening />} /> {/* Token-based recruiter screening (no login) */}
         <Route path="/job/:jobId" element={<JobDescriptionPage />} /> {/* Job Description Page */}
 
         {/* Protected routes */}
