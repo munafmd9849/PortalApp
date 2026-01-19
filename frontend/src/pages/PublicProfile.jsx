@@ -287,37 +287,73 @@ export default function PublicProfile() {
               <h2 className="text-3xl font-bold text-gray-900">Education</h2>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {profile.education.map((edu, idx) => (
-                <div 
-                  key={idx} 
-                  className="relative pl-6 border-l-4 border-gradient-to-b from-indigo-400 to-purple-400 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-r-xl p-6 hover:shadow-lg transition-all"
-                  style={{ borderLeftColor: '#6366f1' }}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">{edu.degree}</h3>
-                      <p className="text-lg text-gray-700 font-medium">{edu.institution}</p>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mt-2 md:mt-0">
-                      {edu.startYear && edu.endYear && (
-                        <div className="flex items-center bg-white px-3 py-1.5 rounded-full shadow-sm">
-                          <Calendar className="w-4 h-4 mr-2 text-indigo-600" />
-                          <span className="font-medium">{edu.startYear} - {edu.endYear}</span>
-                        </div>
-                      )}
-                      {edu.cgpa && (
-                        <div className="flex items-center bg-white px-3 py-1.5 rounded-full shadow-sm">
-                          <Trophy className="w-4 h-4 mr-2 text-yellow-600" />
-                          <span className="font-medium">CGPA: {edu.cgpa}</span>
-                        </div>
-                      )}
+              {profile.education.map((edu, idx) => {
+                // Parse description field (may contain JSON with city, state, scoreType, originalScore)
+                let city = '';
+                let state = '';
+                let scoreType = 'CGPA';
+                let displayScore = '';
+                
+                if (edu.description) {
+                  try {
+                    const descData = JSON.parse(edu.description);
+                    if (descData.city) city = descData.city;
+                    if (descData.state) state = descData.state;
+                    if (descData.scoreType) {
+                      scoreType = descData.scoreType;
+                      // Use originalScore for percentage, cgpa for CGPA
+                      if (descData.scoreType === 'Percentage' && descData.originalScore) {
+                        displayScore = `${descData.originalScore}%`;
+                      } else if (descData.originalScore) {
+                        displayScore = `${descData.originalScore} CGPA`;
+                      } else if (edu.cgpa) {
+                        displayScore = `${edu.cgpa} CGPA`;
+                      }
+                    } else if (edu.cgpa) {
+                      displayScore = `${edu.cgpa} CGPA`;
+                    }
+                  } catch (e) {
+                    // Not JSON, use cgpa if available
+                    if (edu.cgpa) {
+                      displayScore = `${edu.cgpa} CGPA`;
+                    }
+                  }
+                } else if (edu.cgpa) {
+                  displayScore = `${edu.cgpa} CGPA`;
+                }
+                
+                return (
+                  <div 
+                    key={idx} 
+                    className="relative pl-6 border-l-4 border-gradient-to-b from-indigo-400 to-purple-400 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-r-xl p-6 hover:shadow-lg transition-all"
+                    style={{ borderLeftColor: '#6366f1' }}
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{edu.degree}</h3>
+                        <p className="text-lg text-gray-700 font-medium">{edu.institution}</p>
+                        {city && state && (
+                          <p className="text-sm text-gray-600 mt-1 italic">{city}, {state}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-2 md:mt-0">
+                        {edu.startYear && edu.endYear && (
+                          <div className="flex items-center bg-white px-3 py-1.5 rounded-full shadow-sm">
+                            <Calendar className="w-4 h-4 mr-2 text-indigo-600" />
+                            <span className="font-medium">{edu.startYear} - {edu.endYear}</span>
+                          </div>
+                        )}
+                        {displayScore && (
+                          <div className="flex items-center bg-white px-3 py-1.5 rounded-full shadow-sm">
+                            <Trophy className="w-4 h-4 mr-2 text-yellow-600" />
+                            <span className="font-medium">{displayScore}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {edu.description && (
-                    <p className="text-gray-700 mt-3 leading-relaxed">{edu.description}</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

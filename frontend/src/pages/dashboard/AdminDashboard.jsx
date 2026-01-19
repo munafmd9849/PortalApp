@@ -117,6 +117,12 @@ export default function AdminDashboard() {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const handleLogout = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (!confirmed) {
+      return; // User cancelled, don't proceed with logout
+    }
+
     try {
       console.log('Attempting logout...');
       await logout();

@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import brandLogo from '../../../assets/images/brand_logo.webp';
 // Placement Policy Google Doc
-const policyDoc = 'https://docs.google.com/document/d/1yEH5gMSux0cCf8UmS1d4p1GpZvL-nRzQHLutu8MrZoY/edit?usp=sharing';
+const policyDoc = 'https://docs.google.com/document/d/1tPb-Kyw7J43_g5dm_Yi91Gla6Piy_6qGNOauJNeLxig/edit?usp=sharing';
 
 const StudentFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam, onPlacementPolicy }) => {
     const navigate = useNavigate();
