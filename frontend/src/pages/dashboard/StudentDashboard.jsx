@@ -983,8 +983,8 @@ export default function StudentDashboard() {
     });
     
     if (user?.id) {
-      // Always load if we don't have applications yet, or if flag says not loaded
-      if (!dataLoadingRef.current.applications || applications.length === 0) {
+      // Only load if flag says not loaded (don't check applications.length to avoid loops)
+      if (!dataLoadingRef.current.applications) {
         console.log('📋 [useEffect] Loading applications for user:', user.id);
         dataLoadingRef.current.applications = true;
         loadApplicationsData();
@@ -996,21 +996,32 @@ export default function StudentDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Remove loadApplicationsData from dependencies
-
+  
   // Load applications and interview history when applications tab is active
+  // Track last active tab to avoid reloading on every render
+  const lastActiveTabRef = useRef(null);
   useEffect(() => {
     if (user?.id && activeTab === 'applications') {
-      console.log('📋 [useEffect] Applications tab active, reloading data');
-      console.log('📋 [useEffect] Current applications state before reload:', {
-        length: applications.length,
-        loading: loadingApplications
-      });
+      // Only reload if we're switching TO this tab (not already on it)
+      if (lastActiveTabRef.current !== 'applications') {
+        console.log('📋 [useEffect] Applications tab active, reloading data');
+        console.log('📋 [useEffect] Current applications state before reload:', {
+          length: applications.length,
+          loading: loadingApplications
+        });
+        
+        // Only reload if not currently loading
+        if (!loadingApplications) {
+          loadApplicationsData();
+        }
+        loadInterviewHistory();
+      }
       
-      // Always reload when tab is opened to ensure fresh data
-      // Reset loading flag to allow reload
-      dataLoadingRef.current.applications = false;
-      loadApplicationsData();
-      loadInterviewHistory();
+      // Update the current tab ref
+      lastActiveTabRef.current = 'applications';
+    } else {
+      // Update ref when we're on a different tab
+      lastActiveTabRef.current = activeTab;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, activeTab]); // Reload when tab changes to applications
@@ -1257,6 +1268,26 @@ export default function StudentDashboard() {
           delete errors.cgpa;
         }
         break;
+      case 'backlogs':
+        if (value && value.trim() !== '') {
+          // Remove + sign for validation, keep it for display
+          const numericValue = value.replace(/\+/g, '');
+          if (numericValue !== '') {
+            const num = parseInt(numericValue, 10);
+            if (isNaN(num) || num < 0) {
+              errors.backlogs = 'Active backlogs must be a non-negative number';
+            } else if (num > 32) {
+              errors.backlogs = 'Active backlogs cannot exceed 32';
+            } else {
+              delete errors.backlogs;
+            }
+          } else {
+            delete errors.backlogs;
+          }
+        } else {
+          delete errors.backlogs;
+        }
+        break;
       default:
         break;
     }
@@ -1317,6 +1348,20 @@ export default function StudentDashboard() {
             } else {
               formattedCgpa = parts[0] + '.' + decimalPart;
             }
+          }
+        }
+      }
+
+      // Validate backlogs before saving
+      if (backlogs && backlogs.trim() !== '') {
+        const numericValue = backlogs.replace(/\+/g, '').trim();
+        if (numericValue !== '') {
+          const num = parseInt(numericValue, 10);
+          if (!isNaN(num) && num > 32) {
+            showError('Active backlogs cannot exceed 32');
+            setValidationErrors({ ...validationErrors, backlogs: 'Active backlogs cannot exceed 32' });
+            setSaving(false);
+            return;
           }
         }
       }
@@ -1578,6 +1623,12 @@ export default function StudentDashboard() {
   };
 
   const handleLogout = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (!confirmed) {
+      return; // User cancelled, don't proceed with logout
+    }
+
     try {
       console.log('Logout button clicked - starting logout process');
       await logout();
@@ -2102,13 +2153,8 @@ export default function StudentDashboard() {
           } : null
         });
         
-        // Force reload if applications is empty but we expect data
-        if (applications.length === 0 && !loadingApplications && user?.id) {
-          console.warn('⚠️ [applications tab] Applications is empty, forcing reload...');
-          setTimeout(() => {
-            loadApplicationsData();
-          }, 500);
-        }
+        // REMOVED: Force reload logic - this was causing infinite loop when no applications exist
+        // The useEffect hooks above handle loading appropriately
         
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
@@ -2815,6 +2861,35 @@ export default function StudentDashboard() {
                           <User size={48} className="text-gray-400" />
                         )}
                       </div>
+                      {profilePhoto && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm('Are you sure you want to remove your profile photo? It will revert to the default photo.')) {
+                              return;
+                            }
+
+                            try {
+                              await api.deleteProfileImage();
+                              setProfilePhoto('');
+                              showSuccess('Profile photo removed successfully!');
+                            } catch (err) {
+                              console.error('Error deleting profile image:', err);
+                              let errorMessage = 'Failed to remove profile photo';
+                              if (err.response?.data?.error) {
+                                errorMessage = err.response.data.error;
+                              } else if (err.message) {
+                                errorMessage = err.message;
+                              }
+                              showError(errorMessage);
+                            }
+                          }}
+                          className="absolute top-2.5 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 -translate-x-1/2"
+                          title="Remove profile photo"
+                        >
+                          <XCircle size={14} className="text-white" />
+                        </button>
+                      )}
                       <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                         <Camera size={24} className="text-white" />
                         <input
@@ -3052,7 +3127,7 @@ export default function StudentDashboard() {
                       </label>
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        className={`w-full border ${validationErrors.backlogs ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text`}
                         placeholder="Enter backlogs (e.g., 0, 1, 2, 3+)"
                         value={backlogs}
                         onChange={(e) => {
@@ -3064,8 +3139,13 @@ export default function StudentDashboard() {
                             value = value.substring(0, 5);
                           }
                           setBacklogs(value);
+                          // Validate the value
+                          validateField('backlogs', value);
                         }}
                       />
+                      {validationErrors.backlogs && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.backlogs}</p>
+                      )}
                     </div>
                     <div>
                       <CustomDropdown

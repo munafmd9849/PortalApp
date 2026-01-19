@@ -32,6 +32,7 @@ import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
 import Endorsement from './pages/Endorsement'
 import PublicProfile from './pages/PublicProfile'
+import GoogleAuthCallback from './pages/GoogleAuthCallback'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
@@ -183,6 +184,7 @@ function AppContent() {
         <Route path="/dev-team" element={<DevTeam />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/google-callback" element={<GoogleAuthCallback />} />
         <Route path="/profile/:publicProfileId" element={<PublicProfile />} />
         <Route path="/endorse/:token" element={<Endorsement />} />
         <Route path="/endorsement/:token" element={<Endorsement />} /> {/* Legacy route support */}

@@ -93,6 +93,12 @@ const RecruiterDashboard = () => {
       e.stopPropagation();
     }
     
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (!confirmed) {
+      return; // User cancelled, don't proceed with logout
+    }
+    
     console.log('Recruiter logout - starting...');
     
     // Call logout (this clears tokens and state immediately)

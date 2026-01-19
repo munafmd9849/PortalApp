@@ -271,28 +271,37 @@ const Achievements = ({ isAdminView = false }) => {
           key={achievement.id}
           className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4"
         >
+          <label className="text-sm font-semibold text-black mb-1 block">
+            {achievement.hasCertificate ? 'Certification Title' : 'Award Title'} <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={editedAchievement.title}
             onChange={e => setEditedAchievement(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Title"
+            placeholder={achievement.hasCertificate ? "Enter certification title" : "Enter award title"}
             className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
           />
+          <label className="text-sm font-semibold text-black mb-1 block">
+            Description <span className="text-red-500">*</span>
+          </label>
           <textarea
             value={editedAchievement.description}
             onChange={e => setEditedAchievement(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="Description"
+            placeholder={achievement.hasCertificate ? "Enter certification description" : "Enter award description"}
             rows={3}
             className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
           />
           {achievement.hasCertificate && (
-            <input
-              type="url"
-              value={editedAchievement.certificateUrl}
-              onChange={e => setEditedAchievement(prev => ({ ...prev, certificateUrl: e.target.value }))}
-              placeholder="Certificate URL"
-              className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-            />
+            <>
+              <label className="text-sm font-semibold text-black mb-1 block">Certificate URL</label>
+              <input
+                type="url"
+                value={editedAchievement.certificateUrl}
+                onChange={e => setEditedAchievement(prev => ({ ...prev, certificateUrl: e.target.value }))}
+                placeholder="Enter certificate URL (e.g., https://example.com/certificate)"
+                className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+              />
+            </>
           )}
           <div className="flex space-x-2 justify-end">
             <button
@@ -439,17 +448,23 @@ const Achievements = ({ isAdminView = false }) => {
             {/* Add new award form when editing */}
             {editingId === 'new' && !editedAchievement.hasCertificate && (
               <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4">
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Award Title <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={editedAchievement.title}
                   onChange={e => handleChange('title', e.target.value)}
-                  placeholder="Award Title *"
+                  placeholder="Enter award title"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Description <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   value={editedAchievement.description}
                   onChange={e => handleChange('description', e.target.value)}
-                  placeholder="Award Description *"
+                  placeholder="Enter award description"
                   rows={3}
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                 />
@@ -509,25 +524,32 @@ const Achievements = ({ isAdminView = false }) => {
             {/* Add new certificate form when editing */}
             {editingId === 'new' && editedAchievement.hasCertificate && (
               <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4">
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Certification Title <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={editedAchievement.title}
                   onChange={e => handleChange('title', e.target.value)}
-                  placeholder="Title *"
+                  placeholder="Enter certification title"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Description <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   value={editedAchievement.description}
                   onChange={e => handleChange('description', e.target.value)}
-                  placeholder="Description *"
+                  placeholder="Enter certification description"
                   rows={3}
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                 />
+                <label className="text-sm font-semibold text-black mb-1 block">Certificate URL</label>
                 <input
                   type="url"
                   value={editedAchievement.certificateUrl}
                   onChange={e => handleChange('certificateUrl', e.target.value)}
-                  placeholder="Certificate URL"
+                  placeholder="Enter certificate URL (e.g., https://example.com/certificate)"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
                 <div className="flex space-x-2 justify-end">

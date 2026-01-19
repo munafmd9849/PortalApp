@@ -80,6 +80,31 @@ export async function requestEndorsement(req, res) {
       });
     }
 
+    // Check monthly request limit (2 requests per month)
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const monthlyRequestCount = await prisma.endorsementToken.count({
+      where: {
+        studentId: student.id,
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    const MONTHLY_LIMIT = 2;
+    if (monthlyRequestCount >= MONTHLY_LIMIT) {
+      return res.status(400).json({ 
+        error: `Monthly limit reached. You can only send ${MONTHLY_LIMIT} endorsement requests per month. Please try again next month.`,
+        limit: MONTHLY_LIMIT,
+        currentCount: monthlyRequestCount,
+        resetDate: endOfMonth,
+      });
+    }
+
     // Generate secure token
     const token = generateSecureToken();
     
@@ -1096,6 +1121,22 @@ export async function getStudentEndorsements(req, res) {
     const pending = pendingTokens.filter(t => new Date(t.expiresAt) > now);
     const expired = pendingTokens.filter(t => new Date(t.expiresAt) <= now);
 
+    // Calculate monthly request count for limit checking
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    const monthlyRequestCount = await prisma.endorsementToken.count({
+      where: {
+        studentId: student.id,
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    const MONTHLY_LIMIT = 2;
+
     res.json({
       received: finalEndorsements, // Verified endorsements (consent = true only)
       pending: pending.map(t => ({
@@ -1114,6 +1155,9 @@ export async function getStudentEndorsements(req, res) {
         expiresAt: t.expiresAt,
         requestedAt: t.createdAt,
       })),
+      monthlyRequestCount: monthlyRequestCount,
+      monthlyLimit: MONTHLY_LIMIT,
+      canRequestMore: monthlyRequestCount < MONTHLY_LIMIT,
     });
   } catch (error) {
     logger.error('Get student endorsements error:', error);
