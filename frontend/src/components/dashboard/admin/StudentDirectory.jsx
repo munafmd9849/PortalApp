@@ -999,7 +999,20 @@ export default function StudentDirectory() {
       enrollmentId.includes(searchLower);
     const matchesCenter = filters.center ? student.center === filters.center : true;
     const matchesSchool = filters.school ? student.school === filters.school : true;
-    const matchesStatus = filters.status ? student.status === filters.status : true;
+    const matchesStatus = filters.status ? (() => {
+      const studentStatus = String(student?.status || student?.user?.status || 'ACTIVE').toUpperCase();
+      const filterStatus = String(filters.status).toUpperCase();
+      // Map display names (Active, Inactive, Blocked) to database values (ACTIVE, PENDING/REJECTED, BLOCKED)
+      if (filterStatus === 'ACTIVE') {
+        return studentStatus === 'ACTIVE';
+      } else if (filterStatus === 'BLOCKED') {
+        return studentStatus === 'BLOCKED';
+      } else if (filterStatus === 'INACTIVE') {
+        // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+        return studentStatus !== 'ACTIVE' && studentStatus !== 'BLOCKED';
+      }
+      return studentStatus === filterStatus;
+    })() : true;
     // Compare CGPA values using string comparison when possible to avoid rounding errors
     const matchesMinCgpa = filters.minCgpa ? (() => {
       const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
@@ -1406,10 +1419,21 @@ export default function StudentDirectory() {
 
   // Calculate statistics - must be before conditional returns to follow Rules of Hooks
   const stats = useMemo(() => {
-    const active = filteredStudents.filter(s => s.status === 'Active').length;
-    const blocked = filteredStudents.filter(s => s.status === 'Blocked').length;
-    const inactive = filteredStudents.filter(s => s.status === 'Inactive').length;
-    return { total: filteredStudents.length, active, blocked, inactive };
+    const total = filteredStudents.length;
+    const active = filteredStudents.filter(s => {
+      const status = String(s?.status || s?.user?.status || 'ACTIVE').toUpperCase();
+      return status === 'ACTIVE';
+    }).length;
+    const blocked = filteredStudents.filter(s => {
+      const status = String(s?.status || s?.user?.status || 'ACTIVE').toUpperCase();
+      return status === 'BLOCKED';
+    }).length;
+    const inactive = filteredStudents.filter(s => {
+      const status = String(s?.status || s?.user?.status || 'ACTIVE').toUpperCase();
+      // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+      return status !== 'ACTIVE' && status !== 'BLOCKED';
+    }).length;
+    return { total, active, blocked, inactive };
   }, [filteredStudents]);
 
   if (loading) {

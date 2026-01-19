@@ -466,13 +466,13 @@ export async function createJob(req, res) {
       gapAllowed: mappedData.gapAllowed || null,
       gapYears: mappedData.gapYears || null,
       backlogs: mappedData.backlogs || null,
-      // Status fields
-      status: userRole === 'ADMIN' ? 'POSTED' : 'IN_REVIEW',
+      // Status fields - All jobs (including admin-created) go to IN_REVIEW first
+      status: 'IN_REVIEW',
       isActive: false,
-      isPosted: userRole === 'ADMIN',
-      submittedAt: userRole !== 'ADMIN' ? new Date() : null,
-      postedBy: userRole === 'ADMIN' ? userId : null,
-      postedAt: userRole === 'ADMIN' ? new Date() : null,
+      isPosted: false,
+      submittedAt: new Date(),
+      postedBy: null,
+      postedAt: null,
     };
 
     // Create job

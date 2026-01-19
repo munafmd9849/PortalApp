@@ -145,14 +145,35 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
   }).length;
 
   const totalStudents = students.length;
+  const activeStudents = students.filter(s => {
+    const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+    return status === 'ACTIVE';
+  }).length;
+  const blockedStudents = students.filter(s => {
+    const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+    return status === 'BLOCKED';
+  }).length;
+  const pendingStudents = students.filter(s => {
+    const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+    return status === 'PENDING';
+  }).length;
+  const rejectedStudents = students.filter(s => {
+    const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+    return status === 'REJECTED';
+  }).length;
+  
   const totalApplications = applications.length;
   const placedStudents = placedStudentIds.size;
-  const placementRate = totalStudents > 0 ? (placedStudents / totalStudents) * 100 : 0;
-  const averageApplications = totalStudents > 0 ? totalApplications / totalStudents : 0;
+  const placementRate = activeStudents > 0 ? (placedStudents / activeStudents) * 100 : 0;
+  const averageApplications = activeStudents > 0 ? totalApplications / activeStudents : 0;
 
   return {
     statsData: {
       totalStudents,
+      activeStudents,
+      blockedStudents,
+      pendingStudents,
+      rejectedStudents,
       placedStudents,
       placementRate,
       totalJobs: jobs.length,

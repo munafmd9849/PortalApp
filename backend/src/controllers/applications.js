@@ -659,6 +659,8 @@ export async function getAdminJobApplications(req, res) {
     const lastRoundFilter = req.query.lastRoundReached !== undefined && req.query.lastRoundReached !== ''
       ? parseInt(String(req.query.lastRoundReached), 10)
       : null;
+    const schoolFilter = (req.query.school || '').trim();
+    const batchFilter = (req.query.batch || '').trim();
 
     const sortBy = (req.query.sortBy || 'appliedAt').trim();
     const order = ((req.query.order || 'desc').trim().toLowerCase() === 'asc') ? 'asc' : 'desc';
@@ -677,19 +679,30 @@ export async function getAdminJobApplications(req, res) {
     const hasInterviewSession = !!interviewSession;
 
     // Build WHERE clause (server-side filters)
+    const studentWhere = {};
+    
+    // Search filter
+    if (q) {
+      studentWhere.OR = [
+        { fullName: { contains: q } },
+        { email: { contains: q } },
+        { enrollmentId: { contains: q } },
+      ];
+    }
+    
+    // School filter
+    if (schoolFilter) {
+      studentWhere.school = schoolFilter;
+    }
+    
+    // Batch filter
+    if (batchFilter) {
+      studentWhere.batch = batchFilter;
+    }
+    
     const where = {
       jobId,
-      ...(q
-        ? {
-            student: {
-              OR: [
-                { fullName: { contains: q } },
-                { email: { contains: q } },
-                { enrollmentId: { contains: q } },
-              ],
-            },
-          }
-        : {}),
+      ...(Object.keys(studentWhere).length > 0 ? { student: studentWhere } : {}),
     };
 
     // Final status filter (server-side)
@@ -786,6 +799,9 @@ export async function getAdminJobApplications(req, res) {
               email: true,
               enrollmentId: true,
               publicProfileId: true,
+              school: true,
+              batch: true,
+              center: true,
             },
           },
           roundEvaluations: {
@@ -822,6 +838,9 @@ export async function getAdminJobApplications(req, res) {
           name: app.student?.fullName || 'Unknown',
           email: app.student?.email || '',
           enrollmentId: app.student?.enrollmentId || null,
+          school: app.student?.school || null,
+          batch: app.student?.batch || null,
+          center: app.student?.center || null,
           profileLink,
         },
         currentStage: tracking.currentStage,

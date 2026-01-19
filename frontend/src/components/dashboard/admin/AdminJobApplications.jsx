@@ -62,6 +62,8 @@ export default function AdminJobApplications() {
   const [stage, setStage] = useState('');
   const [finalStatus, setFinalStatus] = useState('');
   const [lastRoundReached, setLastRoundReached] = useState('');
+  const [school, setSchool] = useState('');
+  const [batch, setBatch] = useState('');
   const [sortBy, setSortBy] = useState('appliedAt');
   const [order, setOrder] = useState('desc');
 
@@ -92,6 +94,8 @@ export default function AdminJobApplications() {
           stage: stage || undefined,
           finalStatus: finalStatus || undefined,
           lastRoundReached: lastRoundReached || undefined,
+          school: school || undefined,
+          batch: batch || undefined,
           sortBy,
           order,
         };
@@ -110,7 +114,7 @@ export default function AdminJobApplications() {
 
     load();
     return () => { cancelled = true; };
-  }, [jobId, page, limit, debouncedSearch, stage, finalStatus, lastRoundReached, sortBy, order]);
+  }, [jobId, page, limit, debouncedSearch, stage, finalStatus, lastRoundReached, school, batch, sortBy, order]);
 
   const jobTitle = payload?.job?.title || 'Job';
   const companyName = payload?.job?.companyName || 'Company';
@@ -120,17 +124,60 @@ export default function AdminJobApplications() {
     [payload]
   );
 
+  // Extract unique schools and batches from applications for filter dropdowns
+  const uniqueSchools = useMemo(() => {
+    const schools = new Set();
+    applications.forEach(app => {
+      if (app?.student?.school) {
+        schools.add(app.student.school);
+      }
+    });
+    return Array.from(schools).sort();
+  }, [applications]);
+
+  const uniqueBatches = useMemo(() => {
+    const batches = new Set();
+    applications.forEach(app => {
+      if (app?.student?.batch) {
+        batches.add(app.student.batch);
+      }
+    });
+    return Array.from(batches).sort();
+  }, [applications]);
+
   // Client-side quick filter (keeps UI snappy while server-side search runs)
   const clientFiltered = useMemo(() => {
+    let filtered = applications;
+    
+    // Search filter
     const q = search.trim().toLowerCase();
-    if (!q) return applications;
-    return applications.filter((a) => {
-      const name = a?.student?.name?.toLowerCase() || '';
-      const email = a?.student?.email?.toLowerCase() || '';
-      const enrollment = (a?.student?.enrollmentId || '').toLowerCase();
-      return name.includes(q) || email.includes(q) || enrollment.includes(q);
-    });
-  }, [applications, search]);
+    if (q) {
+      filtered = filtered.filter((a) => {
+        const name = a?.student?.name?.toLowerCase() || '';
+        const email = a?.student?.email?.toLowerCase() || '';
+        const enrollment = (a?.student?.enrollmentId || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || enrollment.includes(q);
+      });
+    }
+    
+    // School filter (client-side fallback if server-side doesn't work)
+    if (school) {
+      filtered = filtered.filter((a) => {
+        const studentSchool = (a?.student?.school || '').toLowerCase();
+        return studentSchool === school.toLowerCase();
+      });
+    }
+    
+    // Batch filter (client-side fallback if server-side doesn't work)
+    if (batch) {
+      filtered = filtered.filter((a) => {
+        const studentBatch = (a?.student?.batch || '').toLowerCase();
+        return studentBatch === batch.toLowerCase();
+      });
+    }
+    
+    return filtered;
+  }, [applications, search, school, batch]);
 
   const total = payload?.pagination?.total ?? null;
   const totalPages = payload?.pagination?.totalPages ?? null;
@@ -194,7 +241,7 @@ export default function AdminJobApplications() {
           Filters
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <div className="md:col-span-2">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -209,6 +256,28 @@ export default function AdminJobApplications() {
               />
             </div>
           </div>
+
+          <select
+            value={school}
+            onChange={(e) => { setSchool(e.target.value); setPage(1); }}
+            className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white"
+          >
+            <option value="">All Schools</option>
+            {uniqueSchools.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          <select
+            value={batch}
+            onChange={(e) => { setBatch(e.target.value); setPage(1); }}
+            className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white"
+          >
+            <option value="">All Batches</option>
+            {uniqueBatches.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
 
           <select
             value={stage}
@@ -229,16 +298,15 @@ export default function AdminJobApplications() {
               <option key={o.label} value={o.value}>{o.label}</option>
             ))}
           </select>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3">
           <input
             value={lastRoundReached}
             onChange={(e) => { setLastRoundReached(e.target.value.replace(/[^\d]/g, '')); setPage(1); }}
             placeholder="Last round (e.g. 1, 2)"
             className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white"
           />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}

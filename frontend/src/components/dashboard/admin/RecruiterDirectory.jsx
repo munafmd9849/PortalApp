@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImMail } from 'react-icons/im';
 import { MdEditNote, MdBlock } from 'react-icons/md';
-import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes } from 'react-icons/fa';
+import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes, FaUser } from 'react-icons/fa';
 import { TbHistoryToggle } from 'react-icons/tb';
 import { subscribeRecruiterDirectory, blockUnblockRecruiter, getRecruiterJobs, getRecruiterHistory, sendEmailToRecruiter, getRecruiterSummary } from '../../../services/recruiters';
 import { useAuth } from '../../../hooks/useAuth';
@@ -88,8 +88,20 @@ export default function RecruiterDirectory() {
     }
     
     // Status filter
-    if (filters.status && recruiter.status !== filters.status) {
-      return false;
+    if (filters.status) {
+      const recruiterStatus = String(recruiter?.status || 'ACTIVE').toUpperCase();
+      const filterStatus = String(filters.status).toUpperCase();
+      // Map display names to database values
+      if (filterStatus === 'ACTIVE') {
+        if (recruiterStatus !== 'ACTIVE') return false;
+      } else if (filterStatus === 'BLOCKED') {
+        if (recruiterStatus !== 'BLOCKED') return false;
+      } else if (filterStatus === 'INACTIVE') {
+        // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+        if (recruiterStatus === 'ACTIVE' || recruiterStatus === 'BLOCKED') return false;
+      } else {
+        if (recruiterStatus !== filterStatus) return false;
+      }
     }
     
     // Location filter
@@ -146,11 +158,22 @@ export default function RecruiterDirectory() {
 
   // Calculate statistics - must be before conditional returns to follow Rules of Hooks
   const stats = React.useMemo(() => {
-    const active = filteredRecruiters.filter(r => r.status === 'Active').length;
-    const blocked = filteredRecruiters.filter(r => r.status === 'Blocked').length;
     const total = filteredRecruiters.length;
+    const active = filteredRecruiters.filter(r => {
+      const status = String(r?.status || 'ACTIVE').toUpperCase();
+      return status === 'ACTIVE';
+    }).length;
+    const blocked = filteredRecruiters.filter(r => {
+      const status = String(r?.status || 'ACTIVE').toUpperCase();
+      return status === 'BLOCKED';
+    }).length;
+    const inactive = filteredRecruiters.filter(r => {
+      const status = String(r?.status || 'ACTIVE').toUpperCase();
+      // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+      return status !== 'ACTIVE' && status !== 'BLOCKED';
+    }).length;
     const totalJobs = filteredRecruiters.reduce((sum, r) => sum + (r.totalJobPostings || 0), 0);
-    return { total, active, blocked, totalJobs };
+    return { total, active, blocked, inactive, totalJobs };
   }, [filteredRecruiters]);
 
   // Get status styling - matching job moderation style
@@ -557,12 +580,12 @@ export default function RecruiterDirectory() {
             </div>
             <div className="text-sm font-medium text-red-600">Blocked</div>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 p-5 rounded-xl shadow-sm border border-yellow-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaBriefcase className="w-5 h-5 text-purple-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-purple-700">{stats.totalJobs}</div>
+              <FaUser className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-yellow-700">{stats.inactive}</div>
             </div>
-            <div className="text-sm font-medium text-purple-600">Total Jobs</div>
+            <div className="text-sm font-medium text-yellow-600">Inactive</div>
           </div>
         </div>
       </div>

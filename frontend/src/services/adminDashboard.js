@@ -17,7 +17,11 @@ export class AdminDashboardService {
       stats: {
         totalJobsPosted: 0,
         activeRecruiters: 0,
+        totalStudents: 0,
         activeStudents: 0,
+        blockedStudents: 0,
+        pendingStudents: 0,
+        rejectedStudents: 0,
         pendingQueries: 0,
         totalApplications: 0,
         placedStudents: 0
@@ -90,11 +94,34 @@ export class AdminDashboardService {
         return s === 'pending' || s === 'open' || s === 'unresolved';
       }).length;
 
+      // Calculate student statistics based on user status
+      const totalStudents = students.length;
+      const activeStudents = students.filter(s => {
+        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+        return status === 'ACTIVE';
+      }).length;
+      const blockedStudents = students.filter(s => {
+        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+        return status === 'BLOCKED';
+      }).length;
+      const pendingStudents = students.filter(s => {
+        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+        return status === 'PENDING';
+      }).length;
+      const rejectedStudents = students.filter(s => {
+        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+        return status === 'REJECTED';
+      }).length;
+
       const data = {
         stats: {
           totalJobsPosted,
           activeRecruiters: recruiters.length,
-          activeStudents: students.length,
+          totalStudents,
+          activeStudents,
+          blockedStudents,
+          pendingStudents,
+          rejectedStudents,
           pendingQueries,
           totalApplications,
           placedStudents: placedStudentIds.size,

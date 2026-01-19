@@ -5,7 +5,7 @@ import CustomDropdown from '../../common/CustomDropdown';
 import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview } from '../../../services/jobs';
+import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview, updateJob } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
@@ -63,10 +63,11 @@ const DRIVE_VENUES = [
   'Company Premises',
 ];
 
-export default function CreateJob({ onCreated }) {
+export default function CreateJob({ onCreated, job: editJob }) {
   const { user } = useAuth();
   const [posting, setPosting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isEditMode = !!editJob;
 
   // Creation method state - controls the three options
   const [creationMethod, setCreationMethod] = useState('manual');
@@ -131,6 +132,99 @@ export default function CreateJob({ onCreated }) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Populate form when editing an existing job
+  useEffect(() => {
+    if (editJob) {
+      try {
+        // Parse JSON strings from database
+        const recruiterEmails = editJob.recruiterEmails 
+          ? (typeof editJob.recruiterEmails === 'string' ? JSON.parse(editJob.recruiterEmails) : editJob.recruiterEmails)
+          : editJob.recruiterEmail 
+            ? [{ email: editJob.recruiterEmail, name: editJob.recruiterName || '' }]
+            : [{ email: '', name: '' }];
+        
+        const requiredSkills = editJob.requiredSkills 
+          ? (typeof editJob.requiredSkills === 'string' ? JSON.parse(editJob.requiredSkills) : editJob.requiredSkills)
+          : [];
+        
+        const driveVenues = editJob.driveVenues 
+          ? (typeof editJob.driveVenues === 'string' ? JSON.parse(editJob.driveVenues) : editJob.driveVenues)
+          : [];
+        
+        const spocs = editJob.spocs 
+          ? (typeof editJob.spocs === 'string' ? JSON.parse(editJob.spocs) : editJob.spocs)
+          : [{ fullName: '', email: '', phone: '' }];
+        
+        const targetSchools = editJob.targetSchools 
+          ? (typeof editJob.targetSchools === 'string' ? JSON.parse(editJob.targetSchools) : editJob.targetSchools)
+          : [];
+        
+        const targetCenters = editJob.targetCenters 
+          ? (typeof editJob.targetCenters === 'string' ? JSON.parse(editJob.targetCenters) : editJob.targetCenters)
+          : [];
+        
+        const targetBatches = editJob.targetBatches 
+          ? (typeof editJob.targetBatches === 'string' ? JSON.parse(editJob.targetBatches) : editJob.targetBatches)
+          : [];
+
+        // Format dates
+        const formatDate = (date) => {
+          if (!date) return '';
+          try {
+            const d = date.toDate ? date.toDate() : new Date(date);
+            return toDDMMYYYY(d);
+          } catch {
+            return '';
+          }
+        };
+
+        setForm({
+          company: editJob.companyName || editJob.company?.name || '',
+          website: editJob.company?.website || '',
+          linkedin: '',
+          recruiterEmails: recruiterEmails.length > 0 ? recruiterEmails : [{ email: '', name: '' }],
+          jobType: editJob.jobType || '',
+          stipend: editJob.jobType === 'Internship' ? (editJob.salary || '') : '',
+          duration: '',
+          salary: editJob.jobType !== 'Internship' ? (editJob.salary || '') : '',
+          jobTitle: editJob.jobTitle || '',
+          workMode: '',
+          companyLocation: editJob.companyLocation || editJob.company?.location || '',
+          openings: '',
+          responsibilities: editJob.description || '',
+          spocs: spocs.length > 0 ? spocs : [{ fullName: '', email: '', phone: '' }],
+          driveDateText: formatDate(editJob.driveDate),
+          driveDateISO: editJob.driveDate ? (editJob.driveDate.toDate ? editJob.driveDate.toDate().toISOString() : new Date(editJob.driveDate).toISOString()) : '',
+          applicationDeadlineText: formatDate(editJob.applicationDeadline),
+          applicationDeadlineISO: editJob.applicationDeadline ? (editJob.applicationDeadline.toDate ? editJob.applicationDeadline.toDate().toISOString() : new Date(editJob.applicationDeadline).toISOString()) : '',
+          driveVenues: driveVenues,
+          qualification: editJob.qualification || '',
+          specialization: editJob.specialization || '',
+          yop: editJob.yop || '',
+          minCgpa: editJob.minCgpa || '',
+          skillsInput: requiredSkills.join(', '),
+          skills: requiredSkills,
+          gapAllowed: editJob.gapAllowed || '',
+          gapYears: editJob.gapYears || '',
+          backlogs: editJob.backlogs || '',
+          serviceAgreement: '',
+          blockingPeriod: '',
+          baseRoundDetails: ['', '', ''],
+          extraRounds: [],
+          instructions: editJob.requirements || '',
+        });
+
+        // Set targeting
+        if (targetSchools.length > 0 || targetCenters.length > 0 || targetBatches.length > 0) {
+          // You may need to set targeting state if it exists separately
+        }
+      } catch (error) {
+        console.error('Error populating form from job data:', error);
+        showError('Failed to load job data for editing. Please try again.');
+      }
+    }
+  }, [editJob]);
 
   // Form state
   const [form, setForm] = useState({
@@ -957,19 +1051,28 @@ export default function CreateJob({ onCreated }) {
     let loadingToastId = null;
     try {
       setPosting(true);
-      loadingToastId = showLoading('Submitting job for review...');
       
       const payload = buildJobPayload();
       
       // Debug: Log payload to see what's being sent
       console.log('Job Payload:', JSON.stringify(payload, null, 2));
       
-      // Submit job for review - it will appear in ManageJobs "In Review" section
-      const { jobId } = await submitJobForReview(payload);
-      
-      if (onCreated) onCreated();
-      replaceLoadingToast(loadingToastId, 'success', 'Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
-      resetForm();
+      if (isEditMode && editJob?.id) {
+        // Update existing job
+        loadingToastId = showLoading('Updating job...');
+        await updateJob(editJob.id, payload);
+        
+        if (onCreated) onCreated();
+        replaceLoadingToast(loadingToastId, 'success', 'Job updated successfully!');
+      } else {
+        // Create new job
+        loadingToastId = showLoading('Submitting job for review...');
+        const { jobId } = await submitJobForReview(payload);
+        
+        if (onCreated) onCreated();
+        replaceLoadingToast(loadingToastId, 'success', 'Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
+        resetForm();
+      }
     } catch (err) {
       console.error('Submit error:', err);
       

@@ -199,7 +199,7 @@ export default function AdminHome() {
       icon: <Users className="w-5 h-5" style={{ color: chartColors.green }} />, 
       chartData: [ 
         { title: 'Active', value: dashboardData.stats.activeStudents, color: chartColors.green },
-        { title: 'Total', value: Math.max(dashboardData.stats.activeStudents, 1), color: '#dcfce7' } 
+        { title: 'Total', value: Math.max(dashboardData.stats.totalStudents || dashboardData.stats.activeStudents, 1), color: '#dcfce7' } 
       ] 
     },
     { 
@@ -543,6 +543,44 @@ export default function AdminHome() {
               </div>
             </div>
             
+            {/* Student Statistics Breakdown */}
+            {dashboardData.stats.totalStudents !== undefined && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <Users className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
+                  Student Statistics
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-700">{dashboardData.stats.totalStudents || 0}</div>
+                    <div className="text-sm text-blue-600 mt-1">Total Students</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-green-700">{dashboardData.stats.activeStudents || 0}</div>
+                    <div className="text-sm text-green-600 mt-1">Active</div>
+                  </div>
+                  {dashboardData.stats.blockedStudents > 0 && (
+                    <div className="bg-red-50 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-red-700">{dashboardData.stats.blockedStudents || 0}</div>
+                      <div className="text-sm text-red-600 mt-1">Blocked</div>
+                    </div>
+                  )}
+                  {dashboardData.stats.pendingStudents > 0 && (
+                    <div className="bg-yellow-50 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-yellow-700">{dashboardData.stats.pendingStudents || 0}</div>
+                      <div className="text-sm text-yellow-600 mt-1">Pending</div>
+                    </div>
+                  )}
+                  {dashboardData.stats.rejectedStudents > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-gray-700">{dashboardData.stats.rejectedStudents || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Rejected</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {/* Additional Summary Info */}
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -562,8 +600,13 @@ export default function AdminHome() {
                     <span className="font-semibold">Student Activity</span>
                   </div>
                   <p className="text-green-600">
-                    {dashboardData.stats.activeStudents} active students, {dashboardData.stats.totalApplications} applications
+                    {dashboardData.stats.activeStudents || 0} active out of {dashboardData.stats.totalStudents || 0} total students
                   </p>
+                  {dashboardData.stats.blockedStudents > 0 && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {dashboardData.stats.blockedStudents} blocked, {dashboardData.stats.pendingStudents || 0} pending
+                    </p>
+                  )}
                 </div>
                 
                 <div className="bg-purple-50 rounded-lg p-4">
