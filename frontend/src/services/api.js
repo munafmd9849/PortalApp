@@ -368,6 +368,13 @@ export const api = {
     return response;
   },
 
+  getGoogleLoginUrl: (role = 'STUDENT') => {
+    return apiRequest(`/auth/google-login/url?role=${role}`, {
+      method: 'GET',
+      silent: true,
+    });
+  },
+
   logout: async () => {
     try {
       const refreshToken = getRefreshToken();
@@ -514,6 +521,9 @@ export const api = {
   
   // Cloudinary Uploads
   uploadProfileImage: (file, onProgress) => uploadFile('/students/profile-image', file, 'profileImage', onProgress),
+  deleteProfileImage: () => apiRequest('/students/profile-image', {
+    method: 'DELETE',
+  }),
   uploadResume: (file, title, onProgress) => {
     const token = getAuthToken();
     const formData = new FormData();

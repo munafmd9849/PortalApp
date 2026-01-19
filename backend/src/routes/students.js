@@ -66,6 +66,14 @@ router.post('/profile-image',
   studentController.uploadProfileImage
 );
 
+// Profile Image Delete
+// DELETE /api/students/profile-image
+// Auth: Student only
+router.delete('/profile-image', 
+  requireRole(['STUDENT']), // Students only
+  studentController.deleteProfileImage
+);
+
 // Resume management (Cloudinary)
 // POST /api/students/resume
 // Body: { title } (optional)

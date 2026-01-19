@@ -681,13 +681,40 @@ export async function getStudentSkills(req, res) {
  */
 export async function addOrUpdateSkill(req, res) {
   try {
+    console.log('🔧 [addOrUpdateSkill] Request received:', {
+      userId: req.userId,
+      body: req.body,
+      skillName: req.body?.skillName,
+      rating: req.body?.rating,
+    });
+
     const userId = req.userId;
     const { skillName, rating } = req.body;
 
+    if (!userId) {
+      console.error('❌ [addOrUpdateSkill] No userId found in request');
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // Validate input
+    if (!skillName || typeof skillName !== 'string' || !skillName.trim()) {
+      console.error('❌ [addOrUpdateSkill] Invalid skillName:', skillName);
+      return res.status(400).json({ error: 'Skill name is required' });
+    }
+
+    // Validate and normalize rating
+    let ratingValue = 1;
+    if (rating !== undefined && rating !== null) {
+      ratingValue = parseInt(rating, 10);
+      if (isNaN(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+        ratingValue = 1; // Default to 1 if invalid
+      }
+    }
+
     const student = await prisma.student.findUnique({
       where: { userId },
-      select: { id: true },
-      include: {
+      select: {
+        id: true,
         skills: true, // Get existing skills to check count
       },
     });
@@ -696,41 +723,85 @@ export async function addOrUpdateSkill(req, res) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Check if this is a new skill (not updating existing)
-    const existingSkill = student.skills.find(s => s.skillName === skillName);
+    // Normalize skillName (trim whitespace)
+    const normalizedSkillName = skillName.trim();
+
+    // Check if this is a new skill (not updating existing) - using in-memory check for limit validation
+    const existingSkillInMemory = student.skills.find(s => s.skillName === normalizedSkillName);
     
     // If adding a new skill (not updating), check the limit
-    if (!existingSkill && student.skills.length >= 8) {
+    if (!existingSkillInMemory && student.skills.length >= 8) {
       return res.status(400).json({ 
         error: 'Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.' 
       });
     }
 
-    const skill = await prisma.skill.upsert({
+    // Find existing skill by studentId and skillName in database
+    const existingSkillRecord = await prisma.skill.findFirst({
       where: {
-        studentId_skillName: {
-          studentId: student.id,
-          skillName,
-        },
-      },
-      update: { rating },
-      create: {
         studentId: student.id,
-        skillName,
-        rating: rating || 1,
+        skillName: normalizedSkillName,
       },
     });
 
-    res.json(skill);
+    let skill;
+    if (existingSkillRecord) {
+      // Update existing skill
+      skill = await prisma.skill.update({
+        where: {
+          id: existingSkillRecord.id,
+        },
+        data: {
+          rating: ratingValue,
+        },
+      });
+    } else {
+      // Create new skill
+      skill = await prisma.skill.create({
+        data: {
+          studentId: student.id,
+          skillName: normalizedSkillName,
+          rating: ratingValue,
+        },
+      });
+    }
+
+    console.log('✅ [addOrUpdateSkill] Skill saved successfully:', {
+      id: skill.id,
+      skillName: skill.skillName,
+      rating: skill.rating,
+    });
+
+    return res.json(skill);
   } catch (error) {
-    console.error('Add/update skill error:', error);
+    console.error('❌ [addOrUpdateSkill] Error occurred:', error);
+    console.error('❌ [addOrUpdateSkill] Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack?.substring(0, 500), // First 500 chars of stack
+    });
     
     // Handle Prisma unique constraint error (if skill already exists with different casing)
     if (error.code === 'P2002') {
+      console.error('❌ [addOrUpdateSkill] Unique constraint violation');
       return res.status(400).json({ error: 'A skill with this name already exists.' });
     }
     
-    res.status(500).json({ error: 'Failed to update skill' });
+    // Handle Prisma validation errors
+    if (error.code && error.code.startsWith('P')) {
+      console.error('❌ [addOrUpdateSkill] Prisma error:', error.code);
+      return res.status(400).json({ 
+        error: 'Database error occurred',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+    
+    console.error('❌ [addOrUpdateSkill] Unknown error, returning 500');
+    res.status(500).json({ 
+      error: 'Failed to update skill',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 
@@ -1151,6 +1222,81 @@ export async function uploadProfileImage(req, res) {
     console.error('Upload profile image error:', error);
     res.status(500).json({ 
       error: `Failed to upload profile image: ${error.message || 'Unknown error'}` 
+    });
+  }
+}
+
+/**
+ * Delete profile image
+ * DELETE /api/students/profile-image
+ * Auth: Student only
+ */
+export async function deleteProfileImage(req, res) {
+  try {
+    const userId = req.userId;
+
+    console.log('🗑️ [Controller] Delete profile image request:', { userId });
+
+    // Get student record
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        profileImagePublicId: true,
+        profileImageUrl: true,
+      },
+    });
+
+    if (!student) {
+      console.error('❌ [Controller] Student not found for userId:', userId);
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // If no profile image exists, return success (idempotent)
+    if (!student.profileImagePublicId && !student.profileImageUrl) {
+      console.log('ℹ️ [Controller] No profile image to delete');
+      return res.json({
+        message: 'Profile image deleted successfully',
+        profileImage: {
+          url: null,
+          publicId: null,
+        },
+      });
+    }
+
+    // Delete from Cloudinary if publicId exists
+    if (student.profileImagePublicId) {
+      try {
+        await deleteFromCloudinary(student.profileImagePublicId);
+        console.log('✅ [Controller] Profile image deleted from Cloudinary:', student.profileImagePublicId);
+      } catch (deleteError) {
+        console.error('⚠️ [Controller] Error deleting from Cloudinary (continuing with DB update):', deleteError);
+        // Continue even if Cloudinary deletion fails - still remove from database
+      }
+    }
+
+    // Update student record to remove profile image
+    const updatedStudent = await prisma.student.update({
+      where: { id: student.id },
+      data: {
+        profileImageUrl: null,
+        profileImagePublicId: null,
+      },
+    });
+
+    console.log('✅ [Controller] Profile image removed from database');
+
+    res.json({
+      message: 'Profile image deleted successfully',
+      profileImage: {
+        url: null,
+        publicId: null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ [Controller] Delete profile image error:', error);
+    res.status(500).json({ 
+      error: `Failed to delete profile image: ${error.message || 'Unknown error'}` 
     });
   }
 }

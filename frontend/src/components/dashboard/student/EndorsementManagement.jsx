@@ -34,6 +34,9 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
   const [showRequestForm, setShowRequestForm] = useState(true); // Show form by default
   const [requesting, setRequesting] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [monthlyRequestCount, setMonthlyRequestCount] = useState(0);
+  const [monthlyLimit, setMonthlyLimit] = useState(2);
+  const [canRequestMore, setCanRequestMore] = useState(true);
 
   const [requestForm, setRequestForm] = useState({
     teacherName: '',
@@ -58,6 +61,10 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
         pending: data.pending || [],
         expired: data.expired || [],
       });
+      // Update monthly request limit info
+      setMonthlyRequestCount(data.monthlyRequestCount || 0);
+      setMonthlyLimit(data.monthlyLimit || 2);
+      setCanRequestMore(data.canRequestMore !== false);
     } catch (err) {
       console.error('Error loading endorsements:', err);
       setError(err.response?.data?.error || 'Failed to load endorsements');
@@ -117,6 +124,12 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
     e.preventDefault();
 
     if (!validateForm()) {
+      return;
+    }
+
+    // Check monthly limit before submitting
+    if (!canRequestMore) {
+      setError(`Monthly limit reached. You can only send ${monthlyLimit} endorsement requests per month. Please try again next month.`);
       return;
     }
 
@@ -212,7 +225,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
           <Mail className="w-5 h-5" />
           Endorsements
         </h3>
-        {!showRequestForm && (
+        {!showRequestForm && (endorsements.received.length > 0 || endorsements.pending.length > 0 || endorsements.expired.length > 0) && (
           <div className="flex items-center gap-3">
             <button
               onClick={loadEndorsements}
@@ -225,7 +238,13 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
             </button>
           <button
             onClick={() => setShowRequestForm(true)}
-              className="px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+            disabled={!canRequestMore}
+              className={`px-6 py-3 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium ${
+                canRequestMore
+                  ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+              }`}
+            title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
           >
             <Plus className="w-4 h-4" />
             Request Endorsement
@@ -319,8 +338,11 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                     <p className="text-sm text-orange-700 mb-2">
                       An email with a secure link will be sent to the teacher. The teacher will be able to fill in their details, write an endorsement message, and sign the document digitally.
                     </p>
-                    <p className="text-sm text-orange-600">
+                    <p className="text-sm text-orange-600 mb-2">
                       The endorsement will be automatically associated with your profile once the teacher completes the form.
+                    </p>
+                    <p className="text-xs text-orange-600 font-medium mt-2 pt-2 border-t border-orange-200">
+                      Note: You can send only {monthlyLimit} endorsement requests per month.
                     </p>
                   </div>
                 </div>
@@ -345,9 +367,9 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                 </button>
               <button
                 type="submit"
-                disabled={requesting}
+                disabled={requesting || !canRequestMore}
                   className={`px-6 py-3 font-medium rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 ${
-                    requesting 
+                    requesting || !canRequestMore
                       ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
                       : 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
                   }`}
@@ -592,7 +614,13 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
           </p>
           <button
             onClick={() => setShowRequestForm(true)}
-            className="px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium mx-auto"
+            disabled={!canRequestMore}
+            className={`px-6 py-3 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium mx-auto ${
+              canRequestMore
+                ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+            }`}
+            title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
           >
             <Plus className="w-4 h-4" />
             Request Endorsement

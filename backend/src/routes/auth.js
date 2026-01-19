@@ -18,6 +18,7 @@ import { validateUUID } from '../middleware/validation.js';
 import { body, validationResult } from 'express-validator';
 import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
+import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
 
 const router = express.Router();
 
@@ -862,5 +863,19 @@ router.post('/update-password', [
     res.status(500).json({ error: 'Failed to update password' });
   }
 });
+
+/**
+ * GET /auth/google-login/url
+ * Get Google OAuth URL for login/registration
+ * Query params: role (optional, defaults to STUDENT)
+ */
+router.get('/google-login/url', getGoogleLoginUrl);
+
+/**
+ * GET /auth/google-login/callback
+ * Handle Google OAuth callback for login
+ * Called by Google after user authorizes
+ */
+router.get('/google-login/callback', handleGoogleLoginCallback);
 
 export default router;
