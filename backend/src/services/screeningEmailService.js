@@ -41,7 +41,7 @@ export async function checkAndSendScreeningEmails() {
       where: {
         applicationDeadline: {
           lte: now, // Deadline has passed (currentTime >= applicationDeadline)
-          not: null // Must have applicationDeadline set
+          // Note: lte already implies field is not null - cannot compare null with Date
         },
         applicationDeadlineMailSent: false, // Email not sent yet (idempotency)
         status: 'POSTED', // Only POSTED jobs (NOT ACTIVE or other statuses)
