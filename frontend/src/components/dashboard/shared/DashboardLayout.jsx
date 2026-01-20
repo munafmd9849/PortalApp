@@ -11,14 +11,14 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export default function DashboardLayout({ children }) {
+export default function DashboardLayout({ children, studentProfile: profileProp = null }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [studentProfile, setStudentProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const profileLoadedRef = useRef(false);
+  const [studentProfile, setStudentProfile] = useState(profileProp);
+  const [loading, setLoading] = useState(!profileProp); // If profile provided, don't show loading
+  const profileLoadedRef = useRef(!!profileProp); // Mark as loaded if profile provided
 
-  // Load student profile function (reusable)
+  // Load student profile function (reusable - only used if profile not provided as prop)
   const loadProfile = useCallback(async (userId) => {
     if (!userId) {
       console.log('No user ID available');
@@ -39,8 +39,17 @@ export default function DashboardLayout({ children }) {
     }
   }, []);
 
-  // Load student profile data once on mount
+  // OPTIMIZED: Use profile from props if provided, otherwise load it
   useEffect(() => {
+    // If profile is provided as prop, use it and skip API call
+    if (profileProp !== null && profileProp !== undefined) {
+      setStudentProfile(profileProp);
+      setLoading(false);
+      profileLoadedRef.current = true;
+      return;
+    }
+
+    // Otherwise, load profile (fallback for other pages that don't pass profile)
     if (!user?.id) {
       console.log('No user ID available');
       setLoading(false);
@@ -57,10 +66,15 @@ export default function DashboardLayout({ children }) {
     loadProfile(user.id);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id, profileProp]); // Re-run if profileProp changes - this keeps header in sync
 
-  // Listen for profile update events and reload profile
+  // Listen for profile update events and reload profile (only if profile not provided as prop)
   useEffect(() => {
+    // If profile is passed as prop, parent component will update it - no need to listen
+    if (profileProp !== null) {
+      return;
+    }
+
     const handleProfileUpdate = (event) => {
       // Verify it's for the current user
       if (event.detail?.userId === user?.id) {
@@ -79,7 +93,7 @@ export default function DashboardLayout({ children }) {
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
-  }, [user?.id, loadProfile]);
+  }, [user?.id, loadProfile, profileProp]);
 
   // School-specific header texts
   const getSchoolHeaderText = (school) => {

@@ -18,6 +18,7 @@ import { validateUUID } from '../middleware/validation.js';
 import { body, validationResult } from 'express-validator';
 import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
+import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
 
 const router = express.Router();
 
@@ -404,7 +405,10 @@ router.get('/me', authenticate, async (req, res) => {
  */
 router.put('/profile', authenticate, [
   body('displayName').optional().isString().trim().isLength({ min: 1, max: 100 }),
-  body('profilePhoto').optional().isString(),
+  body('profilePhoto').optional().custom((value) => {
+    // Allow null, undefined, or string
+    return value === null || value === undefined || typeof value === 'string';
+  }).withMessage('profilePhoto must be a string, null, or undefined'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -416,11 +420,18 @@ router.put('/profile', authenticate, [
     const updateData = {};
 
     if (displayName !== undefined) {
-      updateData.displayName = displayName.trim() || null;
+      updateData.displayName = displayName && typeof displayName === 'string' ? displayName.trim() : null;
     }
 
     if (profilePhoto !== undefined) {
-      updateData.profilePhoto = profilePhoto.trim() || null;
+      // Handle null, empty string, or string values
+      if (profilePhoto === null) {
+        updateData.profilePhoto = null;
+      } else if (typeof profilePhoto === 'string') {
+        updateData.profilePhoto = profilePhoto.trim() || null;
+      } else {
+        updateData.profilePhoto = null;
+      }
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -862,5 +873,19 @@ router.post('/update-password', [
     res.status(500).json({ error: 'Failed to update password' });
   }
 });
+
+/**
+ * GET /auth/google-login/url
+ * Get Google OAuth URL for login/registration
+ * Query params: role (optional, defaults to STUDENT)
+ */
+router.get('/google-login/url', getGoogleLoginUrl);
+
+/**
+ * GET /auth/google-login/callback
+ * Handle Google OAuth callback for login
+ * Called by Google after user authorizes
+ */
+router.get('/google-login/callback', handleGoogleLoginCallback);
 
 export default router;

@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
-import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User, Archive, Trash2 } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
 import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview, updateJob } from '../../../services/jobs';
+import { saveJobDraft, addAnotherPositionDraft, postJob, submitJobForReview, getJob, updateJob } from '../../../services/jobs';
 import ExcelUploader from './ExcelUploader'; // Import Excel component
 import JDFormatGuide from './JDFormatGuide'; // Import JD Format Guide
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
@@ -63,11 +64,61 @@ const DRIVE_VENUES = [
   'Company Premises',
 ];
 
-export default function CreateJob({ onCreated, job: editJob }) {
-  const { user } = useAuth();
+export default function CreateJob({ onCreated }) {
+  const { user, role } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editJobId = searchParams.get('editJobId');
+  const [isEditing, setIsEditing] = useState(!!editJobId);
+  const [editingJob, setEditingJob] = useState(null);
+  const [loadingJob, setLoadingJob] = useState(!!editJobId);
+  
+  // MANDATORY: Role-based access control - Check authorization immediately
+  const userRole = role || user?.role || '';
+  const userRoleUpper = userRole.toUpperCase();
+  const isStudent = userRoleUpper === 'STUDENT';
+  const isAdmin = userRoleUpper === 'ADMIN';
+  const isRecruiter = userRoleUpper === 'RECRUITER';
+  const canCreateJobs = isAdmin || isRecruiter;
+
+  // MANDATORY: Block unauthorized users immediately on mount - do not render any UI
+  useEffect(() => {
+    if (!canCreateJobs) {
+      console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - CreateJob component:', {
+        userRole,
+        userId: user?.id,
+        email: user?.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Show error message
+      showError('Access Denied: Only ADMIN or RECRUITER users can create jobs.');
+
+      // Redirect immediately - do not render any UI
+      if (isStudent) {
+        navigate('/student', { replace: true });
+      } else {
+        navigate('/admin?tab=dashboard', { replace: true });
+      }
+    }
+  }, [canCreateJobs, isStudent, userRole, user, navigate]);
+
+  // EARLY RETURN: Do not render anything if unauthorized
+  if (!canCreateJobs) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-red-600 mb-2">Access Denied</h2>
+          <p className="text-gray-600">Only ADMIN or RECRUITER users can create jobs.</p>
+          <p className="text-sm text-gray-500 mt-2">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   const [posting, setPosting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isEditMode = !!editJob;
 
   // Creation method state - controls the three options
   const [creationMethod, setCreationMethod] = useState('manual');
@@ -106,6 +157,209 @@ export default function CreateJob({ onCreated, job: editJob }) {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [gapInputMode, setGapInputMode] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState({ serviceAgreement: false, blockingPeriod: false });
+  const [savedDrafts, setSavedDrafts] = useState([]);
+  const [showDraftsPanel, setShowDraftsPanel] = useState(false);
+
+  // Load drafts on mount (component only renders if authorized)
+  useEffect(() => {
+    loadDrafts();
+  }, []);
+
+  // Load job for editing when editJobId is present
+  useEffect(() => {
+    const loadJobForEditing = async () => {
+      if (!editJobId || !canCreateJobs) return;
+      
+      try {
+        setLoadingJob(true);
+        const job = await getJob(editJobId);
+        const jobData = job?.data || job;
+        
+        if (!jobData) {
+          showError('Job not found');
+          navigate('/admin?tab=manageJobs');
+          return;
+        }
+
+        setEditingJob(jobData);
+        
+        // Populate form with job data
+        const driveDate = jobData.driveDate ? (
+          typeof jobData.driveDate === 'object' && jobData.driveDate.toMillis
+            ? new Date(jobData.driveDate.toMillis())
+            : new Date(jobData.driveDate)
+        ) : null;
+        
+        const applicationDeadline = jobData.applicationDeadline ? (
+          typeof jobData.applicationDeadline === 'object' && jobData.applicationDeadline.toMillis
+            ? new Date(jobData.applicationDeadline.toMillis())
+            : new Date(jobData.applicationDeadline)
+        ) : null;
+
+        const updates = {
+          company: jobData.companyName || jobData.company?.name || jobData.company || '',
+          website: jobData.website || jobData.company?.website || '',
+          linkedin: jobData.linkedin || jobData.company?.linkedin || '',
+          recruiterEmails: Array.isArray(jobData.recruiterEmails) && jobData.recruiterEmails.length > 0 
+            ? jobData.recruiterEmails 
+            : [{ email: '', name: '' }],
+          jobType: jobData.jobType || '',
+          stipend: jobData.stipend || '',
+          duration: jobData.duration || '',
+          salary: jobData.salary || jobData.ctc || jobData.salaryRange || '',
+          jobTitle: jobData.jobTitle || jobData.title || '',
+          workMode: jobData.workMode || '',
+          companyLocation: jobData.companyLocation || jobData.location || '',
+          openings: jobData.openings?.toString() || '',
+          responsibilities: jobData.description || jobData.responsibilities || '',
+          spocs: Array.isArray(jobData.spocs) && jobData.spocs.length > 0 
+            ? jobData.spocs 
+            : [{ fullName: '', email: '', phone: '' }],
+          driveDateText: driveDate ? toDDMMYYYY(driveDate.toISOString()) : '',
+          driveDateISO: driveDate ? driveDate.toISOString() : '',
+          applicationDeadlineText: applicationDeadline ? toDDMMYYYY(applicationDeadline.toISOString()) : '',
+          applicationDeadlineISO: applicationDeadline ? applicationDeadline.toISOString() : '',
+          driveVenues: Array.isArray(jobData.driveVenues) ? jobData.driveVenues : [],
+          qualification: jobData.qualification || '',
+          specialization: jobData.specialization || '',
+          yop: jobData.yop || '',
+          minCgpa: jobData.minCgpa || jobData.cgpaRequirement || '',
+          skillsInput: '',
+          skills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills : 
+            (typeof jobData.requiredSkills === 'string' ? JSON.parse(jobData.requiredSkills || '[]') : 
+            (Array.isArray(jobData.skills) ? jobData.skills : [])),
+          gapAllowed: jobData.gapAllowed || '',
+          gapYears: jobData.gapYears || '',
+          backlogs: jobData.backlogs || '',
+          serviceAgreement: jobData.serviceAgreement || '',
+          blockingPeriod: jobData.blockingPeriod || '',
+          baseRoundDetails: jobData.baseRoundDetails || ['', '', ''],
+          extraRounds: jobData.extraRounds || [],
+          instructions: jobData.instructions || '',
+          requiresScreening: jobData.requiresScreening || false,
+          requiresTest: jobData.requiresTest || false,
+        };
+
+        setDriveDraft({
+          driveDateText: updates.driveDateText,
+          driveDateISO: updates.driveDateISO,
+          applicationDeadlineText: updates.applicationDeadlineText,
+          applicationDeadlineISO: updates.applicationDeadlineISO,
+          driveVenues: updates.driveVenues,
+        });
+
+        setForm(updates);
+        setCreationMethod('manual');
+        showSuccess('Job loaded for editing');
+      } catch (error) {
+        console.error('Error loading job for editing:', error);
+        showError('Failed to load job for editing');
+        navigate('/admin?tab=manageJobs');
+      } finally {
+        setLoadingJob(false);
+      }
+    };
+
+    loadJobForEditing();
+  }, [editJobId, canCreateJobs]);
+
+  // Load drafts from localStorage
+  const loadDrafts = () => {
+    try {
+      const drafts = JSON.parse(localStorage.getItem('jobDrafts') || '[]');
+      // Sort by most recent first
+      const sortedDrafts = drafts.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      setSavedDrafts(sortedDrafts);
+    } catch (error) {
+      console.error('Error loading drafts:', error);
+      setSavedDrafts([]);
+    }
+  };
+
+  // Load a draft into the form
+  const loadDraft = (draft) => {
+    try {
+      // Populate form fields from draft
+      const updates = {
+        company: draft.company || '',
+        website: draft.website || '',
+        linkedin: draft.linkedin || '',
+        recruiterEmails: draft.recruiterEmails || [{ email: '', name: '' }],
+        jobType: draft.jobType || '',
+        stipend: draft.stipend || '',
+        duration: draft.duration || '',
+        salary: draft.salary || '',
+        jobTitle: draft.jobTitle || '',
+        workMode: draft.workMode || '',
+        companyLocation: draft.companyLocation || '',
+        openings: draft.openings || '',
+        responsibilities: draft.responsibilities || draft.description || '',
+        spocs: draft.spocs || [{ fullName: '', email: '', phone: '' }],
+        driveDateText: draft.driveDateText || '',
+        driveDateISO: draft.driveDateISO || '',
+        applicationDeadlineText: draft.applicationDeadlineText || '',
+        applicationDeadlineISO: draft.applicationDeadlineISO || '',
+        driveVenues: Array.isArray(draft.driveVenues) ? draft.driveVenues : [],
+        qualification: draft.qualification || '',
+        specialization: draft.specialization || '',
+        yop: draft.yop || '',
+        minCgpa: draft.minCgpa || '',
+        skillsInput: '',
+        skills: Array.isArray(draft.skills) ? draft.skills : (Array.isArray(draft.requiredSkills) ? draft.requiredSkills : []),
+        gapAllowed: draft.gapAllowed || '',
+        gapYears: draft.gapYears || '',
+        backlogs: draft.backlogs || '',
+        serviceAgreement: draft.serviceAgreement || '',
+        blockingPeriod: draft.blockingPeriod || '',
+        baseRoundDetails: draft.baseRoundDetails || ['', '', ''],
+        extraRounds: draft.extraRounds || [],
+        instructions: draft.instructions || '',
+        requiresScreening: draft.requiresScreening || false,
+        requiresTest: draft.requiresTest || false,
+      };
+
+      // Update drive draft
+      setDriveDraft({
+        driveDateText: updates.driveDateText,
+        driveDateISO: updates.driveDateISO,
+        applicationDeadlineText: updates.applicationDeadlineText,
+        applicationDeadlineISO: updates.applicationDeadlineISO,
+        driveVenues: updates.driveVenues,
+      });
+
+      // Update form
+      setForm(updates);
+      
+      // Switch to manual entry method
+      setCreationMethod('manual');
+      
+      // Close drafts panel
+      setShowDraftsPanel(false);
+      
+      showSuccess('Draft loaded successfully!');
+    } catch (error) {
+      console.error('Error loading draft:', error);
+      showError('Failed to load draft. Please try again.');
+    }
+  };
+
+  // Delete a draft
+  const deleteDraft = (draftId) => {
+    try {
+      const drafts = JSON.parse(localStorage.getItem('jobDrafts') || '[]');
+      const filteredDrafts = drafts.filter(d => d.draftId !== draftId);
+      localStorage.setItem('jobDrafts', JSON.stringify(filteredDrafts));
+      setSavedDrafts(filteredDrafts);
+      showSuccess('Draft deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      showError('Failed to delete draft. Please try again.');
+    }
+  };
 
   // Enhanced useEffect for click outside detection for all dropdowns
   useEffect(() => {
@@ -261,6 +515,9 @@ export default function CreateJob({ onCreated, job: editJob }) {
     baseRoundDetails: ['', '', ''],
     extraRounds: [],
     instructions: '',
+    // Pre-Interview Requirements
+    requiresScreening: false,
+    requiresTest: false,
   });
 
   // Local draft for About Drive section
@@ -509,18 +766,34 @@ export default function CreateJob({ onCreated, job: editJob }) {
   // All existing completion checks
   const isCompanyDetailsComplete = useMemo(() => {
     // Check if at least one recruiter email is provided and valid
-    const hasValidRecruiterEmail = form.recruiterEmails?.length > 0 && 
-      form.recruiterEmails.some(rec => {
-        const email = rec.email?.trim();
+    const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [];
+    const hasValidRecruiterEmail = recruiterEmailsArray.length > 0 && 
+      recruiterEmailsArray.some(rec => {
+        const email = rec?.email?.trim();
         if (!email) return false;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
       });
     
-    const base = form.company?.trim() && form.jobTitle?.trim() && form.companyLocation?.trim() && form.website?.trim() && form.linkedin?.trim() && form.workMode?.trim() && form.workMode !== '' && form.jobType?.trim() && form.jobType !== '' && hasValidRecruiterEmail;
+    // Base required fields: company, jobTitle, companyLocation, website, linkedin, workMode, jobType, recruiterEmails
+    const base = form.company?.trim() && 
+                 form.jobTitle?.trim() && 
+                 form.companyLocation?.trim() && 
+                 form.website?.trim() && 
+                 form.linkedin?.trim() && 
+                 form.workMode?.trim() && 
+                 form.workMode !== '' && 
+                 form.jobType?.trim() && 
+                 form.jobType !== '' && 
+                 hasValidRecruiterEmail &&
+                 form.responsibilities?.trim(); // Add responsibilities requirement
+    
+    // Conditional requirement based on job type
     const comp = form.jobType === 'Internship'
       ? form.stipend?.trim() && form.duration?.trim()
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
+    
+    // Validation checks (format/error checks)
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
     const recruiterEmailOk = hasValidRecruiterEmail && !recruiterEmailError;
@@ -528,15 +801,17 @@ export default function CreateJob({ onCreated, job: editJob }) {
     const durationOk = !form.duration?.trim() || !durationError;
     const salaryOk = !form.salary?.trim() || !salaryError;
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
+    
     return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
   }, [form, websiteError, linkedinError, recruiterEmailError, stipendError, durationError, salaryError, companyLocationError]);
 
   const isDriveDetailsComplete = useMemo(() => {
-    const hasDriveDate = !!(form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText));
-    const hasApplicationDeadline = !!(form.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText));
-    const hasVenues = form.driveVenues.length > 0;
+    const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
+    const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
+    // Check both form and driveDraft for venues to handle sync issues
+    const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
     return hasDriveDate && hasApplicationDeadline && hasVenues;
-  }, [form.driveDateISO, form.driveDateText, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues]);
+  }, [form.driveDateISO, form.driveDateText, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
     return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
@@ -638,7 +913,8 @@ export default function CreateJob({ onCreated, job: editJob }) {
   };
 
   const onRecruiterEmailChange = (index, value) => {
-    const updated = [...form.recruiterEmails];
+    const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }];
+    const updated = [...recruiterEmailsArray];
     updated[index] = { ...updated[index], email: value };
     update({ recruiterEmails: updated });
     
@@ -652,18 +928,21 @@ export default function CreateJob({ onCreated, job: editJob }) {
   };
 
   const onRecruiterNameChange = (index, value) => {
-    const updated = [...form.recruiterEmails];
+    const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }];
+    const updated = [...recruiterEmailsArray];
     updated[index] = { ...updated[index], name: value };
     update({ recruiterEmails: updated });
   };
 
   const addRecruiterEmail = () => {
-    update({ recruiterEmails: [...form.recruiterEmails, { email: '', name: '' }] });
+    const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }];
+    update({ recruiterEmails: [...recruiterEmailsArray, { email: '', name: '' }] });
   };
 
   const removeRecruiterEmail = (index) => {
-    if (form.recruiterEmails.length > 1) {
-      const updated = form.recruiterEmails.filter((_, i) => i !== index);
+    const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }];
+    if (recruiterEmailsArray.length > 1) {
+      const updated = recruiterEmailsArray.filter((_, i) => i !== index);
       update({ recruiterEmails: updated });
     } else {
       showWarning('At least one recruiter email is required');
@@ -767,19 +1046,22 @@ export default function CreateJob({ onCreated, job: editJob }) {
 
   // SPOC management functions
   const addSpoc = () => {
-    update({ spocs: [...form.spocs, { fullName: '', email: '', phone: '' }] });
+    const spocsArray = Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }];
+    update({ spocs: [...spocsArray, { fullName: '', email: '', phone: '' }] });
   };
 
   const removeSpoc = (idx) => {
-    if (form.spocs.length > 1) {
-      const next = [...form.spocs];
+    const spocsArray = Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }];
+    if (spocsArray.length > 1) {
+      const next = [...spocsArray];
       next.splice(idx, 1);
       update({ spocs: next });
     }
   };
 
   const updateSpoc = (idx, field, value) => {
-    const next = [...form.spocs];
+    const spocsArray = Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }];
+    const next = [...spocsArray];
     if (field === 'phone') {
       if (!/^[0-9]*$/.test(value) || value.length > 10) {
         return;
@@ -903,7 +1185,7 @@ export default function CreateJob({ onCreated, job: editJob }) {
       linkedin: form.linkedin || '',
       companyLocation: form.companyLocation || '',
       // Recruiter/HR contacts (REQUIRED - at least one)
-      recruiterEmails: form.recruiterEmails || [{ email: '', name: '' }],
+      recruiterEmails: Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }],
       // Job details
       jobType: form.jobType || '',
       stipend: form.stipend || '',
@@ -925,10 +1207,13 @@ export default function CreateJob({ onCreated, job: editJob }) {
       gapAllowed: form.gapAllowed || '',
       gapYears: form.gapYears || '',
       backlogs: form.backlogs || '',
-      // Drive details
-      driveDate: form.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || null,
-      applicationDeadline: form.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || null,
-      driveVenues: Array.isArray(form.driveVenues) ? form.driveVenues : [],
+      // Drive details - check both form and driveDraft states for consistency
+      driveDate: form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null,
+      applicationDeadline: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText) || null,
+      driveVenues: (Array.isArray(form.driveVenues) && form.driveVenues.length > 0) ? form.driveVenues : (Array.isArray(driveDraft.driveVenues) ? driveDraft.driveVenues : []),
+      // Pre-Interview Requirements
+      requiresScreening: form.requiresScreening || false,
+      requiresTest: form.requiresTest || false,
       // Interview process
       interviewRounds: [
         { title: `${toRoman(1)} Round`, detail: form.baseRoundDetails[0] || '' },
@@ -958,9 +1243,20 @@ export default function CreateJob({ onCreated, job: editJob }) {
     
     try {
       setIsSaving(true);
-      const payload = buildJobPayload();
+      // Build payload with all form data including drive dates
+      const payload = {
+        ...buildJobPayload(),
+        // Ensure drive dates are included from driveDraft state if form doesn't have them
+        driveDateText: form.driveDateText || driveDraft.driveDateText || '',
+        driveDateISO: form.driveDateISO || driveDraft.driveDateISO || '',
+        applicationDeadlineText: form.applicationDeadlineText || driveDraft.applicationDeadlineText || '',
+        applicationDeadlineISO: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || '',
+        driveVenues: form.driveVenues.length > 0 ? form.driveVenues : driveDraft.driveVenues,
+      };
       await saveJobDraft(payload);
-      showSuccess('Draft saved successfully!');
+      // Reload drafts list after saving
+      loadDrafts();
+      showSuccess('Draft saved successfully! You can load it anytime from the "Saved Drafts" button.');
     } catch (err) {
       console.error(err);
       showError(err?.message || 'Failed to save draft. Please try again.');
@@ -1036,45 +1332,217 @@ export default function CreateJob({ onCreated, job: editJob }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Check user role before submission
+    const userRole = role || user?.role;
+    const allowedRoles = ['ADMIN', 'RECRUITER'];
+    const hasRequiredRole = userRole && allowedRoles.includes(userRole.toUpperCase());
+    
+    console.log('🔐 Pre-submission role check:', {
+      'role from useAuth': role,
+      'user?.role': user?.role,
+      'userRole (combined)': userRole,
+      'hasRequiredRole': hasRequiredRole,
+      'allowedRoles': allowedRoles,
+      'user object': user ? { id: user.id, email: user.email, role: user.role } : null,
+    });
+    
+    if (!hasRequiredRole) {
+      console.error('❌ Permission check failed - blocking submission:', {
+        userRole,
+        allowedRoles,
+        user: user?.role,
+        'role from context': role,
+      });
+      showError(`You don't have permission to create jobs.\n\nRequired role: ${allowedRoles.join(' or ')}\nYour current role: ${userRole || 'Unknown'}\n\nPlease contact an administrator if you need access to this feature.`);
+      return;
+    }
+    
+    console.log('✅ Role check passed, proceeding with submission');
+    
+    console.log('🚀 Submit button clicked');
+    console.log('📋 Form validation state:', {
+      canPost,
+      isCompanyDetailsComplete,
+      isDriveDetailsComplete,
+      isSkillsEligibilityComplete,
+      isInterviewProcessComplete,
+      userRole,
+    });
+    
+    // Detailed validation debugging
+    console.log('🔍 Detailed validation check:', {
+      company: {
+        hasCompany: !!form.company?.trim(),
+        hasLinkedIn: !!form.linkedin?.trim(),
+        hasWebsite: !!form.website?.trim(),
+        hasRecruiterEmail: (Array.isArray(form.recruiterEmails) ? form.recruiterEmails.some(r => r?.email?.trim()) : false) || false,
+        hasJobType: !!form.jobType,
+        hasJobTitle: !!form.jobTitle?.trim(),
+        hasWorkMode: !!form.workMode,
+        hasSalary: !!form.salary?.trim(),
+        hasLocation: !!form.companyLocation?.trim(),
+        hasResponsibilities: !!form.responsibilities?.trim(),
+      },
+      drive: {
+        hasDriveDate: !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText)),
+        hasApplicationDeadline: !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText)),
+        formVenues: form.driveVenues?.length || 0,
+        driveDraftVenues: driveDraft.driveVenues?.length || 0,
+        hasVenues: (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0),
+      },
+      skills: {
+        hasQualification: !!form.qualification?.trim(),
+        hasYop: !!form.yop?.trim(),
+        hasMinCgpa: !!form.minCgpa?.trim(),
+        skillsCount: form.skills?.length || 0,
+        skillsInput: form.skillsInput || '',
+        hasGapAllowed: !!form.gapAllowed?.trim() && form.gapAllowed !== '',
+        hasBacklogs: !!form.backlogs?.trim() && form.backlogs !== '',
+        minCgpaError: minCgpaError || null,
+      },
+      interview: {
+        baseRounds: form.baseRoundDetails?.length || 0,
+        round1: form.baseRoundDetails?.[0]?.trim() || '',
+        round2: form.baseRoundDetails?.[1]?.trim() || '',
+        round3: form.baseRoundDetails?.[2]?.trim() || '',
+      },
+    });
+    
     if (!canPost) {
       // Provide specific validation feedback
       let missingFields = [];
-      if (!isCompanyDetailsComplete) missingFields.push('Company Details');
-      if (!isDriveDetailsComplete) missingFields.push('Drive Details');
-      if (!isSkillsEligibilityComplete) missingFields.push('Skills & Eligibility');
-      if (!isInterviewProcessComplete) missingFields.push('Interview Process');
+      let details = [];
       
-      showWarning(`Please complete the following sections before submitting: ${missingFields.join(', ')}`);
+      if (!isCompanyDetailsComplete) {
+        missingFields.push('Company Details');
+        if (!form.company?.trim()) details.push('• Company name');
+        if (!form.linkedin?.trim()) details.push('• LinkedIn URL');
+        if (!form.website?.trim()) details.push('• Website URL');
+        const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [];
+        if (!recruiterEmailsArray.some(r => r?.email?.trim())) details.push('• At least one recruiter email');
+        if (!form.jobType) details.push('• Job Type');
+        if (!form.jobTitle?.trim()) details.push('• Job Title');
+        if (!form.workMode) details.push('• Work Mode');
+        if (!form.salary?.trim() && form.jobType === 'Full-Time') details.push('• Salary (CTC)');
+        if (!form.companyLocation?.trim()) details.push('• Company Location');
+        if (!form.responsibilities?.trim()) details.push('• Roles & Responsibilities');
+      }
+      
+      if (!isDriveDetailsComplete) {
+        missingFields.push('Drive Details');
+        const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
+        const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
+        const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
+        if (!hasDriveDate) details.push('• Drive Date');
+        if (!hasApplicationDeadline) details.push('• Application Deadline');
+        if (!hasVenues) details.push('• Drive Venue (at least one)');
+      }
+      
+      if (!isSkillsEligibilityComplete) {
+        missingFields.push('Skills & Eligibility');
+        if (!form.qualification?.trim()) details.push('• Qualification');
+        if (!form.yop?.trim()) details.push('• Year of Passing');
+        if (!form.minCgpa?.trim()) details.push('• Minimum CGPA/Percentage');
+        if ((form.skills?.length || 0) === 0) details.push('• Skills (type and press Enter/comma to add)');
+        if (!form.gapAllowed?.trim() || form.gapAllowed === '') details.push('• Year Gaps');
+        if (!form.backlogs?.trim() || form.backlogs === '') details.push('• Active Backlogs');
+        if (minCgpaError) details.push(`• ${minCgpaError}`);
+      }
+      
+      if (!isInterviewProcessComplete) {
+        missingFields.push('Interview Process');
+        if (!form.baseRoundDetails?.[0]?.trim()) details.push('• I Round');
+        if (!form.baseRoundDetails?.[1]?.trim()) details.push('• II Round');
+        if (!form.baseRoundDetails?.[2]?.trim()) details.push('• III Round');
+      }
+      
+      console.warn('❌ Form validation failed. Missing sections:', missingFields);
+      console.warn('❌ Missing details:', details);
+      
+      const message = details.length > 0 
+        ? `Please complete the following:\n\n${details.join('\n')}`
+        : `Please complete the following sections before submitting: ${missingFields.join(', ')}`;
+      
+      showWarning(message);
       return;
     }
     
     let loadingToastId = null;
     try {
       setPosting(true);
+      console.log('📝 Starting job submission...');
+      
+      // CRITICAL: Validate date relationship before submitting
+      const driveDate = form.driveDateISO || (form.driveDateText ? toISOFromDDMMYYYY(form.driveDateText) : null);
+      const applicationDeadline = form.applicationDeadlineISO || (form.applicationDeadlineText ? toISOFromDDMMYYYY(form.applicationDeadlineText) : null);
+      
+      console.log('📅 Date validation:', { driveDate, applicationDeadline });
+      
+      if (driveDate && applicationDeadline) {
+        const driveDateTime = new Date(driveDate);
+        const deadlineDate = new Date(applicationDeadline);
+        
+        if (driveDateTime <= deadlineDate) {
+          console.error('❌ Date validation failed: Drive date must be after deadline');
+          showError('Drive date must be after the application deadline. Interviews happen after applications close.');
+          setPosting(false);
+          return;
+        }
+      }
+      
+      loadingToastId = showLoading(isEditing ? 'Updating job...' : 'Submitting job for review...');
       
       const payload = buildJobPayload();
       
       // Debug: Log payload to see what's being sent
-      console.log('Job Payload:', JSON.stringify(payload, null, 2));
+      console.log('📦 Job Payload:', JSON.stringify(payload, null, 2));
       
-      if (isEditMode && editJob?.id) {
+      // Check if we're editing or creating
+      if (isEditing && editJobId) {
         // Update existing job
-        loadingToastId = showLoading('Updating job...');
-        await updateJob(editJob.id, payload);
+        console.log('📤 Calling updateJob...');
+        const result = await updateJob(editJobId, payload);
+        console.log('✅ updateJob response:', result);
         
-        if (onCreated) onCreated();
-        replaceLoadingToast(loadingToastId, 'success', 'Job updated successfully!');
+        console.log('✅ Job updated successfully! Job ID:', editJobId);
+        
+        if (onCreated) {
+          console.log('🔄 Calling onCreated callback...');
+          onCreated();
+        }
+        replaceLoadingToast(loadingToastId, 'success', 'Job updated successfully! Changes will appear in the "In Review" section of Manage Jobs.');
+        
+        // Navigate back to manage jobs
+        navigate('/admin?tab=manageJobs');
       } else {
-        // Create new job
-        loadingToastId = showLoading('Submitting job for review...');
-        const { jobId } = await submitJobForReview(payload);
+        // Submit job for review - it will appear in ManageJobs "In Review" section
+        console.log('📤 Calling submitJobForReview...');
+        const result = await submitJobForReview(payload);
+        console.log('✅ submitJobForReview response:', result);
         
-        if (onCreated) onCreated();
+        const jobId = result?.jobId || result?.id;
+        if (!jobId) {
+          console.error('❌ No jobId returned from submitJobForReview:', result);
+          throw new Error('Job submission failed: No job ID returned from server');
+        }
+        
+        console.log('✅ Job submitted successfully! Job ID:', jobId);
+        
+        if (onCreated) {
+          console.log('🔄 Calling onCreated callback...');
+          onCreated();
+        }
         replaceLoadingToast(loadingToastId, 'success', 'Job submitted successfully! It has been sent for review and will appear in the "In Review" section of Manage Jobs.');
         resetForm();
       }
     } catch (err) {
-      console.error('Submit error:', err);
+      console.error('❌ Submit error:', err);
+      console.error('❌ Error details:', {
+        message: err?.message,
+        stack: err?.stack,
+        response: err?.response,
+        status: err?.status,
+      });
       
       if (loadingToastId) {
         dismissToast(loadingToastId);
@@ -1087,19 +1555,58 @@ export default function CreateJob({ onCreated, job: editJob }) {
       }
       
       // Extract detailed validation errors if available
-      let errorMessage = err?.message || 'Unknown error';
+      let errorMessage = err?.message || 'Unknown error occurred';
+      // The API service puts the response body in error.response.data
+      const errorData = err?.response?.data || {};
+      
+      console.log('🔍 Error response structure:', {
+        status: err?.status,
+        response: err?.response,
+        errorData,
+        'errorData.required': errorData?.required,
+        'errorData.current': errorData?.current,
+        'errorData.error': errorData?.error,
+        'user.role': user?.role,
+        'auth.role': role,
+      });
+      
       if (err?.response?.errors && Array.isArray(err.response.errors)) {
         const validationErrors = err.response.errors.map(e => `• ${e.msg || e.message || e}`).join('\n');
         errorMessage = `Validation failed:\n\n${validationErrors}`;
+      } else if (err?.status === 403) {
+        // Handle permission errors with detailed information
+        // Backend sends: { error: 'Insufficient permissions', required: [...], current: '...' }
+        const required = errorData?.required;
+        const current = errorData?.current;
+        const userCurrentRole = role || user?.role || 'Unknown';
+        
+        if (required || current) {
+          const requiredStr = Array.isArray(required) ? required.join(' or ') : (required || 'ADMIN or RECRUITER');
+          const currentStr = current || userCurrentRole;
+          errorMessage = `Insufficient permissions.\n\nRequired role: ${requiredStr}\nYour current role: ${currentStr}\n\nPlease contact an administrator if you need access to this feature.`;
+        } else {
+          // Fallback: use role from auth context if available
+          errorMessage = `Insufficient permissions (403 Forbidden).\n\nYou don't have the required permissions to create jobs.\nRequired role: ADMIN or RECRUITER\nYour current role: ${userCurrentRole}\n\nPlease contact an administrator if you need access to this feature.`;
+        }
+      } else if (errorData?.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error, null, 2);
       } else if (err?.response?.error) {
-        errorMessage = err.response.error;
+        errorMessage = typeof err.response.error === 'string' ? err.response.error : JSON.stringify(err.response.error, null, 2);
       } else if (err?.status) {
         errorMessage = `Server error (${err.status}): ${errorMessage}`;
       }
       
+      console.error('❌ Displaying error to user:', errorMessage);
+      console.error('❌ Full error response:', {
+        response: err?.response,
+        errorData,
+        status: err?.status,
+        'JSON.stringify(errorData)': JSON.stringify(errorData),
+      });
       showError(errorMessage || 'Failed to submit job. Please check all required fields and try again.');
     } finally {
       setPosting(false);
+      console.log('🏁 Submit process completed');
     }
   };
 
@@ -1158,13 +1665,31 @@ export default function CreateJob({ onCreated, job: editJob }) {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">Create Job Posting</h2>
-              <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border border-gray-200">
-                <Info className="w-4 h-4 text-blue-600" />
-                <span>Fields marked with <span className="text-red-500 font-semibold">*</span> are required</span>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
+              </h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    loadDrafts();
+                    setShowDraftsPanel(!showDraftsPanel);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg border border-blue-300 transition-colors"
+                >
+                  <Archive className="w-4 h-4" />
+                  Saved Drafts ({savedDrafts.length})
+                </button>
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border border-gray-200">
+                  <Info className="w-4 h-4 text-blue-600" />
+                  <span>Fields marked with <span className="text-red-500 font-semibold">*</span> are required</span>
+                </div>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-3">Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.</p>
+            <p className="text-sm text-gray-600 mb-3">
+              {isEditing 
+                ? 'Update the job details below. Changes will be saved to the job posting.'
+                : 'Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.'}
+            </p>
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
                 <CheckCircle className="w-3.5 h-3.5 text-green-600" />
@@ -1182,6 +1707,88 @@ export default function CreateJob({ onCreated, job: editJob }) {
           </div>
         </div>
       </div>
+
+      {/* Saved Drafts Panel */}
+      {showDraftsPanel && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Archive className="w-5 h-5 text-blue-600" />
+              Saved Drafts
+            </h3>
+            <button
+              onClick={() => setShowDraftsPanel(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {savedDrafts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Archive className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">No saved drafts found.</p>
+              <p className="text-xs mt-1">Save your progress using the "Save (Draft)" button to see drafts here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {savedDrafts.map((draft) => (
+                <div
+                  key={draft.draftId}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <p className="font-medium text-gray-900 truncate">
+                        {draft.jobTitle || draft.company || 'Untitled Draft'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-gray-500 ml-6">
+                      {draft.company && (
+                        <span className="flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />
+                          {draft.company}
+                        </span>
+                      )}
+                      {draft.createdAt && (
+                        <span>
+                          Saved: {new Date(draft.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => loadDraft(draft)}
+                      className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+                    >
+                      Load
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this draft?')) {
+                          deleteDraft(draft.draftId);
+                        }
+                      }}
+                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      title="Delete draft"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* THREE CREATION METHOD OPTIONS - ALWAYS VISIBLE */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -1243,8 +1850,16 @@ export default function CreateJob({ onCreated, job: editJob }) {
         />
       )}
 
+      {/* Loading state when editing */}
+      {loadingJob && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading job for editing...</p>
+        </div>
+      )}
+
       {/* MANUAL FORM */}
-      {creationMethod === 'manual' && (
+      {!loadingJob && creationMethod === 'manual' && (
         <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-8">
           
           {/* Section 1: Company Details */}
@@ -1327,7 +1942,7 @@ export default function CreateJob({ onCreated, job: editJob }) {
                   </div>
                   <p className="text-xs text-gray-500 mb-4">These emails will receive the screening link after application deadline</p>
                   
-                  {form.recruiterEmails?.map((recruiter, index) => (
+                  {(Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }]).map((recruiter, index) => (
                     <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="md:col-span-1">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1364,7 +1979,7 @@ export default function CreateJob({ onCreated, job: editJob }) {
                         <label className="block text-sm font-medium text-gray-700 mb-2 invisible">
                           Action
                         </label>
-                        {form.recruiterEmails.length > 1 ? (
+                        {(Array.isArray(form.recruiterEmails) ? form.recruiterEmails.length : 0) > 1 ? (
                           <button
                             type="button"
                             onClick={() => removeRecruiterEmail(index)}
@@ -1526,12 +2141,15 @@ export default function CreateJob({ onCreated, job: editJob }) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Roles & Responsibilities</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Briefcase size={16} className="text-gray-500" />
+                    Roles & Responsibilities <span className="text-red-500">*</span>
+                  </label>
                   <textarea
                     className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[300px] resize-y ${
                       form.responsibilities?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                     }`}
-                    placeholder="Outline responsibilities, tech stack, team, etc. (optional)"
+                    placeholder="Outline responsibilities, tech stack, team, etc."
                     value={form.responsibilities}
                     onChange={(e) => update({ responsibilities: e.target.value })}
                     onKeyDown={(e) => {
@@ -1573,11 +2191,11 @@ export default function CreateJob({ onCreated, job: editJob }) {
                     <Users size={18} className="text-indigo-600" />
                     <h4 className="text-md font-semibold text-gray-900">Company SPOC</h4>
                   </div>
-                  {form.spocs.map((spoc, idx) => (
+                  {(Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }]).map((spoc, idx) => (
                     <div key={idx} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
                         <h5 className="text-sm font-medium text-gray-700">SPOC {idx + 1}</h5>
-                        {form.spocs.length > 1 && (
+                        {(Array.isArray(form.spocs) ? form.spocs.length : 0) > 1 && (
                           <button
                             type="button"
                             onClick={() => removeSpoc(idx)}
@@ -1893,7 +2511,7 @@ export default function CreateJob({ onCreated, job: editJob }) {
                     Skills <span className="text-red-500">*</span>
                   </label>
                   <div className={`relative border rounded-md px-3 py-2 min-h-[42px] flex flex-wrap items-center gap-1 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors ${
-                    form.skills.length > 0 ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                    form.skills.length > 0 ? 'border-green-300 bg-green-50' : form.skillsInput?.trim() ? 'border-yellow-300 bg-yellow-50' : 'border-gray-300'
                   }`}>
                     {form.skills.map((s, idx) => (
                       <span key={`${s}-${idx}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
@@ -1905,12 +2523,23 @@ export default function CreateJob({ onCreated, job: editJob }) {
                     ))}
                     <input
                       className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm"
-                      placeholder={form.skills.length === 0 ? "e.g. JavaScript, React, Node.js (comma separated)" : ""}
+                      placeholder={form.skills.length === 0 ? "e.g. JavaScript, React, Node.js (press Enter or comma to add)" : ""}
                       value={form.skillsInput}
                       onChange={(e) => update({ skillsInput: e.target.value })}
                       onKeyDown={onSkillsKeyDown}
                     />
                   </div>
+                  {form.skillsInput?.trim() && form.skills.length === 0 && (
+                    <p className="text-xs text-yellow-600 mt-1 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Press <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">Enter</kbd> or <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">,</kbd> to add skills. You currently have {form.skills.length} skill(s) added.
+                    </p>
+                  )}
+                  {form.skills.length === 0 && !form.skillsInput?.trim() && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Type skills and press Enter or comma to add them. At least one skill is required.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -2188,6 +2817,92 @@ export default function CreateJob({ onCreated, job: editJob }) {
             </div>
           </section>
 
+          {/* Section 5: Pre-Interview Requirements */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <Users size={20} className="text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Pre-Interview Requirements</h3>
+            </div>
+
+            {!isSectionCollapsed('preInterview') && (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">What are Pre-Interview Requirements?</p>
+                      <p className="text-blue-700">
+                        Select the screening steps required before candidates can proceed to interview rounds. 
+                        If both are enabled, candidates must pass Resume Screening before they can take the QA/Test.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white">
+                    <input
+                      type="checkbox"
+                      id="requiresScreening"
+                      checked={form.requiresScreening}
+                      onChange={(e) => update({ requiresScreening: e.target.checked })}
+                      className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="requiresScreening" className="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
+                        Resume Screening required
+                      </label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Recruiters will review resumes and applications before candidates proceed to interviews.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white">
+                    <input
+                      type="checkbox"
+                      id="requiresTest"
+                      checked={form.requiresTest}
+                      onChange={(e) => update({ requiresTest: e.target.checked })}
+                      className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="requiresTest" className="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
+                        QA / Test required
+                      </label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Candidates must complete a QA/Test assessment before proceeding to interviews. 
+                        {form.requiresScreening && (
+                          <span className="text-blue-700 font-medium"> (Available only after Resume Screening)</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!form.requiresScreening && !form.requiresTest && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Note:</strong> If no pre-interview requirements are selected, all candidates who apply will be eligible for interview rounds immediately after the application deadline.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Collapse/expand button */}
+            <div className={`flex justify-end ${isSectionCollapsed('preInterview') ? '-mt-8' : 'pt-4'}`}>
+              <button
+                type="button"
+                onClick={() => toggleSection('preInterview')}
+                className="text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-200 rounded-md"
+                title={isSectionCollapsed('preInterview') ? 'Expand section' : 'Minimize section'}
+              >
+                {isSectionCollapsed('preInterview') ? <ChevronsDown className="w-6 h-6" /> : <ChevronsUp className="w-6 h-6" />}
+              </button>
+            </div>
+          </section>
+
           {/* Final Section: Instructions + Buttons */}
           <section className="space-y-4">
             <div>
@@ -2246,7 +2961,7 @@ export default function CreateJob({ onCreated, job: editJob }) {
                 }`}
               >
                 {posting ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                Submit for Review
+                {isEditing ? 'Update Job' : 'Submit for Review'}
               </button>
               <button
                 type="button"

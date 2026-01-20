@@ -275,13 +275,46 @@ export const getAllStudents = async (filters = {}, options = {}) => {
     
     // Backend returns { students, pagination }
     const students = response.students || response || [];
+    const pagination = response.pagination;
     
     // Ensure it's an array
     if (!Array.isArray(students)) {
       console.warn('getAllStudents: Invalid response format, expected array:', response);
-      return [];
+      return { students: [], total: 0 };
     }
     
+    // If pagination exists and we haven't fetched all students, fetch remaining pages
+    if (pagination && pagination.totalPages > 1) {
+      const totalNeeded = pagination.totalPages;
+      const requestedLimit = parseInt(filters.limit) || 50;
+      const limitToUse = Math.min(requestedLimit, 1000); // Use requested limit or max 1000
+      
+      const allStudents = [...students];
+      
+      // Fetch remaining pages (starting from page 2) if needed
+      for (let page = 2; page <= totalNeeded; page++) {
+        try {
+          const pageResponse = await api.getAllStudents({ ...filters, page, limit: limitToUse });
+          const pageStudents = pageResponse.students || pageResponse || [];
+          if (Array.isArray(pageStudents)) {
+            allStudents.push(...pageStudents);
+          }
+          // Break if we've fetched all students
+          if (allStudents.length >= pagination.total) {
+            break;
+          }
+        } catch (pageError) {
+          console.warn(`Failed to fetch page ${page}:`, pageError);
+          // Continue with what we have
+          break;
+        }
+      }
+      
+      // Always return array for consistency
+      return allStudents;
+    }
+    
+    // Return students array (backwards compatibility)
     return students;
   } catch (error) {
     // Handle specific error types

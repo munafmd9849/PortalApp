@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
-import { Search, ExternalLink, Users, Filter } from 'lucide-react';
-import { SCHOOL_OPTIONS, BATCH_OPTIONS, CENTER_OPTIONS } from '../../../constants/academics';
+import { Search, ExternalLink, Users, Filter, X } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
-import { FaBriefcase, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt } from 'react-icons/fa';
 
 function JobRowSkeleton() {
   return (
@@ -21,14 +19,22 @@ export default function AdminApplicantsHub() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [jobs, setJobs] = useState([]);
-  const [search, setSearch] = useState('');
+  
+  // Filters - Simplified: only search and status
   const [filters, setFilters] = useState({
-    jobType: '', // 'Internship' or 'Full-Time'
-    center: '',
-    school: '',
-    batch: ''
+    search: '', // Search by job title or company
+    status: '', // Job status filter
   });
 
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  // Load jobs with filters
   useEffect(() => {
     let cancelled = false;
 
@@ -36,7 +42,21 @@ export default function AdminApplicantsHub() {
       setLoading(true);
       setError('');
       try {
-        const res = await api.getJobs({ page: 1, limit: 200 });
+        const params = {
+          page: 1,
+          limit: 200,
+          search: debouncedSearch || undefined,
+          status: filters.status || undefined,
+        };
+
+        // Remove undefined params
+        Object.keys(params).forEach(key => {
+          if (params[key] === undefined || params[key] === '') {
+            delete params[key];
+          }
+        });
+
+        const res = await api.getJobs(params);
         const list = Array.isArray(res) ? res : (res?.jobs || []);
         if (!cancelled) setJobs(Array.isArray(list) ? list : []);
       } catch (e) {
@@ -49,181 +69,28 @@ export default function AdminApplicantsHub() {
 
     loadJobs();
     return () => { cancelled = true; };
-  }, []);
+  }, [debouncedSearch, filters.status]);
 
-  // Extract unique centers, schools and batches from jobs for filter dropdowns
-  const uniqueCenters = useMemo(() => {
-    const centers = new Set();
-    jobs.forEach(job => {
-      try {
-        const targetCenters = job?.targetCenters 
-          ? (typeof job.targetCenters === 'string' ? JSON.parse(job.targetCenters) : job.targetCenters)
-          : [];
-        if (Array.isArray(targetCenters)) {
-          targetCenters.forEach(center => {
-            if (center && center !== 'ALL') {
-              centers.add(center);
-            }
-          });
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return !!(filters.search || filters.status);
+  }, [filters]);
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      status: '',
     });
-    return Array.from(centers);
-  }, [jobs]);
+  };
 
-  const uniqueSchools = useMemo(() => {
-    const schools = new Set();
-    jobs.forEach(job => {
-      try {
-        const targetSchools = job?.targetSchools 
-          ? (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools) : job.targetSchools)
-          : [];
-        if (Array.isArray(targetSchools)) {
-          targetSchools.forEach(school => {
-            if (school && school !== 'ALL') {
-              schools.add(school);
-            }
-          });
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    });
-    return Array.from(schools).sort();
-  }, [jobs]);
-
-  const uniqueBatches = useMemo(() => {
-    const batches = new Set();
-    jobs.forEach(job => {
-      try {
-        const targetBatches = job?.targetBatches 
-          ? (typeof job.targetBatches === 'string' ? JSON.parse(job.targetBatches) : job.targetBatches)
-          : [];
-        if (Array.isArray(targetBatches)) {
-          targetBatches.forEach(batch => {
-            if (batch && batch !== 'ALL') {
-              batches.add(batch);
-            }
-          });
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    });
-    return Array.from(batches).sort();
-  }, [jobs]);
-
-  // Build filter options like StudentDirectory
-  const filterCenterOptions = useMemo(() => {
-    const merged = [...CENTER_OPTIONS];
-    uniqueCenters.forEach((center) => {
-      if (!merged.some(option => option.id === center)) {
-        merged.push({ id: center, name: center });
-      }
-    });
-    return merged;
-  }, [uniqueCenters]);
-
-  const filterSchoolOptions = useMemo(() => {
-    const merged = [...SCHOOL_OPTIONS];
-    uniqueSchools.forEach((school) => {
-      if (!merged.some(option => option.id === school)) {
-        merged.push({ id: school, name: school });
-      }
-    });
-    return merged;
-  }, [uniqueSchools]);
-
-  const filterBatchOptions = useMemo(() => {
-    const merged = [...BATCH_OPTIONS];
-    uniqueBatches.forEach((batch) => {
-      if (!merged.some(option => option.id === batch)) {
-        merged.push({ id: batch, name: batch });
-      }
-    });
-    return merged;
-  }, [uniqueBatches]);
-
-  const filtered = useMemo(() => {
-    let result = jobs;
-
-    // Search filter
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter((j) => {
-        const title = (j?.jobTitle || j?.title || '').toLowerCase();
-        const company = (j?.companyName || j?.company?.name || '').toLowerCase();
-        return title.includes(q) || company.includes(q);
-      });
-    }
-
-    // Job Type filter
-    if (filters.jobType) {
-      result = result.filter((j) => {
-        const jobType = j?.jobType || '';
-        return jobType === filters.jobType;
-      });
-    }
-
-    // Center filter
-    if (filters.center) {
-      result = result.filter((j) => {
-        try {
-          const targetCenters = j?.targetCenters 
-            ? (typeof j.targetCenters === 'string' ? JSON.parse(j.targetCenters) : j.targetCenters)
-            : [];
-          if (Array.isArray(targetCenters)) {
-            return targetCenters.includes('ALL') || targetCenters.includes(filters.center);
-          }
-          return false;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // School filter
-    if (filters.school) {
-      result = result.filter((j) => {
-        try {
-          const targetSchools = j?.targetSchools 
-            ? (typeof j.targetSchools === 'string' ? JSON.parse(j.targetSchools) : j.targetSchools)
-            : [];
-          if (Array.isArray(targetSchools)) {
-            return targetSchools.includes('ALL') || targetSchools.includes(filters.school);
-          }
-          return false;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Batch filter
-    if (filters.batch) {
-      result = result.filter((j) => {
-        try {
-          const targetBatches = j?.targetBatches 
-            ? (typeof j.targetBatches === 'string' ? JSON.parse(j.targetBatches) : j.targetBatches)
-            : [];
-          if (Array.isArray(targetBatches)) {
-            return targetBatches.includes('ALL') || targetBatches.includes(filters.batch);
-          }
-          return false;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    return result;
-  }, [jobs, search, filters]);
+  // Jobs are already filtered by backend, but we keep this for display
+  const filtered = jobs;
 
   return (
     <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 p-8">
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-6">
+      {/* Header */}
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-6 relative z-10">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
@@ -236,84 +103,76 @@ export default function AdminApplicantsHub() {
           </div>
         </div>
 
-        {/* Search and Filters */}
-        <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search jobs by title or company"
-              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+        {/* Filters Section - Simplified */}
+        <div className="border-t border-slate-200 pt-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-700 font-semibold">
+              <Filter className="w-4 h-4" />
+              Filters
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-              {/* Job Type Filter */}
-              <CustomDropdown
-                label="Job Type"
-                icon={FaBriefcase}
-                iconColor="text-blue-600"
-                options={[
-                  { value: '', label: 'All Types' },
-                  { value: 'Internship', label: 'Internship' },
-                  { value: 'Full-Time', label: 'Job (Full-Time)' }
-                ]}
-                value={filters.jobType}
-                onChange={(value) => setFilters(prev => ({ ...prev, jobType: value || '' }))}
-                placeholder="All Types"
-              />
-
-              {/* Center Filter */}
-              <CustomDropdown
-                label="Center"
-                icon={FaMapMarkerAlt}
-                iconColor="text-indigo-600"
-                options={filterCenterOptions.map(opt => ({ value: opt.id, label: opt.name }))}
-                value={filters.center}
-                onChange={(value) => setFilters(prev => ({ ...prev, center: value || '' }))}
-                placeholder="All Centers"
-              />
-
-              {/* School Filter */}
-              <CustomDropdown
-                label="School"
-                icon={FaGraduationCap}
-                iconColor="text-purple-600"
-                options={filterSchoolOptions.map(opt => ({ value: opt.id, label: opt.id }))}
-                value={filters.school}
-                onChange={(value) => setFilters(prev => ({ ...prev, school: value || '' }))}
-                placeholder="All Schools"
-              />
-
-              {/* Batch Filter */}
-              <CustomDropdown
-                label="Batch"
-                icon={FaCalendarAlt}
-                iconColor="text-green-600"
-                options={filterBatchOptions.map(opt => ({ value: opt.id, label: opt.id }))}
-                value={filters.batch}
-                onChange={(value) => setFilters(prev => ({ ...prev, batch: value || '' }))}
-                placeholder="All Batches"
-              />
-            </div>
-            {/* Clear Filters Button */}
-            {(filters.jobType || filters.center || filters.school || filters.batch) && (
+            {hasActiveFilters && (
               <button
-                onClick={() => setFilters({ jobType: '', center: '', school: '', batch: '' })}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow"
+                onClick={resetFilters}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
               >
+                <X className="w-4 h-4" />
                 Reset Filters
               </button>
             )}
           </div>
+
+          {/* Search and Status Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Search */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Search</label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  placeholder="Job title or company name"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+              <CustomDropdown
+                options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'POSTED', label: 'Posted' },
+                  { value: 'APPROVED', label: 'Approved' },
+                  { value: 'IN_REVIEW', label: 'In Review' },
+                  { value: 'REJECTED', label: 'Rejected' },
+                ]}
+                value={filters.status}
+                onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+                placeholder="All Status"
+              />
+            </div>
+          </div>
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-medium text-slate-600">Active Filters:</span>
+                {filters.status && (
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                    Status: {filters.status}
+                  </span>
+                )}
+                {filters.search && (
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                    Search: {filters.search}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -326,38 +185,61 @@ export default function AdminApplicantsHub() {
           {Array.from({ length: 6 }).map((_, idx) => <JobRowSkeleton key={idx} />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
-          <div className="text-slate-900 font-semibold">No jobs found</div>
-          <div className="text-slate-500 text-sm mt-1">Try adjusting your search.</div>
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-12 text-center relative z-0">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
+            <Search className="w-8 h-8 text-slate-400" />
+          </div>
+          <div className="text-slate-900 font-semibold text-lg mb-1">No jobs found</div>
+          <div className="text-slate-500 text-sm">
+            {hasActiveFilters ? 'Try adjusting your search or filters.' : 'No jobs are available at the moment.'}
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-0">
           {filtered.map((job) => {
             const jobId = job?.id || job?.jobId;
             const title = job?.jobTitle || job?.title || 'Job';
             const company = job?.companyName || job?.company?.name || 'Company';
             const status = String(job?.status || '').toUpperCase();
+            const applicationCount = job?.applicationCount || job?.totalApplications || 0;
+
+            const statusConfig = {
+              'POSTED': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '✅' },
+              'APPROVED': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '✓' },
+              'IN_REVIEW': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '⏳' },
+              'REJECTED': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: '✕' },
+            };
+            const statusStyle = statusConfig[status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: '•' };
 
             return (
-              <div key={jobId} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-900 truncate">{title}</div>
-                    <div className="text-sm text-slate-600 truncate">{company}</div>
+              <div key={jobId} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-200 p-6 group">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 text-lg truncate group-hover:text-indigo-600 transition-colors">{title}</div>
+                    <div className="text-sm text-slate-600 truncate mt-1 flex items-center gap-2">
+                      <span>🏢</span>
+                      {company}
+                    </div>
                   </div>
                   {status && (
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-slate-50 text-slate-700 border-slate-200">
+                    <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border} flex items-center gap-1`}>
+                      <span>{statusStyle.icon}</span>
                       {status}
                     </span>
                   )}
                 </div>
 
-                <div className="mt-4">
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-semibold text-slate-700">{applicationCount}</span>
+                    <span className="text-xs text-slate-500">applicant{applicationCount !== 1 ? 's' : ''}</span>
+                  </div>
                   <button
                     onClick={() => navigate(`/admin/jobs/${jobId}/applications`)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-semibold"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 transition-all font-semibold shadow-sm hover:shadow-md"
                   >
-                    Open Applicants
+                    View
                     <ExternalLink className="w-4 h-4" />
                   </button>
                 </div>

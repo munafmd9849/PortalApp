@@ -19,31 +19,47 @@ function generateScreeningToken(jobId, recruiterEmail) {
 
 /**
  * Check for jobs with passed deadlines and send recruiter screening emails
- * This should be called by a cron job or scheduled task
+ * EMAIL TRIGGER RULE:
+ * - Trigger email based ONLY on applicationDeadline (NOT driveDate)
+ * - Send when: currentTime >= applicationDeadline AND applicationDeadlineMailSent == false AND job.status == POSTED
+ * - Must be idempotent (send only once per job)
  */
 export async function checkAndSendScreeningEmails() {
   try {
     const now = new Date();
     
     // Find jobs where:
-    // 1. Application deadline has passed
-    // 2. recruiterEmail is set
-    // 3. No screening session exists yet (or session expired)
-    // 4. Job has applications
-    const jobs = await prisma.job.findMany({
+    // 1. Application deadline has passed (currentTime >= applicationDeadline)
+    // 2. Email not sent yet (applicationDeadlineMailSent == false)
+    // 3. Job is POSTED (status == POSTED)
+    // 4. recruiterEmail is set
+    // 5. requiresScreening OR requiresTest is true (EMAIL ONLY SENT IF SCREENING/TEST REQUIRED)
+    // NOTE: Do NOT check driveDate - this is only based on applicationDeadline
+    let jobs;
+    try {
+      jobs = await prisma.job.findMany({
       where: {
         applicationDeadline: {
-          lte: now, // Deadline has passed
+          lte: now, // Deadline has passed (currentTime >= applicationDeadline)
           not: null // Must have applicationDeadline set
         },
+        applicationDeadlineMailSent: false, // Email not sent yet (idempotency)
+        status: 'POSTED', // Only POSTED jobs (NOT ACTIVE or other statuses)
+        isPosted: true, // Additional check for posted jobs
+        // CRITICAL: Only send email if screening or test is required
         OR: [
-          { recruiterEmail: { not: null } },
-          { recruiterEmails: { not: null } }
+          { requiresScreening: true },
+          { requiresTest: true }
         ],
-        status: {
-          in: ['POSTED', 'ACTIVE']
-        },
-        isPosted: true
+        // Must have recruiter email
+        AND: [
+          {
+            OR: [
+              { recruiterEmail: { not: null } },
+              { recruiterEmails: { not: null } }
+            ]
+          }
+        ]
       },
       select: {
         id: true,
@@ -53,6 +69,8 @@ export async function checkAndSendScreeningEmails() {
         recruiterName: true,
         recruiterEmails: true, // Include new field for multiple emails
         applicationDeadline: true,
+        requiresScreening: true, // Include pre-interview requirement flags
+        requiresTest: true,
         applications: {
           select: { id: true }
         },
@@ -62,34 +80,57 @@ export async function checkAndSendScreeningEmails() {
             expiresAt: true
           }
         }
+      },
+      orderBy: {
+        applicationDeadline: 'asc' // Process oldest deadlines first
       }
-    });
+      });
+    } catch (dbError) {
+      // Handle database quota exceeded gracefully
+      if (dbError.message && dbError.message.includes('quota')) {
+        console.warn(`⚠️ [Deadline Email] Database quota exceeded. Skipping check at ${now.toISOString()}. Will retry when quota resets.`);
+        return {
+          success: false,
+          skipped: true,
+          reason: 'database_quota_exceeded',
+          message: 'Database quota exceeded. Email checks will resume when quota resets.',
+          processed: 0,
+          results: []
+        };
+      }
+      // Re-throw other database errors
+      throw dbError;
+    }
 
     const results = [];
 
     for (const job of jobs) {
-      // Skip if no applications
-      if (!job.applications || job.applications.length === 0) {
+      // Validate that deadline has actually passed (double-check for safety)
+      const deadline = new Date(job.applicationDeadline);
+      if (deadline > now) {
+        // This shouldn't happen due to query filter, but safety check
+        console.warn(`⚠️ Job ${job.id} deadline not yet passed, skipping`);
         continue;
       }
 
-      // Check if screening session already exists and is valid
-      if (job.screeningSession) {
-        const expiresAt = new Date(job.screeningSession.expiresAt);
-        if (expiresAt > now) {
-          // Valid session exists, skip
-          continue;
-        }
-      }
+      // TRIGGER LOGIC: 
+      // IF currentTime >= applicationDeadline
+      // AND applicationDeadlineMailSent == false (already filtered in query)
+      // AND job.status == POSTED (already filtered in query)
+      // AND (requiresScreening == true OR requiresTest == true) (already filtered in query)
+      // THEN: Send email immediately and mark as sent
 
-      // Create or get screening session
+      // Note: Email is ONLY sent if screening or test is required
+      // If both are false, no email is sent and interviews can start immediately
+
+      // Create or get screening session for the links
       let session = await prisma.recruiterScreeningSession.findUnique({
         where: { jobId: job.id }
       });
 
       if (!session) {
         // Create new session
-        const newToken = generateScreeningToken(job.id, job.recruiterEmail);
+        const newToken = generateScreeningToken(job.id, job.recruiterEmail || '');
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 14);
 
@@ -103,7 +144,7 @@ export async function checkAndSendScreeningEmails() {
       } else {
         // Check if expired, regenerate if needed
         if (new Date(session.expiresAt) < now) {
-          const newToken = generateScreeningToken(job.id, job.recruiterEmail);
+          const newToken = generateScreeningToken(job.id, job.recruiterEmail || '');
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 14);
 
@@ -116,8 +157,11 @@ export async function checkAndSendScreeningEmails() {
           });
         }
       }
+      
       // FRONTEND_URL is validated at startup, so it's guaranteed to exist
       const screeningUrl = `${process.env.FRONTEND_URL}/recruiter/screening?token=${encodeURIComponent(session.token)}&jobId=${job.id}`;
+      // TODO: Add QA/Test results page link (if it exists)
+      // const qaTestResultsUrl = `${process.env.FRONTEND_URL}/recruiter/qa-results?token=${encodeURIComponent(session.token)}&jobId=${job.id}`;
 
       // Get all recruiter emails (support both new array format and old single email)
       let recruiterEmailsList = [];
@@ -162,23 +206,30 @@ export async function checkAndSendScreeningEmails() {
                 })()
               : null) || 'Recruiter';
 
-          const emailSubject = `Screening Required: ${job.jobTitle} - ${job.companyName || 'Company'}`;
+          const emailSubject = `Application Deadline Passed: ${job.jobTitle} - ${job.companyName || 'Company'}`;
           const emailBody = `
             <html>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #2563eb;">Screening Required</h2>
+                  <h2 style="color: #2563eb;">Application Deadline Passed</h2>
                   <p>Dear ${recruiterName},</p>
                   <p>The application deadline for the following position has passed:</p>
                   <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
                     <p><strong>Job Title:</strong> ${job.jobTitle}</p>
                     <p><strong>Company:</strong> ${job.companyName || 'N/A'}</p>
-                    <p><strong>Total Applications:</strong> ${job.applications.length}</p>
-                    <p><strong>Application Deadline:</strong> ${job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString() : 'N/A'}</p>
+                    <p><strong>Application Deadline:</strong> ${job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleString() : 'N/A'}</p>
+                    ${job.applications && job.applications.length > 0 ? `<p><strong>Total Applications:</strong> ${job.applications.length}</p>` : ''}
                   </div>
-                  <p>Please use the link below to access the screening portal and review applications:</p>
+                  ${job.requiresScreening || job.requiresTest ? `
+                    <p><strong>Pre-Interview Requirements:</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                      ${job.requiresScreening ? '<li>Resume Screening required</li>' : ''}
+                      ${job.requiresTest ? '<li>QA/Test required</li>' : ''}
+                    </ul>
+                    <p>Please use the link below to access the screening portal and review applications:</p>
+                  ` : '<p>All applications are ready for review.</p>'}
                   <div style="text-align: center; margin: 30px 0;">
-                    <a href="${screeningUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    <a href="${screeningUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 10px;">
                       Access Screening Portal
                     </a>
                   </div>
@@ -201,20 +252,36 @@ export async function checkAndSendScreeningEmails() {
           });
 
           emailResults.push({ email: recruiterEmail, status: 'sent' });
-          console.log(`✅ Screening email sent for job ${job.id} (${job.jobTitle}) to ${recruiterEmail}`);
+          console.log(`✅ Deadline email sent for job ${job.id} (${job.jobTitle}) to ${recruiterEmail} at ${now.toISOString()}`);
         } catch (emailError) {
-          console.error(`❌ Failed to send screening email for job ${job.id} to ${recruiterEmail}:`, emailError);
+          console.error(`❌ Failed to send deadline email for job ${job.id} to ${recruiterEmail}:`, emailError);
           emailResults.push({ email: recruiterEmail, status: 'failed', error: emailError.message });
         }
+      }
+
+      // Mark email as sent ONLY if at least one email was successfully sent
+      // This ensures idempotency - email won't be sent twice
+      const hasSuccessfulEmail = emailResults.some(r => r.status === 'sent');
+      if (hasSuccessfulEmail) {
+        await prisma.job.update({
+          where: { id: job.id },
+          data: {
+            applicationDeadlineMailSent: true
+          }
+        });
+        console.log(`✅ Marked job ${job.id} as email sent (applicationDeadlineMailSent = true) at ${now.toISOString()}`);
       }
 
       results.push({
         jobId: job.id,
         jobTitle: job.jobTitle,
+        applicationDeadline: job.applicationDeadline,
+        deadlinePassedAt: now.toISOString(),
         recruiterEmails: recruiterEmailsList,
         emailResults,
         status: emailResults.some(r => r.status === 'sent') ? 'sent' : 'failed',
-        applicationsCount: job.applications.length
+        emailSentFlag: hasSuccessfulEmail,
+        applicationsCount: job.applications ? job.applications.length : 0
       });
     }
 
@@ -224,6 +291,18 @@ export async function checkAndSendScreeningEmails() {
       results
     };
   } catch (error) {
+    // Handle database quota exceeded gracefully
+    if (error.message && error.message.includes('quota')) {
+      console.warn(`⚠️ [Deadline Email] Database quota exceeded. Skipping check. Will retry when quota resets.`);
+      return {
+        success: false,
+        skipped: true,
+        reason: 'database_quota_exceeded',
+        message: 'Database quota exceeded. Email checks will resume when quota resets.',
+        processed: 0,
+        results: []
+      };
+    }
     console.error('Error in checkAndSendScreeningEmails:', error);
     throw error;
   }

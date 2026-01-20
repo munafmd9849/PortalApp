@@ -389,8 +389,8 @@ model Job {
   // Location & Dates
   location            String?
   companyLocation     String?
-  driveDate           DateTime?
-  applicationDeadline DateTime?
+  driveDate           DateTime // REQUIRED: Interview drive date - interviews cannot start before this
+  applicationDeadline DateTime // REQUIRED: Last date/time students can apply - applications are permanently closed after this
 
   // Job Details
   jobType         String? // 'Full-time', 'Internship', etc.
@@ -410,9 +410,16 @@ model Job {
   spocs String // Array of { fullName, email, phone } as JSON string
 
   // Status
-  status   String  @default("DRAFT") // JobStatus: DRAFT, IN_REVIEW, POSTED, ACTIVE, ARCHIVED, REJECTED
+  status   String  @default("IN_REVIEW") // JobStatus: IN_REVIEW, APPROVED, REJECTED, POSTED
   isActive Boolean @default(false)
   isPosted Boolean @default(false)
+  
+  // Email trigger flag
+  applicationDeadlineMailSent Boolean @default(false) // Flag to prevent duplicate deadline emails
+
+  // Pre-Interview Requirements
+  requiresScreening Boolean @default(false) // Resume screening required before interview
+  requiresTest      Boolean @default(false) // QA/Test required before interview
 
   // Targeting (stored as JSON strings)
   targetSchools String // Array of schools or ["ALL"] (stored as JSON string)
@@ -448,10 +455,11 @@ model Job {
   @@index([isActive, createdAt(sort: Desc)])
   @@index([recruiterId, createdAt(sort: Desc)])
   @@index([isPosted, createdAt(sort: Desc)])
+  @@index([applicationDeadline, applicationDeadlineMailSent, status]) // Index for deadline email trigger query
   @@map("jobs")
 }
 
-// JobStatus: "DRAFT", "IN_REVIEW", "POSTED", "ACTIVE", "ARCHIVED", "REJECTED"
+// JobStatus: "IN_REVIEW", "APPROVED", "REJECTED", "POSTED"
 
 // Job Tracking (tracks which students have seen/available jobs)
 model JobTracking {
@@ -490,7 +498,8 @@ model Application {
   interviewDate DateTime?
 
   // Pre-interview screening status (REQUIRED before interview)
-  screeningStatus String? @default("APPLIED") // ScreeningStatus: APPLIED, RESUME_REJECTED, RESUME_SELECTED, TEST_REJECTED, TEST_SELECTED
+  // Status progression: APPLIED -> SCREENING_SELECTED/SCREENING_REJECTED -> TEST_SELECTED/TEST_REJECTED -> INTERVIEW_ELIGIBLE
+  screeningStatus String? @default("APPLIED") // ScreeningStatus: APPLIED, SCREENING_SELECTED, SCREENING_REJECTED, TEST_SELECTED, TEST_REJECTED, INTERVIEW_ELIGIBLE
   screeningRemarks String? // Optional remarks from recruiter during screening
   screeningCompletedAt DateTime? // When screening was finalized
 
@@ -871,7 +880,7 @@ model InterviewSession {
   jobId     String  @unique
   companyId String?
 
-  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED
+  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE
 
   // Creator
   createdBy String // Admin user ID
@@ -893,7 +902,7 @@ model InterviewSession {
   @@map("interview_sessions")
 }
 
-// SessionStatus: "NOT_STARTED", "ONGOING", "COMPLETED"
+// SessionStatus: "NOT_STARTED", "ONGOING", "COMPLETED", "INCOMPLETE"
 
 model InterviewRound {
   id          String @id @default(uuid())

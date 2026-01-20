@@ -156,25 +156,27 @@ export default function RecruiterDirectory() {
   
   const totalPages = Math.ceil(pagination.totalItems / pagination.itemsPerPage);
 
-  // Calculate statistics - must be before conditional returns to follow Rules of Hooks
+  // Calculate statistics from ALL recruiters (not filtered) - must be before conditional returns to follow Rules of Hooks
   const stats = React.useMemo(() => {
-    const total = filteredRecruiters.length;
-    const active = filteredRecruiters.filter(r => {
-      const status = String(r?.status || 'ACTIVE').toUpperCase();
-      return status === 'ACTIVE';
-    }).length;
-    const blocked = filteredRecruiters.filter(r => {
-      const status = String(r?.status || 'ACTIVE').toUpperCase();
-      return status === 'BLOCKED';
-    }).length;
-    const inactive = filteredRecruiters.filter(r => {
-      const status = String(r?.status || 'ACTIVE').toUpperCase();
-      // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
-      return status !== 'ACTIVE' && status !== 'BLOCKED';
-    }).length;
-    const totalJobs = filteredRecruiters.reduce((sum, r) => sum + (r.totalJobPostings || 0), 0);
-    return { total, active, blocked, inactive, totalJobs };
-  }, [filteredRecruiters]);
+    // Normalize status for counting
+    // PENDING is treated as Active since recruiters should be active once registered
+    const normalizeStatus = (status) => {
+      if (!status) return 'Active';
+      const statusUpper = String(status).toUpperCase();
+      if (statusUpper === 'ACTIVE') return 'Active';
+      if (statusUpper === 'BLOCKED') return 'Blocked';
+      // Treat PENDING and REJECTED as Active (they're not blocked, so they're active)
+      if (statusUpper === 'PENDING') return 'Active';
+      if (statusUpper === 'REJECTED') return 'Active';
+      return 'Active';
+    };
+    
+    const active = recruiters.filter(r => normalizeStatus(r.status) === 'Active').length;
+    const blocked = recruiters.filter(r => normalizeStatus(r.status) === 'Blocked').length;
+    const total = recruiters.length;
+    const totalJobs = recruiters.reduce((sum, r) => sum + (r.totalJobPostings || 0), 0);
+    return { total, active, blocked, totalJobs };
+  }, [recruiters]);
 
   // Get status styling - matching job moderation style
   const getStatusChip = (status) => {

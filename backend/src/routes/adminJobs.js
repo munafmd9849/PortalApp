@@ -11,10 +11,11 @@ import * as applicationController from '../controllers/applications.js';
 const router = express.Router({ mergeParams: true });
 
 // GET /api/admin/jobs/:jobId/applications
+// Also accessible by RECRUITER for their own jobs
 router.get(
   '/jobs/:jobId/applications',
   authenticate,
-  requireRole(['ADMIN']),
+  requireRole(['ADMIN', 'RECRUITER']),
   applicationController.getAdminJobApplications
 );
 

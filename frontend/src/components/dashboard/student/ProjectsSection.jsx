@@ -22,6 +22,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
     liveUrl: '',
     githubUrl: ''
   });
+  const [techStackInput, setTechStackInput] = useState(''); // Raw input for tech stack
   const [aiGenerated, setAiGenerated] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -122,6 +123,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       liveUrl: project.liveUrl || '',
       githubUrl: project.githubUrl || ''
     });
+    setTechStackInput(techStack.join(', ')); // Set raw input for editing
     // Load AI-generated content if available
     if (project.ai_summary || project.ai_bullets) {
       setAiGenerated({
@@ -146,10 +148,11 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
 
     try {
       setGenerating(true);
+      const techStackArray = techStackInput.split(',').map(t => t.trim()).filter(t => t);
       const generated = await generateProjectContent({
         title: editedProject.title,
         description: editedProject.description,
-        techStack: editedProject.techStack || []
+        techStack: techStackArray
       });
       setAiGenerated(generated);
     } catch (error) {
@@ -161,8 +164,8 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
   };
 
   const saveProject = async () => {
-    if (!editedProject.title.trim() || !editedProject.description.trim()) {
-      setError('Please fill in all required fields.');
+    if (!editedProject.title.trim() || !editedProject.description.trim() || !editedProject.liveUrl.trim()) {
+      setError('Please fill in all required fields (Title, Description, and Project URL).');
       return;
     }
 
@@ -170,11 +173,14 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       setLoading(true);
       setError('');
 
+      // Process tech stack from raw input
+      const techStackArray = techStackInput.split(',').map(t => t.trim()).filter(t => t);
+      
       // Prepare project data with AI-generated content
       const projectData = {
         title: editedProject.title,
         description: editedProject.description,
-        technologies: JSON.stringify(editedProject.techStack || []),
+        technologies: JSON.stringify(techStackArray),
         liveUrl: editedProject.liveUrl ? normalizeUrl(editedProject.liveUrl) : '',
         githubUrl: editedProject.githubUrl ? normalizeUrl(editedProject.githubUrl) : ''
       };
@@ -264,11 +270,13 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       setIsAddButtonActive(false);
       setAiGenerated(null);
       setEditedProject({ title: '', description: '', techStack: [], liveUrl: '', githubUrl: '' });
+      setTechStackInput('');
       setError('');
     } else {
       // Start adding
       setEditingIndex(projects.length);
       setEditedProject({ title: '', description: '', techStack: [], liveUrl: '', githubUrl: '' });
+      setTechStackInput('');
       setAiGenerated(null);
       setIsAddButtonActive(true);
       setError('');
@@ -297,7 +305,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       }, 1000); // Debounce 1 second
       return () => clearTimeout(timer);
     }
-  }, [editedProject.title, editedProject.description, editedProject.techStack]);
+  }, [editedProject.title, editedProject.description, techStackInput]);
 
   return (
     <div className="w-full relative">
@@ -375,42 +383,57 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
             {/* Add new project form when editingIndex equals projects.length */}
             {editingIndex === projects.length && (
               <div ref={formRef} className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]">
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Project Title <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={editedProject.title}
                   onChange={(e) => handleChange('title', e.target.value)}
-                  placeholder="Project Title *"
+                  placeholder="Enter project title"
+                  required
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Project Description <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   value={editedProject.description}
                   onChange={(e) => handleChange('description', e.target.value)}
-                  placeholder="Project Description *"
+                  placeholder="Enter project description"
+                  required
                   rows={3}
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                 />
-                <input
-                  type="text"
-                  value={editedProject.techStack?.join(', ') || ''}
-                  onChange={(e) => {
-                    const techStack = e.target.value.split(',').map(t => t.trim()).filter(t => t);
-                    handleChange('techStack', techStack);
-                  }}
-                  placeholder="Tech Stack (comma-separated, e.g., React, Node.js, MongoDB)"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                />
-                <input
-                  type="url"
-                  value={editedProject.githubUrl}
-                  onChange={(e) => handleChange('githubUrl', e.target.value)}
-                  placeholder="GitHub URL"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                />
+                <label className="text-sm font-semibold text-black mb-1 block">
+                  Project URL <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="url"
                   value={editedProject.liveUrl}
                   onChange={(e) => handleChange('liveUrl', e.target.value)}
-                  placeholder="Project URL"
+                  placeholder="Enter project URL (e.g., https://example.com)"
+                  required
+                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                />
+                <label className="text-sm font-semibold text-black mb-1 block">Tech Stack</label>
+                <input
+                  type="text"
+                  value={techStackInput}
+                  onChange={(e) => setTechStackInput(e.target.value)}
+                  onBlur={() => {
+                    const techStack = techStackInput.split(',').map(t => t.trim()).filter(t => t);
+                    handleChange('techStack', techStack);
+                  }}
+                  placeholder="Enter technologies (comma-separated, e.g., React, Node.js, MongoDB)"
+                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                />
+                <label className="text-sm font-semibold text-black mb-1 block">GitHub URL</label>
+                <input
+                  type="url"
+                  value={editedProject.githubUrl}
+                  onChange={(e) => handleChange('githubUrl', e.target.value)}
+                  placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
                 
@@ -469,42 +492,57 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                   key={index}
                   className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]"
                 >
+                  <label className="text-sm font-semibold text-black mb-1 block">
+                    Project Title <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={editedProject.title}
                     onChange={(e) => handleChange('title', e.target.value)}
-                    placeholder="Project Title *"
+                    placeholder="Enter project title"
+                    required
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                   />
+                  <label className="text-sm font-semibold text-black mb-1 block">
+                    Project Description <span className="text-red-500">*</span>
+                  </label>
                   <textarea
                     value={editedProject.description}
                     onChange={(e) => handleChange('description', e.target.value)}
-                    placeholder="Project Description *"
+                    placeholder="Enter project description"
+                    required
                     rows={3}
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
                   />
-                  <input
-                    type="text"
-                    value={editedProject.techStack?.join(', ') || ''}
-                    onChange={(e) => {
-                      const techStack = e.target.value.split(',').map(t => t.trim()).filter(t => t);
-                      handleChange('techStack', techStack);
-                    }}
-                    placeholder="Tech Stack (comma-separated)"
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                  />
-                  <input
-                    type="url"
-                    value={editedProject.githubUrl}
-                    onChange={(e) => handleChange('githubUrl', e.target.value)}
-                    placeholder="GitHub URL"
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                  />
+                  <label className="text-sm font-semibold text-black mb-1 block">
+                    Project URL <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="url"
                     value={editedProject.liveUrl}
                     onChange={(e) => handleChange('liveUrl', e.target.value)}
-                    placeholder="Project URL"
+                    placeholder="Enter project URL (e.g., https://example.com)"
+                    required
+                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  />
+                  <label className="text-sm font-semibold text-black mb-1 block">Tech Stack</label>
+                  <input
+                    type="text"
+                    value={techStackInput}
+                    onChange={(e) => setTechStackInput(e.target.value)}
+                    onBlur={() => {
+                      const techStack = techStackInput.split(',').map(t => t.trim()).filter(t => t);
+                      handleChange('techStack', techStack);
+                    }}
+                    placeholder="Enter technologies (comma-separated, e.g., React, Node.js, MongoDB)"
+                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  />
+                  <label className="text-sm font-semibold text-black mb-1 block">GitHub URL</label>
+                  <input
+                    type="url"
+                    value={editedProject.githubUrl}
+                    onChange={(e) => handleChange('githubUrl', e.target.value)}
+                    placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
                     className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                   />
                   
@@ -564,12 +602,12 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
               ) : (
                 <div
                   key={index}
-                  className={`rounded-lg px-4 py-3 transition-all duration-200 hover:shadow-md bg-gradient-to-r ${
+                  className={`group/proj-row rounded-xl px-5 py-4 transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r ${
                     index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-1 gap-2">
-                    <h4 className="text-base sm:text-xl font-bold text-black flex-1 min-w-0 break-words">{project.title}</h4>
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h4 className="text-base sm:text-xl font-bold text-gray-900 flex-1 min-w-0 break-words">{project.title}</h4>
                     <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => startEditing(index)}
@@ -604,6 +642,40 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                       </a>
                     </div>
                   )}
+                  
+                  {/* Tech Stack and GitHub URL - Hidden by default, shown on hover */}
+                  <div className="overflow-hidden max-h-0 group-hover/proj-row:max-h-20 transition-all duration-300 ease-in-out mt-2 pl-0 sm:pl-3">
+                    {project.technologies && (() => {
+                      let techStack = [];
+                      try {
+                        techStack = typeof project.technologies === 'string' 
+                          ? JSON.parse(project.technologies) 
+                          : project.technologies;
+                      } catch (e) {
+                        techStack = [];
+                      }
+                      return techStack.length > 0 ? (
+                        <div className="text-sm text-gray-700 mb-1">
+                          <span className="font-semibold text-black text-xs sm:text-sm">Tech Stack: </span>
+                          <span className="text-xs sm:text-sm">{techStack.join(', ')}</span>
+                        </div>
+                      ) : null;
+                    })()}
+                    {project.githubUrl && (
+                      <div className="text-sm text-gray-700 flex flex-wrap items-center gap-1">
+                        <span className="font-semibold text-black text-xs sm:text-sm">GitHub URL:</span>
+                        <a
+                          href={project.githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 inline-flex items-center break-all touch-manipulation"
+                        >
+                          <ExternalLink size={12} className="mr-1 flex-shrink-0" />
+                          <span className="text-xs sm:text-sm">View Repository</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             ))}

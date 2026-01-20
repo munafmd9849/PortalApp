@@ -66,7 +66,7 @@ const CustomDropdown = ({
         </button>
         
         {isOpen && (
-          <div className="absolute z-20 w-full bg-white border-2 border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+          <div className="absolute z-[9999] w-full bg-white border-2 border-gray-300 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
             {options.map((option) => {
               const isSelected = value === option.value;
               return (

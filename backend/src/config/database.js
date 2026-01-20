@@ -41,9 +41,11 @@ function assertPostgresOnlyDatabaseUrl() {
 assertPostgresOnlyDatabaseUrl();
 
 // Prisma client configuration for Postgres
+// Note: Prisma's built-in error logging can't be easily filtered,
+// but we handle quota errors gracefully in our code
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' 
-    ? ['query', 'error', 'warn'] 
+    ? ['error', 'warn'] // Removed 'query' to reduce noise, keep errors/warnings
     : ['error'],
 });
 

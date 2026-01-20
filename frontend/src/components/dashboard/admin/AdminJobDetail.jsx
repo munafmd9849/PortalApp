@@ -21,8 +21,16 @@ import {
   FaUserTie,
   FaHandshake,
   FaBan,
-  FaInfoCircle
+  FaInfoCircle,
+  FaEdit,
+  FaFileAlt,
+  FaTimes,
+  FaCheck
 } from 'react-icons/fa';
+import { updateJob } from '../../../services/jobs';
+import { useToast } from '../../ui/Toast';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 export default function AdminJobDetail() {
   const { jobId } = useParams();
@@ -33,6 +41,15 @@ export default function AdminJobDetail() {
   const [error, setError] = useState('');
   const [screeningData, setScreeningData] = useState(null);
   const [loadingScreening, setLoadingScreening] = useState(false);
+  
+  // Edit dates modal state (for POSTED jobs)
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editDatesForm, setEditDatesForm] = useState({
+    applicationDeadline: null,
+    driveDate: null
+  });
+  const [savingDates, setSavingDates] = useState(false);
+  const toast = useToast();
 
   // Helper function to parse JSON fields
   const parseJsonField = (field) => {
@@ -88,7 +105,9 @@ export default function AdminJobDetail() {
       try {
         setLoading(true);
         setError('');
-        const jobData = await getJob(jobId);
+        const response = await getJob(jobId);
+        // Handle both direct job object and wrapped response
+        const jobData = response?.data || response;
         setJob(jobData);
       } catch (err) {
         console.error('Error loading job:', err);
@@ -176,14 +195,59 @@ export default function AdminJobDetail() {
           <span>Back</span>
         </button>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/admin/jobs/${jobId}/applications`)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
-            title="View Applicants"
-          >
-            <FaUsers className="text-sm" />
-            <span>View Applicants</span>
-          </button>
+          {/* Edit Button - Show for IN_REVIEW jobs (admin can edit all fields) */}
+          {(job.status === 'IN_REVIEW' || job.status === 'in_review') && (
+            <button
+              onClick={() => navigate(`/admin?tab=createJob&editJobId=${jobId}`)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              title="Edit Job (All fields editable in IN_REVIEW status)"
+            >
+              <FaFileAlt className="text-sm" />
+              <span>Edit Job</span>
+            </button>
+          )}
+          
+          {/* Edit Dates Button - Show for POSTED jobs (admin can edit only dates) */}
+          {(job.status === 'POSTED' || job.status === 'posted') && (
+            <button
+              onClick={() => {
+                // Initialize form with current dates
+                const deadlineDate = job.applicationDeadline 
+                  ? (typeof job.applicationDeadline === 'object' && job.applicationDeadline.toMillis
+                      ? new Date(job.applicationDeadline.toMillis())
+                      : new Date(job.applicationDeadline))
+                  : null;
+                const driveDateValue = job.driveDate
+                  ? (typeof job.driveDate === 'object' && job.driveDate.toMillis
+                      ? new Date(job.driveDate.toMillis())
+                      : new Date(job.driveDate))
+                  : null;
+                
+                setEditDatesForm({
+                  applicationDeadline: deadlineDate,
+                  driveDate: driveDateValue
+                });
+                setIsEditingDates(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              title="Edit Dates (Only application deadline and drive date can be edited for POSTED jobs)"
+            >
+              <FaEdit className="text-sm" />
+              <span>Edit Dates</span>
+            </button>
+          )}
+          
+          {/* View Applicants Button - Show only for POSTED jobs (only posted jobs have applicants) */}
+          {(job.status === 'POSTED' || job.status === 'posted') && (
+            <button
+              onClick={() => navigate(`/admin/jobs/${jobId}/applications`)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              title="View Applicants"
+            >
+              <FaUsers className="text-sm" />
+              <span>View Applicants</span>
+            </button>
+          )}
 
           <span className={`px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
             job.status === 'POSTED' || job.status === 'posted' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 
@@ -191,7 +255,9 @@ export default function AdminJobDetail() {
             job.status === 'IN_REVIEW' || job.status === 'in_review' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
             'bg-slate-100 text-slate-700 border border-slate-200'
           }`}>
-            {job.status === 'POSTED' || job.status === 'posted' ? 'Active' : (job.status || 'Draft')}
+            {job.status === 'POSTED' || job.status === 'posted' ? 'POSTED' : 
+             job.status === 'IN_REVIEW' || job.status === 'in_review' ? 'IN_REVIEW' : 
+             (job.status || 'Draft')}
           </span>
         </div>
       </div>
@@ -669,31 +735,98 @@ export default function AdminJobDetail() {
       {/* Drive Details */}
       {(job.driveDate || job.driveVenues || job.applicationDeadline) && (
         <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
-          <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
-            <div className="w-1 h-6 bg-gradient-to-b from-rose-500 to-pink-600 rounded-full"></div>
-            <h2 className="text-xl font-semibold text-slate-800">Drive Details</h2>
+          <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-6 bg-gradient-to-b from-rose-500 to-pink-600 rounded-full"></div>
+              <h2 className="text-xl font-semibold text-slate-800">Drive Details</h2>
+            </div>
+            {/* Edit Dates Button - Show for POSTED jobs */}
+            {(job.status === 'POSTED' || job.status === 'posted') && (
+              <button
+                onClick={() => {
+                  const deadlineDate = job.applicationDeadline 
+                    ? (typeof job.applicationDeadline === 'object' && job.applicationDeadline.toMillis
+                        ? new Date(job.applicationDeadline.toMillis())
+                        : new Date(job.applicationDeadline))
+                    : null;
+                  const driveDateValue = job.driveDate
+                    ? (typeof job.driveDate === 'object' && job.driveDate.toMillis
+                        ? new Date(job.driveDate.toMillis())
+                        : new Date(job.driveDate))
+                    : null;
+                  
+                  setEditDatesForm({
+                    applicationDeadline: deadlineDate,
+                    driveDate: driveDateValue
+                  });
+                  setIsEditingDates(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md"
+                title="Edit Dates (Only dates can be edited for POSTED jobs)"
+              >
+                <FaEdit className="w-3.5 h-3.5" />
+                <span>Edit Dates</span>
+              </button>
+            )}
           </div>
           <div className="bg-gradient-to-br from-slate-50 to-rose-50/20 p-5 rounded-lg border border-slate-100 space-y-4">
-            {job.driveDate && (
-              <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Drive Date</span>
-                <span className="text-slate-700 font-medium">
-                  {typeof job.driveDate === 'object' && job.driveDate.toMillis ? 
-                    new Date(job.driveDate.toMillis()).toLocaleDateString() :
-                    new Date(job.driveDate).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-            {job.applicationDeadline && (
-              <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Application Deadline</span>
-                <span className="text-slate-700 font-medium">
-                  {typeof job.applicationDeadline === 'object' && job.applicationDeadline.toMillis ? 
-                    new Date(job.applicationDeadline.toMillis()).toLocaleDateString() :
-                    new Date(job.applicationDeadline).toLocaleDateString()}
-                </span>
-              </div>
-            )}
+            {job.applicationDeadline && (() => {
+              const deadlineDate = typeof job.applicationDeadline === 'object' && job.applicationDeadline.toMillis 
+                ? new Date(job.applicationDeadline.toMillis()) 
+                : new Date(job.applicationDeadline);
+              const now = new Date();
+              const isClosed = now > deadlineDate;
+              return (
+                <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Application Deadline</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      isClosed ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'
+                    }`}>
+                      {isClosed ? 'Closed' : 'Open'}
+                    </span>
+                  </div>
+                  <span className="text-slate-700 font-medium">
+                    {deadlineDate.toLocaleDateString()} {deadlineDate.toLocaleTimeString()}
+                  </span>
+                </div>
+              );
+            })()}
+            {job.driveDate && (() => {
+              const driveDate = typeof job.driveDate === 'object' && job.driveDate.toMillis 
+                ? new Date(job.driveDate.toMillis()) 
+                : new Date(job.driveDate);
+              const now = new Date();
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const driveDateOnly = new Date(driveDate);
+              driveDateOnly.setHours(0, 0, 0, 0);
+              
+              let status = 'Upcoming';
+              let statusColor = 'bg-blue-100 text-blue-700 border-blue-200';
+              
+              if (driveDateOnly.getTime() === today.getTime()) {
+                status = 'Today';
+                statusColor = 'bg-green-100 text-green-700 border-green-200';
+              } else if (driveDate < now) {
+                status = 'Passed';
+                statusColor = 'bg-gray-100 text-gray-700 border-gray-200';
+              }
+              
+              return (
+                <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Drive Date</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusColor}`}>
+                      {status}
+                    </span>
+                  </div>
+                  <span className="text-slate-700 font-medium">
+                    {driveDate.toLocaleDateString()} {driveDate.toLocaleTimeString()}
+                  </span>
+                </div>
+              );
+            })()}
             {job.driveVenues && (
               <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Venues</span>
@@ -958,6 +1091,137 @@ export default function AdminJobDetail() {
           </div>
         </div>
       </div>
+
+      {/* Edit Dates Modal - For POSTED jobs only */}
+      {isEditingDates && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  <FaEdit className="w-5 h-5 text-blue-600" />
+                  Edit Dates (POSTED Job)
+                </h2>
+                <button
+                  onClick={() => setIsEditingDates(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <FaTimes className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                For POSTED jobs, only application deadline and drive date can be edited. All other fields are locked.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Application Deadline */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Application Deadline *
+                </label>
+                <DatePicker
+                  selected={editDatesForm.applicationDeadline}
+                  onChange={(date) => setEditDatesForm(prev => ({ ...prev, applicationDeadline: date }))}
+                  showTimeSelect
+                  dateFormat="dd/MM/yyyy HH:mm"
+                  timeFormat="HH:mm"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholderText="Select application deadline"
+                />
+              </div>
+
+              {/* Drive Date */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Drive Date *
+                </label>
+                <DatePicker
+                  selected={editDatesForm.driveDate}
+                  onChange={(date) => setEditDatesForm(prev => ({ ...prev, driveDate: date }))}
+                  showTimeSelect
+                  dateFormat="dd/MM/yyyy HH:mm"
+                  timeFormat="HH:mm"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholderText="Select drive date"
+                />
+              </div>
+
+              {/* Validation message */}
+              {editDatesForm.applicationDeadline && editDatesForm.driveDate && 
+               editDatesForm.driveDate <= editDatesForm.applicationDeadline && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-800 text-sm">
+                    <strong>Error:</strong> Drive date must be after the application deadline.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+              <button
+                onClick={() => setIsEditingDates(false)}
+                disabled={savingDates}
+                className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  // Validate
+                  if (!editDatesForm.applicationDeadline || !editDatesForm.driveDate) {
+                    toast.error('Both dates are required');
+                    return;
+                  }
+
+                  if (editDatesForm.driveDate <= editDatesForm.applicationDeadline) {
+                    toast.error('Drive date must be after the application deadline');
+                    return;
+                  }
+
+                  try {
+                    setSavingDates(true);
+                    await updateJob(jobId, {
+                      applicationDeadline: editDatesForm.applicationDeadline.toISOString(),
+                      driveDate: editDatesForm.driveDate.toISOString()
+                    });
+                    
+                    // Refresh job data
+                    const response = await getJob(jobId);
+                    const updatedJob = response?.data || response;
+                    if (updatedJob) {
+                      setJob(updatedJob);
+                    }
+                    
+                    toast.success('Dates updated successfully');
+                    setIsEditingDates(false);
+                  } catch (error) {
+                    console.error('Failed to update dates:', error);
+                    toast.error(error?.response?.data?.message || error?.message || 'Failed to update dates');
+                  } finally {
+                    setSavingDates(false);
+                  }
+                }}
+                disabled={savingDates || !editDatesForm.applicationDeadline || !editDatesForm.driveDate || 
+                         (editDatesForm.driveDate <= editDatesForm.applicationDeadline)}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {savingDates ? (
+                  <>
+                    <FaClock className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaCheck className="w-4 h-4" />
+                    <span>Save Dates</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

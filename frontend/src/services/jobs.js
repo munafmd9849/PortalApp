@@ -52,7 +52,10 @@ export async function getJobDetails(jobId) {
  */
 export async function createJob(recruiterId, jobData) {
   try {
-    const job = await api.createJob(jobData);
+    const response = await api.createJob(jobData);
+    // Backend returns { success: true, message: "...", data: job }
+    // Extract the job from data field
+    const job = response?.data || response;
     return job;
   } catch (error) {
     console.error('createJob error:', error);
@@ -395,11 +398,39 @@ export async function postJob(jobId, targeting = {}) {
  */
 export async function submitJobForReview(jobData) {
   try {
-    // Create job - backend will set status to IN_REVIEW for non-admin users
+    console.log('📤 [submitJobForReview] Starting job submission...');
+    console.log('📦 [submitJobForReview] Job data keys:', Object.keys(jobData || {}));
+    
+    // Create job - backend will set status to IN_REVIEW for ALL jobs (admin and recruiter)
+    // Jobs must be approved by admin before they can be posted to students
     const job = await createJob(null, jobData);
-    return { success: true, jobId: job.id };
+    
+    console.log('✅ [submitJobForReview] Job created successfully:', {
+      id: job?.id,
+      jobTitle: job?.jobTitle,
+      status: job?.status,
+      fullResponse: job,
+    });
+    
+    if (!job || !job.id) {
+      console.error('❌ [submitJobForReview] Job created but missing ID:', {
+        job,
+        jobType: typeof job,
+        jobKeys: job ? Object.keys(job) : null,
+        hasData: job?.data ? 'yes' : 'no',
+        dataId: job?.data?.id,
+      });
+      throw new Error('Job was created but no ID was returned. Please check the server response.');
+    }
+    
+    return { success: true, jobId: job.id, job: job };
   } catch (error) {
-    console.error('submitJobForReview error:', error);
+    console.error('❌ [submitJobForReview] Error occurred:', error);
+    console.error('❌ [submitJobForReview] Error details:', {
+      message: error?.message,
+      response: error?.response,
+      status: error?.status,
+    });
     throw error;
   }
 }

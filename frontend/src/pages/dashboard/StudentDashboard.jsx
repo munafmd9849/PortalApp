@@ -129,6 +129,64 @@ export default function StudentDashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
   const { logout, user } = useAuth();
+  
+  // PERSISTENT CACHE: Use localStorage to cache data across page navigation
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
+  
+  // Helper functions for caching (defined after user is available)
+  const getCachedData = useCallback((key) => {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+      const { data, timestamp } = JSON.parse(cached);
+      const now = Date.now();
+      if (now - timestamp > CACHE_DURATION) {
+        localStorage.removeItem(key); // Expired cache
+        return null;
+      }
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+  
+  const setCachedData = useCallback((key, data) => {
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      console.warn('Failed to cache data:', e);
+    }
+  }, []);
+  
+  const clearCache = useCallback(() => {
+    if (!user?.id) return;
+    const cacheKeys = [
+      `student_profile_${user.id}`,
+      `student_applications_${user.id}`,
+      `student_jobs_${user.id}`,
+      `student_interview_history_${user.id}`,
+      `student_public_profile_${user.id}`,
+    ];
+    cacheKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+  }, [user?.id]);
+  
+  // Get cache key for current user
+  const getCacheKey = useCallback((type) => {
+    if (!user?.id) return null;
+    const keys = {
+      profile: `student_profile_${user.id}`,
+      applications: `student_applications_${user.id}`,
+      jobs: `student_jobs_${user.id}`,
+      interviewHistory: `student_interview_history_${user.id}`,
+      publicProfile: `student_public_profile_${user.id}`,
+    };
+    return keys[type];
+  }, [user?.id]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dragRef = useRef(null);
@@ -347,8 +405,22 @@ export default function StudentDashboard() {
   }, [activeTab, isFormDirty, resetProfileForm]);
 
   // Job loading with proper targeting logic
-  const loadJobsData = useCallback(async () => {
+  const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
+    
+    // OPTIMIZED: Check cache first
+    if (!forceRefresh) {
+      const cacheKey = getCacheKey('jobs');
+      if (cacheKey) {
+        const cachedJobs = getCachedData(cacheKey);
+        if (cachedJobs) {
+          console.log('✅ Using cached jobs data');
+          setJobs(cachedJobs);
+          setLoadingJobs(false);
+          return; // Use cached data, skip API call
+        }
+      }
+    }
     
     setLoadingJobs(true);
     
@@ -412,8 +484,18 @@ export default function StudentDashboard() {
         });
         
         setJobs(targetedJobs);
+        // CACHE: Store filtered jobs in localStorage
+        const jobsCacheKey = getCacheKey('jobs');
+        if (jobsCacheKey) {
+          setCachedData(jobsCacheKey, targetedJobs);
+        }
       } else {
         setJobs(jobs);
+        // CACHE: Store all jobs in localStorage
+        const jobsCacheKey = getCacheKey('jobs');
+        if (jobsCacheKey) {
+          setCachedData(jobsCacheKey, jobs);
+        }
       }
       
     } catch (error) {
@@ -422,7 +504,7 @@ export default function StudentDashboard() {
     } finally {
       setLoadingJobs(false);
     }
-  }, [school, center, batch, profileComplete, user?.id]); // Re-load when profile changes
+    }, [school, center, batch, profileComplete, user?.id]); // Cache functions are stable, no need in deps
 
   // UPDATED: Load profile data function without defaults
   // Use ref to track loading state to prevent infinite loops
@@ -431,11 +513,73 @@ export default function StudentDashboard() {
   const loadProfile = useCallback(async (forceRefresh = false) => {
     if (!user?.id || loadingProfileRef.current) return;
     
-    // Check cache validity
-    const now = Date.now();
-    const twoMinutes = 2 * 60 * 1000;
-    if (!forceRefresh && dataLoaded && lastLoadTime && (now - lastLoadTime) < twoMinutes) {
-      return;
+    // OPTIMIZED: Check persistent cache first
+    if (!forceRefresh) {
+      const cacheKey = getCacheKey('profile');
+      if (cacheKey) {
+        const cachedProfile = getCachedData(cacheKey);
+        if (cachedProfile) {
+          console.log('✅ Using cached profile data');
+          // Use cached data to populate state
+          setFullName(cachedProfile.fullName || '');
+          setEmail(cachedProfile.email || '');
+          setPhone(cachedProfile.phone || '');
+          setEnrollmentId(cachedProfile.enrollmentId || '');
+          if (cachedProfile.cgpa) {
+            const cgpaStr = String(cachedProfile.cgpa);
+            if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+              setCgpa(cgpaStr);
+            } else if (/^\d+$/.test(cgpaStr)) {
+              setCgpa(cgpaStr + '.00');
+            } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+              const parts = cgpaStr.split('.');
+              setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
+            } else {
+              setCgpa(cgpaStr);
+            }
+          } else {
+            setCgpa('');
+          }
+          setBacklogs(cachedProfile.backlogs || '');
+          setBatch(cachedProfile.batch || '');
+          setCenter(cachedProfile.center || '');
+          setSchool(cachedProfile.school || '');
+          setBio(cachedProfile.bio || '');
+          setHeadline(cachedProfile.headline || cachedProfile.Headline || '');
+          setCity(cachedProfile.city || '');
+          setStateRegion(cachedProfile.stateRegion || cachedProfile.state || '');
+          setLinkedin(cachedProfile.linkedin || '');
+          setLeetcode(cachedProfile.leetcode || '');
+          setCodeforces(cachedProfile.codeforces || '');
+          setGfg(cachedProfile.gfg || '');
+          setHackerrank(cachedProfile.hackerrank || '');
+          setGithubUrl(cachedProfile.githubUrl || cachedProfile.github || '');
+          setYoutubeUrl(cachedProfile.youtubeUrl || cachedProfile.youtube || '');
+          setInstagramUrl(cachedProfile.instagramUrl || cachedProfile.instagram || '');
+          setProfilePhoto(cachedProfile.profileImageUrl || cachedProfile.profilePhoto || '');
+          setJobFlexibility(cachedProfile.jobFlexibility || '');
+          if (cachedProfile.otherProfiles) {
+            try {
+              const parsed = typeof cachedProfile.otherProfiles === 'string' 
+                ? JSON.parse(cachedProfile.otherProfiles) 
+                : cachedProfile.otherProfiles;
+              setOtherProfiles(Array.isArray(parsed) ? parsed : []);
+            } catch (e) {
+              setOtherProfiles([]);
+            }
+          } else {
+            setOtherProfiles([]);
+          }
+          setSkillsEntries(Array.isArray(cachedProfile.skills) ? cachedProfile.skills : []);
+          
+          // Set initial snapshot
+          initialProfileRef.current = normalizeProfileSnapshot(cachedProfile);
+          setIsFormDirty(false);
+          setDataLoaded(true);
+          setLastLoadTime(Date.now());
+          return; // Use cached data, skip API call
+        }
+      }
     }
     
     loadingProfileRef.current = true;
@@ -487,7 +631,8 @@ export default function StudentDashboard() {
         setYoutubeUrl(profileData.youtubeUrl || profileData.youtube || '');
         setInstagramUrl(profileData.instagramUrl || profileData.instagram || '');
         // Profile photo can be from user.profilePhoto (old) or student.profileImageUrl (new Cloudinary)
-        setProfilePhoto(profileData.profileImageUrl || profileData.profilePhoto || '');
+        const profileImg = profileData.profileImageUrl || profileData.profilePhoto || '';
+        setProfilePhoto(profileImg);
         setJobFlexibility(profileData.jobFlexibility || '');
         
         // Parse otherProfiles from JSON string if it exists
@@ -504,6 +649,9 @@ export default function StudentDashboard() {
         } else {
           setOtherProfiles([]);
         }
+
+        // Set skills from profile data (already loaded, no need for separate API call)
+        setSkillsEntries(Array.isArray(profileData.skills) ? profileData.skills : []);
 
         const sanitizedProfile = {
           fullName: profileData.fullName || '',
@@ -532,6 +680,12 @@ export default function StudentDashboard() {
         };
         initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
         setIsFormDirty(false);
+        
+        // CACHE: Store profile data in localStorage
+        const profileCacheKey = getCacheKey('profile');
+        if (profileCacheKey) {
+          setCachedData(profileCacheKey, profileData);
+        }
 
       } else {
         if (process.env.NODE_ENV === 'development') {
@@ -542,6 +696,7 @@ export default function StudentDashboard() {
         setIsFormDirty(false);
       }
       
+      const now = Date.now();
       setDataLoaded(true);
       setLastLoadTime(now);
       
@@ -551,7 +706,7 @@ export default function StudentDashboard() {
     } finally {
       loadingProfileRef.current = false;
     }
-  }, [user?.id]); // Removed dataLoaded and lastLoadTime from dependencies
+  }, [user?.id]); // Cache functions are stable useCallback hooks, no need in deps
 
   const loadSkillsData = useCallback(async () => {
     if (!user?.id) return;
@@ -566,10 +721,24 @@ export default function StudentDashboard() {
     }
   }, [user?.id]);
 
-  const loadApplicationsData = useCallback(async () => {
+  const loadApplicationsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) {
       console.warn('⚠️ [loadApplicationsData] No user ID, skipping');
       return;
+    }
+    
+    // OPTIMIZED: Check cache first
+    if (!forceRefresh) {
+      const cacheKey = getCacheKey('applications');
+      if (cacheKey) {
+        const cachedApplications = getCachedData(cacheKey);
+        if (cachedApplications) {
+          console.log('✅ Using cached applications data');
+          setApplications(cachedApplications);
+          setLoadingApplications(false);
+          return; // Use cached data, skip API call
+        }
+      }
     }
     
     console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
@@ -615,6 +784,12 @@ export default function StudentDashboard() {
       }, 100);
       
       console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
+      
+      // CACHE: Store applications data in localStorage
+      const appsCacheKey = getCacheKey('applications');
+      if (appsCacheKey) {
+        setCachedData(appsCacheKey, applicationsData || []);
+      }
     } catch (err) {
       console.error('❌ [loadApplicationsData] Error loading applications:', err);
       console.error('❌ [loadApplicationsData] Error details:', {
@@ -626,23 +801,46 @@ export default function StudentDashboard() {
     } finally {
       setLoadingApplications(false);
     }
-  }, [user?.id]);
+  }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // Load interview history
-  const loadInterviewHistory = useCallback(async () => {
+  const loadInterviewHistory = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
+    
+    // OPTIMIZED: Check cache first
+    if (!forceRefresh) {
+      const cacheKey = getCacheKey('interviewHistory');
+      if (cacheKey) {
+        const cachedHistory = getCachedData(cacheKey);
+        if (cachedHistory) {
+          console.log('✅ Using cached interview history data');
+          setInterviewHistory(cachedHistory);
+          setLoadingInterviewHistory(false);
+          return; // Use cached data, skip API call
+        }
+      }
+    }
     
     setLoadingInterviewHistory(true);
     try {
       const historyData = await getStudentInterviewHistory(user.id);
       setInterviewHistory(historyData || []);
+      
+      // CACHE: Store interview history in localStorage
+      const historyCacheKey = getCacheKey('interviewHistory');
+      if (historyCacheKey) {
+        setCachedData(historyCacheKey, historyData || []);
+      }
+      
+      // CACHE: Store interview history in localStorage
+      setCachedData(CACHE_KEYS.interviewHistory, historyData || []);
     } catch (err) {
       console.error('Failed to load interview history:', err);
       setInterviewHistory([]);
     } finally {
       setLoadingInterviewHistory(false);
     }
-  }, [user?.id]);
+  }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // Load resumes from API
   const loadResumes = useCallback(async () => {
@@ -675,6 +873,14 @@ export default function StudentDashboard() {
   const handleApplyToJob = async (job) => {
     if (!user?.id || !job?.id) {
       console.error('Missing user ID or job ID');
+      return;
+    }
+
+    // Check if application deadline has passed
+    if (isDeadlinePassed(job)) {
+      const deadline = job.applicationDeadline || job.deadline;
+      const deadlineStr = deadline ? new Date(deadline).toLocaleString() : 'the deadline';
+      showError(`Application deadline has passed. The deadline was ${deadlineStr}. Applications are no longer being accepted.`);
       return;
     }
 
@@ -744,10 +950,15 @@ export default function StudentDashboard() {
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
       
       // Force refresh applications list to get complete data from backend (including the new application)
+      // Clear applications cache before reloading
+      const appsCacheKey = getCacheKey('applications');
+      if (appsCacheKey) {
+        localStorage.removeItem(appsCacheKey);
+      }
       // Reset the loading flag to force a fresh load
       dataLoadingRef.current.applications = false;
-      // Reload immediately
-      await loadApplicationsData();
+      // Reload immediately (forceRefresh=true bypasses cache)
+      await loadApplicationsData(true); // Force refresh after applying
       
     } catch (error) {
       console.error('❌ [handleApplyToJob] Full error:', error);
@@ -760,7 +971,7 @@ export default function StudentDashboard() {
       
       if (errorMessage === 'Already applied to this job' || errorData.error === 'Already applied to this job') {
         // Silently refresh applications to update button state
-        await loadApplicationsData();
+        await loadApplicationsData(true); // Force refresh after applying
         return; // Exit early, no error message needed
       }
       
@@ -804,6 +1015,17 @@ export default function StudentDashboard() {
     });
     return applied;
   };
+
+  // Check if application deadline has passed
+  const isDeadlinePassed = useCallback((job) => {
+    if (!job) return false;
+    const deadline = job.applicationDeadline || job.deadline;
+    if (!deadline) return false; // No deadline set, allow application
+    
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    return now > deadlineDate;
+  }, []);
 
   // Check if student's CGPA meets job requirement
   const meetsCgpaRequirement = (job) => {
@@ -925,95 +1147,75 @@ export default function StudentDashboard() {
     };
   }, [searchParams, navigate]);
 
-  // Load profile when user is available (only once)
+  // OPTIMIZED: Load profile and public profile settings in parallel for faster initial load
   useEffect(() => {
     if (user?.id && !dataLoaded) {
-      loadProfile();
+      const loadInitialData = async () => {
+        // Load profile and public profile settings in parallel
+        await Promise.all([
+          loadProfile(),
+          (async () => {
+            try {
+              const settings = await api.getPublicProfileSettings();
+              setPublicProfileId(settings.publicProfileId);
+              setPublicProfileShowEmail(settings.showEmail ?? true);
+              setPublicProfileShowPhone(settings.showPhone ?? false);
+            } catch (err) {
+              console.error('Failed to load public profile settings:', err);
+              // Don't show error - settings are optional
+            }
+          })()
+        ]);
+      };
+      loadInitialData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Only depend on user.id, loadProfile is stable
 
-  // Load public profile settings
-  useEffect(() => {
-    const loadPublicProfileSettings = async () => {
-      if (!user?.id) return;
-      try {
-        const settings = await api.getPublicProfileSettings();
-        setPublicProfileId(settings.publicProfileId);
-        setPublicProfileShowEmail(settings.showEmail ?? true);
-        setPublicProfileShowPhone(settings.showPhone ?? false);
-      } catch (err) {
-        console.error('Failed to load public profile settings:', err);
-        // Don't show error - settings are optional
-      }
-    };
-    loadPublicProfileSettings();
-  }, [user?.id]);
-
-  // Load skills after profile is loaded (only once)
-  const skillsLoadedRef = useRef(false);
-  useEffect(() => {
-    if (user?.id && dataLoaded && !skillsLoadedRef.current) {
-      skillsLoadedRef.current = true;
-      loadSkillsData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, dataLoaded]); // Remove loadSkillsData from dependencies
+  // Skills are now loaded with profile data - no separate API call needed
+  // Removed redundant loadSkillsData call to improve performance
 
   // Track if jobs/applications have been loaded to prevent repeated calls
   const dataLoadingRef = useRef({ jobs: false, applications: false });
   
-  // UPDATED: Load data once when profile is complete
+  // OPTIMIZED: Load jobs and applications in parallel for faster loading
   useEffect(() => {
-    if (user?.id && profileComplete && !dataLoadingRef.current.jobs) {
-      // Load jobs once when profile is complete
-      dataLoadingRef.current.jobs = true;
-      loadJobsData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profileComplete]); // Remove loadJobsData from dependencies
-  
-  // Load applications once (even without complete profile)
-  useEffect(() => {
-    console.log('📋 [useEffect applications] Triggered:', {
-      hasUserId: !!user?.id,
-      userId: user?.id,
-      alreadyLoaded: dataLoadingRef.current.applications,
-      currentApplicationsLength: applications.length
-    });
+    if (!user?.id) return;
     
-    if (user?.id) {
-      // Always load if we don't have applications yet, or if flag says not loaded
-      if (!dataLoadingRef.current.applications || applications.length === 0) {
-        console.log('📋 [useEffect] Loading applications for user:', user.id);
-        dataLoadingRef.current.applications = true;
-        loadApplicationsData();
-      } else {
-        console.log('📋 [useEffect] Applications already loaded, current count:', applications.length);
-      }
-    } else {
-      console.warn('⚠️ [useEffect] No user ID available for loading applications');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // Remove loadApplicationsData from dependencies
-
-  // Load applications and interview history when applications tab is active
-  useEffect(() => {
-    if (user?.id && activeTab === 'applications') {
-      console.log('📋 [useEffect] Applications tab active, reloading data');
-      console.log('📋 [useEffect] Current applications state before reload:', {
-        length: applications.length,
-        loading: loadingApplications
-      });
+    const loadDashboardData = async () => {
+      // Load applications and interview history in parallel (both are independent)
+      const promises = [];
       
-      // Always reload when tab is opened to ensure fresh data
-      // Reset loading flag to allow reload
-      dataLoadingRef.current.applications = false;
-      loadApplicationsData();
-      loadInterviewHistory();
-    }
+      if (!dataLoadingRef.current.applications) {
+        dataLoadingRef.current.applications = true;
+        promises.push(loadApplicationsData());
+      }
+      
+      // Load interview history in parallel with applications (same data source)
+      promises.push(loadInterviewHistory());
+      
+      // Wait for both to complete
+      await Promise.all(promises);
+      
+      // Load jobs when profile is complete (requires profile data for filtering)
+      if (profileComplete && !dataLoadingRef.current.jobs) {
+        dataLoadingRef.current.jobs = true;
+        loadJobsData();
+      }
+    };
+    
+    loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, activeTab]); // Reload when tab changes to applications
+  }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+  
+  // OPTIMIZED: Interview history is now loaded on mount with applications (no need to reload on tab switch)
+  // Track last active tab for other potential use cases
+  const lastActiveTabRef = useRef(null);
+  useEffect(() => {
+    if (activeTab) {
+      lastActiveTabRef.current = activeTab;
+    }
+  }, [activeTab]);
 
   // Validation helper functions
   const validateEmail = (email) => {
@@ -1257,6 +1459,26 @@ export default function StudentDashboard() {
           delete errors.cgpa;
         }
         break;
+      case 'backlogs':
+        if (value && value.trim() !== '') {
+          // Remove + sign for validation, keep it for display
+          const numericValue = value.replace(/\+/g, '');
+          if (numericValue !== '') {
+            const num = parseInt(numericValue, 10);
+            if (isNaN(num) || num < 0) {
+              errors.backlogs = 'Active backlogs must be a non-negative number';
+            } else if (num > 32) {
+              errors.backlogs = 'Active backlogs cannot exceed 32';
+            } else {
+              delete errors.backlogs;
+            }
+          } else {
+            delete errors.backlogs;
+          }
+        } else {
+          delete errors.backlogs;
+        }
+        break;
       default:
         break;
     }
@@ -1317,6 +1539,20 @@ export default function StudentDashboard() {
             } else {
               formattedCgpa = parts[0] + '.' + decimalPart;
             }
+          }
+        }
+      }
+
+      // Validate backlogs before saving
+      if (backlogs && backlogs.trim() !== '') {
+        const numericValue = backlogs.replace(/\+/g, '').trim();
+        if (numericValue !== '') {
+          const num = parseInt(numericValue, 10);
+          if (!isNaN(num) && num > 32) {
+            showError('Active backlogs cannot exceed 32');
+            setValidationErrors({ ...validationErrors, backlogs: 'Active backlogs cannot exceed 32' });
+            setSaving(false);
+            return;
           }
         }
       }
@@ -1454,10 +1690,25 @@ export default function StudentDashboard() {
       }
       setIsFormDirty(false);
       
+      // Clear ALL cache when profile is updated (profile changes affect jobs/applications visibility)
+      clearCache();
+      
       // Dispatch custom event to notify DashboardLayout to reload profile
       window.dispatchEvent(new CustomEvent('profileUpdated', { 
         detail: { userId: user.id } 
       }));
+      
+      // Force reload profile to update header immediately (without cache)
+      loadingProfileRef.current = false;
+      await loadProfile(true);
+      
+      // Reload jobs since profile changes (school/center/batch) affect job visibility
+      const jobsCacheKey = getCacheKey('jobs');
+      if (jobsCacheKey) {
+        localStorage.removeItem(jobsCacheKey);
+      }
+      dataLoadingRef.current.jobs = false;
+      await loadJobsData(true); // Force refresh jobs
       
       setTimeout(() => {
         // Alert removed - using toast notifications
@@ -1578,6 +1829,12 @@ export default function StudentDashboard() {
   };
 
   const handleLogout = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (!confirmed) {
+      return; // User cancelled, don't proceed with logout
+    }
+
     try {
       console.log('Logout button clicked - starting logout process');
       await logout();
@@ -1785,6 +2042,7 @@ export default function StudentDashboard() {
           jobs={jobs}
           applications={applications}
           skillsEntries={skillsEntries}
+          initialSkills={skillsEntries}
           loadingJobs={loadingJobs}
           loadingApplications={loadingApplications}
           loadingSkills={loadingSkills}
@@ -1902,6 +2160,7 @@ export default function StudentDashboard() {
                       const isApplied = hasApplied(job.id);
                       const isApplying = applying[job.id];
                       const cgpaNotMet = !meetsCgpaRequirement(job);
+                      const deadlinePassed = isDeadlinePassed(job);
                       
                       return (
                         <div
@@ -1939,21 +2198,25 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet}
-                                title={cgpaNotMet ? (() => {
-                                  const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                  const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                  if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                    return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                  }
-                                  return "CGPA requirement not met. Please check the job requirements.";
-                                })() : ''}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                title={
+                                  deadlinePassed 
+                                    ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                    : cgpaNotMet ? (() => {
+                                      const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                      const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                      if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                        return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                      }
+                                      return "CGPA requirement not met. Please check the job requirements.";
+                                    })() : ''
+                                }
                                 className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet
+                                    : cgpaNotMet || deadlinePassed
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -1972,6 +2235,11 @@ export default function StudentDashboard() {
                                   <>
                                     <XCircle className="h-5 w-5" />
                                     CGPA Not Met
+                                  </>
+                                ) : deadlinePassed ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    Deadline Passed
                                   </>
                                 ) : (
                                   <>
@@ -2019,21 +2287,25 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet}
-                                title={cgpaNotMet ? (() => {
-                                  const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                  const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                  if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                    return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                  }
-                                  return "CGPA requirement not met. Please check the job requirements.";
-                                })() : ''}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                title={
+                                  deadlinePassed 
+                                    ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                    : cgpaNotMet ? (() => {
+                                      const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                      const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                      if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                        return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                      }
+                                      return "CGPA requirement not met. Please check the job requirements.";
+                                    })() : ''
+                                }
                                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet
+                                    : cgpaNotMet || deadlinePassed
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -2102,13 +2374,8 @@ export default function StudentDashboard() {
           } : null
         });
         
-        // Force reload if applications is empty but we expect data
-        if (applications.length === 0 && !loadingApplications && user?.id) {
-          console.warn('⚠️ [applications tab] Applications is empty, forcing reload...');
-          setTimeout(() => {
-            loadApplicationsData();
-          }, 500);
-        }
+        // REMOVED: Force reload logic - this was causing infinite loop when no applications exist
+        // The useEffect hooks above handle loading appropriately
         
         const totalApplied = applications.length;
         const shortlisted = applications.filter(app => {
@@ -2815,6 +3082,35 @@ export default function StudentDashboard() {
                           <User size={48} className="text-gray-400" />
                         )}
                       </div>
+                      {profilePhoto && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm('Are you sure you want to remove your profile photo? It will revert to the default photo.')) {
+                              return;
+                            }
+
+                            try {
+                              await api.deleteProfileImage();
+                              setProfilePhoto('');
+                              showSuccess('Profile photo removed successfully!');
+                            } catch (err) {
+                              console.error('Error deleting profile image:', err);
+                              let errorMessage = 'Failed to remove profile photo';
+                              if (err.response?.data?.error) {
+                                errorMessage = err.response.data.error;
+                              } else if (err.message) {
+                                errorMessage = err.message;
+                              }
+                              showError(errorMessage);
+                            }
+                          }}
+                          className="absolute top-2.5 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 -translate-x-1/2"
+                          title="Remove profile photo"
+                        >
+                          <XCircle size={14} className="text-white" />
+                        </button>
+                      )}
                       <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                         <Camera size={24} className="text-white" />
                         <input
@@ -3052,7 +3348,7 @@ export default function StudentDashboard() {
                       </label>
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                        className={`w-full border ${validationErrors.backlogs ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text`}
                         placeholder="Enter backlogs (e.g., 0, 1, 2, 3+)"
                         value={backlogs}
                         onChange={(e) => {
@@ -3064,8 +3360,13 @@ export default function StudentDashboard() {
                             value = value.substring(0, 5);
                           }
                           setBacklogs(value);
+                          // Validate the value
+                          validateField('backlogs', value);
                         }}
                       />
+                      {validationErrors.backlogs && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.backlogs}</p>
+                      )}
                     </div>
                     <div>
                       <CustomDropdown
@@ -3699,26 +4000,11 @@ export default function StudentDashboard() {
                       </button>
                       
                       {publicProfileId && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              setLoadingPublicProfile(true);
-                              const response = await api.regeneratePublicProfileId();
-                              setPublicProfileId(response.publicProfileId);
-                              showSuccess('Profile link regenerated. Old link is no longer valid.');
-                            } catch (err) {
-                              console.error('Failed to regenerate profile link:', err);
-                              showError('Failed to regenerate profile link. Please try again.');
-                            } finally {
-                              setLoadingPublicProfile(false);
-                            }
-                          }}
-                          disabled={loadingPublicProfile}
-                          className="flex items-center gap-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Reset Link
-                        </button>
+                        <div className="px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                          <p className="text-xs text-indigo-700 font-medium">
+                            ✓ Your profile link is permanent and will always stay the same
+                          </p>
+                        </div>
                       )}
                     </div>
 
@@ -3880,6 +4166,7 @@ export default function StudentDashboard() {
           jobs={jobs}
           applications={applications}
           skillsEntries={skillsEntries}
+          initialSkills={skillsEntries}
           loadingJobs={loadingJobs}
           loadingApplications={loadingApplications}
           loadingSkills={loadingSkills}
@@ -3892,7 +4179,16 @@ export default function StudentDashboard() {
 
   return (
     <>
-      <DashboardLayout>
+      <DashboardLayout studentProfile={dataLoaded ? {
+        fullName,
+        headline: Headline || null,
+        enrollmentId,
+        cgpa,
+        profilePhoto: profilePhoto,
+        school,
+        center,
+        batch,
+      } : null}>
         <div className="flex min-h-screen relative">
           <aside
             className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"

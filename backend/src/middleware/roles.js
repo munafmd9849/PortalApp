@@ -16,16 +16,65 @@ export function requireRole(allowedRoles) {
   return async (req, res, next) => {
     // Ensure user is authenticated first
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Authentication required'
+      });
     }
 
     const userRole = req.user.role;
+    const userId = req.userId || req.user.id;
+
+    // STRICT: Explicitly reject STUDENT users for job creation/modification endpoints
+    // This prevents any STUDENT user from reaching job creation logic
+    // BUT: Allow STUDENT users to apply to jobs via /api/applications/jobs/:jobId
+    // Use req.originalUrl to get the full path including base URL
+    const originalUrl = req.originalUrl || req.url || req.path;
+    
+    // Check if this is a job creation/modification endpoint (not application endpoint)
+    const isJobCreationEndpoint = originalUrl.startsWith('/api/jobs') && 
+                                   req.method === 'POST' && 
+                                   !originalUrl.includes('/applications');
+    const isJobPostEndpoint = originalUrl.includes('/jobs') && 
+                              req.method === 'POST' && 
+                              (originalUrl.includes('/post') || originalUrl.includes('/approve') || originalUrl.includes('/reject')) &&
+                              !originalUrl.includes('/applications');
+    
+    if ((isJobCreationEndpoint || isJobPostEndpoint) && userRole === 'STUDENT') {
+      // Audit log unauthorized access attempt
+      console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - Job Management API:', {
+        userId,
+        userRole,
+        email: req.user.email,
+        endpoint: originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString(),
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+      });
+
+      return res.status(403).json({ 
+        error: 'Forbidden',
+        message: 'You do not have permission to access this resource'
+      });
+    }
 
     if (!roles.includes(userRole)) {
+      // Audit log unauthorized access attempt
+      console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - Role Mismatch:', {
+        userId,
+        userRole,
+        email: req.user.email,
+        endpoint: req.path,
+        method: req.method,
+        requiredRoles: roles,
+        timestamp: new Date().toISOString(),
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+      });
+
+      // Standardized error response - no information leakage
       return res.status(403).json({ 
-        error: 'Insufficient permissions',
-        required: roles,
-        current: userRole,
+        error: 'Forbidden',
+        message: 'You do not have permission to access this resource'
       });
     }
 

@@ -17,15 +17,95 @@ import { sendServerError } from '../utils/response.js';
  */
 export async function getJobs(req, res) {
   try {
-    const { status, recruiterId, isPosted, page = 1, limit = 50 } = req.query;
+    const { 
+      status, 
+      recruiterId, 
+      companyId,
+      isPosted, 
+      search, // Search by job title or company name
+      driveDateFilter, // 'upcoming', 'today', 'past'
+      postedDateStart, // Filter by posted date range
+      postedDateEnd,
+      createdAtStart, // Filter by created date range
+      createdAtEnd,
+      page = 1, 
+      limit = 50 
+    } = req.query;
 
     const where = {};
     if (status) where.status = status;
     if (recruiterId) where.recruiterId = recruiterId;
+    if (companyId) where.companyId = companyId;
     if (isPosted !== undefined) {
       // Handle both string 'true'/'false' and boolean
       const isPostedValue = isPosted === 'true' || isPosted === true;
       where.isPosted = isPostedValue;
+    }
+
+    // Search filter (job title or company name)
+    // Build search conditions separately to combine with other filters using AND
+    const searchConditions = [];
+    if (search) {
+      const searchTerm = search.trim();
+      searchConditions.push({
+        OR: [
+          { jobTitle: { contains: searchTerm, mode: 'insensitive' } },
+          { companyName: { contains: searchTerm, mode: 'insensitive' } },
+          { company: { name: { contains: searchTerm, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
+    // Combine all conditions with AND logic
+    if (searchConditions.length > 0) {
+      where.AND = [...(where.AND || []), ...searchConditions];
+    }
+
+    // Drive date filter
+    if (driveDateFilter && driveDateFilter !== 'all') {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      if (driveDateFilter === 'upcoming') {
+        where.driveDate = { gte: now };
+      } else if (driveDateFilter === 'today') {
+        const todayStart = new Date(now);
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
+        where.driveDate = { gte: todayStart, lte: todayEnd };
+      } else if (driveDateFilter === 'past') {
+        where.driveDate = { lt: now };
+      }
+    }
+
+    // Posted date range filter
+    if (postedDateStart || postedDateEnd) {
+      where.postedAt = {};
+      if (postedDateStart) {
+        const startDate = new Date(postedDateStart);
+        startDate.setHours(0, 0, 0, 0);
+        where.postedAt.gte = startDate;
+      }
+      if (postedDateEnd) {
+        const endDate = new Date(postedDateEnd);
+        endDate.setHours(23, 59, 59, 999);
+        where.postedAt.lte = endDate;
+      }
+    }
+
+    // Created date range filter
+    if (createdAtStart || createdAtEnd) {
+      where.createdAt = {};
+      if (createdAtStart) {
+        const startDate = new Date(createdAtStart);
+        startDate.setHours(0, 0, 0, 0);
+        where.createdAt.gte = startDate;
+      }
+      if (createdAtEnd) {
+        const endDate = new Date(createdAtEnd);
+        endDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endDate;
+      }
     }
 
     const [jobs, total] = await Promise.all([
@@ -95,11 +175,12 @@ export async function getTargetedJobs(req, res) {
     });
 
     // If student doesn't have profile yet, return all posted jobs (no targeting)
+    // Only POSTED jobs are visible to students (visibility = status = POSTED AND isPosted = true)
     if (!student || !student.school || !student.center || !student.batch) {
       const jobs = await prisma.job.findMany({
         where: {
           status: 'POSTED',
-          isPosted: true,
+          isPosted: true, // Enforce visibility rule
         },
         include: {
           company: true,
@@ -111,10 +192,11 @@ export async function getTargetedJobs(req, res) {
     }
 
     // Get all posted jobs first (targeting is done in memory)
+    // Only POSTED jobs are visible to students (visibility = status = POSTED AND isPosted = true)
     const allJobs = await prisma.job.findMany({
       where: {
         status: 'POSTED',
-        isPosted: true,
+        isPosted: true, // Enforce visibility rule
       },
       include: {
         company: true,
@@ -243,6 +325,25 @@ export async function createJob(req, res) {
   try {
     const userId = req.userId;
     const userRole = req.user.role;
+
+    // STRICT: Explicitly reject STUDENT users - this is a safety net in addition to middleware
+    if (userRole === 'STUDENT') {
+      console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - createJob controller (bypassed middleware):', {
+        userId,
+        userRole,
+        email: req.user.email,
+        endpoint: req.path,
+        method: req.method,
+        timestamp: new Date().toISOString(),
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+      });
+
+      return res.status(403).json({ 
+        error: 'Forbidden',
+        message: 'You do not have permission to access this resource'
+      });
+    }
+
     const jobData = req.body;
 
     // VALIDATE REQUIRED RECRUITER EMAILS (support both old single email and new array format)
@@ -268,13 +369,35 @@ export async function createJob(req, res) {
       });
     }
 
-    // Validate applicationDeadline is required
+    // CRITICAL: Validate both dates are required
     if (!jobData.applicationDeadline) {
       return res.status(400).json({ 
         success: false,
         error: 'Application deadline is required',
         field: 'applicationDeadline',
-        message: 'Please provide an application deadline. Recruiters will receive screening links after this date.'
+        message: 'Application deadline is required. This is the last date/time students can apply.'
+      });
+    }
+
+    if (!jobData.driveDate) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Drive date is required',
+        field: 'driveDate',
+        message: 'Drive date is required. Interview sessions cannot start before this date.'
+      });
+    }
+
+    // CRITICAL: Validate driveDate must be AFTER applicationDeadline
+    const deadline = new Date(jobData.applicationDeadline);
+    const driveDate = new Date(jobData.driveDate);
+    
+    if (driveDate <= deadline) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid date configuration',
+        field: 'driveDate',
+        message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
       });
     }
 
@@ -466,13 +589,22 @@ export async function createJob(req, res) {
       gapAllowed: mappedData.gapAllowed || null,
       gapYears: mappedData.gapYears || null,
       backlogs: mappedData.backlogs || null,
-      // Status fields - All jobs (including admin-created) go to IN_REVIEW first
+      // Pre-Interview Requirements
+      requiresScreening: mappedData.requiresScreening === true || mappedData.requiresScreening === 'true',
+      requiresTest: mappedData.requiresTest === true || mappedData.requiresTest === 'true',
+      // Status fields - ALL jobs (admin and recruiter) must go through review
+      // Enforce: status = IN_REVIEW, isPosted = false, visibleToStudents = false (via isPosted)
       status: 'IN_REVIEW',
       isActive: false,
-      isPosted: false,
-      submittedAt: new Date(),
-      postedBy: null,
-      postedAt: null,
+      isPosted: false, // Jobs are never posted directly - must be approved then posted
+      submittedAt: new Date(), // All jobs are submitted for review
+      postedBy: null, // Set when admin posts the job
+      postedAt: null, // Set when admin posts the job
+      approvedBy: null, // Set when admin approves
+      approvedAt: null, // Set when admin approves
+      rejectedBy: null, // Set when admin rejects
+      rejectedAt: null, // Set when admin rejects
+      rejectionReason: null, // Set when admin rejects
     };
 
     // Create job
@@ -493,8 +625,8 @@ export async function createJob(req, res) {
       },
     });
 
-    // Notify all admins when a recruiter submits a job for approval
-    if (job.status === 'IN_REVIEW' && userRole === 'RECRUITER') {
+    // Notify all admins when ANY job (admin or recruiter created) is submitted for review
+    if (job.status === 'IN_REVIEW') {
       try {
         const admins = await prisma.user.findMany({
           where: {
@@ -505,28 +637,34 @@ export async function createJob(req, res) {
         });
 
         if (admins.length > 0) {
-          const recruiterName = job.recruiter?.user?.displayName || 'A recruiter';
-          const companyName = job.company?.name || 'Unknown Company';
+          const creatorName = userRole === 'RECRUITER' 
+            ? (job.recruiter?.user?.displayName || 'A recruiter')
+            : 'An admin';
+          const companyName = job.company?.name || job.companyName || 'Unknown Company';
+          const isAdminCreated = userRole === 'ADMIN';
           
           await Promise.all(
             admins.map((admin) =>
               createNotification({
                 userId: admin.id,
                 title: `New Job Pending Approval: ${job.jobTitle}`,
-                body: `${recruiterName} submitted a job posting for ${companyName} that requires your approval.`,
+                body: isAdminCreated
+                  ? `A new job posting for ${companyName} has been created and requires your approval.`
+                  : `${creatorName} submitted a job posting for ${companyName} that requires your approval.`,
                 data: {
                   type: 'jd_approval',
                   jobId: job.id,
                   jobTitle: job.jobTitle,
                   companyName: companyName,
                   recruiterId: job.recruiterId,
-                  recruiterName: recruiterName,
+                  recruiterName: creatorName,
+                  createdBy: userRole,
                   submittedAt: job.submittedAt || job.createdAt,
                 },
               })
             )
           );
-          logger.info(`JD approval notifications sent to ${admins.length} admins for job ${job.id}`);
+          logger.info(`JD approval notifications sent to ${admins.length} admins for job ${job.id} (created by ${userRole})`);
         }
       } catch (notificationError) {
         // Don't fail job creation if notification fails
@@ -562,17 +700,147 @@ export async function createJob(req, res) {
 /**
  * Update job
  * Replaces: updateJob(), updateJobData()
+ * Enforces edit permissions based on job approval status and user role
  */
 export async function updateJob(req, res) {
   try {
     const { jobId } = req.params;
+    const userId = req.userId;
+    const userRole = req.user.role;
     const updateData = req.body;
 
+    // STRICT: Explicitly reject STUDENT users - this is a safety net in addition to middleware
+    if (userRole === 'STUDENT') {
+      console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - updateJob controller (bypassed middleware):', {
+        userId,
+        userRole,
+        email: req.user.email,
+        jobId,
+        endpoint: req.path,
+        method: req.method,
+        timestamp: new Date().toISOString(),
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+      });
+
+      return res.status(403).json({ 
+        error: 'Forbidden',
+        message: 'You do not have permission to access this resource'
+      });
+    }
+
+    // First, get the existing job to check its status and ownership
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        recruiter: {
+          include: {
+            user: {
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // STRICT RULE: Recruiters cannot edit jobs after creation (any status)
+    if (userRole === 'RECRUITER' || userRole === 'recruiter') {
+      // Recruiters can ONLY resubmit rejected jobs
+      if (existingJob.status === 'REJECTED' && updateData.status === 'IN_REVIEW') {
+        // Recruiter is resubmitting - allow status change to IN_REVIEW
+        // Clear rejection fields
+        updateData.rejectedAt = null;
+        updateData.rejectedBy = null;
+        updateData.rejectionReason = null;
+        updateData.submittedAt = new Date();
+      } else if (existingJob.status !== 'REJECTED' || updateData.status !== 'IN_REVIEW') {
+        // Recruiters cannot edit jobs in any other state
+        return res.status(403).json({ 
+          error: 'Not authorized',
+          message: 'Recruiters cannot edit jobs after creation. Only rejected jobs can be resubmitted for review.'
+        });
+      }
+    }
+
+    // STRICT RULE: For POSTED jobs, only applicationDeadline and driveDate can be edited
+    if (existingJob.status === 'POSTED') {
+      // Define allowed fields for POSTED jobs
+      const allowedFieldsForPosted = ['applicationDeadline', 'driveDate'];
+      
+      // Check if any restricted fields are being updated
+      const restrictedFields = Object.keys(updateData).filter(key => 
+        !allowedFieldsForPosted.includes(key) && 
+        key !== 'status' && // Status changes handled separately
+        updateData[key] !== undefined
+      );
+      
+      if (restrictedFields.length > 0) {
+        return res.status(403).json({ 
+          error: 'Field editing restricted',
+          message: `For POSTED jobs, only applicationDeadline and driveDate can be edited. Attempted to edit: ${restrictedFields.join(', ')}`,
+          restrictedFields
+        });
+      }
+      
+      // Status changes not allowed via updateJob for POSTED jobs
+      if (updateData.status && updateData.status !== 'POSTED') {
+        return res.status(403).json({ 
+          error: 'Status change not allowed',
+          message: 'POSTED jobs cannot have their status changed through this endpoint.'
+        });
+      }
+    }
+
+    // Admin can edit all fields for IN_REVIEW jobs
+    // For POSTED jobs, admin can only edit dates (handled above)
+
+    // CRITICAL: Validate date relationship if both dates are being updated
+    if (updateData.applicationDeadline !== undefined || updateData.driveDate !== undefined) {
+      const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : new Date(existingJob.applicationDeadline);
+      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : new Date(existingJob.driveDate);
+
+      if (!existingJob.applicationDeadline && !updateData.applicationDeadline) {
+        return res.status(400).json({ 
+          error: 'Application deadline is required',
+          message: 'Application deadline must be set for this job.'
+        });
+      }
+
+      if (!existingJob.driveDate && !updateData.driveDate) {
+        return res.status(400).json({ 
+          error: 'Drive date is required',
+          message: 'Drive date must be set for this job.'
+        });
+      }
+
+      // Enforce: driveDate must be AFTER applicationDeadline
+      if (newDriveDate <= newDeadline) {
+        return res.status(400).json({ 
+          error: 'Invalid date configuration',
+          message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
+        });
+      }
+    }
+
+    // Update the job
     const job = await prisma.job.update({
       where: { id: jobId },
       data: updateData,
       include: {
         company: true,
+        recruiter: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                displayName: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -586,12 +854,53 @@ export async function updateJob(req, res) {
 /**
  * Post job (admin only)
  * Replaces: postJob() - includes job distribution
+ * Allows posting jobs from IN_REVIEW status directly (no approval step required).
+ * Updates job status to POSTED and makes it visible to students.
  */
 export async function postJob(req, res) {
   try {
     const { jobId } = req.params;
     const { selectedSchools, selectedCenters, selectedBatches } = req.body;
     const adminId = req.userId;
+
+    // First, check if job exists and is in a postable state
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        company: true,
+        recruiter: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                displayName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Allow posting from IN_REVIEW or POSTED status
+    // Rejected jobs cannot be posted
+    if (existingJob.status === 'REJECTED') {
+      return res.status(400).json({ 
+        error: 'Job rejected',
+        message: 'Rejected jobs cannot be posted. Please edit and resubmit the job for review.'
+      });
+    }
+    
+    // Only allow posting from IN_REVIEW or POSTED status
+    if (existingJob.status !== 'IN_REVIEW' && existingJob.status !== 'in_review' && existingJob.status !== 'POSTED' && existingJob.status !== 'posted') {
+      return res.status(400).json({ 
+        error: 'Invalid job status',
+        message: `Only jobs in IN_REVIEW or POSTED status can be posted. Current status: ${existingJob.status}`
+      });
+    }
 
     // Parse targeting arrays (handle both array and JSON string formats from frontend)
     const parseTargeting = (value) => {
@@ -746,22 +1055,77 @@ export async function postJob(req, res) {
 }
 
 /**
- * Approve job (admin)
- * Replaces: approveJob() from jobModeration.js
+ * Approve job (admin only)
+ * Moves job from IN_REVIEW → POSTED directly
+ * This combines approval and posting into a single action
  */
 export async function approveJob(req, res) {
   try {
     const { jobId } = req.params;
+    const { selectedSchools, selectedCenters, selectedBatches } = req.body; // Optional targeting for posting
     const adminId = req.userId;
 
+    // Check if job exists and is in IN_REVIEW status
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        recruiter: {
+          include: {
+            user: true,
+          },
+        },
+        company: true,
+      },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (existingJob.status !== 'IN_REVIEW') {
+      return res.status(400).json({ 
+        error: 'Invalid job status',
+        message: `Job must be in IN_REVIEW status to be approved. Current status: ${existingJob.status}`
+      });
+    }
+
+    // Parse targeting arrays (handle both array and JSON string formats from frontend)
+    const parseTargeting = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const targetSchools = parseTargeting(selectedSchools) || parseTargeting(existingJob.targetSchools);
+    const targetCenters = parseTargeting(selectedCenters) || parseTargeting(existingJob.targetCenters);
+    const targetBatches = parseTargeting(selectedBatches) || parseTargeting(existingJob.targetBatches);
+
+    // Convert arrays to JSON strings for database storage
+    const targetSchoolsJson = JSON.stringify(targetSchools);
+    const targetCentersJson = JSON.stringify(targetCenters);
+    const targetBatchesJson = JSON.stringify(targetBatches);
+
+    // STRICT RULE: Move directly from IN_REVIEW → POSTED
     const job = await prisma.job.update({
       where: { id: jobId },
       data: {
-        status: 'ACCEPTED', // Set to ACCEPTED when approved (approved by admin, ready for posting)
-        isPosted: false,     // Not posted to students yet, but approved by admin
-        isActive: false,     // Not active yet
+        status: 'POSTED', // Direct transition: IN_REVIEW → POSTED
+        isPosted: true,   // Visible to students
+        isActive: true,   // Active job
+        postedAt: new Date(),
+        postedBy: adminId,
         approvedAt: new Date(),
         approvedBy: adminId,
+        targetSchools: targetSchoolsJson,
+        targetCenters: targetCentersJson,
+        targetBatches: targetBatchesJson,
       },
       include: {
         recruiter: {
@@ -773,13 +1137,29 @@ export async function approveJob(req, res) {
       },
     });
 
+    // Add job distribution to queue (async background processing)
+    try {
+      await addJobToQueue({
+        jobId: job.id,
+        jobData: job,
+        targeting: {
+          targetSchools: targetSchools,
+          targetCenters: targetCenters,
+          targetBatches: targetBatches,
+        },
+      });
+      logger.info(`Job ${job.id} added to distribution queue`);
+    } catch (queueError) {
+      logger.error(`Failed to add job ${job.id} to distribution queue:`, queueError);
+    }
+
     // Send notification to recruiter
     if (job.recruiter?.user?.id) {
       try {
         await createNotification({
           userId: job.recruiter.user.id,
-          title: 'Job Posting Approved',
-          body: `Your job posting "${job.jobTitle}" has been approved by the admin. It is now ready to be posted to students.`,
+          title: 'Job Posting Approved and Posted',
+          body: `Your job posting "${job.jobTitle}" has been approved and posted to students by the admin.`,
           data: {
             type: 'job_approved',
             jobId: job.id,
@@ -790,11 +1170,53 @@ export async function approveJob(req, res) {
         logger.info(`Notification sent to recruiter ${job.recruiter.user.id} for job ${jobId} approval`);
       } catch (notifError) {
         logger.error(`Failed to send notification for job approval:`, notifError);
-        // Don't fail the approval if notification fails
       }
     }
 
-    res.json({ success: true, job });
+    // Send email notifications to matching students about new job
+    try {
+      const where = {
+        user: { status: 'ACTIVE' },
+      };
+
+      if (targetSchools.length > 0 && !targetSchools.includes('ALL')) {
+        where.school = { in: targetSchools };
+      }
+      if (targetCenters.length > 0 && !targetCenters.includes('ALL')) {
+        where.center = { in: targetCenters };
+      }
+      if (targetBatches.length > 0 && !targetBatches.includes('ALL')) {
+        where.batch = { in: targetBatches };
+      }
+
+      const matchingStudents = await prisma.student.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              email: true,
+              displayName: true,
+            },
+          },
+        },
+        take: 500,
+      });
+
+      if (matchingStudents.length > 0) {
+        const emailResults = await sendBulkJobNotifications(matchingStudents, job);
+        logger.info(
+          `New job notifications sent to ${emailResults.successful} students for job ${job.id} (${emailResults.failed} failed)`
+        );
+      }
+    } catch (emailError) {
+      logger.error(`Failed to send new job notifications to students for job ${job.id}:`, emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      job,
+      message: 'Job approved and posted successfully. Students have been notified.'
+    });
   } catch (error) {
     console.error('Approve job error:', error);
     res.status(500).json({ error: 'Failed to approve job' });
@@ -865,12 +1287,28 @@ export async function rejectJob(req, res) {
     const { rejectionReason } = req.body;
     const adminId = req.userId;
 
+    // Check if job exists and is in IN_REVIEW status
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (existingJob.status !== 'IN_REVIEW') {
+      return res.status(400).json({ 
+        error: 'Invalid job status',
+        message: `Job must be in IN_REVIEW status to be rejected. Current status: ${existingJob.status}`
+      });
+    }
+
     const job = await prisma.job.update({
       where: { id: jobId },
       data: {
         status: 'REJECTED',
         isActive: false,
-        isPosted: false,
+        isPosted: false, // NOT visible to students
         rejectedAt: new Date(),
         rejectedBy: adminId,
         rejectionReason: rejectionReason || 'No reason provided',
@@ -916,58 +1354,21 @@ export async function rejectJob(req, res) {
 
 /**
  * Auto-archive expired jobs (admin)
- * Archives all jobs where applicationDeadline has passed and status is POSTED or ACTIVE
+ * NOTE: With the new workflow, we don't auto-archive. Jobs remain POSTED.
+ * This function is kept for backward compatibility but may be deprecated.
+ * Expired jobs stay POSTED; students can still see them but cannot apply (deadline check in application logic).
  */
 export async function autoArchiveExpiredJobs(req, res) {
   try {
-    const now = new Date();
+    // NOTE: Auto-archiving is not part of the new workflow
+    // Jobs remain POSTED even after deadline passes
+    // Application deadline is enforced in the applyToJob logic
     
-    // Find all jobs that are posted/active and have passed their application deadline
-    const expiredJobs = await prisma.job.findMany({
-      where: {
-        status: {
-          in: ['POSTED', 'ACTIVE'],
-        },
-        applicationDeadline: {
-          lt: now, // Less than current date/time
-        },
-      },
-      select: {
-        id: true,
-        jobTitle: true,
-      },
-    });
-
-    if (expiredJobs.length === 0) {
-      return res.json({
-        success: true,
-        successful: 0,
-        archived: 0,
-        message: 'No expired jobs to archive',
-      });
-    }
-
-    // Archive all expired jobs
-    const result = await prisma.job.updateMany({
-      where: {
-        id: {
-          in: expiredJobs.map(job => job.id),
-        },
-      },
-      data: {
-        status: 'ARCHIVED',
-        isActive: false,
-        isPosted: false,
-      },
-    });
-
-    logger.info(`Auto-archived ${result.count} expired jobs`);
-
-    res.json({
+    return res.json({
       success: true,
-      successful: result.count,
-      archived: result.count,
-      message: `Successfully archived ${result.count} expired job(s)`,
+      successful: 0,
+      archived: 0,
+      message: 'Auto-archiving is disabled. Jobs remain POSTED. Application deadlines are enforced in application logic.',
     });
   } catch (error) {
     logger.error('Auto-archive expired jobs error:', error);

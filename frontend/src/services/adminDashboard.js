@@ -46,6 +46,8 @@ export class AdminDashboardService {
    */
   async fetchData(filters = {}) {
     try {
+      console.log('📊 [AdminDashboard] Fetching dashboard data...');
+      
       // Production behavior: compute from real API responses only.
       const [jobsRes, applicationsRes, studentsRes, recruitersRes, queriesRes] = await Promise.allSettled([
         api.getJobs({ limit: 1000 }),
@@ -54,6 +56,23 @@ export class AdminDashboardService {
         api.getRecruiterDirectory(),
         api.getAdminQueries(),
       ]);
+
+      // Log any failed requests
+      if (jobsRes.status === 'rejected') {
+        console.error('❌ [AdminDashboard] Failed to fetch jobs:', jobsRes.reason);
+      }
+      if (applicationsRes.status === 'rejected') {
+        console.error('❌ [AdminDashboard] Failed to fetch applications:', applicationsRes.reason);
+      }
+      if (studentsRes.status === 'rejected') {
+        console.error('❌ [AdminDashboard] Failed to fetch students:', studentsRes.reason);
+      }
+      if (recruitersRes.status === 'rejected') {
+        console.error('❌ [AdminDashboard] Failed to fetch recruiters:', recruitersRes.reason);
+      }
+      if (queriesRes.status === 'rejected') {
+        console.error('❌ [AdminDashboard] Failed to fetch queries:', queriesRes.reason);
+      }
 
       const jobsPayload = jobsRes.status === 'fulfilled' ? jobsRes.value : null;
       const jobs = Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : (Array.isArray(jobsPayload) ? jobsPayload : []);
@@ -76,6 +95,14 @@ export class AdminDashboardService {
         ? queriesPayload
         : (Array.isArray(queriesPayload?.queries) ? queriesPayload.queries : (Array.isArray(queriesPayload?.data) ? queriesPayload.data : []));
 
+      console.log('📊 [AdminDashboard] Data received:', {
+        jobs: jobs.length,
+        applications: applications.length,
+        students: students.length,
+        recruiters: recruiters.length,
+        queries: queries.length,
+      });
+
       const totalJobsPosted = jobs.filter(j => j?.isPosted === true || String(j?.status || '').toUpperCase() === 'POSTED').length;
       const totalApplications = applications.length;
 
@@ -94,43 +121,45 @@ export class AdminDashboardService {
         return s === 'pending' || s === 'open' || s === 'unresolved';
       }).length;
 
-      // Calculate student statistics based on user status
-      const totalStudents = students.length;
+      // Count active recruiters (ACTIVE or PENDING status - PENDING should be treated as active for recruiters)
+      const activeRecruiters = recruiters.filter(r => {
+        const status = String(r?.status || '').toUpperCase();
+        return status === 'ACTIVE' || status === 'PENDING' || !status; // PENDING treated as active
+      }).length;
+
+      // Count active students (ACTIVE status only, not PENDING/REJECTED)
       const activeStudents = students.filter(s => {
-        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
+        const status = String(s?.user?.status || s?.status || '').toUpperCase();
         return status === 'ACTIVE';
       }).length;
-      const blockedStudents = students.filter(s => {
-        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
-        return status === 'BLOCKED';
-      }).length;
-      const pendingStudents = students.filter(s => {
-        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
-        return status === 'PENDING';
-      }).length;
-      const rejectedStudents = students.filter(s => {
-        const status = String(s?.user?.status || s?.status || 'ACTIVE').toUpperCase();
-        return status === 'REJECTED';
-      }).length;
+
+      // Calculate chart data (always return valid structures even if empty)
+      const placementTrendData = this.calculatePlacementTrendForChart(applications);
+      const recruiterActivityData = this.calculateRecruiterActivityForChart(recruiters, jobs, applications);
+      const queryVolumeData = this.calculateQueryVolumeForChart(queries);
+      const schoolPerformanceData = this.calculateSchoolPerformance(students, applications);
+
+      console.log('📊 [AdminDashboard] Chart data calculated:', {
+        placementTrend: placementTrendData ? `${placementTrendData.labels?.length || 0} months` : 'null',
+        recruiterActivity: recruiterActivityData ? `${recruiterActivityData.labels?.length || 0} recruiters` : 'null',
+        queryVolume: queryVolumeData.length,
+        schoolPerformance: Object.keys(schoolPerformanceData).length + ' schools',
+      });
 
       const data = {
         stats: {
           totalJobsPosted,
-          activeRecruiters: recruiters.length,
-          totalStudents,
+          activeRecruiters,
           activeStudents,
-          blockedStudents,
-          pendingStudents,
-          rejectedStudents,
           pendingQueries,
           totalApplications,
           placedStudents: placedStudentIds.size,
         },
         chartData: {
-          placementTrend: null,
-          recruiterActivity: null,
-          queryVolume: [],
-          schoolPerformance: this.cachedData.chartData.schoolPerformance,
+          placementTrend: placementTrendData,
+          recruiterActivity: recruiterActivityData,
+          queryVolume: queryVolumeData,
+          schoolPerformance: schoolPerformanceData,
         },
       };
 
@@ -144,41 +173,205 @@ export class AdminDashboardService {
   }
 
   /**
-   * Calculate placement trend data
+   * Calculate placement trend data for Chart.js Line chart (last 6 months)
    */
-  calculatePlacementTrend(applications) {
-    const last30Days = [];
+  calculatePlacementTrendForChart(applications) {
+    if (!applications || applications.length === 0) {
+      // Return valid empty structure
+      const last6Months = [];
+      const today = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        last6Months.push({ month: monthLabel, placements: 0 });
+      }
+      return {
+        labels: last6Months.map(d => d.month),
+        datasets: [
+          {
+            label: 'Placements',
+            data: last6Months.map(d => d.placements),
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true,
+          },
+        ],
+      };
+    }
+
+    const last6Months = [];
     const today = new Date();
     
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+    // Generate last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      
+      // Count placements in this month
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
       
       const count = applications.filter(a => {
-        const appDate = new Date(a.createdAt || a.appliedAt);
-        return appDate.toISOString().split('T')[0] === dateStr && 
-               (a.status === 'ACCEPTED' || a.status === 'OFFERED');
+        try {
+          const appDateStr = a.createdAt || a.appliedAt || a.appliedDate;
+          if (!appDateStr) return false;
+          const appDate = new Date(appDateStr);
+          if (isNaN(appDate.getTime())) return false;
+          
+          const status = String(a?.status || a?.interviewStatus || '').toUpperCase();
+          return appDate >= monthStart && appDate <= monthEnd && 
+                 (status === 'SELECTED' || status === 'ACCEPTED' || status === 'OFFERED');
+        } catch (e) {
+          return false;
+        }
       }).length;
       
-      last30Days.push({ date: dateStr, count });
+      last6Months.push({ month: monthLabel, placements: count });
     }
     
-    return last30Days;
+    // Format for Chart.js Line chart
+    return {
+      labels: last6Months.map(d => d.month),
+      datasets: [
+        {
+          label: 'Placements',
+          data: last6Months.map(d => d.placements),
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    };
   }
 
   /**
-   * Calculate recruiter activity data
+   * Calculate recruiter activity data for Chart.js Bar chart
    */
-  calculateRecruiterActivity(recruiters, jobs) {
-    return recruiters.map(recruiter => {
-      const recruiterJobs = jobs.filter(j => j.recruiterId === recruiter.id);
+  calculateRecruiterActivityForChart(recruiters, jobs, applications) {
+    if (!recruiters || recruiters.length === 0) {
+      return null; // UI will show "No recruiter data"
+    }
+
+    const recruiterData = recruiters.map(recruiter => {
+      const recruiterJobs = jobs.filter(j => j?.recruiterId === recruiter?.id);
+      const recruiterJobIds = new Set(recruiterJobs.map(j => j.id));
+      const recruiterApplications = applications.filter(a => recruiterJobIds.has(a?.jobId)).length;
+      
       return {
-        name: recruiter.user?.displayName || recruiter.user?.email || 'Unknown',
+        name: recruiter.user?.displayName || recruiter.user?.email || recruiter.companyName || 'Unknown',
         jobsPosted: recruiterJobs.length,
-        applications: 0 // TODO: Count applications for this recruiter's jobs
+        applications: recruiterApplications
       };
-    }).sort((a, b) => b.jobsPosted - a.jobsPosted).slice(0, 10);
+    }).filter(r => r.jobsPosted > 0) // Only show recruiters who posted jobs
+      .sort((a, b) => b.jobsPosted - a.jobsPosted)
+      .slice(0, 10);
+    
+    // Format for Chart.js Bar chart
+    if (recruiterData.length === 0) {
+      return null; // UI will show "No recruiter data"
+    }
+    
+    return {
+      labels: recruiterData.map(r => {
+        const name = r.name || 'Unknown';
+        return name.length > 15 ? name.substring(0, 15) + '...' : name;
+      }),
+      datasets: [
+        {
+          label: 'Jobs Posted',
+          data: recruiterData.map(r => r.jobsPosted),
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          borderColor: 'rgb(34, 197, 94)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }
+  
+  /**
+   * Calculate query volume data for Pie chart
+   */
+  calculateQueryVolumeForChart(queries) {
+    if (!queries || queries.length === 0) {
+      return []; // UI will show "No query data"
+    }
+    
+    // Group queries by type/category
+    const queryTypes = {};
+    queries.forEach(query => {
+      const type = (query.type || query.category || query.subject || 'Other').toLowerCase();
+      queryTypes[type] = (queryTypes[type] || 0) + 1;
+    });
+    
+    // Format for react-minimal-pie-chart
+    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+    let colorIndex = 0;
+    
+    const pieData = Object.entries(queryTypes)
+      .filter(([type, count]) => count > 0) // Only include types with queries
+      .map(([type, count]) => ({
+        title: type.charAt(0).toUpperCase() + type.slice(1), // Capitalize first letter
+        value: count,
+        color: colors[colorIndex++ % colors.length],
+      }));
+    
+    return pieData; // Will be empty array if no queries, UI handles this
+  }
+  
+  /**
+   * Calculate school performance data
+   */
+  calculateSchoolPerformance(students, applications) {
+    const schools = ['SOT', 'SOM', 'SOH'];
+    const performance = {};
+    
+    schools.forEach(school => {
+      const schoolStudents = (students || []).filter(s => {
+        const studentSchool = s?.school || s?.user?.school || '';
+        return String(studentSchool).toUpperCase() === school.toUpperCase();
+      });
+      
+      const schoolApplications = (applications || []).filter(a => {
+        const student = (students || []).find(s => s?.id === a?.studentId);
+        if (!student) return false;
+        const studentSchool = student?.school || student?.user?.school || '';
+        return String(studentSchool).toUpperCase() === school.toUpperCase();
+      });
+      
+      // Calculate metrics
+      const totalStudents = schoolStudents.length;
+      const applied = schoolApplications.length;
+      const placed = schoolApplications.filter(a => {
+        const status = String(a?.status || a?.interviewStatus || '').toUpperCase();
+        return status === 'SELECTED' || status === 'ACCEPTED' || status === 'OFFERED';
+      }).length;
+      const interviewEligible = schoolApplications.filter(a => {
+        const screeningStatus = String(a?.screeningStatus || '').toUpperCase();
+        return screeningStatus === 'TEST_SELECTED';
+      }).length;
+      
+      // Performance metrics (as percentages)
+      const placementRate = totalStudents > 0 ? Math.round((placed / totalStudents) * 100) : 0;
+      const applicationRate = totalStudents > 0 ? Math.round((applied / totalStudents) * 100) : 0;
+      const conversionRate = applied > 0 ? Math.round((placed / applied) * 100) : 0;
+      const interviewRate = applied > 0 ? Math.round((interviewEligible / applied) * 100) : 0;
+      
+      // Always return valid structure, even if all values are 0
+      performance[school] = {
+        performance: {
+          labels: ['Placement Rate', 'Application Rate', 'Conversion Rate', 'Interview Rate'],
+          values: [placementRate, applicationRate, conversionRate, interviewRate],
+        },
+        applications: {
+          labels: ['Total Students', 'Applied', 'Interview Eligible', 'Placed'],
+          values: [totalStudents, applied, interviewEligible, placed],
+        },
+      };
+    });
+    
+    return performance;
   }
 
   /**

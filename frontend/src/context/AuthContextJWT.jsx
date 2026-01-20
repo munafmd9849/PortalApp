@@ -191,10 +191,102 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Google login (if implemented)
-  const loginWithGoogle = async () => {
-    // TODO: Implement OAuth flow with backend
-    throw new Error('Google login not yet implemented');
+  // Google login - Opens popup and handles OAuth flow
+  const loginWithGoogle = async (role = 'STUDENT') => {
+    try {
+      // Get Google OAuth URL from backend
+      const response = await api.getGoogleLoginUrl(role);
+      
+      if (!response.authUrl) {
+        throw new Error('Failed to get Google login URL');
+      }
+
+      // Open popup window for Google OAuth
+      const width = 500;
+      const height = 600;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+      
+      const popup = window.open(
+        response.authUrl,
+        'Google Login',
+        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      );
+
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups for this site.');
+      }
+
+      // Wait for popup to complete OAuth flow
+      return new Promise((resolve, reject) => {
+        // Listen for message from popup (when callback page loads)
+        const messageHandler = async (event) => {
+          // Verify origin for security
+          if (event.origin !== window.location.origin) {
+            return;
+          }
+
+          if (event.data.type === 'GOOGLE_LOGIN_SUCCESS') {
+            window.removeEventListener('message', messageHandler);
+            popup.close();
+            
+            // Extract tokens from message
+            const { accessToken, refreshToken } = event.data;
+            
+            if (accessToken && refreshToken) {
+              // Store tokens
+              api.setAuthTokens(accessToken, refreshToken);
+              
+              // Reload user data and wait for it to complete
+              try {
+                await loadUser(true);
+                // Get user data from API to return
+                const userData = await api.getCurrentUser();
+                resolve({ 
+                  user: userData.user, 
+                  role: userData.user.role,
+                  status: userData.user.status 
+                });
+              } catch (loadError) {
+                reject(loadError);
+              }
+            } else {
+              reject(new Error('No tokens received from Google login'));
+            }
+          } else if (event.data.type === 'GOOGLE_LOGIN_ERROR') {
+            window.removeEventListener('message', messageHandler);
+            popup.close();
+            reject(new Error(event.data.error || 'Google login failed'));
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+
+        // Also check if popup was closed manually
+        const checkClosed = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', messageHandler);
+            reject(new Error('Google login was cancelled'));
+          }
+        }, 1000);
+
+        // Cleanup on success/error
+        const originalResolve = resolve;
+        const originalReject = reject;
+        resolve = (value) => {
+          clearInterval(checkClosed);
+          originalResolve(value);
+        };
+        reject = (error) => {
+          clearInterval(checkClosed);
+          originalReject(error);
+        };
+      });
+    } catch (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
   };
 
   // Email verification (if needed)

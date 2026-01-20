@@ -60,21 +60,70 @@ const EducationSection = ({ isAdminView = false }) => {
           : (profile?.education ? [profile.education] : []);
         
         // Map backend fields to frontend fields
-        // Backend: institution, degree, endYear, cgpa
-        // Frontend: institute, branch, yop, scoreType, score
-        const mappedEducation = rawEducation.map(edu => ({
-          ...edu,
-          institute: edu.institution || edu.institute || '',
-          branch: edu.degree || edu.branch || '',
-          yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
-          scoreType: edu.cgpa ? 'CGPA' : 'Percentage',
-          score: edu.cgpa ? String(edu.cgpa) : (edu.score || ''),
-          // Preserve original fields for compatibility
-          institution: edu.institution,
-          degree: edu.degree,
-          endYear: edu.endYear,
-          cgpa: edu.cgpa,
-        }));
+        // Backend: institution, degree, endYear, cgpa, description (may contain city/state as JSON)
+        // Frontend: institute, branch, yop, scoreType, score, city, state
+        const mappedEducation = rawEducation.map(edu => {
+          // Try to parse city/state from description (stored as JSON)
+          let city = '';
+          let state = '';
+          if (edu.description) {
+            try {
+              const descData = JSON.parse(edu.description);
+              if (descData.city) city = descData.city;
+              if (descData.state) state = descData.state;
+            } catch (e) {
+              // Not JSON, ignore
+            }
+          }
+          
+          // Determine scoreType from description (where we store it)
+          // If description has scoreType, use it; otherwise default to CGPA if cgpa exists
+          let scoreType = 'CGPA';
+          let score = '';
+          
+          // Check description first for scoreType
+          if (edu.description) {
+            try {
+              const descData = JSON.parse(edu.description);
+              if (descData.scoreType) {
+                scoreType = descData.scoreType;
+                // If percentage, use originalScore; otherwise use cgpa
+                if (descData.scoreType === 'Percentage' && descData.originalScore) {
+                  score = String(descData.originalScore);
+                } else if (edu.cgpa) {
+                  score = String(edu.cgpa);
+                }
+              } else if (edu.cgpa) {
+                // No scoreType in description but cgpa exists - default to CGPA
+                score = String(edu.cgpa);
+              }
+            } catch (e) {
+              // Not JSON, fallback to cgpa if exists
+              if (edu.cgpa) {
+                score = String(edu.cgpa);
+              }
+            }
+          } else if (edu.cgpa) {
+            // No description, use cgpa as CGPA
+            score = String(edu.cgpa);
+          }
+          
+          return {
+            ...edu,
+            institute: edu.institution || edu.institute || '',
+            branch: edu.degree || edu.branch || '',
+            yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
+            scoreType: scoreType,
+            score: score,
+            city: city,
+            state: state,
+            // Preserve original fields for compatibility
+            institution: edu.institution,
+            degree: edu.degree,
+            endYear: edu.endYear,
+            cgpa: edu.cgpa,
+          };
+        });
         
         const hasRealEducation = mappedEducation.length > 0;
         
@@ -142,17 +191,15 @@ const EducationSection = ({ isAdminView = false }) => {
   };
 
   const handleEditClick = (education) => {
-    // Map backend fields to frontend form fields
-    // Backend: institution, degree, endYear, cgpa
-    // Frontend: institute, branch, yop, scoreType, score
+    // Use mapped education object which already has city/state/scoreType/score
     setCurrentEdu({
       institute: education.institution || education.institute || '',
       city: education.city || '',
       state: education.state || '',
       branch: education.degree || education.branch || '',
       yop: education.endYear ? String(education.endYear) : (education.yop || ''),
-      scoreType: education.cgpa ? 'CGPA' : (education.scoreType || 'CGPA'),
-      score: education.cgpa ? String(education.cgpa) : (education.score || '')
+      scoreType: education.scoreType || 'CGPA',
+      score: education.score || ''
     });
     setEditingId(education.id);
     setShowForm(true);
@@ -170,14 +217,78 @@ const EducationSection = ({ isAdminView = false }) => {
       await deleteEducationArray(user.id, education.id);
       console.log('Delete operation completed for ID:', education.id);
       
-      // Refresh education list after delete
+      // Refresh education list after delete - need to map backend data to frontend format
       const profile = await getStudentProfile(user.id);
-      const refreshedEducation = Array.isArray(profile?.education) ? profile.education : [];
-      console.log('🔄 [EducationSection] Refreshed after delete:', {
-        profileEducation: profile?.education,
-        refreshedCount: refreshedEducation.length,
+      const rawEducation = Array.isArray(profile?.education) ? profile.education : [];
+      
+      // Map backend fields to frontend fields (same logic as in loadEducation)
+      const mappedEducation = rawEducation.map(edu => {
+        // Parse city/state from description (stored as JSON)
+        let city = '';
+        let state = '';
+        if (edu.description) {
+          try {
+            const descData = JSON.parse(edu.description);
+            if (descData.city) city = descData.city;
+            if (descData.state) state = descData.state;
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+        
+        // Determine scoreType from description (where we store it)
+        let scoreType = 'CGPA';
+        let score = '';
+        
+        // Check description first for scoreType
+        if (edu.description) {
+          try {
+            const descData = JSON.parse(edu.description);
+            if (descData.scoreType) {
+              scoreType = descData.scoreType;
+              // If percentage, use originalScore; otherwise use cgpa
+              if (descData.scoreType === 'Percentage' && descData.originalScore) {
+                score = String(descData.originalScore);
+              } else if (edu.cgpa) {
+                score = String(edu.cgpa);
+              }
+            } else if (edu.cgpa) {
+              // No scoreType in description but cgpa exists - default to CGPA
+              score = String(edu.cgpa);
+            }
+          } catch (e) {
+            // Not JSON, fallback to cgpa if exists
+            if (edu.cgpa) {
+              score = String(edu.cgpa);
+            }
+          }
+        } else if (edu.cgpa) {
+          // No description, use cgpa as CGPA
+          score = String(edu.cgpa);
+        }
+        
+        return {
+          ...edu,
+          institute: edu.institution || edu.institute || '',
+          branch: edu.degree || edu.branch || '',
+          yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
+          scoreType: scoreType,
+          score: score,
+          city: city,
+          state: state,
+          institution: edu.institution,
+          degree: edu.degree,
+          endYear: edu.endYear,
+          cgpa: edu.cgpa,
+        };
       });
-      setEducationEntries(refreshedEducation);
+      
+      console.log('🔄 [EducationSection] Refreshed after delete:', {
+        rawCount: rawEducation.length,
+        mappedCount: mappedEducation.length,
+        mappedEducation,
+      });
+      setEducationEntries(mappedEducation);
       
       setSuccess('Education record deleted successfully!');
       setTimeout(() => setSuccess(''), 3000);
@@ -199,8 +310,33 @@ const EducationSection = ({ isAdminView = false }) => {
   };
 
   const saveEducation = async () => {
+    // Validate all required fields
     if (!currentEdu.institute.trim()) {
       setError('Institute name is required');
+      return;
+    }
+    if (!currentEdu.city.trim()) {
+      setError('City is required');
+      return;
+    }
+    if (!currentEdu.state.trim()) {
+      setError('State is required');
+      return;
+    }
+    if (!currentEdu.branch.trim()) {
+      setError('Qualification/Branch is required');
+      return;
+    }
+    if (!currentEdu.yop.trim()) {
+      setError('Year of Passing is required');
+      return;
+    }
+    if (!currentEdu.scoreType) {
+      setError('Score Type is required');
+      return;
+    }
+    if (!currentEdu.score || !currentEdu.score.trim()) {
+      setError(`${currentEdu.scoreType} is required`);
       return;
     }
     
@@ -209,34 +345,39 @@ const EducationSection = ({ isAdminView = false }) => {
       setError('');
       
       // Map frontend fields to backend schema
-      // Backend expects: institution, degree, endYear, cgpa
-      // Frontend uses: institute, branch, yop, scoreType/score
+      // Backend expects: institution, degree, endYear, cgpa, description
+      // Frontend uses: institute, branch, yop, scoreType/score, city, state
+      // Store city/state and scoreType in description as JSON
+      const descriptionData = {
+        city: currentEdu.city || '',
+        state: currentEdu.state || '',
+        scoreType: currentEdu.scoreType,
+        originalScore: currentEdu.score || '',
+      };
+      
+      // For CGPA: use exact value; for Percentage: store in description only
+      // Backend cgpa field is used for CGPA (0-10 range), percentage stored in description
+      let cgpaValue = null;
+      if (currentEdu.score && currentEdu.scoreType === 'CGPA') {
+        const cgpaStr = String(currentEdu.score).trim();
+        // Ensure it has 2 decimal places
+        if (cgpaStr.includes('.')) {
+          const parts = cgpaStr.split('.');
+          cgpaValue = parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
+        } else {
+          cgpaValue = cgpaStr + '.00';
+        }
+      } else if (currentEdu.score && currentEdu.scoreType === 'Percentage') {
+        // Don't store percentage in cgpa field - store null, original value in description
+        cgpaValue = null;
+      }
+      
       const eduData = {
         institution: currentEdu.institute, // Map institute -> institution
         degree: currentEdu.branch || currentEdu.institute, // Map branch -> degree (fallback to institute)
         endYear: currentEdu.yop ? parseInt(currentEdu.yop) : null, // Map yop -> endYear (convert to int)
-        // Preserve CGPA as string to avoid floating point rounding
-        // For CGPA: use exact value; for Percentage: convert and format to 2 decimal places
-        cgpa: currentEdu.scoreType === 'CGPA' && currentEdu.score 
-          ? (() => {
-              const cgpaStr = String(currentEdu.score).trim();
-              // Ensure it has 2 decimal places
-              if (cgpaStr.includes('.')) {
-                const parts = cgpaStr.split('.');
-                return parts[0] + '.' + (parts[1] || '').padEnd(2, '0').substring(0, 2);
-              }
-              return cgpaStr + '.00';
-            })()
-          : (currentEdu.scoreType === 'Percentage' && currentEdu.score 
-            ? (() => {
-                // Convert percentage to CGPA and format to 2 decimal places
-                const percent = parseFloat(currentEdu.score);
-                const cgpa = (percent / 10).toFixed(2);
-                return cgpa;
-              })()
-            : null),
-        // Note: city, state, description are not in backend schema, so we skip them
-        // If you need them, add them to the Prisma schema first
+        cgpa: cgpaValue,
+        description: JSON.stringify(descriptionData), // Store city/state and scoreType as JSON
       };
       
       console.log('💾 [EducationSection] Saving education data:', {
@@ -254,14 +395,79 @@ const EducationSection = ({ isAdminView = false }) => {
         setSuccess('Education added successfully!');
       }
       
-      // Refresh education list after save
+      // Refresh education list after save - need to map backend data to frontend format
       const profile = await getStudentProfile(user.id);
-      const refreshedEducation = Array.isArray(profile?.education) ? profile.education : [];
-      console.log('🔄 [EducationSection] Refreshed after save:', {
-        profileEducation: profile?.education,
-        refreshedCount: refreshedEducation.length,
+      const rawEducation = Array.isArray(profile?.education) ? profile.education : [];
+      
+      // Map backend fields to frontend fields (same logic as in loadEducation)
+      const mappedEducation = rawEducation.map(edu => {
+        // Parse city/state from description (stored as JSON)
+        let city = '';
+        let state = '';
+        if (edu.description) {
+          try {
+            const descData = JSON.parse(edu.description);
+            if (descData.city) city = descData.city;
+            if (descData.state) state = descData.state;
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+        
+        // Determine scoreType from description (where we store it)
+        // If description has scoreType, use it; otherwise default to CGPA if cgpa exists
+        let scoreType = 'CGPA';
+        let score = '';
+        
+        // Check description first for scoreType
+        if (edu.description) {
+          try {
+            const descData = JSON.parse(edu.description);
+            if (descData.scoreType) {
+              scoreType = descData.scoreType;
+              // If percentage, use originalScore; otherwise use cgpa
+              if (descData.scoreType === 'Percentage' && descData.originalScore) {
+                score = String(descData.originalScore);
+              } else if (edu.cgpa) {
+                score = String(edu.cgpa);
+              }
+            } else if (edu.cgpa) {
+              // No scoreType in description but cgpa exists - default to CGPA
+              score = String(edu.cgpa);
+            }
+          } catch (e) {
+            // Not JSON, fallback to cgpa if exists
+            if (edu.cgpa) {
+              score = String(edu.cgpa);
+            }
+          }
+        } else if (edu.cgpa) {
+          // No description, use cgpa as CGPA
+          score = String(edu.cgpa);
+        }
+        
+        return {
+          ...edu,
+          institute: edu.institution || edu.institute || '',
+          branch: edu.degree || edu.branch || '',
+          yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
+          scoreType: scoreType,
+          score: score,
+          city: city,
+          state: state,
+          institution: edu.institution,
+          degree: edu.degree,
+          endYear: edu.endYear,
+          cgpa: edu.cgpa,
+        };
       });
-      setEducationEntries(refreshedEducation);
+      
+      console.log('🔄 [EducationSection] Refreshed after save:', {
+        rawCount: rawEducation.length,
+        mappedCount: mappedEducation.length,
+        mappedEducation,
+      });
+      setEducationEntries(mappedEducation);
       
       // Reset form
       setShowForm(false);
@@ -372,7 +578,7 @@ const EducationSection = ({ isAdminView = false }) => {
               {/* Column Headers - Hidden on mobile */}
               <div className="hidden md:grid grid-cols-4 gap-4 mb-0 p-4">
                 <div className="text-black font-bold text-sm lg:text-lg">Institute</div>
-                <div className="text-black font-bold text-sm lg:text-lg">Qualification</div>
+                <div className="text-black font-bold text-sm lg:text-lg">Qualification/Branch</div>
                 <div className="text-black font-bold text-sm lg:text-lg">Year of Passing</div>
                 <div className="text-black font-bold text-sm lg:text-lg">CGPA/Percentage</div>
               </div>
@@ -381,7 +587,7 @@ const EducationSection = ({ isAdminView = false }) => {
             {educationEntries.map((education, index) => (
               <div
                 key={education.id}
-                className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl relative
+                className={`group/edu-row flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl relative
                   bg-gradient-to-r 
                   ${index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'}
                   hover:shadow-md transition ${
@@ -422,22 +628,24 @@ const EducationSection = ({ isAdminView = false }) => {
                 {/* Desktop Layout */}
                 <>
                   <div className="hidden md:flex flex-col">
-                    <span className="text-sm lg:text-base font-semibold text-black">
+                    <span className="text-sm lg:text-base font-bold text-gray-900">
                       {education.institute}
                     </span>
                     {[education.city, education.state].filter(Boolean).length > 0 && (
-                      <span className="text-xs lg:text-sm italic text-gray-700">
-                        {[education.city, education.state].filter(Boolean).join(', ')}
-                      </span>
+                      <div className="overflow-hidden max-h-0 group-hover/edu-row:max-h-6 transition-all duration-300 ease-in-out">
+                        <span className="text-xs lg:text-sm italic text-gray-600 block">
+                          {[education.city, education.state].filter(Boolean).join(', ')}
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
                     {education.branch}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
                     {education.yop}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-bold text-gray-900 flex items-center">
                     {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
                   </div>
                 </>
@@ -484,7 +692,9 @@ const EducationSection = ({ isAdminView = false }) => {
             {/* Row 1: Institute (wider), City, State */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Institute Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Institute Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
@@ -495,9 +705,12 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  City <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
+                  required
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="City"
                   value={currentEdu.city}
@@ -505,9 +718,12 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  State <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
+                  required
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="State"
                   value={currentEdu.state}
@@ -519,9 +735,12 @@ const EducationSection = ({ isAdminView = false }) => {
             {/* Row 2: Branch, YOP, ScoreType dropdown, Score */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Branch/Specialization</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Qualification/Branch <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
+                  required
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., CSE, 12th, 10th"
                   value={currentEdu.branch}
@@ -529,9 +748,12 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Year of Passing</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Year of Passing <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
+                  required
                   inputMode="numeric"
                   min="1900"
                   max="2099"
@@ -542,7 +764,9 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Score Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Score Type <span className="text-red-500">*</span>
+                </label>
                 <CustomDropdown
                   label="Score Type"
                   icon={FaChartLine}
@@ -557,9 +781,12 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{currentEdu.scoreType}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {currentEdu.scoreType} <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
+                  required
                   step={currentEdu.scoreType === 'CGPA' ? '0.01' : '0.1'}
                   min={currentEdu.scoreType === 'CGPA' ? '0' : '0'}
                   max={currentEdu.scoreType === 'CGPA' ? '10' : '100'}
@@ -602,7 +829,7 @@ const EducationSection = ({ isAdminView = false }) => {
               {/* Column Headers */}
               <div className="grid grid-cols-4 gap-4 mb-0 p-4">
                 <div className="text-black font-bold text-lg">Institute</div>
-                <div className="text-black font-bold text-lg">Qualification</div>
+                <div className="text-black font-bold text-lg">Qualification/Branch</div>
                 <div className="text-black font-bold text-lg">Year of Passing</div>
                 <div className="text-black font-bold text-lg">CGPA/Percentage</div>
               </div>

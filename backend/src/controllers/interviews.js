@@ -15,14 +15,44 @@ export const startInterviewSession = async (req, res) => {
     const { jobId } = req.params;
     const userId = req.user.id;
 
-    // Check if job exists
+    // Check if job exists and get requirements
     const job = await prisma.job.findUnique({
       where: { id: jobId },
       include: { company: true },
+      select: {
+        id: true,
+        jobTitle: true,
+        companyId: true,
+        requiresScreening: true,
+        requiresTest: true,
+        driveDate: true, // CRITICAL: Get driveDate for validation
+        company: true
+      }
     });
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // CRITICAL: Interview session cannot start before driveDate
+    // No bypass, no admin override, no exceptions
+    if (!job.driveDate) {
+      return res.status(400).json({ 
+        error: 'Drive date not configured',
+        message: 'Drive date is not set for this job. Please set the drive date before starting interview sessions.'
+      });
+    }
+
+    const now = new Date();
+    const driveDateTime = new Date(job.driveDate);
+    
+    if (now < driveDateTime) {
+      return res.status(400).json({ 
+        error: 'Interview drive has not started yet',
+        message: 'Interview session can start only on the drive date',
+        driveDate: job.driveDate,
+        currentDate: now,
+      });
     }
 
     // Check if interview session already exists
@@ -63,11 +93,41 @@ export const startInterviewSession = async (req, res) => {
       });
     }
 
-    // Get all applications for this job
+    // Get eligible applications for this job based on pre-interview requirements
+    // CASE A: No screening/test required -> all applications
+    // CASE B: Screening/test required -> only INTERVIEW_ELIGIBLE applications
+    const requiresScreening = job.requiresScreening || false;
+    const requiresTest = job.requiresTest || false;
+    
+    let applicationsWhere = { jobId };
+    
+    if (requiresScreening || requiresTest) {
+      // Only include applications that have passed pre-interview requirements
+      applicationsWhere = {
+        ...applicationsWhere,
+        screeningStatus: 'INTERVIEW_ELIGIBLE'
+      };
+    }
+    
     const applications = await prisma.application.findMany({
-      where: { jobId },
+      where: applicationsWhere,
       include: { student: true },
     });
+    
+    // CRITICAL: Block session creation if no eligible candidates
+    if (applications.length === 0) {
+      if (requiresScreening || requiresTest) {
+        return res.status(400).json({ 
+          error: 'No eligible candidates',
+          message: 'Complete required screening/test before starting interviews. No candidates have qualified for interview rounds yet.'
+        });
+      } else {
+        return res.status(400).json({ 
+          error: 'No applications',
+          message: 'No applications found for this job.'
+        });
+      }
+    }
 
     // Create default rounds with order field
     const defaultRounds = [
@@ -373,9 +433,37 @@ export const getRoundCandidates = async (req, res) => {
       return res.status(404).json({ error: 'Round not found' });
     }
 
-    // Get all applications for this job
+    // Get job requirements
+    const job = await prisma.job.findUnique({
+      where: { id: interview.jobId },
+      select: {
+        requiresScreening: true,
+        requiresTest: true
+      }
+    });
+
+    // Get eligible applications for this job based on pre-interview requirements
+    // For Round 1: Filter based on requirements
+    // For later rounds: Filter based on previous round evaluations
+    const requiresScreening = job?.requiresScreening || false;
+    const requiresTest = job?.requiresTest || false;
+    
+    let applicationsWhere = { jobId: interview.jobId };
+    
+    // For Round 1: Only include eligible candidates if screening/test is required
+    if (currentRoundIndex === 0) {
+      if (requiresScreening || requiresTest) {
+        // Only include applications that have passed pre-interview requirements
+        applicationsWhere = {
+          ...applicationsWhere,
+          screeningStatus: 'INTERVIEW_ELIGIBLE'
+        };
+      }
+      // If no requirements, include all applications
+    }
+    
     let applications = await prisma.application.findMany({
-      where: { jobId: interview.jobId },
+      where: applicationsWhere,
       include: {
         student: {
           include: { user: true },
