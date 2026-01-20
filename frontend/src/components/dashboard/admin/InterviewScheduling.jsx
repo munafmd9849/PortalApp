@@ -463,7 +463,7 @@ export default function InterviewScheduling() {
         </div>
       </div>
 
-      {/* Jobs list - matching ScheduleInterview style */}
+      {/* Jobs list */}
       <div>
         {jobs.length === 0 ? (
           <div className="text-center py-12">
@@ -471,17 +471,37 @@ export default function InterviewScheduling() {
           </div>
         ) : (
           jobs.map((job) => {
-            // Get session status if available (from backend response)
-            // For now, we'll determine this when we load the session
             const isSelected = selectedJob?.id === job.id;
-            // Remove canStartSession - will be determined from backend session status
-            // isDisabled tracks COMPLETED/INCOMPLETE sessions
             const hasCompletedSession = completedSessions.has(job.id);
+            
+            // Check if drive date has been reached
+            const driveDateReached = isDriveDateReached(job);
+            const driveDate = job.driveDate ? (job.driveDate.toDate ? job.driveDate.toDate() : new Date(job.driveDate)) : null;
+            const now = new Date();
+            
+            // Determine date status
+            let dateStatus = null; // 'past', 'today', 'future'
+            let dateStatusLabel = '';
+            if (driveDate) {
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const interviewDay = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
+              
+              if (interviewDay < today) {
+                dateStatus = 'past';
+                dateStatusLabel = 'Past';
+              } else if (interviewDay.getTime() === today.getTime()) {
+                dateStatus = 'today';
+                dateStatusLabel = 'Today';
+              } else {
+                dateStatus = 'future';
+                dateStatusLabel = 'Upcoming';
+              }
+            }
             
             return (
               <div 
                 key={job.id} 
-                    className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
+                className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
                   isSelected 
                     ? 'bg-blue-50 border-blue-300' 
                     : hasCompletedSession
@@ -518,14 +538,24 @@ export default function InterviewScheduling() {
                     {/* Interview Date */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
+                        <Calendar className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Interview</span>
                       </div>
-                      <div className="text-slate-900 text-sm text-center">
-                        {job.driveDate ? (
-                          job.driveDate.toDate ?
-                            job.driveDate.toDate().toLocaleDateString('en-GB') :
-                            new Date(job.driveDate).toLocaleDateString('en-GB')
-                        ) : 'TBD'}
+                      <div className="text-center">
+                        <div className="text-slate-900 text-sm font-semibold">
+                          {driveDate ? (
+                            driveDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                          ) : 'TBD'}
+                        </div>
+                        {dateStatus && (
+                          <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full ${
+                            dateStatus === 'past' ? 'bg-gray-100 text-gray-700 border border-gray-300' :
+                            dateStatus === 'today' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
+                            'bg-blue-100 text-blue-700 border border-blue-300'
+                          }`}>
+                            {dateStatusLabel}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -574,41 +604,46 @@ export default function InterviewScheduling() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 ml-4">
-                        {/* 
-                          CRITICAL: Buttons are ONLY shown based on backend session.status
-                          COMPLETED and INCOMPLETE sessions have NO buttons (removed from DOM)
-                          NOT_STARTED with valid drive date shows "Start Session"
-                          ONGOING with valid drive date shows "Continue Session"
-                        */}
                         {!hasCompletedSession && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('Button clicked for job:', job.id);
-                              handleSelectJob(job);
-                            }}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
-                              isSelected
-                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                                : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
-                            }`}
-                          >
-                            {isSelected ? (
-                              <>
-                                <Settings className="w-4 h-4" />
-                                <span>Manage Session</span>
-                              </>
+                          <>
+                            {driveDateReached || isSelected ? (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleSelectJob(job);
+                                }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                                    : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Settings className="w-4 h-4" />
+                                    <span>Manage Session</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <PlayCircle className="w-4 h-4" />
+                                    <span>Start Session</span>
+                                  </>
+                                )}
+                              </button>
                             ) : (
-                              <>
-                                <PlayCircle className="w-4 h-4" />
-                                <span>Start Session</span>
-                              </>
+                              <button
+                                disabled
+                                className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
+                                title={`Session can only be started after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
+                              >
+                                <Clock className="w-4 h-4" />
+                                <span>Starts {dateStatus === 'future' ? 'After ' + (driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date') : 'On Date'}</span>
+                              </button>
                             )}
-                          </button>
+                          </>
                         )}
                         
-                        {/* Show status label for COMPLETED/INCOMPLETE sessions */}
                         {hasCompletedSession && (
                           <div className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-100 text-gray-700">
                             <CheckCircle className="w-4 h-4" />

@@ -26,12 +26,18 @@ function generateScreeningToken(jobId, recruiterEmail) {
  */
 function verifyScreeningToken(token) {
   try {
+    if (!token || token.length < 50) {
+      console.warn(`⚠️ Token too short (${token?.length || 0} chars), likely truncated`);
+      return null;
+    }
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.type !== 'recruiter_screening') {
+      console.warn(`⚠️ Token type mismatch: ${decoded.type}`);
       return null;
     }
     return decoded;
   } catch (error) {
+    console.error(`❌ Token verification error:`, error.message);
     return null;
   }
 }

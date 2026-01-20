@@ -3,9 +3,19 @@
  * Usage: node scripts/sendTestScreeningEmail.js <email> [jobId]
  */
 
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { sendEmail } from '../src/config/email.js';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend root directory
+dotenv.config({ path: join(__dirname, '../.env') });
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -41,17 +51,18 @@ async function sendScreeningEmail(recipientEmail, jobId = null) {
         });
 
         if (job) {
-          // Get or create screening session
+          // Get or create screening session - always generate a fresh token for testing
           try {
             let session = await prisma.recruiterScreeningSession.findUnique({
               where: { jobId: job.id }
             });
 
-            if (!session) {
-              const newToken = generateScreeningToken(job.id, recipientEmail);
-              const expiresAt = new Date();
-              expiresAt.setDate(expiresAt.getDate() + 14);
+            // Always generate a fresh token for test emails
+            const newToken = generateScreeningToken(job.id, recipientEmail);
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 14);
 
+            if (!session) {
               session = await prisma.recruiterScreeningSession.create({
                 data: {
                   jobId: job.id,
@@ -59,9 +70,24 @@ async function sendScreeningEmail(recipientEmail, jobId = null) {
                   expiresAt
                 }
               });
+            } else {
+              // Update existing session with new token
+              session = await prisma.recruiterScreeningSession.update({
+                where: { id: session.id },
+                data: {
+                  token: newToken,
+                  expiresAt
+                }
+              });
             }
 
             sessionToken = session.token;
+            
+            // Verify token length is correct
+            if (!sessionToken || sessionToken.length < 100) {
+              console.warn(`⚠️  Warning: Token seems too short (${sessionToken?.length || 0} chars). Generating new one.`);
+              sessionToken = newToken;
+            }
           } catch (sessionError) {
             if (sessionError.message.includes('quota')) {
               console.log('⚠️  Database quota exceeded, generating token without creating session...');
