@@ -89,6 +89,10 @@ async function notifyAdminsAboutQuery(query, metadata, studentProfile) {
       message: query.message,
       jobId: metadata.jobId || null, // Include jobId for question type queries
       type: notificationType, // Store type in data for frontend to extract
+      // Include CGPA and backlog values for CGPA/backlog update queries
+      cgpa: metadata.cgpa || null,
+      backlogs: metadata.backlogs || null,
+      proofDocumentUrl: metadata.proofDocumentUrl || null, // Proof document URL if uploaded by student
     };
 
     console.log(`[Query Notification] Creating notifications for query ${query.id}, type: ${notificationType}`);
@@ -227,6 +231,13 @@ export async function createStudentQuery(req, res) {
       validatedBacklogs = backlogsStr;
     }
 
+    // Get proof document URL if uploaded (from multer middleware)
+    let proofDocumentUrl = null;
+    if (req.file && req.file.url) {
+      proofDocumentUrl = req.file.url;
+      console.log('[Query Creation] Proof document uploaded:', proofDocumentUrl);
+    }
+
     const metadata = {
       referenceId,
       cgpa: validatedCgpa,
@@ -238,6 +249,7 @@ export async function createStudentQuery(req, res) {
       teacherEmail: teacherEmail || null,
       endorsementMessage: endorsementMessage || null,
       jobId: jobId || null, // Store jobId for question type queries
+      proofDocumentUrl: proofDocumentUrl || null, // Store proof document URL if uploaded
     };
 
     const studentProfile = await prisma.student.findUnique({

@@ -203,12 +203,18 @@ function AppContent() {
           <Route path="/recruiter" element={<RecruiterDashboard />} />
         </Route>
 
-        <Route element={<ProtectedRoute allowRoles={['admin']} />}>
+        {/* Admin routes - ADMIN and RECRUITER can access */}
+        <Route element={<ProtectedRoute allowRoles={['admin', 'recruiter']} />}>
           <Route path="/admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+        
+        {/* Admin-only routes - Only ADMIN can access */}
+        <Route element={<ProtectedRoute allowRoles={['admin']} />}>
+          {/* Add admin-only routes here if needed */}
         </Route>
 
         {/* Interviewer routes (token-based, no auth required) */}

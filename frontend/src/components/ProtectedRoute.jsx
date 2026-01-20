@@ -27,8 +27,23 @@ export default function ProtectedRoute({ allowRoles }) {
   });
 
   if (allowRoles && Array.isArray(allowRoles) && roleLower && !allowRolesLower.includes(roleLower)) {
-    console.log('ProtectedRoute: Role mismatch, redirecting to home');
-    return <Navigate to="/" replace />;
+    console.error('🚫 UNAUTHORIZED ROUTE ACCESS - ProtectedRoute:', {
+      userRole: role,
+      requiredRoles: allowRoles,
+      userId: user?.id,
+      email: user?.email,
+      path: window.location.pathname,
+      timestamp: new Date().toISOString(),
+    });
+    
+    // Redirect based on role
+    const userRoleUpper = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+    const redirectPath = userRoleUpper === 'STUDENT' ? '/student' :
+                         userRoleUpper === 'RECRUITER' ? '/recruiter' :
+                         userRoleUpper === 'ADMIN' ? '/admin' :
+                         '/';
+    
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <Outlet />;

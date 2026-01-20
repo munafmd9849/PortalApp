@@ -28,9 +28,25 @@ export default function JobDetail() {
     })();
   }, [jobId]);
 
+  // Check if deadline has passed
+  const isDeadlinePassed = () => {
+    if (!job?.applicationDeadline && !job?.deadline) return false;
+    const deadline = job.applicationDeadline || job.deadline;
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    return now > deadlineDate;
+  };
+
   const onApply = async () => {
     if (!user) return setApplyMsg('Please sign in to apply.');
     if (role !== 'student') return setApplyMsg('Only students can apply.');
+    
+    // Check deadline before applying (frontend check - backend is the real guard)
+    if (isDeadlinePassed()) {
+      const deadline = job.applicationDeadline || job.deadline;
+      return setApplyMsg(`Applications closed on ${new Date(deadline).toLocaleString()}`);
+    }
+    
     setApplyMsg('');
     setApplyLoading(true);
     try {
@@ -39,10 +55,12 @@ export default function JobDetail() {
     } catch (error) {
       console.error('Apply error:', error);
       
-      // Handle CGPA requirement error with precise message
+      // Handle errors with precise message
       if (error.response?.data || error.message) {
         const errorData = error.response?.data || {};
-        if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+        if (errorData.error === 'Applications closed' || errorData.error === 'Application deadline has passed') {
+          setApplyMsg('Applications for this job are closed');
+        } else if (errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
           const message = errorData.message || 'CGPA requirement not met';
           const requirement = errorData.requirement || '';
           const fullMessage = requirement 
@@ -73,10 +91,19 @@ export default function JobDetail() {
       <p className="mt-2">Location: {job.location || job.jobLocation}</p>
       <p className="mt-4 whitespace-pre-wrap">{job.jobDescription || job.description}</p>
       <div className="mt-6">
-        <button onClick={onApply} disabled={applyLoading} className="bg-black text-white px-4 py-2 rounded disabled:opacity-60">
-          {applyLoading ? 'Applying...' : 'Apply now'}
+        <button 
+          onClick={onApply} 
+          disabled={applyLoading || isDeadlinePassed()} 
+          className={`px-4 py-2 rounded disabled:opacity-60 ${
+            isDeadlinePassed() 
+              ? 'bg-gray-400 text-white cursor-not-allowed' 
+              : 'bg-black text-white hover:bg-gray-800'
+          }`}
+          title={isDeadlinePassed() ? 'Application deadline has passed' : ''}
+        >
+          {applyLoading ? 'Applying...' : isDeadlinePassed() ? 'Deadline Passed' : 'Apply now'}
         </button>
-        {applyMsg && <p className="mt-2 text-sm">{applyMsg}</p>}
+        {applyMsg && <p className={`mt-2 text-sm ${isDeadlinePassed() || applyMsg.includes('deadline') ? 'text-red-600' : ''}`}>{applyMsg}</p>}
       </div>
     </div>
   );

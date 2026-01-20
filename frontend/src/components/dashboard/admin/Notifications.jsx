@@ -996,6 +996,49 @@ const Notifications = () => {
                   </div>
                 )}
 
+                {/* CGPA/Backlog Update Details */}
+                {(selectedNotification.meta?.queryType === 'cgpa' || selectedNotification.meta?.queryType === 'backlog') && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Update Details</h3>
+                    <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                      {selectedNotification.meta?.queryType === 'cgpa' && selectedNotification.meta?.cgpa && (
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-gray-600">Updated CGPA:</span>
+                          <p className="text-lg font-bold text-green-700 mt-1">{selectedNotification.meta.cgpa}</p>
+                        </div>
+                      )}
+                      {selectedNotification.meta?.queryType === 'backlog' && selectedNotification.meta?.backlogs && (
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-gray-600">Updated Backlogs:</span>
+                          <p className="text-lg font-bold text-orange-700 mt-1">{selectedNotification.meta.backlogs}</p>
+                        </div>
+                      )}
+                      {/* Proof Document Display */}
+                      {selectedNotification.meta?.proofDocumentUrl && (
+                        <div className="mt-4 pt-4 border-t border-green-300">
+                          <span className="text-sm font-medium text-gray-600 block mb-2">Proof Document:</span>
+                          <a
+                            href={selectedNotification.meta.proofDocumentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium text-sm"
+                          >
+                            <FaEye className="text-sm" />
+                            View Proof Document
+                          </a>
+                        </div>
+                      )}
+                      {!selectedNotification.meta?.proofDocumentUrl && (
+                        <div className="mt-4 pt-4 border-t border-green-300">
+                          <p className="text-sm text-amber-600 italic">
+                            ⚠️ Proof document not available. The student may not have uploaded it properly.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Additional Query Details */}
                 {selectedNotification.meta?.queryType && (
                   <div className="mb-6">

@@ -597,8 +597,9 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(targeting),
   }),
-  approveJob: (jobId) => apiRequest(`/jobs/${jobId}/approve`, {
+  approveJob: (jobId, targeting = {}) => apiRequest(`/jobs/${jobId}/approve`, {
     method: 'POST',
+    body: JSON.stringify(targeting),
   }),
   rejectJob: (jobId, data) => apiRequest(`/jobs/${jobId}/reject`, {
     method: 'POST',
@@ -638,10 +639,65 @@ export const api = {
   }),
 
   // Queries
-  submitStudentQuery: (data) => apiRequest('/queries', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
+  submitStudentQuery: (data, proofDocument = null) => {
+    // If proof document is provided, use FormData; otherwise use JSON
+    if (proofDocument) {
+      const token = getAuthToken();
+      const formData = new FormData();
+      
+      // Append all query data fields to FormData
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          formData.append(key, data[key]);
+        }
+      });
+      
+      // Append proof document with the correct field name
+      formData.append('proofDocument', proofDocument);
+      
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200 || xhr.status === 201) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch (e) {
+              reject(new Error('Failed to parse response'));
+            }
+          } else {
+            let errorMessage = `Query submission failed: ${xhr.statusText}`;
+            try {
+              const errorResponse = JSON.parse(xhr.responseText);
+              if (errorResponse.error) {
+                errorMessage = errorResponse.error;
+              }
+            } catch (e) {
+              // If parsing fails, use default message
+            }
+            const error = new Error(errorMessage);
+            error.status = xhr.status;
+            reject(error);
+          }
+        });
+        
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error occurred'));
+        });
+        
+        xhr.open('POST', `${API_BASE_URL}/queries`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        // Don't set Content-Type - browser will set it with boundary for FormData
+        xhr.send(formData);
+      });
+    } else {
+      // No file, use regular JSON API request
+      return apiRequest('/queries', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    }
+  },
   getStudentQueries: () => apiRequest('/queries'),
   getAdminQueries: () => apiRequest('/queries/admin'),
   respondToStudentQuery: (queryId, payload) => apiRequest(`/queries/${queryId}/respond`, {

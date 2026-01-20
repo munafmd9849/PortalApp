@@ -68,7 +68,7 @@ export async function getOrCreateScreeningSession(req, res) {
       return res.status(400).json({ error: 'Job ID is required' });
     }
 
-    // Get job with recruiter email
+    // Get job with recruiter email and pre-interview requirements
     const job = await prisma.job.findUnique({
       where: { id: jobId },
       select: {
@@ -78,6 +78,8 @@ export async function getOrCreateScreeningSession(req, res) {
         recruiterEmail: true,
         recruiterName: true,
         applicationDeadline: true,
+        requiresScreening: true,
+        requiresTest: true,
         company: {
           select: { name: true }
         }
@@ -190,7 +192,9 @@ export async function getOrCreateScreeningSession(req, res) {
         companyName: job.companyName || job.company?.name || 'Unknown Company',
         recruiterEmail: job.recruiterEmail,
         recruiterName: job.recruiterName,
-        applicationDeadline: job.applicationDeadline
+        applicationDeadline: job.applicationDeadline,
+        requiresScreening: job.requiresScreening || false,
+        requiresTest: job.requiresTest || false
       },
       applications: applications.map(app => {
         // Get resume URL from new StudentResumeFile (preferred) or fallback to old resumeUrl
@@ -215,10 +219,14 @@ export async function getOrCreateScreeningSession(req, res) {
       summary: {
         total: applications.length,
         applied: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,
-        resumeSelected: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED').length,
-        resumeRejected: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED').length,
+        screeningSelected: applications.filter(a => a.screeningStatus === 'SCREENING_SELECTED').length,
+        screeningRejected: applications.filter(a => a.screeningStatus === 'SCREENING_REJECTED').length,
         testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED').length,
-        testRejected: applications.filter(a => a.screeningStatus === 'TEST_REJECTED').length
+        testRejected: applications.filter(a => a.screeningStatus === 'TEST_REJECTED').length,
+        interviewEligible: applications.filter(a => a.screeningStatus === 'INTERVIEW_ELIGIBLE').length,
+        // Legacy fields for backward compatibility
+        resumeSelected: applications.filter(a => a.screeningStatus === 'SCREENING_SELECTED').length,
+        resumeRejected: applications.filter(a => a.screeningStatus === 'SCREENING_REJECTED').length
       }
     });
   } catch (error) {
@@ -260,8 +268,8 @@ export async function updateScreeningStatus(req, res) {
       });
     }
 
-    // Validate screening status
-    const validStatuses = ['APPLIED', 'RESUME_REJECTED', 'RESUME_SELECTED', 'TEST_REJECTED', 'TEST_SELECTED'];
+    // Validate screening status (updated status names)
+    const validStatuses = ['APPLIED', 'SCREENING_SELECTED', 'SCREENING_REJECTED', 'TEST_SELECTED', 'TEST_REJECTED', 'INTERVIEW_ELIGIBLE'];
     if (!validStatuses.includes(screeningStatus)) {
       return res.status(400).json({ 
         success: false,
@@ -270,14 +278,16 @@ export async function updateScreeningStatus(req, res) {
       });
     }
 
-    // Get application to verify it belongs to the job
+    // Get application to verify it belongs to the job and check requirements
     const application = await prisma.application.findUnique({
       where: { id: applicationId },
       include: {
         job: {
           select: {
             id: true,
-            recruiterEmail: true
+            recruiterEmail: true,
+            requiresScreening: true,
+            requiresTest: true
           }
         }
       }
@@ -300,25 +310,62 @@ export async function updateScreeningStatus(req, res) {
       });
     }
 
-    // Validate status transitions
+    // Validate status transitions and job requirements
     const currentStatus = application.screeningStatus || 'APPLIED';
+    const job = application.job;
     
-    // Can only move to TEST status if RESUME_SELECTED
-    if ((screeningStatus === 'TEST_REJECTED' || screeningStatus === 'TEST_SELECTED') && currentStatus !== 'RESUME_SELECTED') {
+    // Validate that screening actions are only allowed if requiresScreening is true
+    if ((screeningStatus === 'SCREENING_SELECTED' || screeningStatus === 'SCREENING_REJECTED') && !job.requiresScreening) {
       return res.status(400).json({ 
         success: false,
-        error: 'Invalid status transition',
-        message: 'Cannot move to test stage without first selecting the resume. Please select the resume first.'
+        error: 'Invalid action',
+        message: 'Resume screening is not required for this job.'
       });
     }
+    
+    // Validate that test actions are only allowed if requiresTest is true
+    if ((screeningStatus === 'TEST_SELECTED' || screeningStatus === 'TEST_REJECTED') && !job.requiresTest) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid action',
+        message: 'QA/Test is not required for this job.'
+      });
+    }
+    
+    // If test is required, can only move to TEST status if SCREENING_SELECTED (if screening is also required)
+    // OR if screening is not required, can move directly to TEST from APPLIED
+    if (job.requiresTest && (screeningStatus === 'TEST_REJECTED' || screeningStatus === 'TEST_SELECTED')) {
+      if (job.requiresScreening && currentStatus !== 'SCREENING_SELECTED') {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid status transition',
+          message: 'Cannot move to test stage without first selecting the resume. Please select the resume first.'
+        });
+      }
+      if (!job.requiresScreening && currentStatus !== 'APPLIED') {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid status transition',
+          message: 'Invalid status transition for this application.'
+        });
+      }
+    }
 
+    // Determine final status after update
+    // If TEST_SELECTED, set to INTERVIEW_ELIGIBLE
+    // Otherwise use the provided status
+    let finalStatus = screeningStatus;
+    if (screeningStatus === 'TEST_SELECTED') {
+      finalStatus = 'INTERVIEW_ELIGIBLE';
+    }
+    
     // Update application
     const updated = await prisma.application.update({
       where: { id: applicationId },
       data: {
-        screeningStatus,
+        screeningStatus: finalStatus,
         screeningRemarks: screeningRemarks?.trim() || null,
-        screeningCompletedAt: screeningStatus === 'TEST_SELECTED' || screeningStatus === 'TEST_REJECTED' || screeningStatus === 'RESUME_REJECTED' 
+        screeningCompletedAt: (finalStatus === 'INTERVIEW_ELIGIBLE' || finalStatus === 'TEST_REJECTED' || finalStatus === 'SCREENING_REJECTED') 
           ? new Date() 
           : application.screeningCompletedAt
       }
@@ -377,10 +424,41 @@ export async function finalizeScreening(req, res) {
       where: { jobId }
     });
 
-    // Check if all applications have been decided
+    // Get job requirements
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: {
+        requiresScreening: true,
+        requiresTest: true
+      }
+    });
+
+    if (!job) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Job not found',
+        message: 'The job does not exist.'
+      });
+    }
+
+    // Check if all applications have been decided based on requirements
     const undecided = applications.filter(app => {
       const status = app.screeningStatus || 'APPLIED';
-      return status === 'APPLIED' || status === 'RESUME_SELECTED';
+      
+      // If both required: must reach INTERVIEW_ELIGIBLE or be rejected
+      if (job.requiresScreening && job.requiresTest) {
+        return status === 'APPLIED' || status === 'SCREENING_SELECTED' || status === 'TEST_SELECTED';
+      }
+      // If only screening required: must reach SCREENING_SELECTED or be rejected
+      if (job.requiresScreening && !job.requiresTest) {
+        return status === 'APPLIED';
+      }
+      // If only test required: must reach INTERVIEW_ELIGIBLE or be rejected
+      if (!job.requiresScreening && job.requiresTest) {
+        return status === 'APPLIED' || status === 'TEST_SELECTED';
+      }
+      // If neither required: all are eligible (shouldn't reach here if email logic is correct)
+      return false;
     });
 
     if (undecided.length > 0) {
@@ -391,25 +469,40 @@ export async function finalizeScreening(req, res) {
       });
     }
 
-    // Mark all remaining RESUME_SELECTED as completed (if any test stage was skipped)
-    await prisma.application.updateMany({
-      where: {
-        jobId,
-        screeningStatus: 'RESUME_SELECTED'
-      },
-      data: {
-        screeningCompletedAt: new Date()
-      }
-    });
+    // Mark all remaining SCREENING_SELECTED as completed (if test stage was skipped but screening completed)
+    // Also handle case where only screening was required
+    if (job.requiresScreening && !job.requiresTest) {
+      await prisma.application.updateMany({
+        where: {
+          jobId,
+          screeningStatus: 'SCREENING_SELECTED'
+        },
+        data: {
+          screeningStatus: 'INTERVIEW_ELIGIBLE', // If only screening required, selected = eligible
+          screeningCompletedAt: new Date()
+        }
+      });
+    } else if (job.requiresScreening && job.requiresTest) {
+      // Mark any remaining SCREENING_SELECTED as completed (shouldn't happen if logic is correct)
+      await prisma.application.updateMany({
+        where: {
+          jobId,
+          screeningStatus: 'SCREENING_SELECTED'
+        },
+        data: {
+          screeningCompletedAt: new Date()
+        }
+      });
+    }
 
     res.json({
       success: true,
       message: 'Screening finalized successfully. All decisions are now locked.',
       summary: {
         total: applications.length,
-        testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED').length,
+        interviewEligible: applications.filter(a => a.screeningStatus === 'INTERVIEW_ELIGIBLE').length,
         rejected: applications.filter(a => 
-          a.screeningStatus === 'RESUME_REJECTED' || a.screeningStatus === 'TEST_REJECTED'
+          a.screeningStatus === 'SCREENING_REJECTED' || a.screeningStatus === 'TEST_REJECTED'
         ).length
       }
     });

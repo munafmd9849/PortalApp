@@ -1,22 +1,64 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { deleteJob, subscribeJobs, postJob } from '../../../services/jobs';
-import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin } from 'lucide-react';
+import { deleteJob, subscribeJobs, postJob, updateJob } from '../../../services/jobs';
+import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin, Edit } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function ManageJobs() {
+  const { user, role } = useAuth();
+  
+  // MANDATORY: Role-based access control - Block STUDENT users immediately
+  useEffect(() => {
+    const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+    const isStudent = userRole === 'STUDENT';
+    const isAdmin = userRole === 'ADMIN';
+    const isRecruiter = userRole === 'RECRUITER';
+    
+    if (isStudent) {
+      console.error('🚫 STUDENT user attempted to access ManageJobs component:', {
+        userRole,
+        userId: user?.id,
+        email: user?.email,
+        timestamp: new Date().toISOString(),
+      });
+      // Redirect to student dashboard
+      window.location.href = '/student';
+    }
+  }, [user, role]);
+  
+  // Don't render if user is STUDENT
+  const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+  const isStudent = userRole === 'STUDENT';
+  if (isStudent) {
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-sm border border-red-200">
+        <h2 className="text-xl font-bold text-red-600 mb-2">Access Denied</h2>
+        <p className="text-gray-600">You do not have permission to access this resource. Only ADMIN and RECRUITER users can manage jobs.</p>
+      </div>
+    );
+  }
   const toast = useToast();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [postingJobs, setPostingJobs] = useState(new Set());
+  
+  // Edit dates modal state (for POSTED jobs)
+  const [editingDatesJobId, setEditingDatesJobId] = useState(null);
+  const [editDatesForm, setEditDatesForm] = useState({
+    applicationDeadline: null,
+    driveDate: null
+  });
+  const [savingDates, setSavingDates] = useState(false);
+  
   const [showSchools, setShowSchools] = useState({});
   const [showBatches, setShowBatches] = useState({});
   const [showCenters, setShowCenters] = useState({});
   const [selectedSchools, setSelectedSchools] = useState({});
   const [selectedBatches, setSelectedBatches] = useState({});
   const [selectedCenters, setSelectedCenters] = useState({});
-  const [activeFilter, setActiveFilter] = useState('unposted');
+  const [activeFilter, setActiveFilter] = useState('in_review'); // Default to in_review to show jobs pending approval
 
   // Filter options state
   const [schoolOptions, setSchoolOptions] = useState([]);
@@ -198,38 +240,25 @@ export default function ManageJobs() {
   }, [showSchools, showBatches, showCenters]);
 
   // Check if job should appear in Manage Jobs
-  // Only ACCEPTED, POSTED, and ACTIVE jobs should appear here
-  // IN_REVIEW, DRAFT, REJECTED jobs should NOT appear (they're in Job Moderation)
+  // Show both IN_REVIEW and POSTED jobs (exclude REJECTED and DRAFT)
   const shouldShowInManageJobs = (job) => {
     const status = (job.status || '').toLowerCase();
     
-    // Debug: Log status for troubleshooting
-    if (process.env.NODE_ENV === 'development' && job.jobTitle) {
-      console.log(`🔍 shouldShowInManageJobs: "${job.jobTitle}" - status: "${status}" (raw: "${job.status}")`);
-    }
-    
-    // Exclude jobs that are still pending admin review
-    if (status === 'in_review' || status === 'draft' || status === 'rejected') {
+    // Exclude REJECTED and DRAFT jobs
+    if (status === 'rejected' || status === 'draft') {
       return false;
     }
-    // Include accepted, posted, and active jobs
-    const shouldShow = status === 'accepted' || status === 'approved' || 
-                       status === 'posted' || status === 'active';
     
-    if (process.env.NODE_ENV === 'development' && job.jobTitle) {
-      console.log(`  → Result: ${shouldShow ? 'SHOW' : 'HIDE'}`);
-    }
-    
-    return shouldShow;
+    // Include IN_REVIEW and POSTED jobs
+    return status === 'in_review' || status === 'posted';
   };
 
-  // Check if job is posted (compatible with your database structure)
+  // Check if job is posted (visible to students)
   const isJobPosted = (job) => {
     const status = (job.status || '').toLowerCase();
-    // Return true only for posted/active jobs
-    // ACCEPTED jobs are not posted yet (they're in review section)
-    return (status === 'posted' || status === 'active') && 
-           (job.isPosted === true || job.posted === true);
+    // Return true only for POSTED jobs
+    // APPROVED jobs are not posted yet (they're not visible to students)
+    return status === 'posted' && (job.isPosted === true || job.posted === true);
   };
 
   // Get intelligent job status based on interview date and admin status
@@ -385,24 +414,16 @@ export default function ManageJobs() {
       })));
     }
     
-    // Then filter based on active filter (posted vs unposted)
+    // Filter based on active filter (in_review vs posted)
     let filteredJobs;
-    if (activeFilter === 'unposted') {
-      // Unposted section: ACCEPTED jobs (not yet posted to students)
-      filteredJobs = manageJobsOnly.filter(job => !isJobPosted(job));
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📋 Unposted filter - isJobPosted check:', manageJobsOnly.map(j => ({
-          id: j.id,
-          title: j.jobTitle,
-          status: j.status,
-          isJobPosted: isJobPosted(j),
-          isPosted: j.isPosted,
-          posted: j.posted
-        })));
-      }
+    if (activeFilter === 'in_review') {
+      // Show IN_REVIEW jobs (pending admin approval)
+      filteredJobs = manageJobsOnly.filter(job => {
+        const status = (job.status || '').toLowerCase();
+        return status === 'in_review';
+      });
     } else {
-      // Posted section: POSTED and ACTIVE jobs
+      // Show POSTED jobs (approved and visible to students)
       filteredJobs = manageJobsOnly.filter(job => isJobPosted(job));
     }
 
@@ -419,25 +440,22 @@ export default function ManageJobs() {
         }, {}),
         filteredJobs: filteredJobs.map(j => ({ id: j.id, title: j.jobTitle, status: j.status }))
       });
-      // Debug: Log ACCEPTED jobs in unposted filter
-      if (activeFilter === 'unposted') {
-        const acceptedJobs = filteredJobs.filter(j => j.status === 'accepted' || j.status === 'approved');
-        console.log(`📋 ACCEPTED jobs in unposted filter: ${acceptedJobs.length}`, acceptedJobs.map(j => ({ id: j.id, title: j.jobTitle, status: j.status })));
-      }
     }
 
-    if (activeFilter === 'unposted') {
-      // Sort unposted by creation time (newest first)
+    // Sort based on filter
+    if (activeFilter === 'in_review') {
+      // Sort IN_REVIEW jobs by creation/submission time (newest first)
       return filteredJobs.sort((a, b) => {
         const getTimestamp = (job) => {
+          if (job.submittedAt?.toDate) return job.submittedAt.toDate();
           if (job.createdAt?.toDate) return job.createdAt.toDate();
           if (job.timestamp?.toDate) return job.timestamp.toDate();
-          return new Date(job.createdAt || job.timestamp || 0);
+          return new Date(job.submittedAt || job.createdAt || job.timestamp || 0);
         };
         return getTimestamp(b) - getTimestamp(a);
       });
     } else {
-      // Sort posted by posted time (latest posted first)
+      // Sort POSTED jobs by posted time (latest posted first)
       return filteredJobs.sort((a, b) => {
         const getPostedTimestamp = (job) => {
           if (job.postedAt?.toDate) return job.postedAt.toDate();
@@ -724,11 +742,13 @@ export default function ManageJobs() {
     });
   };
 
-  // Get statistics
-  // Count only jobs that should appear in Manage Jobs (exclude IN_REVIEW, DRAFT, REJECTED)
-  const manageJobsOnly = jobs.filter(job => shouldShowInManageJobs(job));
-  const unpostedCount = manageJobsOnly.filter(job => !isJobPosted(job)).length;
-  const postedCount = manageJobsOnly.filter(job => isJobPosted(job)).length;
+  // Get statistics - calculate from all jobs
+  const allManageJobs = jobs.filter(job => shouldShowInManageJobs(job));
+  const inReviewCount = allManageJobs.filter(job => {
+    const status = (job.status || '').toLowerCase();
+    return status === 'in_review';
+  }).length;
+  const postedCount = allManageJobs.filter(job => isJobPosted(job)).length;
 
   return (
     <div className="space-y-6">
@@ -742,17 +762,17 @@ export default function ManageJobs() {
         </div>
       </div>
 
-      {/* Filter Buttons - Centered above jobs container */}
+      {/* Filter Buttons - Show both IN_REVIEW and POSTED sections */}
       <div className="flex justify-center mb-6">
         <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex gap-2">
           <button
-            onClick={() => setActiveFilter('unposted')}
-            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'unposted'
+            onClick={() => setActiveFilter('in_review')}
+            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'in_review'
               ? 'bg-blue-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
           >
-            In Review ({unpostedCount})
+            In Review ({inReviewCount})
           </button>
           <button
             onClick={() => setActiveFilter('posted')}
@@ -770,7 +790,7 @@ export default function ManageJobs() {
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <h3 className="font-semibold">
-            {activeFilter === 'unposted' ? 'Unposted Jobs' : 'Posted Jobs'} ({getSortedJobs().length})
+            {activeFilter === 'in_review' ? 'Jobs In Review' : 'Posted Jobs'} ({getSortedJobs().length})
           </h3>
           {loading && (
             <div className="inline-flex items-center gap-2 text-sm text-slate-500">
@@ -783,13 +803,12 @@ export default function ManageJobs() {
           {getSortedJobs().length === 0 && !loading && (
             <div className="p-6 text-center">
               <div className="text-slate-500 text-sm">
-                No {activeFilter} jobs available yet.
+                No posted jobs available yet.
               </div>
               <div className="text-xs text-slate-400 mt-1">
-                {activeFilter === 'unposted'
-                  ? 'New jobs will appear here once they are created.'
-                  : 'Posted jobs will appear here once you post them.'
-                }
+                {activeFilter === 'in_review'
+                  ? 'Jobs pending admin approval will appear here. Click "Approve" to post them to students.'
+                  : 'Posted jobs will appear here once they are approved and posted.'}
               </div>
             </div>
           )}
@@ -984,6 +1003,52 @@ export default function ManageJobs() {
                           )}
                         </button>
 
+                        {/* Edit Button - Show for IN_REVIEW jobs (admin can edit all fields) */}
+                        {!isJobPosted(job) && (job.status === 'IN_REVIEW' || job.status === 'in_review') && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Navigate to job detail page - AdminJobDetail handles editing
+                              navigate(`/admin/job/${job.id}`);
+                            }}
+                            className="p-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors shadow-sm"
+                            title="View/Edit Job (Click Edit button on job detail page)"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {/* Edit Dates Button - Show for POSTED jobs only */}
+                        {isJobPosted(job) && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const deadlineDate = job.applicationDeadline 
+                                ? (typeof job.applicationDeadline === 'object' && job.applicationDeadline.toMillis
+                                    ? new Date(job.applicationDeadline.toMillis())
+                                    : new Date(job.applicationDeadline))
+                                : null;
+                              const driveDateValue = job.driveDate
+                                ? (typeof job.driveDate === 'object' && job.driveDate.toMillis
+                                    ? new Date(job.driveDate.toMillis())
+                                    : new Date(job.driveDate))
+                                : null;
+                              
+                              setEditDatesForm({
+                                applicationDeadline: deadlineDate,
+                                driveDate: driveDateValue
+                              });
+                              setEditingDatesJobId(job.id);
+                            }}
+                            className="p-2.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors shadow-sm"
+                            title="Edit Dates (Only dates can be edited for POSTED jobs)"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+
                         {/* View JD Button */}
                         <button
                           onClick={(e) => {
@@ -997,18 +1062,20 @@ export default function ManageJobs() {
                           <View className="w-4 h-4" />
                         </button>
 
-                        {/* View Applicants Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate(`/admin/jobs/${job.id}/applications`);
-                          }}
-                          className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors shadow-sm"
-                          title="View Applicants"
-                        >
-                          <Users className="w-4 h-4" />
-                        </button>
+                        {/* View Applicants Button - Show only for POSTED jobs (only posted jobs have applicants) */}
+                        {isJobPosted(job) && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/admin/jobs/${job.id}/applications`);
+                            }}
+                            className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors shadow-sm"
+                            title="View Applicants"
+                          >
+                            <Users className="w-4 h-4" />
+                          </button>
+                        )}
 
                         {/* Share Action */}
                         <button
@@ -1036,6 +1103,137 @@ export default function ManageJobs() {
           })}
         </div>
       </div>
+
+      {/* Edit Dates Modal - For POSTED jobs only */}
+      {editingDatesJobId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  <Edit className="w-5 h-5 text-green-600" />
+                  Edit Dates (POSTED Job)
+                </h2>
+                <button
+                  onClick={() => {
+                    setEditingDatesJobId(null);
+                    setEditDatesForm({ applicationDeadline: null, driveDate: null });
+                  }}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                For POSTED jobs, only application deadline and drive date can be edited. All other fields are locked.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Application Deadline */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Application Deadline *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editDatesForm.applicationDeadline ? new Date(editDatesForm.applicationDeadline.getTime() - editDatesForm.applicationDeadline.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                  onChange={(e) => setEditDatesForm(prev => ({ ...prev, applicationDeadline: e.target.value ? new Date(e.target.value) : null }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              {/* Drive Date */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Drive Date *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editDatesForm.driveDate ? new Date(editDatesForm.driveDate.getTime() - editDatesForm.driveDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                  onChange={(e) => setEditDatesForm(prev => ({ ...prev, driveDate: e.target.value ? new Date(e.target.value) : null }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              {/* Validation message */}
+              {editDatesForm.applicationDeadline && editDatesForm.driveDate && 
+               editDatesForm.driveDate <= editDatesForm.applicationDeadline && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-800 text-sm">
+                    <strong>Error:</strong> Drive date must be after the application deadline.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setEditingDatesJobId(null);
+                  setEditDatesForm({ applicationDeadline: null, driveDate: null });
+                }}
+                disabled={savingDates}
+                className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  // Validate
+                  if (!editDatesForm.applicationDeadline || !editDatesForm.driveDate) {
+                    toast.error('Both dates are required');
+                    return;
+                  }
+
+                  if (editDatesForm.driveDate <= editDatesForm.applicationDeadline) {
+                    toast.error('Drive date must be after the application deadline');
+                    return;
+                  }
+
+                  try {
+                    setSavingDates(true);
+                    await updateJob(editingDatesJobId, {
+                      applicationDeadline: editDatesForm.applicationDeadline.toISOString(),
+                      driveDate: editDatesForm.driveDate.toISOString()
+                    });
+                    
+                    // Refresh jobs list
+                    if (jobsSubscriptionRef.current?.refresh) {
+                      jobsSubscriptionRef.current.refresh();
+                    }
+                    
+                    toast.success('Dates updated successfully');
+                    setEditingDatesJobId(null);
+                    setEditDatesForm({ applicationDeadline: null, driveDate: null });
+                  } catch (error) {
+                    console.error('Failed to update dates:', error);
+                    const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to update dates';
+                    toast.error(errorMessage);
+                  } finally {
+                    setSavingDates(false);
+                  }
+                }}
+                disabled={savingDates || !editDatesForm.applicationDeadline || !editDatesForm.driveDate || 
+                         (editDatesForm.driveDate <= editDatesForm.applicationDeadline)}
+                className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {savingDates ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Save Dates</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

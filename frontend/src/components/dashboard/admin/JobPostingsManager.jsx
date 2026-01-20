@@ -175,21 +175,19 @@ export default function JobPostingsManager() {
       result = result.filter(job => {
         const jobStatus = (job.status || '').toLowerCase();
         
-        // Handle in_review filter - only show in_review jobs
+        // Status filters - use only: IN_REVIEW, APPROVED, REJECTED, POSTED
         if (filterStatus === 'in_review') {
           return jobStatus === 'in_review';
         }
-        
-        // Handle accepted filter - show both accepted and approved
-        if (filterStatus === 'accepted') {
-          return jobStatus === 'accepted' || jobStatus === 'approved';
+        if (filterStatus === 'approved') {
+          return jobStatus === 'approved';
         }
-        
-        // Handle other status filters
-        if (filterStatus === 'draft') return jobStatus === 'draft';
-        if (filterStatus === 'posted') return jobStatus === 'posted' || jobStatus === 'active';
-        if (filterStatus === 'rejected') return jobStatus === 'rejected';
-        if (filterStatus === 'archived') return jobStatus === 'archived';
+        if (filterStatus === 'rejected') {
+          return jobStatus === 'rejected';
+        }
+        if (filterStatus === 'posted') {
+          return jobStatus === 'posted';
+        }
         
         // Default: exact match
         return jobStatus === filterStatus;
@@ -321,7 +319,7 @@ export default function JobPostingsManager() {
         const updatedStatus = result.job?.status || result.status;
         console.log(`📋 Approval result - Job ID: ${job.id}, New Status: ${updatedStatus}`);
         
-        toast.success(`Job "${job.jobTitle}" approved successfully! Status changed to ACCEPTED. The recruiter has been notified.`);
+        toast.success(`Job "${job.jobTitle}" approved and posted successfully! Status changed to POSTED. Students can now see this job.`);
         
         // Optimistic update: Remove job from current view immediately
         // Since status changed from IN_REVIEW to ACCEPTED, it should disappear from in_review filter
@@ -1049,8 +1047,19 @@ export default function JobPostingsManager() {
                             <FaInfoCircle className="w-4 h-4" />
                           </button>
 
-                          {/* Approve Button - Show for draft and in_review status */}
-                          {(job.status === 'draft' || job.status === 'in_review') && (
+                          {/* Edit Button - Show for IN_REVIEW jobs (admin can edit all fields) */}
+                          {(job.status === 'in_review' && userRole === 'admin') && (
+                            <button
+                              onClick={() => window.location.href = `/admin/job/${job.id}?edit=true`}
+                              className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-all duration-200 border border-purple-200 hover:border-purple-300"
+                              title="Edit Job (All fields editable in IN_REVIEW status)"
+                            >
+                              <FaFileAlt className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Approve Button - Show for IN_REVIEW status */}
+                          {(job.status === 'in_review') && (
                             <button
                               onClick={() => handleApprove(job)}
                               disabled={actionLoading[`approve_${job.id}`]}
@@ -1066,7 +1075,7 @@ export default function JobPostingsManager() {
                           )}
 
                           {/* Reject Button - Show for draft and in_review status */}
-                          {(job.status === 'draft' || job.status === 'in_review') && (
+                          {(job.status === 'in_review') && (
                             <button
                               onClick={() => setRejectModal({ isOpen: true, job, reason: '' })}
                               disabled={actionLoading[`reject_${job.id}`]}
@@ -1078,7 +1087,7 @@ export default function JobPostingsManager() {
                           )}
 
                           {/* Archive Button */}
-                          {(job.status === 'active' || job.status === 'posted') && (
+                          {(job.status === 'posted') && (
                             <button
                               onClick={() => handleArchive(job)}
                               disabled={actionLoading[`archive_${job.id}`]}

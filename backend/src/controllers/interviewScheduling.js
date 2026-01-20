@@ -24,6 +24,113 @@ function generateInterviewerToken(sessionId, email) {
 }
 
 /**
+ * CRITICAL: Auto-correct session status based on drive date
+ * If drive date has passed and session is not COMPLETED, set to INCOMPLETE
+ * This function is the single source of truth for session validity
+ * 
+ * @param {Object} session - InterviewSession object with job relation
+ * @param {Object} job - Job object with driveDate
+ * @returns {Promise<Object>} - Updated session object
+ */
+/**
+ * CRITICAL: Auto-correct session status based on drive date
+ * If drive date has passed and session is not COMPLETED, set to INCOMPLETE
+ * This function is the single source of truth for session validity
+ * 
+ * @param {Object} session - InterviewSession object (may or may not have job relation)
+ * @param {Object} job - Job object with driveDate
+ * @returns {Promise<Object>} - Updated session object with same structure as input
+ */
+async function autoCorrectSessionStatus(session, job) {
+  if (!session || !job || !job.driveDate) {
+    return session;
+  }
+
+  // COMPLETED sessions remain COMPLETED forever - never auto-correct
+  if (session.status === 'COMPLETED') {
+    return session;
+  }
+
+  const now = new Date();
+  const driveDate = new Date(job.driveDate);
+  driveDate.setHours(23, 59, 59, 999); // End of drive date
+
+  // If drive date has passed and session is not COMPLETED, mark as INCOMPLETE
+  if (now > driveDate) {
+    if (session.status !== 'INCOMPLETE') {
+      // Update session to INCOMPLETE
+      const updatedSession = await prisma.interviewSession.update({
+        where: { id: session.id },
+        data: {
+          status: 'INCOMPLETE',
+          completedAt: session.completedAt || new Date(), // Set completedAt if not already set
+        },
+        include: {
+          rounds: {
+            orderBy: { roundNumber: 'asc' },
+          },
+          interviewerInvites: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      // Update student application statuses
+      await updateApplicationsForIncompleteSession(session.jobId);
+
+      // Preserve original structure (if job relation was included, keep it)
+      return {
+        ...updatedSession,
+        job: session.job || job, // Preserve job relation if it existed
+      };
+    }
+  }
+
+  return session;
+}
+
+/**
+ * Update student application statuses when session becomes INCOMPLETE
+ * 
+ * @param {string} jobId - Job ID
+ */
+async function updateApplicationsForIncompleteSession(jobId) {
+  try {
+    // Get all applications for this job that might be affected
+    const applications = await prisma.application.findMany({
+      where: {
+        jobId,
+        screeningStatus: 'TEST_SELECTED', // Only eligible candidates
+        interviewStatus: {
+          not: 'SELECTED', // Don't update already selected candidates
+        },
+      },
+    });
+
+    // Update each application
+    for (const app of applications) {
+      // If they were mid-round, mark as INCOMPLETE
+      // If they never reached interview rounds, mark as INTERVIEW_NOT_COMPLETED
+      const newStatus = app.interviewStatus && app.interviewStatus.startsWith('REJECTED_IN_ROUND_')
+        ? 'INCOMPLETE'
+        : app.interviewStatus && app.interviewStatus !== 'APPLIED' && app.interviewStatus !== 'TEST_SELECTED'
+        ? 'INCOMPLETE'
+        : 'INTERVIEW_NOT_COMPLETED';
+
+      await prisma.application.update({
+        where: { id: app.id },
+        data: {
+          interviewStatus: newStatus,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error updating applications for incomplete session:', error);
+    // Don't throw - this is a side effect, shouldn't fail the main operation
+  }
+}
+
+/**
  * Send interviewer invite email
  */
 async function sendInterviewerInviteEmail(email, sessionLink, jobTitle, companyName) {
@@ -80,15 +187,39 @@ export const getOrCreateSession = async (req, res) => {
       return res.status(401).json({ error: 'User ID not found in request' });
     }
 
-    // Check if job exists
+    // Check if job exists and get driveDate
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      include: { company: true },
+      select: {
+        id: true,
+        jobTitle: true,
+        companyId: true,
+        driveDate: true, // CRITICAL: Get driveDate for validation
+        company: {
+          select: {
+            name: true
+          }
+        },
+        description: true
+      }
     });
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
     }
+
+    // CRITICAL: Interview session cannot start before driveDate
+    // Validate driveDate exists
+    if (!job.driveDate) {
+      return res.status(400).json({ 
+        error: 'Drive date not configured',
+        message: 'Drive date is not set for this job. Please set the drive date before creating interview sessions.'
+      });
+    }
+
+    // Allow session creation before drive date (session is created but not started)
+    // But block starting rounds before drive date (handled in startRound)
+    // So we don't block session creation here, just validate driveDate exists
 
     // Get or create session
     let session = await prisma.interviewSession.findUnique({
@@ -105,18 +236,56 @@ export const getOrCreateSession = async (req, res) => {
 
     if (!session) {
       // Create new session
-      session = await prisma.interviewSession.create({
-        data: {
-          jobId,
-          companyId: job.companyId || null,
-          status: 'NOT_STARTED',
-          createdBy: userId,
-        },
-        include: {
-          rounds: true,
-          interviewerInvites: true,
-        },
-      });
+      try {
+        session = await prisma.interviewSession.create({
+          data: {
+            jobId,
+            companyId: job.companyId || null,
+            status: 'NOT_STARTED',
+            createdBy: userId,
+          },
+          include: {
+            rounds: {
+              orderBy: { roundNumber: 'asc' },
+            },
+            interviewerInvites: {
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        });
+      } catch (createError) {
+        // If create fails (e.g., unique constraint), try to fetch existing session
+        if (createError.code === 'P2002') {
+          session = await prisma.interviewSession.findUnique({
+            where: { jobId },
+            include: {
+              rounds: {
+                orderBy: { roundNumber: 'asc' },
+              },
+              interviewerInvites: {
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          });
+          if (!session) {
+            throw createError; // Re-throw if still not found
+          }
+        } else {
+          throw createError;
+        }
+      }
+    }
+    
+    // CRITICAL: Auto-correct session status based on drive date
+    // This ensures system self-corrects even if UI is wrong
+    session = await autoCorrectSessionStatus(session, job);
+    
+    // Safety: Ensure rounds and interviewerInvites are always arrays
+    if (!Array.isArray(session.rounds)) {
+      session.rounds = [];
+    }
+    if (!Array.isArray(session.interviewerInvites)) {
+      session.interviewerInvites = [];
     }
 
     // Get application count (only TEST_SELECTED candidates are eligible for interviews)
@@ -178,6 +347,12 @@ export const getOrCreateSession = async (req, res) => {
       }
     }
 
+    // Calculate if drive date has been reached (for frontend display)
+    const now = new Date();
+    const driveDateCheck = new Date(job.driveDate);
+    driveDateCheck.setHours(23, 59, 59, 999);
+    const isDriveDateReached = now >= driveDateCheck;
+
     res.json({
       session: {
         id: session.id,
@@ -191,10 +366,12 @@ export const getOrCreateSession = async (req, res) => {
           jobTitle: job.jobTitle,
           company: job.company ? { name: job.company.name } : null,
           description: job.description, // Include for round extraction
+          driveDate: job.driveDate, // Include for frontend validation
         },
+        isDriveDateReached: isDriveDateReached, // Helper for frontend
         totalApplications: totalApplicationCount,
         eligibleApplications: eligibleApplicationCount, // Only TEST_SELECTED candidates
-        rounds: session.rounds.map(r => ({
+        rounds: (Array.isArray(session.rounds) ? session.rounds : []).map(r => ({
           id: r.id,
           roundNumber: r.roundNumber,
           name: r.name,
@@ -202,7 +379,7 @@ export const getOrCreateSession = async (req, res) => {
           startedAt: r.startedAt,
           endedAt: r.endedAt,
         })),
-        interviewerInvites: session.interviewerInvites.map(inv => ({
+        interviewerInvites: (Array.isArray(session.interviewerInvites) ? session.interviewerInvites : []).map(inv => ({
           id: inv.id,
           email: inv.email,
           expiresAt: inv.expiresAt,
@@ -251,9 +428,26 @@ export const configureRounds = async (req, res) => {
       return sendNotFound(res, 'Interview session');
     }
 
-    // Validate session status
+    // Get job to check drive date
+    const job = await prisma.job.findUnique({
+      where: { id: session.jobId },
+      select: { driveDate: true },
+    });
+
+    if (!job) {
+      return sendNotFound(res, 'Job');
+    }
+
+    // CRITICAL: Auto-correct session status before validation
+    session = await autoCorrectSessionStatus(session, job);
+
+    // Validate session status - reject COMPLETED and INCOMPLETE sessions
     if (session.status === 'COMPLETED') {
       return sendError(res, 'Cannot configure rounds for completed session', 'This interview session has been completed. Rounds cannot be modified.', 409);
+    }
+
+    if (session.status === 'INCOMPLETE') {
+      return sendError(res, 'Cannot configure rounds for incomplete session', 'This interview session is incomplete (drive date passed). Rounds cannot be modified.', 409);
     }
 
     if (session.status === 'ONGOING') {
@@ -1043,6 +1237,65 @@ export const startRound = async (req, res) => {
           error: 'Cannot start session. At least one interviewer must be invited before starting the first round.',
         });
       }
+
+      // CRITICAL: Check drive date - session can only start on or after drive date
+      const sessionWithJob = await prisma.interviewSession.findUnique({
+        where: { id: round.sessionId },
+        include: { job: true },
+      });
+
+      if (!sessionWithJob || !sessionWithJob.job) {
+        return res.status(404).json({ error: 'Session or job not found' });
+      }
+
+      // CRITICAL: Auto-correct session status before validation
+      const correctedSession = await autoCorrectSessionStatus(sessionWithJob, sessionWithJob.job);
+
+      // Reject if session is already COMPLETED or INCOMPLETE
+      if (correctedSession.status === 'COMPLETED') {
+        return res.status(409).json({
+          error: 'Session already completed',
+          message: 'Cannot start rounds for a completed interview session.',
+        });
+      }
+
+      if (correctedSession.status === 'INCOMPLETE') {
+        return res.status(409).json({
+          error: 'Interview drive date has passed',
+          message: 'Cannot start rounds. The interview drive date has passed and the session is incomplete.',
+        });
+      }
+
+      // CRITICAL: Interview session cannot start before driveDate
+      // No bypass, no admin override, no exceptions
+      if (!sessionWithJob.job.driveDate) {
+        return res.status(400).json({
+          error: 'Drive date not configured',
+          message: 'Drive date is not set for this job. Please set the drive date before starting interview sessions.'
+        });
+      }
+
+      const now = new Date();
+      const driveDateTime = new Date(sessionWithJob.job.driveDate);
+      driveDateTime.setHours(23, 59, 59, 999); // End of drive date
+      
+      // Reject if drive date has not been reached
+      if (now < driveDateTime) {
+        return res.status(400).json({
+          error: 'Interview drive has not started yet',
+          message: 'Interview session can start only on or after the drive date',
+          driveDate: sessionWithJob.job.driveDate,
+          currentDate: now,
+        });
+      }
+
+      // Additional check: Ensure session status is NOT_STARTED before starting first round
+      if (correctedSession.status !== 'NOT_STARTED') {
+        return res.status(409).json({
+          error: `Session status is ${correctedSession.status}`,
+          message: 'Session must be in NOT_STARTED status to begin the first round.',
+        });
+      }
     }
 
     // For rounds after first, check previous round is ended
@@ -1052,6 +1305,25 @@ export const startRound = async (req, res) => {
         return res.status(409).json({
           error: 'Previous round must be ended before starting this round',
         });
+      }
+      
+      // CRITICAL: For continuing rounds, also check drive date hasn't passed
+      const jobCheck = await prisma.job.findUnique({
+        where: { id: correctedSession.jobId },
+        select: { driveDate: true },
+      });
+      
+      if (jobCheck?.driveDate) {
+        const now = new Date();
+        const driveDate = new Date(jobCheck.driveDate);
+        driveDate.setHours(23, 59, 59, 999);
+        
+        if (now > driveDate) {
+          return res.status(409).json({
+            error: 'Interview drive date has passed',
+            message: 'Cannot continue rounds. The interview drive date has passed and the session is incomplete.',
+          });
+        }
       }
     }
 
@@ -1067,7 +1339,29 @@ export const startRound = async (req, res) => {
       });
 
       // Update session to ONGOING if NOT_STARTED
-      if (round.session.status === 'NOT_STARTED') {
+      // CRITICAL: Check drive date before allowing session to become ONGOING
+      const sessionCheck = await tx.interviewSession.findUnique({
+        where: { id: round.sessionId },
+        include: { job: { select: { driveDate: true } } },
+      });
+      
+      if (sessionCheck.status === 'NOT_STARTED') {
+        // Double-check drive date hasn't passed
+        if (sessionCheck.job.driveDate) {
+          const now = new Date();
+          const driveDate = new Date(sessionCheck.job.driveDate);
+          driveDate.setHours(23, 59, 59, 999);
+          
+          if (now > driveDate) {
+            // Drive date passed - mark as INCOMPLETE
+            await tx.interviewSession.update({
+              where: { id: round.sessionId },
+              data: { status: 'INCOMPLETE', completedAt: new Date() },
+            });
+            throw new Error('Interview drive date has passed. Session cannot be started.');
+          }
+        }
+        
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: { status: 'ONGOING', startedAt: new Date() },
@@ -1131,6 +1425,24 @@ export const endRound = async (req, res) => {
 
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
+    }
+
+    // CRITICAL: Auto-correct session status before validation
+    const correctedSession = await autoCorrectSessionStatus(round.session, round.session.job);
+
+    // Reject if session is COMPLETED or INCOMPLETE (cannot continue)
+    if (correctedSession.status === 'COMPLETED') {
+      return res.status(409).json({
+        error: 'Session already completed',
+        message: 'Cannot end rounds for a completed interview session.',
+      });
+    }
+
+    if (correctedSession.status === 'INCOMPLETE') {
+      return res.status(409).json({
+        error: 'Interview drive date has passed',
+        message: 'Cannot continue rounds. The interview drive date has passed and the session is incomplete.',
+      });
     }
 
     // Check round status
@@ -1278,13 +1590,32 @@ export const endRound = async (req, res) => {
 
       if (round.roundNumber === maxRoundNumber) {
         // This was the last round - end session
+        // Check drive date one more time before marking as COMPLETED
+        const jobCheck = await tx.job.findUnique({
+          where: { id: round.session.jobId },
+          select: { driveDate: true },
+        });
+        
+        const nowCheck = new Date();
+        const driveDateCheck = jobCheck?.driveDate ? new Date(jobCheck.driveDate) : null;
+        driveDateCheck?.setHours(23, 59, 59, 999);
+        
+        // Only mark as COMPLETED if drive date hasn't passed
+        // If drive date passed, it should have been caught by auto-correction earlier
+        const finalStatus = (driveDateCheck && nowCheck > driveDateCheck) ? 'INCOMPLETE' : 'COMPLETED';
+        
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: {
-            status: 'COMPLETED',
+            status: finalStatus,
             completedAt: new Date(),
           },
         });
+        
+        // If marked as INCOMPLETE, update application statuses
+        if (finalStatus === 'INCOMPLETE') {
+          await updateApplicationsForIncompleteSession(round.session.jobId);
+        }
 
         // Invalidate all interviewer invites (mark as used) - Issue #1
         await tx.interviewerInvite.updateMany({

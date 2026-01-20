@@ -112,9 +112,9 @@ const getSkillIcon = (skillName) => {
   return matchedKey ? iconsMap[matchedKey] : faCode;
 };
 
-const SkillsSection = ({ isAdminView = false }) => {
+const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
   const { user } = useAuth();
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills] = useState(initialSkills || []);
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -128,8 +128,15 @@ const SkillsSection = ({ isAdminView = false }) => {
   const [skillsInForm, setSkillsInForm] = useState([]); // Skills being added/edited in form { skillName, rating }
   const [newSkillName, setNewSkillName] = useState(''); // Custom skill name input
 
-  // Load skills data once on mount
+  // OPTIMIZED: Only load skills if not provided as props (avoids redundant API call)
   useEffect(() => {
+    // If initialSkills are provided, use them and skip API call
+    if (initialSkills !== null) {
+      setSkills(Array.isArray(initialSkills) ? initialSkills : []);
+      return;
+    }
+
+    // Fallback: Load skills only if not provided as props (for admin view or other cases)
     if (!user?.id) return;
 
     let isMounted = true;
@@ -160,7 +167,14 @@ const SkillsSection = ({ isAdminView = false }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, initialSkills]);
+
+  // Sync skills when initialSkills prop changes (for when skills are updated from parent)
+  useEffect(() => {
+    if (initialSkills !== null && Array.isArray(initialSkills)) {
+      setSkills(initialSkills);
+    }
+  }, [initialSkills]);
 
   const handleAddClick = () => {
     // If form is already open, close it
@@ -607,7 +621,7 @@ const SkillsSection = ({ isAdminView = false }) => {
         <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
 
           <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
-            Skills {skills.length > 0 && <span className="text-sm text-gray-500">({skills.length}/8)</span>}
+            Skills {skills.length > 0 && <span className="text-sm text-gray-500">({Math.min(skills.length, 8)}/8)</span>}
           </legend>
 
           <div className="flex items-center justify-end mb-1 mr-[-1%]">
@@ -789,7 +803,7 @@ const SkillsSection = ({ isAdminView = false }) => {
           )}
 
           <div className="flex flex-wrap gap-4 sm:gap-x-4 justify-center">
-            {skills.map((skill, index) => {
+            {skills.slice(0, 8).map((skill, index) => {
               return (
               <div
                 key={index}

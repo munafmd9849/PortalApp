@@ -273,7 +273,7 @@ export async function updateStudentProfile(req, res) {
         }
         if (typeof value === 'string') {
           value = value.trim();
-          const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
+          const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 'backlogs',
                                  'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
           if (value === '' && optionalFields.includes(mappedKey)) {
             cleanData[mappedKey] = null;
@@ -471,7 +471,7 @@ export async function updateStudentProfile(req, res) {
         value = value.trim();
         
         // For empty strings in optional fields, set to null (skip for required fields)
-        const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 
+        const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 'backlogs',
                                'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
         
         if (value === '' && optionalFields.includes(mappedKey)) {
@@ -530,7 +530,7 @@ export async function updateStudentProfile(req, res) {
     }
 
     // Normalize string fields (trim whitespace)
-    const stringFields = ['fullName', 'phone', 'enrollmentId', 'batch', 'center', 'school', 'bio', 'headline', 'jobFlexibility'];
+    const stringFields = ['fullName', 'phone', 'enrollmentId', 'batch', 'center', 'school', 'bio', 'headline', 'jobFlexibility', 'backlogs'];
     stringFields.forEach(field => {
       if (cleanData[field] && typeof cleanData[field] === 'string') {
         cleanData[field] = cleanData[field].trim();
@@ -838,7 +838,9 @@ export async function getAllStudents(req, res) {
 
     // Validate and parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50)); // Max 100, min 1
+    // Allow higher limits for admin requests (up to 1000 for bulk operations)
+    const requestedLimit = parseInt(limit) || 50;
+    const limitNum = Math.min(1000, Math.max(1, requestedLimit)); // Max 1000, min 1
 
     const where = {};
     if (school) where.school = school;

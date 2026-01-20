@@ -289,13 +289,36 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 3000; // Default to 3000 as per project context
 
 async function start() {
+  let dbConnected = false;
+  
   try {
-    // Fail fast if DB connection is bad
+    // Try to connect to database
     await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
+    dbConnected = true;
+    console.log('✅ Database connection successful');
+  } catch (dbErr) {
+    // Check if it's a quota error - allow server to start but warn
+    if (dbErr.message && dbErr.message.includes('quota')) {
+      dbQuotaExceeded = true; // Set global flag for scheduler
+      console.warn('⚠️  WARNING: Database quota exceeded. Server will start but database queries will fail.');
+      console.warn('   Some features may not work until quota resets. The server will continue running.');
+      dbConnected = false;
+    } else {
+      // For other connection errors, fail fast
+      console.error('❌ CRITICAL: Failed to connect to PostgreSQL. Server will not start.');
+      console.error(dbErr?.message || dbErr);
+      process.exit(1);
+    }
+  }
 
+  // Start server regardless of quota status
+  try {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      if (!dbConnected) {
+        console.log(`   ⚠️  Database quota exceeded - limited functionality until quota resets`);
+      }
       console.log(`📡 Socket.IO enabled`);
       console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'NOT SET (CRITICAL)'}`);
       console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
@@ -309,9 +332,8 @@ async function start() {
       }
       process.exit(1);
     });
-  } catch (err) {
-    console.error('❌ CRITICAL: Failed to connect to PostgreSQL. Server will not start.');
-    console.error(err?.message || err);
+  } catch (listenErr) {
+    console.error('❌ Server failed to start:', listenErr);
     process.exit(1);
   }
 }
@@ -324,28 +346,83 @@ import { checkAndSendScreeningEmails } from './services/screeningEmailService.js
 
 let screeningEmailInterval = null;
 
+// Track if database quota is exceeded (set during server startup)
+let dbQuotaExceeded = false;
+
 function startScreeningEmailScheduler() {
+  let consecutiveQuotaErrors = 0;
+  const MAX_QUOTA_ERRORS = 3; // After 3 consecutive quota errors, reduce logging
+
+  // If we already know quota is exceeded, delay initial check longer
+  const initialDelay = dbQuotaExceeded ? 60000 : 30000; // 60s if quota exceeded, 30s otherwise
+
   // Run immediately on startup (for jobs that already passed deadline)
   setTimeout(async () => {
     try {
-      console.log('🔍 Checking for jobs with passed deadlines to send screening emails...');
-      await checkAndSendScreeningEmails();
+      const result = await checkAndSendScreeningEmails();
+      if (result && result.skipped && result.reason === 'database_quota_exceeded') {
+        consecutiveQuotaErrors++;
+        if (consecutiveQuotaErrors === 1) {
+          console.warn(`⚠️ [Deadline Email] Database quota exceeded. Email checks paused until quota resets.`);
+        }
+      } else {
+        consecutiveQuotaErrors = 0;
+        if (dbQuotaExceeded) {
+          console.log(`✅ [Deadline Email] Database quota available again. Resuming email checks.`);
+          dbQuotaExceeded = false;
+        }
+        console.log(`✅ [Deadline Email] Initial check complete: ${result?.processed || 0} job(s) processed`);
+      }
     } catch (error) {
-      console.error('❌ Error in screening email check:', error);
+      if (error.message && error.message.includes('quota')) {
+        consecutiveQuotaErrors++;
+        if (consecutiveQuotaErrors === 1) {
+          console.warn(`⚠️ [Deadline Email] Database quota exceeded. Email checks paused until quota resets.`);
+        }
+      } else {
+        console.error('❌ [Deadline Email] Error in initial check:', error.message || error);
+      }
     }
-  }, 30000); // Wait 30 seconds after server start
+  }, initialDelay);
 
-  // Then run every hour
+  // Then run every 1 minute (near-real-time as required)
+  // Changed from 1 hour to 1 minute for immediate email delivery
   screeningEmailInterval = setInterval(async () => {
     try {
-      console.log('🔍 Scheduled check: Sending recruiter screening emails...');
-      await checkAndSendScreeningEmails();
+      const result = await checkAndSendScreeningEmails();
+      
+      if (result && result.skipped && result.reason === 'database_quota_exceeded') {
+        consecutiveQuotaErrors++;
+        // Only log quota errors occasionally to reduce spam (every 10th error or first 3)
+        if (consecutiveQuotaErrors <= MAX_QUOTA_ERRORS || consecutiveQuotaErrors % 10 === 0) {
+          console.warn(`⚠️ [Deadline Email] Database quota exceeded (${consecutiveQuotaErrors} consecutive). Email checks paused. Will resume when quota resets.`);
+        }
+      } else {
+        // Reset counter on success
+        if (consecutiveQuotaErrors > 0) {
+          console.log(`✅ [Deadline Email] Database quota available. Resuming email checks.`);
+          consecutiveQuotaErrors = 0;
+        }
+        if (result && result.processed > 0) {
+          const checkTime = new Date().toISOString();
+          console.log(`✅ [Deadline Email] Check complete at ${checkTime}: ${result.processed} job(s) processed, ${result.results?.filter(r => r.status === 'sent').length || 0} email(s) sent`);
+        }
+      }
     } catch (error) {
-      console.error('❌ Error in scheduled screening email check:', error);
+      if (error.message && error.message.includes('quota')) {
+        consecutiveQuotaErrors++;
+        // Only log quota errors occasionally to reduce spam
+        if (consecutiveQuotaErrors <= MAX_QUOTA_ERRORS || consecutiveQuotaErrors % 10 === 0) {
+          console.warn(`⚠️ [Deadline Email] Database quota exceeded (${consecutiveQuotaErrors} consecutive). Email checks paused. Will resume when quota resets.`);
+        }
+      } else {
+        console.error(`❌ [Deadline Email] Error in scheduled check:`, error.message || error);
+        consecutiveQuotaErrors = 0; // Reset on non-quota errors
+      }
     }
-  }, 60 * 60 * 1000); // Every hour
+  }, 60 * 1000); // Every 1 minute (60 seconds) - near-real-time
 
-  console.log('📅 Screening email scheduler started (runs every hour)');
+  console.log('📅 [Deadline Email] Scheduler started (runs every 1 minute for near-real-time delivery)');
 }
 
 // Start scheduler

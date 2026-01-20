@@ -628,24 +628,24 @@ const EducationSection = ({ isAdminView = false }) => {
                 {/* Desktop Layout */}
                 <>
                   <div className="hidden md:flex flex-col">
-                    <span className="text-sm lg:text-base font-semibold text-black">
+                    <span className="text-sm lg:text-base font-bold text-gray-900">
                       {education.institute}
                     </span>
                     {[education.city, education.state].filter(Boolean).length > 0 && (
                       <div className="overflow-hidden max-h-0 group-hover/edu-row:max-h-6 transition-all duration-300 ease-in-out">
-                        <span className="text-xs lg:text-sm italic text-gray-700 block">
+                        <span className="text-xs lg:text-sm italic text-gray-600 block">
                           {[education.city, education.state].filter(Boolean).join(', ')}
                         </span>
                       </div>
                     )}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
                     {education.branch}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
                     {education.yop}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-black flex items-center">
+                  <div className="hidden md:block text-sm lg:text-base font-bold text-gray-900 flex items-center">
                     {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
                   </div>
                 </>

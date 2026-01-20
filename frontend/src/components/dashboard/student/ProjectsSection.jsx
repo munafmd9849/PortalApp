@@ -602,12 +602,12 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
               ) : (
                 <div
                   key={index}
-                  className={`group/proj-row rounded-lg px-4 py-3 transition-all duration-200 hover:shadow-md bg-gradient-to-r ${
+                  className={`group/proj-row rounded-xl px-5 py-4 transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r ${
                     index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-1 gap-2">
-                    <h4 className="text-base sm:text-xl font-bold text-black flex-1 min-w-0 break-words">{project.title}</h4>
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h4 className="text-base sm:text-xl font-bold text-gray-900 flex-1 min-w-0 break-words">{project.title}</h4>
                     <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => startEditing(index)}

@@ -75,13 +75,24 @@ function buildPayload(formData, jobs = []) {
     }
   }
   
+  // Auto-generate subject for CGPA and backlog updates if not provided
+  if (type === QUERY_TYPES.CGPA_UPDATE && !subject) {
+    const cgpaValue = formData.cgpa ? String(formData.cgpa).trim() : 'CGPA';
+    subject = `CGPA Update Request - ${cgpaValue}`;
+  }
+  
+  if (type === QUERY_TYPES.BACKLOG_UPDATE && !subject) {
+    const backlogsValue = formData.backlogs ? String(formData.backlogs).trim() : 'Backlogs';
+    subject = `Backlog Update Request - ${backlogsValue}`;
+  }
+  
   // Validate required fields
   if (!subject) {
     throw new Error(type === QUERY_TYPES.QUESTION ? 'Please select a job posting' : 'Subject is required');
   }
   
-  // Message validation - not required for endorsement type
-  if (type !== QUERY_TYPES.ENDORSEMENT) {
+  // Message validation - not required for endorsement, CGPA update, or backlog update types
+  if (type !== QUERY_TYPES.ENDORSEMENT && type !== QUERY_TYPES.CGPA_UPDATE && type !== QUERY_TYPES.BACKLOG_UPDATE) {
     if (!message || message.length < 10) {
       throw new Error('Message must be at least 10 characters');
     }
@@ -135,7 +146,10 @@ export async function submitQuery(userId, formData, jobs = []) {
     console.log('[Query Service] Submitting query with payload:', payload);
     console.log('[Query Service] Original formData:', formData);
     
-    const response = await api.submitStudentQuery(payload);
+    // Extract proof document if present (for CGPA/backlog queries)
+    const proofDocument = formData.proof || null;
+    
+    const response = await api.submitStudentQuery(payload, proofDocument);
     return {
       referenceId: response.referenceId || generateReferenceId(),
       query: transformQuery(response.query)
@@ -151,6 +165,11 @@ export async function submitQuery(userId, formData, jobs = []) {
       validationError.response = error.response;
       validationError.status = error.status;
       throw validationError;
+    }
+    
+    // Handle error messages from API
+    if (error.message) {
+      throw new Error(error.message);
     }
     
     throw error;

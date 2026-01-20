@@ -338,12 +338,12 @@ const Achievements = ({ isAdminView = false }) => {
     return (
       <div 
         key={achievement.id} 
-        className={`flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 p-3 sm:p-4 rounded-lg transition-all duration-200 hover:shadow-md bg-gradient-to-r ${bgStyle}`}
+        className={`flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 p-4 sm:p-5 rounded-xl transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r ${bgStyle}`}
       >
         <div className="flex items-start space-x-3 flex-1 min-w-0">
-          <Award className="h-5 w-5 text-yellow-400 mt-1 flex-shrink-0" />
+          <Award className="h-6 w-6 text-yellow-500 mt-1 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <h4 className="text-base sm:text-lg font-bold text-black mb-1 break-words">{achievement.title}</h4>
+            <h4 className="text-base sm:text-lg font-bold text-gray-900 mb-2 break-words">{achievement.title}</h4>
             <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">{achievement.description}</p>
           </div>
         </div>

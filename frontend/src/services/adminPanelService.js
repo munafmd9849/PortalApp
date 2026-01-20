@@ -116,19 +116,32 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
 
   const jobsPayload = jobsRes.status === 'fulfilled' ? jobsRes.value : null;
   const jobs = safeArray(jobsPayload?.jobs).length ? safeArray(jobsPayload?.jobs) : safeArray(jobsPayload);
+  // Use pagination total if available, otherwise use array length
+  const totalJobs = jobsPayload?.pagination?.total ?? jobs.length;
 
   const applicationsPayload = applicationsRes.status === 'fulfilled' ? applicationsRes.value : null;
   const applications = safeArray(applicationsPayload?.applications).length ? safeArray(applicationsPayload?.applications) : safeArray(applicationsPayload);
+  // Use pagination total if available, otherwise use array length
+  const totalApplications = applicationsPayload?.pagination?.total ?? applications.length;
 
   const studentsPayload = studentsRes.status === 'fulfilled' ? studentsRes.value : null;
   const students = safeArray(studentsPayload?.students).length ? safeArray(studentsPayload?.students) : safeArray(studentsPayload);
+  // Use pagination total if available, otherwise use array length
+  const totalStudents = studentsPayload?.pagination?.total ?? students.length;
 
   const recruitersPayload = recruitersRes.status === 'fulfilled' ? recruitersRes.value : null;
   const recruiters = safeArray(recruitersPayload?.recruiters).length ? safeArray(recruitersPayload?.recruiters) : safeArray(recruitersPayload);
+  // Count active recruiters (ACTIVE or PENDING status - PENDING should be treated as active for recruiters)
+  const activeRecruiters = recruiters.filter(r => {
+    const status = String(r?.status || '').toUpperCase();
+    return status === 'ACTIVE' || status === 'PENDING' || !status; // PENDING treated as active
+  }).length;
 
   const queriesPayload = queriesRes.status === 'fulfilled' ? queriesRes.value : null;
   const queries = safeArray(queriesPayload?.queries).length ? safeArray(queriesPayload?.queries) : safeArray(queriesPayload?.data).length ? safeArray(queriesPayload?.data) : safeArray(queriesPayload);
 
+  // Calculate placed students from fetched applications (we need to fetch all to count unique studentIds)
+  // Note: This might not be 100% accurate if there are more than 1000 applications, but it's the best we can do without a backend count endpoint
   const placedStudentIds = new Set(
     applications
       .filter(a => {
@@ -138,15 +151,13 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
       .map(a => a?.studentId)
       .filter(Boolean)
   );
+  const placedStudents = placedStudentIds.size;
 
   const pendingQueries = queries.filter(q => {
     const s = String(q?.status || '').toLowerCase();
     return s === 'pending' || s === 'open' || s === 'unresolved';
   }).length;
 
-  const totalStudents = students.length;
-  const totalApplications = applications.length;
-  const placedStudents = placedStudentIds.size;
   const placementRate = totalStudents > 0 ? (placedStudents / totalStudents) * 100 : 0;
   const averageApplications = totalStudents > 0 ? totalApplications / totalStudents : 0;
 
@@ -155,8 +166,8 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
       totalStudents,
       placedStudents,
       placementRate,
-      totalJobs: jobs.length,
-      activeRecruiters: recruiters.length,
+      totalJobs,
+      activeRecruiters,
       pendingQueries,
       totalApplications,
       averageApplications,

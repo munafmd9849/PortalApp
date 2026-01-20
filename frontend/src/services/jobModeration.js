@@ -205,24 +205,25 @@ export function subscribeJobAnalytics(onChange) {
   };
 }
 
-export async function approveJob(jobId, user) {
+export async function approveJob(jobId, user, targeting = {}) {
   try {
-    // Call real API to approve job
-    const response = await api.approveJob(jobId);
-    console.log('✅ Job approved via API:', jobId);
+    // Call real API to approve job (now moves directly IN_REVIEW → POSTED)
+    // Targeting can be passed for initial posting
+    const response = await api.approveJob(jobId, targeting);
+    console.log('✅ Job approved and posted via API:', jobId);
     console.log('📋 Approval response:', {
       jobId: response?.job?.id,
       status: response?.job?.status,
       success: response?.success
     });
     
-    // Verify the status was updated correctly
+    // Verify the status was updated correctly (should be POSTED)
     if (response?.job?.status) {
       const status = response.job.status.toLowerCase();
-      if (status !== 'accepted' && status !== 'approved') {
-        console.warn(`⚠️ Warning: Job status is ${response.job.status}, expected ACCEPTED or APPROVED`);
+      if (status !== 'posted') {
+        console.warn(`⚠️ Warning: Job status is ${response.job.status}, expected POSTED`);
       } else {
-        console.log(`✅ Job status correctly set to: ${response.job.status}`);
+        console.log(`✅ Job status correctly set to: POSTED`);
       }
     }
     

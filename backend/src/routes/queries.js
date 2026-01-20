@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
+import { uploadProofDocument } from '../middleware/upload.js';
 import {
   createStudentQuery,
   getStudentQueries,
@@ -25,6 +26,7 @@ const handleValidation = (req, res, next) => {
 router.post(
   '/',
   requireRole(['STUDENT']),
+  uploadProofDocument, // Handle optional proof document upload (multer middleware)
   body('subject').trim().notEmpty().withMessage('Subject is required'),
   body('message').custom((value, { req }) => {
     const type = (req.body.type || 'question').toLowerCase();
@@ -41,7 +43,7 @@ router.post(
   }),
   body('type')
     .optional()
-    .isIn(['question', 'cgpa', 'calendar', 'endorsement'])
+    .isIn(['question', 'cgpa', 'calendar', 'endorsement', 'backlog'])
     .withMessage('Invalid query type'),
   body('teacherEmail')
     .optional()

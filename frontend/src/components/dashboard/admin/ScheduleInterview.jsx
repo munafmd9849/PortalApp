@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subscribeJobs } from '../../../services/jobs';
 import { API_BASE_URL } from '../../../config/api';
-import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle } from 'lucide-react';
+import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle, Lock } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
 
 export default function ScheduleInterview() {
@@ -98,6 +98,14 @@ export default function ScheduleInterview() {
     }
   };
 
+  // Check if drive date has been reached
+  const isDriveDateReached = (job) => {
+    if (!job?.driveDate) return false;
+    const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
+    const now = new Date();
+    return now >= driveDate;
+  };
+
   // Handle start interview session
   const handleStartInterview = async (jobId) => {
     setStartingInterview(prev => new Set([...prev, jobId]));
@@ -116,7 +124,14 @@ export default function ScheduleInterview() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to start interview session');
+        const errorMessage = errorData.message || errorData.error || 'Failed to start interview session';
+        
+        // Handle specific error messages
+        if (errorData.error === 'Interview drive has not started yet') {
+          throw new Error('Interview session can start only on the drive date');
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -189,6 +204,8 @@ export default function ScheduleInterview() {
         ) : (
           postedJobs.map((job) => {
             const jobStatus = getJobStatus(job);
+            // Check if drive date has been reached for this job
+            const canStartInterview = isDriveDateReached(job);
 
             return (
               <div key={job.id} className="relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 bg-green-50">
@@ -274,10 +291,19 @@ export default function ScheduleInterview() {
                         {/* Start Interview Session Button */}
                         <button
                           onClick={() => handleStartInterview(job.id)}
-                          disabled={startingInterview.has(job.id)}
+                          disabled={startingInterview.has(job.id) || !canStartInterview}
+                          title={
+                            !canStartInterview && job.driveDate
+                              ? `Interview session can start only on the drive date (${new Date(job.driveDate?.toDate ? job.driveDate.toDate() : job.driveDate).toLocaleDateString()})`
+                              : !job.driveDate
+                              ? 'Drive date is not set for this job'
+                              : ''
+                          }
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
                             startingInterview.has(job.id)
                               ? 'bg-blue-100 text-blue-500 cursor-not-allowed'
+                              : !canStartInterview
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                               : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
                           }`}
                         >
@@ -285,6 +311,11 @@ export default function ScheduleInterview() {
                             <>
                               <Loader className="w-4 h-4 animate-spin" />
                               <span>Starting...</span>
+                            </>
+                          ) : !canStartInterview ? (
+                            <>
+                              <Lock className="w-4 h-4" />
+                              <span>Drive Date Not Reached</span>
                             </>
                           ) : (
                             <>

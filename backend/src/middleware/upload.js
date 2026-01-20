@@ -218,6 +218,140 @@ export const uploadProfileImage = async (req, res, next) => {
 };
 
 /**
+ * Proof Document Upload Configuration
+ * Rules:
+ * - Allowed: PDF, JPG, PNG
+ * - Max size: 5MB
+ * - Folder: students/{studentId}/queries/proof
+ * - Used for CGPA/backlog update queries
+ */
+export const createProofDocumentUpload = (studentId) => {
+  // Verify Cloudinary is configured
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary credentials not configured');
+  }
+
+  // Use memory storage - we'll manually upload to Cloudinary in the middleware
+  const storage = multer.memoryStorage();
+  
+  console.log('✅ [Multer] Using memory storage for proof document upload');
+
+  return multer({
+    storage: storage,
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB
+    },
+    fileFilter: (req, file, cb) => {
+      // Validate file type
+      const allowedMimes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png'
+      ];
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only PDF, JPG, and PNG files are allowed for proof documents'), false);
+      }
+    },
+  });
+};
+
+/**
+ * Single file upload middleware (for proof documents in queries)
+ * Uses userId for folder structure (students/{userId}/queries/proof)
+ */
+export const uploadProofDocument = async (req, res, next) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  // Verify Cloudinary configuration
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    console.error('❌ Cloudinary credentials not configured!');
+    return res.status(500).json({ 
+      error: 'Cloudinary is not configured. Please contact administrator.' 
+    });
+  }
+
+  console.log('📤 [Upload] Starting proof document upload for user:', userId);
+
+  const upload = createProofDocumentUpload(userId).single('proofDocument');
+  upload(req, res, async (err) => {
+    if (err) {
+      console.error('❌ [Upload] Proof document upload error:', err);
+      
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File size exceeds 5MB limit' });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ error: 'Unexpected file field. Use "proofDocument" as the field name.' });
+        }
+        return res.status(400).json({ error: `Upload error: ${err.message}` });
+      }
+      
+      // Handle file filter errors
+      if (err.message && err.message.includes('Only PDF')) {
+        return res.status(400).json({ error: err.message });
+      }
+      
+      return res.status(400).json({ 
+        error: err.message || 'File upload failed. Please check the file format and size.' 
+      });
+    }
+    
+    // Proof document is optional, so don't error if no file
+    if (req.file) {
+      console.log('✅ [Upload] Proof document received in memory:', {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        hasBuffer: !!req.file.buffer,
+      });
+      
+      // Manually upload to Cloudinary using memory buffer
+      if (!req.file.buffer) {
+        console.error('❌ [Upload] No file buffer found');
+        return res.status(400).json({ error: 'File buffer not found' });
+      }
+      
+      try {
+        console.log('📤 [Upload] Uploading proof document to Cloudinary...');
+        const isImage = req.file.mimetype.startsWith('image/');
+        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, {
+          folder: `students/${userId}/queries/proof`,
+          resource_type: isImage ? 'image' : 'raw', // PDFs are raw files, images are image
+        });
+        
+        console.log('✅ [Upload] Cloudinary upload successful:', {
+          url: cloudinaryResult.url.substring(0, 50) + '...',
+          publicId: cloudinaryResult.public_id,
+        });
+        
+        // Attach Cloudinary result to file object for controller
+        req.file.secure_url = cloudinaryResult.url;
+        req.file.url = cloudinaryResult.url;
+        req.file.public_id = cloudinaryResult.public_id;
+        
+        next();
+      } catch (cloudinaryError) {
+        console.error('❌ [Upload] Cloudinary upload failed:', cloudinaryError);
+        return res.status(500).json({ 
+          error: `Cloudinary upload failed: ${cloudinaryError.message || 'Unknown error'}` 
+        });
+      }
+    } else {
+      // No file uploaded, but that's OK (proof document is optional)
+      next();
+    }
+  });
+};
+
+/**
  * Single file upload middleware (for resume)
  * Uses userId for folder structure (students/{userId}/resumes)
  */

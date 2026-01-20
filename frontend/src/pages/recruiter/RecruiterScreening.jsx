@@ -53,10 +53,28 @@ const RecruiterScreening = () => {
       setApplications(data?.applications || []);
       setSummary(data?.summary || {});
 
-      // Check if screening is finalized (all applications decided)
+      // Check if screening is finalized (all applications decided based on requirements)
+      const job = data?.job || {};
+      const requiresScreening = job.requiresScreening || false;
+      const requiresTest = job.requiresTest || false;
+      
       const allDecided = (data?.applications || []).every(app => {
         const status = app.screeningStatus || 'APPLIED';
-        return status !== 'APPLIED' && status !== 'RESUME_SELECTED';
+        
+        // If both required: must reach INTERVIEW_ELIGIBLE or be rejected
+        if (requiresScreening && requiresTest) {
+          return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED' || status === 'TEST_REJECTED';
+        }
+        // If only screening required: must be SCREENING_SELECTED/INTERVIEW_ELIGIBLE or rejected
+        if (requiresScreening && !requiresTest) {
+          return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED';
+        }
+        // If only test required: must reach INTERVIEW_ELIGIBLE or be rejected
+        if (!requiresScreening && requiresTest) {
+          return status === 'INTERVIEW_ELIGIBLE' || status === 'TEST_REJECTED';
+        }
+        // If neither required: all are eligible
+        return true;
       });
       setFinalized(allDecided && (data?.applications || []).length > 0);
     } catch (err) {
@@ -76,10 +94,11 @@ const RecruiterScreening = () => {
 
       // Show success message based on action
       const statusMessages = {
-        'RESUME_SELECTED': 'Resume selected successfully',
-        'RESUME_REJECTED': 'Resume rejected',
+        'SCREENING_SELECTED': 'Resume selected successfully',
+        'SCREENING_REJECTED': 'Resume rejected',
         'TEST_SELECTED': 'Candidate passed the test',
-        'TEST_REJECTED': 'Candidate failed the test'
+        'TEST_REJECTED': 'Candidate failed the test',
+        'INTERVIEW_ELIGIBLE': 'Candidate qualified for interview'
       };
       showSuccess(statusMessages[newStatus] || 'Screening decision saved');
 
@@ -131,10 +150,27 @@ const RecruiterScreening = () => {
     return true;
   });
 
-  // Check if all applications are decided
+  const requiresScreening = job?.requiresScreening || false;
+  const requiresTest = job?.requiresTest || false;
+
+  // Check if all applications are decided based on requirements
   const allDecided = applications.every(app => {
     const status = app.screeningStatus || 'APPLIED';
-    return status !== 'APPLIED' && status !== 'RESUME_SELECTED';
+    
+    // If both required: must reach INTERVIEW_ELIGIBLE or be rejected
+    if (requiresScreening && requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED' || status === 'TEST_REJECTED';
+    }
+    // If only screening required: must be INTERVIEW_ELIGIBLE or rejected
+    if (requiresScreening && !requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED';
+    }
+    // If only test required: must reach INTERVIEW_ELIGIBLE or be rejected
+    if (!requiresScreening && requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'TEST_REJECTED';
+    }
+    // If neither required: all are eligible
+    return true;
   });
 
   if (loading) {
@@ -213,22 +249,36 @@ const RecruiterScreening = () => {
             <div className="text-2xl font-bold text-indigo-600">{summary.total || 0}</div>
             <div className="text-sm text-gray-600">Total Applied</div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{summary.resumeSelected || 0}</div>
-            <div className="text-sm text-gray-600">Resume Selected</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{summary.resumeRejected || 0}</div>
-            <div className="text-sm text-gray-600">Resume Rejected</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{summary.testSelected || 0}</div>
-            <div className="text-sm text-gray-600">Test Selected</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{summary.testRejected || 0}</div>
-            <div className="text-sm text-gray-600">Test Rejected</div>
-          </div>
+          {requiresScreening && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{summary.screeningSelected || summary.resumeSelected || 0}</div>
+                <div className="text-sm text-gray-600">Screening Selected</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{summary.screeningRejected || summary.resumeRejected || 0}</div>
+                <div className="text-sm text-gray-600">Screening Rejected</div>
+              </div>
+            </>
+          )}
+          {requiresTest && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{summary.testSelected || 0}</div>
+                <div className="text-sm text-gray-600">Test Passed</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4 text-center">
+                <div className="text-2xl font-bold text-orange-600">{summary.testRejected || 0}</div>
+                <div className="text-sm text-gray-600">Test Failed</div>
+              </div>
+            </>
+          )}
+          {(requiresScreening && requiresTest) && (
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <div className="text-2xl font-bold text-purple-600">{summary.interviewEligible || 0}</div>
+              <div className="text-sm text-gray-600">Interview Eligible</div>
+            </div>
+          )}
         </div>
 
         {/* Filters and Actions */}
@@ -252,10 +302,19 @@ const RecruiterScreening = () => {
               >
                 <option value="">All Status</option>
                 <option value="APPLIED">Applied</option>
-                <option value="RESUME_SELECTED">Resume Selected</option>
-                <option value="RESUME_REJECTED">Resume Rejected</option>
-                <option value="TEST_SELECTED">Test Selected</option>
-                <option value="TEST_REJECTED">Test Rejected</option>
+                {requiresScreening && (
+                  <>
+                    <option value="SCREENING_SELECTED">Screening Selected</option>
+                    <option value="SCREENING_REJECTED">Screening Rejected</option>
+                  </>
+                )}
+                {requiresTest && (
+                  <>
+                    <option value="TEST_SELECTED">Test Passed</option>
+                    <option value="TEST_REJECTED">Test Failed</option>
+                  </>
+                )}
+                <option value="INTERVIEW_ELIGIBLE">Interview Eligible</option>
               </select>
             </div>
             {!finalized && allDecided && (
@@ -293,8 +352,12 @@ const RecruiterScreening = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Enrollment ID</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Resume</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Resume Screening</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Test Status</th>
+                  {requiresScreening && (
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Resume Screening</th>
+                  )}
+                  {requiresTest && (
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">QA / Test Status</th>
+                  )}
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Final Status</th>
                 </tr>
               </thead>
@@ -302,10 +365,11 @@ const RecruiterScreening = () => {
                 {filteredApplications.map((app) => {
                   const student = app.student || {};
                   const screeningStatus = app.screeningStatus || 'APPLIED';
-                  const isResumeSelected = screeningStatus === 'RESUME_SELECTED';
-                  const isResumeRejected = screeningStatus === 'RESUME_REJECTED';
+                  const isScreeningSelected = screeningStatus === 'SCREENING_SELECTED';
+                  const isScreeningRejected = screeningStatus === 'SCREENING_REJECTED';
                   const isTestSelected = screeningStatus === 'TEST_SELECTED';
                   const isTestRejected = screeningStatus === 'TEST_REJECTED';
+                  const isInterviewEligible = screeningStatus === 'INTERVIEW_ELIGIBLE';
 
                   return (
                     <tr key={app.id} className="hover:bg-gray-50">
@@ -317,130 +381,176 @@ const RecruiterScreening = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">{student.enrollmentId || 'N/A'}</td>
                       <td className="px-6 py-4">
                         {student.resumeUrl ? (
-                          <button
-                            onClick={() => {
-                              // Open PDF in new window/tab for inline viewing
-                              const pdfWindow = window.open(student.resumeUrl, '_blank');
-                              if (pdfWindow) {
-                                pdfWindow.focus();
-                              }
-                            }}
-                            className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors text-sm"
-                          >
-                            <FileText className="w-4 h-4" />
-                            View
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                try {
+                                  // Open PDF in new window/tab for inline viewing
+                                  const pdfWindow = window.open(student.resumeUrl, '_blank');
+                                  if (!pdfWindow) {
+                                    // Popup blocked - fallback to direct navigation
+                                    window.location.href = student.resumeUrl;
+                                  } else {
+                                    pdfWindow.focus();
+                                  }
+                                } catch (error) {
+                                  console.error('Error opening resume:', error);
+                                  showError('Failed to open resume. Please try downloading it instead.');
+                                }
+                              }}
+                              className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors text-sm"
+                            >
+                              <FileText className="w-4 h-4" />
+                              View
+                            </button>
+                            <button
+                              onClick={() => {
+                                try {
+                                  // Download resume file
+                                  const link = document.createElement('a');
+                                  link.href = student.resumeUrl;
+                                  link.download = student.resumeFileName || 'resume.pdf';
+                                  link.target = '_blank';
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  showSuccess('Resume download started');
+                                } catch (error) {
+                                  console.error('Error downloading resume:', error);
+                                  showError('Failed to download resume. Please try viewing it instead.');
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs"
+                              title="Download resume"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-gray-400 text-sm">No resume</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        {finalized ? (
-                          <span className={`px-3 py-1 rounded text-xs font-semibold ${
-                            isResumeSelected ? 'bg-green-100 text-green-800' :
-                            isResumeRejected ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {screeningStatus === 'RESUME_SELECTED' ? 'Selected' :
-                             screeningStatus === 'RESUME_REJECTED' ? 'Rejected' :
-                             'Applied'}
-                          </span>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => updateScreeningStatus(app.id, 'RESUME_SELECTED')}
-                              disabled={isResumeSelected || isResumeRejected || isTestSelected || isTestRejected}
-                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                isResumeSelected
-                                  ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                                  : isResumeRejected || isTestSelected || isTestRejected
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
-                              }`}
-                            >
-                              {isResumeSelected ? 'Selected' : 'Select'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                const reason = prompt('Please provide rejection reason:');
-                                if (reason && reason.trim()) {
-                                  updateScreeningStatus(app.id, 'RESUME_REJECTED', reason.trim());
-                                }
-                              }}
-                              disabled={isResumeSelected || isResumeRejected || isTestSelected || isTestRejected}
-                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                isResumeRejected
-                                  ? 'bg-red-100 text-red-800 cursor-not-allowed'
-                                  : isResumeSelected || isTestSelected || isTestRejected
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-red-600 text-white hover:bg-red-700'
-                              }`}
-                            >
-                              {isResumeRejected ? 'Rejected' : 'Reject'}
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {finalized ? (
-                          <span className={`px-3 py-1 rounded text-xs font-semibold ${
-                            isTestSelected ? 'bg-blue-100 text-blue-800' :
-                            isTestRejected ? 'bg-orange-100 text-orange-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {screeningStatus === 'TEST_SELECTED' ? 'Passed' :
-                             screeningStatus === 'TEST_REJECTED' ? 'Failed' :
-                             isResumeSelected ? 'Not Started' : 'N/A'}
-                          </span>
-                        ) : isResumeSelected ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => updateScreeningStatus(app.id, 'TEST_SELECTED')}
-                              disabled={isTestSelected || isTestRejected}
-                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                isTestSelected
-                                  ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
-                                  : isTestRejected
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-blue-600 text-white hover:bg-blue-700'
-                              }`}
-                            >
-                              {isTestSelected ? 'Passed' : 'Pass'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                const reason = prompt('Please provide test failure reason:');
-                                if (reason && reason.trim()) {
-                                  updateScreeningStatus(app.id, 'TEST_REJECTED', reason.trim());
-                                }
-                              }}
-                              disabled={isTestSelected || isTestRejected}
-                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                isTestRejected
-                                  ? 'bg-orange-100 text-orange-800 cursor-not-allowed'
-                                  : isTestSelected
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-orange-600 text-white hover:bg-orange-700'
-                              }`}
-                            >
-                              {isTestRejected ? 'Failed' : 'Fail'}
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">N/A</span>
-                        )}
-                      </td>
+                      {requiresScreening && (
+                        <td className="px-6 py-4">
+                          {finalized ? (
+                            <span className={`px-3 py-1 rounded text-xs font-semibold ${
+                              isScreeningSelected ? 'bg-green-100 text-green-800' :
+                              isScreeningRejected ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {screeningStatus === 'SCREENING_SELECTED' ? 'Selected' :
+                               screeningStatus === 'SCREENING_REJECTED' ? 'Rejected' :
+                               'Applied'}
+                            </span>
+                          ) : (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => updateScreeningStatus(app.id, 'SCREENING_SELECTED')}
+                                disabled={isScreeningSelected || isScreeningRejected || isInterviewEligible}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                  isScreeningSelected
+                                    ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                                    : isScreeningRejected || isInterviewEligible
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-green-600 text-white hover:bg-green-700'
+                                }`}
+                              >
+                                {isScreeningSelected ? 'Selected' : 'Select'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('Please provide rejection reason:');
+                                  if (reason && reason.trim()) {
+                                    updateScreeningStatus(app.id, 'SCREENING_REJECTED', reason.trim());
+                                  }
+                                }}
+                                disabled={isScreeningSelected || isScreeningRejected || isInterviewEligible}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                  isScreeningRejected
+                                    ? 'bg-red-100 text-red-800 cursor-not-allowed'
+                                    : isScreeningSelected || isInterviewEligible
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-red-600 text-white hover:bg-red-700'
+                                }`}
+                              >
+                                {isScreeningRejected ? 'Rejected' : 'Reject'}
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      )}
+                      {requiresTest && (
+                        <td className="px-6 py-4">
+                          {finalized ? (
+                            <span className={`px-3 py-1 rounded text-xs font-semibold ${
+                              isInterviewEligible ? 'bg-purple-100 text-purple-800' :
+                              isTestRejected ? 'bg-orange-100 text-orange-800' :
+                              isScreeningSelected ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {isInterviewEligible ? 'Passed' :
+                               isTestRejected ? 'Failed' :
+                               requiresScreening && isScreeningSelected ? 'Pending' :
+                               'Not Started'}
+                            </span>
+                          ) : (requiresScreening ? isScreeningSelected : true) ? (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => updateScreeningStatus(app.id, 'TEST_SELECTED')}
+                                disabled={isInterviewEligible || isTestRejected || (requiresScreening && !isScreeningSelected)}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                  isInterviewEligible
+                                    ? 'bg-purple-100 text-purple-800 cursor-not-allowed'
+                                    : isTestRejected
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : (requiresScreening && !isScreeningSelected)
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                                title={requiresScreening && !isScreeningSelected ? 'Complete resume screening first' : 'Mark test as passed'}
+                              >
+                                {isInterviewEligible ? 'Passed' : 'Pass'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('Please provide test failure reason:');
+                                  if (reason && reason.trim()) {
+                                    updateScreeningStatus(app.id, 'TEST_REJECTED', reason.trim());
+                                  }
+                                }}
+                                disabled={isInterviewEligible || isTestRejected || (requiresScreening && !isScreeningSelected)}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                  isTestRejected
+                                    ? 'bg-orange-100 text-orange-800 cursor-not-allowed'
+                                    : isInterviewEligible
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : (requiresScreening && !isScreeningSelected)
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-orange-600 text-white hover:bg-orange-700'
+                                }`}
+                                title={requiresScreening && !isScreeningSelected ? 'Complete resume screening first' : 'Mark test as failed'}
+                              >
+                                {isTestRejected ? 'Failed' : 'Fail'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Complete screening first</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded text-xs font-semibold ${
-                          isTestSelected ? 'bg-green-100 text-green-800' :
-                          isTestRejected || isResumeRejected ? 'bg-red-100 text-red-800' :
-                          isResumeSelected ? 'bg-yellow-100 text-yellow-800' :
+                          isInterviewEligible ? 'bg-green-100 text-green-800' :
+                          isTestRejected || isScreeningRejected ? 'bg-red-100 text-red-800' :
+                          isScreeningSelected && !requiresTest ? 'bg-green-100 text-green-800' :
+                          isScreeningSelected ? 'bg-yellow-100 text-yellow-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {isTestSelected ? 'Qualified for Interview' :
-                           isTestRejected ? 'Rejected in Test' :
-                           isResumeRejected ? 'Rejected in Resume Screening' :
-                           isResumeSelected ? 'Resume Selected' :
+                          {isInterviewEligible ? 'Qualified for Interview' :
+                           isTestRejected ? 'Rejected in QA/Test' :
+                           isScreeningRejected ? 'Rejected in Screening' :
+                           isScreeningSelected && !requiresTest ? 'Qualified for Interview' :
+                           isScreeningSelected ? 'Screening Selected' :
                            'Applied'}
                         </span>
                         {app.screeningRemarks && (

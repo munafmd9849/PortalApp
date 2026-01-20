@@ -15,9 +15,10 @@ import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
 import AdminJobApplications from '../../components/dashboard/admin/AdminJobApplications';
 import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
-import { Home, FilePlus2, Briefcase, ClipboardList, GripVertical, LogOut, Users, Bell, Settings, User, Calendar } from 'lucide-react';
+import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import RequireRole from '../../components/RequireRole';
 
 export default function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,12 +27,50 @@ export default function AdminDashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(15); // % width, 5-15 like student
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
-  const { logout } = useAuth();
+  const { logout, user, role, loading } = useAuth();
   const navigate = useNavigate();
 
   const location = useLocation();
   const isJobDetailPage = location.pathname.includes('/admin/job/');
   const isJobApplicationsPage = location.pathname.includes('/admin/jobs/') && location.pathname.endsWith('/applications');
+
+  // MANDATORY: Hard block unauthorized access on mount
+  useEffect(() => {
+    if (loading) return;
+
+    const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+    const allowedRoles = ['ADMIN', 'RECRUITER'];
+
+    if (!user) {
+      console.error('🚫 AdminDashboard: No authenticated user');
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (!allowedRoles.includes(userRole)) {
+      console.error('🚫 AdminDashboard: Unauthorized access attempt:', {
+        userRole,
+        userId: user?.id,
+        email: user?.email,
+        path: location.pathname,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Redirect based on role
+      const redirectPath = userRole === 'STUDENT' ? '/student' : '/';
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, role, loading, navigate, location.pathname]);
+
+  // Don't render anything if unauthorized
+  if (loading) return null;
+
+  const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+  const allowedRoles = ['ADMIN', 'RECRUITER'];
+
+  if (!user || !allowedRoles.includes(userRole)) {
+    return null; // Will redirect via useEffect
+  }
 
   // Sync activeTab with URL params
   useEffect(() => {
@@ -65,21 +104,37 @@ export default function AdminDashboard() {
     };
   }, [navigate]);
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'createJob', label: 'Create Job', icon: FilePlus2 },
-    { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase },
-    { id: 'jobApplications', label: 'Applicants', icon: Users },
+  // Role-based tab filtering - STUDENT users cannot see Create Job or other admin-only tabs
+  // userRole is already declared above (line 68), reuse it here
+  const userRoleUpper = userRole.toUpperCase();
+  const isAdmin = userRoleUpper === 'ADMIN';
+  const isRecruiter = userRoleUpper === 'RECRUITER';
+  const isStudent = userRoleUpper === 'STUDENT';
+  const canCreateJobs = isAdmin || isRecruiter;
+  const isAdminOnly = isAdmin;
+
+  // Base tabs available to all authorized users
+  const allTabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
+    { id: 'createJob', label: 'Create Job', icon: FilePlus2, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
+    { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
+    { id: 'jobApplications', label: 'Applicants', icon: Users, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
     // { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar }, // Commented out - replaced by InterviewScheduling
-    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList },
-    { id: 'studentDirectory', label: 'Student Directory', icon: Users },
-    { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase },
-    { id: 'adminPanel', label: 'Admin Panel', icon: Settings },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar, roles: ['ADMIN', 'RECRUITER'] },
+    { id: 'calendar', label: 'Calendar', icon: Calendar, roles: ['ADMIN', 'RECRUITER'] },
+    // { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList }, // Removed from sidebar - page still exists
+    { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
+    { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
   ];
+
+  // Filter tabs based on user role - STUDENT users should not see job creation tabs
+  const tabs = allTabs.filter(tab => {
+    const allowedRoles = tab.roles || [];
+    return allowedRoles.includes(userRoleUpper);
+  });
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -142,6 +197,16 @@ export default function AdminDashboard() {
   }, [activeTab, isJobApplicationsPage, isJobDetailPage]);
 
   const renderContent = () => {
+    // ROLE CHECK: Block unauthorized access to job creation tabs
+    const unauthorizedJobTabs = ['createJob', 'manageJobs', 'jobApplications', 'interviewScheduling', 'calendar'];
+    if (isStudent && unauthorizedJobTabs.includes(activeTab)) {
+      console.error('🚫 STUDENT user attempted to access restricted tab:', activeTab);
+      // Redirect to dashboard and show error
+      setActiveTab('dashboard');
+      navigate('/admin?tab=dashboard');
+      return <div className="text-red-600 font-semibold">Access denied: You don't have permission to access this section.</div>;
+    }
+
     // Check if we're on a job detail page
     if (isJobDetailPage) {
       return <AdminJobDetail />;
@@ -155,24 +220,54 @@ export default function AdminDashboard() {
       case 'dashboard':
         return <AdminHome />;
       case 'createJob':
+        // Additional role check before rendering CreateJob component
+        if (!canCreateJobs) {
+          console.error('🚫 Unauthorized user attempted to access Create Job:', { userRole, userId: user?.id });
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN or RECRUITER users can create jobs.</div>;
+        }
         return <CreateJob onCreated={() => setActiveTab('manageJobs')} />;
       case 'manageJobs':
+        if (!canCreateJobs) {
+          console.error('🚫 Unauthorized user attempted to access Manage Jobs:', { userRole, userId: user?.id });
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN or RECRUITER users can manage jobs.</div>;
+        }
         return <ManageJobs />;
       case 'jobApplications':
+        if (!canCreateJobs) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN or RECRUITER users can view job applications.</div>;
+        }
         return <AdminApplicantsHub />;
       // case 'scheduleInterview':
       //   return <ScheduleInterview />; // Commented out - replaced by InterviewScheduling
       case 'interviewScheduling':
+        if (!canCreateJobs) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN or RECRUITER users can schedule interviews.</div>;
+        }
         return <InterviewScheduling />;
       case 'calendar':
+        if (!canCreateJobs) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN or RECRUITER users can access calendar.</div>;
+        }
         return <ConnectGoogleCalendar />;
       case 'jobPostingsManager':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access job moderation.</div>;
+        }
         return <JobPostingsManager />;
       case 'studentDirectory':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access student directory.</div>;
+        }
         return <StudentDirectory />;
       case 'recruiterDirectory':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access recruiter directory.</div>;
+        }
         return <RecruiterDirectory />;
       case 'adminPanel':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access admin panel.</div>;
+        }
         return <AdminPanel />;
       case 'notifications':
         return <Notifications />;

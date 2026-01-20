@@ -122,6 +122,17 @@ const DashboardHome = ({
     return true; // If we can't parse criteria, assume eligible
   };
 
+  // Check if application deadline has passed
+  const isDeadlinePassed = (job) => {
+    if (!job) return false;
+    const deadline = job.applicationDeadline || job.deadline;
+    if (!deadline) return false; // No deadline set, allow application
+    
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    return now > deadlineDate;
+  };
+
   // Check if student's CGPA meets job requirement
   const meetsCgpaRequirement = (job) => {
     const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
@@ -217,6 +228,8 @@ const DashboardHome = ({
           hasApplied={hasApplied}
           applying={applying}
           onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
+          meetsCgpaRequirement={meetsCgpaRequirement}
+          isDeadlinePassed={isDeadlinePassed}
         />
       )}
 

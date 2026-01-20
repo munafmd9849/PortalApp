@@ -319,30 +319,32 @@ export async function getStudentApplications(req, res) {
       })));
     }
 
-    // Get interview sessions for these jobs
+    // OPTIMIZED: Run these queries in parallel for better performance
     const jobIds = applications.map(app => app.jobId);
-    const interviewSessions = await prisma.interviewSession.findMany({
-      where: { jobId: { in: jobIds } },
-      include: {
-        rounds: {
-          orderBy: { roundNumber: 'asc' },
+    const applicationIds = applications.map(app => app.id);
+
+    // Run both queries in parallel instead of sequentially
+    const [interviewSessions, allEvaluations] = await Promise.all([
+      jobIds.length > 0 ? prisma.interviewSession.findMany({
+        where: { jobId: { in: jobIds } },
+        include: {
+          rounds: {
+            orderBy: { roundNumber: 'asc' },
+          },
         },
-      },
-    });
+      }) : Promise.resolve([]),
+      applicationIds.length > 0 ? prisma.roundEvaluation.findMany({
+        where: { applicationId: { in: applicationIds } },
+        include: {
+          round: {
+            select: { roundNumber: true, name: true },
+          },
+        },
+        orderBy: { round: { roundNumber: 'asc' } },
+      }) : Promise.resolve([]),
+    ]);
 
     const sessionMap = new Map(interviewSessions.map(s => [s.jobId, s]));
-
-    // Get all round evaluations for these applications to show detailed status
-    const applicationIds = applications.map(app => app.id);
-    const allEvaluations = await prisma.roundEvaluation.findMany({
-      where: { applicationId: { in: applicationIds } },
-      include: {
-        round: {
-          select: { roundNumber: true, name: true },
-        },
-      },
-      orderBy: { round: { roundNumber: 'asc' } },
-    });
 
     const evaluationsByApp = new Map();
     allEvaluations.forEach(evaluation => {
@@ -653,7 +655,33 @@ export async function getAdminJobApplications(req, res) {
     const limitRaw = parseInt(req.query.limit || '25', 10) || 25;
     const limit = Math.min(100, Math.max(1, limitRaw));
 
+    // Search query (name, email, phone, application ID)
     const q = (req.query.q || '').trim();
+    
+    // Application Status filter
+    const applicationStatus = (req.query.applicationStatus || '').trim();
+    
+    // Interview Status filter
+    const interviewStatus = (req.query.interviewStatus || '').trim();
+    
+    // Drive Date filter
+    const driveDateFilter = (req.query.driveDateFilter || '').trim();
+    
+    // Application Date filter
+    const applicationDateFilter = (req.query.applicationDateFilter || '').trim();
+    const applicationDateStart = req.query.applicationDateStart ? new Date(req.query.applicationDateStart) : null;
+    const applicationDateEnd = req.query.applicationDateEnd ? new Date(req.query.applicationDateEnd) : null;
+    
+    // Education filters
+    const degree = (req.query.degree || '').trim();
+    const branch = (req.query.branch || '').trim(); // specialization in Education table
+    const graduationYear = req.query.graduationYear ? parseInt(req.query.graduationYear, 10) : null;
+    
+    // Location filter
+    const city = (req.query.city || '').trim();
+    const state = (req.query.state || '').trim();
+    
+    // Legacy filters (keep for backward compatibility)
     const stage = (req.query.stage || '').trim();
     const finalStatusFilter = (req.query.finalStatus || '').trim().toUpperCase();
     const lastRoundFilter = req.query.lastRoundReached !== undefined && req.query.lastRoundReached !== ''
@@ -663,12 +691,32 @@ export async function getAdminJobApplications(req, res) {
     const sortBy = (req.query.sortBy || 'appliedAt').trim();
     const order = ((req.query.order || 'desc').trim().toLowerCase() === 'asc') ? 'asc' : 'desc';
 
+    const userId = req.userId;
+    const userRole = req.user?.role || req.userRole;
+
+    // Get job and check permissions
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      include: { company: true },
+      include: { 
+        company: true,
+        recruiter: {
+          include: {
+            user: {
+              select: { id: true },
+            },
+          },
+        },
+      },
     });
 
     if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    // Permission check: Recruiters can only see applications for their own jobs
+    if (userRole === 'RECRUITER' || userRole === 'recruiter') {
+      if (!job.recruiter || job.recruiter.user.id !== userId) {
+        return res.status(403).json({ error: 'Not authorized to view applications for this job' });
+      }
+    }
 
     const interviewSession = await prisma.interviewSession.findUnique({
       where: { jobId },
@@ -676,58 +724,264 @@ export async function getAdminJobApplications(req, res) {
     });
     const hasInterviewSession = !!interviewSession;
 
-    // Build WHERE clause (server-side filters)
+    // Build WHERE clause with AND logic for all filters
     const where = {
       jobId,
-      ...(q
-        ? {
-            student: {
-              OR: [
-                { fullName: { contains: q } },
-                { email: { contains: q } },
-                { enrollmentId: { contains: q } },
-              ],
-            },
-          }
-        : {}),
     };
 
-    // Final status filter (server-side)
-    if (finalStatusFilter === 'SELECTED') {
-      where.OR = [{ interviewStatus: 'SELECTED' }, { status: 'SELECTED' }];
-    } else if (finalStatusFilter === 'REJECTED') {
-      where.OR = [
-        { status: 'REJECTED' },
-        { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
-        { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
-      ];
-    } else if (finalStatusFilter === 'ONGOING') {
-      where.NOT = {
+    // Array to collect all filter conditions (AND logic)
+    const filterConditions = [];
+
+    // Build student filter conditions
+    const studentWhere = {};
+    let hasStudentFilters = false;
+
+    // Free-text search (name, email, phone, application ID)
+    if (q) {
+      filterConditions.push({
         OR: [
-          { interviewStatus: 'SELECTED' },
-          { status: 'SELECTED' },
-          { status: 'REJECTED' },
-          { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
-          { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          { id: { contains: q, mode: 'insensitive' } }, // Application ID
+          {
+            student: {
+              OR: [
+                { fullName: { contains: q, mode: 'insensitive' } },
+                { email: { contains: q, mode: 'insensitive' } },
+                { phone: { contains: q, mode: 'insensitive' } },
+                { enrollmentId: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+          },
         ],
-      };
+      });
     }
 
-    // Stage filter (best-effort using DB fields + derived interviewStarted)
+    // Application Status filter
+    if (applicationStatus) {
+      const statusUpper = applicationStatus.toUpperCase();
+      if (statusUpper === 'APPLIED') {
+        filterConditions.push({ screeningStatus: 'APPLIED' });
+      } else if (statusUpper === 'SHORTLISTED') {
+        filterConditions.push({ screeningStatus: 'RESUME_SELECTED' });
+      } else if (statusUpper === 'INTERVIEW_SCHEDULED') {
+        filterConditions.push({
+          AND: [
+            { screeningStatus: 'TEST_SELECTED' },
+            { interviewDate: { not: null } },
+          ],
+        });
+      } else if (statusUpper === 'INTERVIEWED') {
+        filterConditions.push({
+          AND: [
+            { screeningStatus: 'TEST_SELECTED' },
+            { roundEvaluations: { some: {} } },
+          ],
+        });
+      } else if (statusUpper === 'SELECTED') {
+        filterConditions.push({
+          OR: [
+            { interviewStatus: 'SELECTED' },
+            { status: 'SELECTED' },
+          ],
+        });
+      } else if (statusUpper === 'REJECTED') {
+        filterConditions.push({
+          OR: [
+            { status: 'REJECTED' },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          ],
+        });
+      }
+    }
+
+    // Interview Status filter
+    if (interviewStatus) {
+      const interviewStatusUpper = interviewStatus.toUpperCase();
+      if (interviewStatusUpper === 'NOT_SCHEDULED') {
+        filterConditions.push({
+          AND: [
+            { interviewDate: null },
+            { screeningStatus: 'TEST_SELECTED' },
+          ],
+        });
+      } else if (interviewStatusUpper === 'SCHEDULED') {
+        filterConditions.push({
+          AND: [
+            { interviewDate: { not: null } },
+            { roundEvaluations: { none: {} } },
+          ],
+        });
+      } else if (interviewStatusUpper === 'IN_PROGRESS') {
+        filterConditions.push({
+          AND: [
+            { screeningStatus: 'TEST_SELECTED' },
+            { roundEvaluations: { some: {} } },
+            {
+              NOT: {
+                OR: [
+                  { interviewStatus: 'SELECTED' },
+                  { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+                ],
+              },
+            },
+          ],
+        });
+      } else if (interviewStatusUpper === 'COMPLETED') {
+        filterConditions.push({
+          OR: [
+            { interviewStatus: 'SELECTED' },
+            { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          ],
+        });
+      }
+    }
+
+    // Drive Date filter
+    if (driveDateFilter && job.driveDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const driveDate = new Date(job.driveDate);
+      driveDate.setHours(0, 0, 0, 0);
+
+      if (driveDateFilter === 'upcoming') {
+        // Only show if drive date is in future
+        if (driveDate <= today) {
+          // No results for this filter
+          where.id = '00000000-0000-0000-0000-000000000000'; // Non-existent ID
+        }
+      } else if (driveDateFilter === 'today') {
+        // Only show if drive date is today
+        if (driveDate.getTime() !== today.getTime()) {
+          where.id = '00000000-0000-0000-0000-000000000000'; // Non-existent ID
+        }
+      } else if (driveDateFilter === 'past') {
+        // Only show if drive date is in past
+        if (driveDate >= today) {
+          where.id = '00000000-0000-0000-0000-000000000000'; // Non-existent ID
+        }
+      }
+    }
+
+    // Application Date filter
+    if (applicationDateFilter || applicationDateStart || applicationDateEnd) {
+      const dateWhere = {};
+      
+      if (applicationDateFilter === 'today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateWhere.gte = today;
+        dateWhere.lt = tomorrow;
+      } else if (applicationDateFilter === 'last_7_days') {
+        const date = new Date();
+        date.setDate(date.getDate() - 7);
+        date.setHours(0, 0, 0, 0);
+        dateWhere.gte = date;
+      } else if (applicationDateFilter === 'last_30_days') {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        date.setHours(0, 0, 0, 0);
+        dateWhere.gte = date;
+      } else if (applicationDateStart || applicationDateEnd) {
+        if (applicationDateStart) {
+          applicationDateStart.setHours(0, 0, 0, 0);
+          dateWhere.gte = applicationDateStart;
+        }
+        if (applicationDateEnd) {
+          applicationDateEnd.setHours(23, 59, 59, 999);
+          dateWhere.lte = applicationDateEnd;
+        }
+      }
+      
+      if (Object.keys(dateWhere).length > 0) {
+        filterConditions.push({ appliedDate: dateWhere });
+      }
+    }
+
+    // Education filters
+    if (degree || branch || graduationYear) {
+      const educationConditions = {};
+      if (degree) {
+        educationConditions.degree = { contains: degree, mode: 'insensitive' };
+      }
+      if (branch) {
+        // Branch/specialization is stored in Education.description field
+        // We search in the description field which typically contains specialization/branch info
+        educationConditions.description = { contains: branch, mode: 'insensitive' };
+      }
+      if (graduationYear) {
+        educationConditions.endYear = graduationYear;
+      }
+      
+      if (Object.keys(educationConditions).length > 0) {
+        studentWhere.education = { some: educationConditions };
+        hasStudentFilters = true;
+      }
+    }
+
+    // Location filter
+    if (city || state) {
+      if (city) {
+        studentWhere.city = { contains: city, mode: 'insensitive' };
+        hasStudentFilters = true;
+      }
+      if (state) {
+        studentWhere.stateRegion = { contains: state, mode: 'insensitive' };
+        hasStudentFilters = true;
+      }
+    }
+
+    // Combine student filters into filter conditions
+    if (hasStudentFilters) {
+      filterConditions.push({ student: studentWhere });
+    }
+
+    // Legacy final status filter (only use if applicationStatus not provided)
+    if (!applicationStatus && finalStatusFilter) {
+      if (finalStatusFilter === 'SELECTED') {
+        filterConditions.push({
+          OR: [
+            { interviewStatus: 'SELECTED' },
+            { status: 'SELECTED' },
+          ],
+        });
+      } else if (finalStatusFilter === 'REJECTED') {
+        filterConditions.push({
+          OR: [
+            { status: 'REJECTED' },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          ],
+        });
+      } else if (finalStatusFilter === 'ONGOING') {
+        filterConditions.push({
+          NOT: {
+            OR: [
+              { interviewStatus: 'SELECTED' },
+              { status: 'SELECTED' },
+              { status: 'REJECTED' },
+              { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+              { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+            ],
+          },
+        });
+      }
+    }
+
+    // Legacy stage filter (only use if applicationStatus not provided)
     // NOTE: InterviewStarted is candidate-specific and inferred from RoundEvaluations/lastRoundReached.
-    if (stage) {
+    if (!applicationStatus && stage) {
       const normalizedStage = stage.toLowerCase();
 
       if (normalizedStage === 'applied') {
-        where.screeningStatus = 'APPLIED';
+        filterConditions.push({ screeningStatus: 'APPLIED' });
       } else if (normalizedStage === 'screening qualified') {
-        where.screeningStatus = 'RESUME_SELECTED';
+        filterConditions.push({ screeningStatus: 'RESUME_SELECTED' });
       } else if (normalizedStage === 'qualified for interview' || normalizedStage === 'test qualified') {
-        where.screeningStatus = 'TEST_SELECTED';
+        const stageCondition = { screeningStatus: 'TEST_SELECTED' };
         if (hasInterviewSession) {
-          // Ensure interview not started yet
-          where.AND = [
-            ...(where.AND || []),
+          stageCondition.AND = [
             {
               OR: [
                 { lastRoundReached: 0 },
@@ -737,14 +991,13 @@ export async function getAdminJobApplications(req, res) {
             { roundEvaluations: { none: {} } },
           ];
         }
+        filterConditions.push(stageCondition);
       } else if (normalizedStage.startsWith('interview round')) {
         const roundNum = parseInt(normalizedStage.replace('interview round', '').trim(), 10);
         if (!Number.isNaN(roundNum)) {
-          where.screeningStatus = 'TEST_SELECTED';
+          const stageCondition = { screeningStatus: 'TEST_SELECTED' };
           if (hasInterviewSession) {
-            // currentRound = lastRoundReached + 1 => lastRoundReached == (roundNum - 1) when ongoing
-            where.AND = [
-              ...(where.AND || []),
+            stageCondition.AND = [
               { roundEvaluations: { some: {} } },
               { lastRoundReached: Math.max(0, roundNum - 1) },
               {
@@ -757,16 +1010,26 @@ export async function getAdminJobApplications(req, res) {
               },
             ];
           }
+          filterConditions.push(stageCondition);
         }
       } else if (normalizedStage === 'selected') {
-        where.OR = [{ interviewStatus: 'SELECTED' }, { status: 'SELECTED' }];
+        filterConditions.push({
+          OR: [{ interviewStatus: 'SELECTED' }, { status: 'SELECTED' }],
+        });
       } else if (normalizedStage === 'rejected') {
-        where.OR = [
-          { status: 'REJECTED' },
-          { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
-          { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
-        ];
+        filterConditions.push({
+          OR: [
+            { status: 'REJECTED' },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          ],
+        });
       }
+    }
+
+    // Combine all filter conditions with AND logic
+    if (filterConditions.length > 0) {
+      where.AND = [...(where.AND || []), ...filterConditions];
     }
 
     // Base orderBy (Prisma can't sort by computed stage; we'll sort in-memory for that)
@@ -784,8 +1047,21 @@ export async function getAdminJobApplications(req, res) {
               id: true,
               fullName: true,
               email: true,
+              phone: true,
               enrollmentId: true,
               publicProfileId: true,
+              city: true,
+              stateRegion: true,
+              school: true,
+              education: {
+                select: {
+                  degree: true,
+                  endYear: true,
+                  description: true,
+                },
+                orderBy: { endYear: 'desc' },
+                take: 1, // Get most recent education
+              },
             },
           },
           roundEvaluations: {
@@ -1013,6 +1289,26 @@ export async function applyToJob(req, res) {
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // CRITICAL: Hard block after application deadline (backend enforcement)
+    // No exceptions, no race conditions, no bypass
+    if (!job.applicationDeadline) {
+      return res.status(500).json({
+        error: 'Job configuration error',
+        message: 'Application deadline is not set for this job. Please contact admin.'
+      });
+    }
+    
+    const deadline = new Date(job.applicationDeadline);
+    const now = new Date();
+    
+    if (now > deadline) {
+      return res.status(403).json({
+        error: 'Applications closed',
+        message: 'Applications for this job are closed',
+        deadline: job.applicationDeadline,
+      });
     }
 
     // Get student with full details including CGPA and backlogs

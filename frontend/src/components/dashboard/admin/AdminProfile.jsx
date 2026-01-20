@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
-import { User, Camera, Image as ImageIcon, Mail } from 'lucide-react';
+import { User, Camera, Image as ImageIcon, Mail, XCircle } from 'lucide-react';
 
 export default function AdminProfile() {
   const { user } = useAuth();
@@ -51,7 +51,7 @@ export default function AdminProfile() {
       // Update user profile via API
       const updateData = {
         displayName: displayName.trim(),
-        profilePhoto: profilePhoto.trim() || null,
+        profilePhoto: profilePhoto && typeof profilePhoto === 'string' ? profilePhoto.trim() || null : null,
       };
 
       // Call API to update user
@@ -165,6 +165,54 @@ export default function AdminProfile() {
                     <User size={48} className="text-gray-400" />
                   )}
                 </div>
+                {profilePhoto && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!window.confirm('Are you sure you want to remove your profile photo? It will revert to the default photo.')) {
+                        return;
+                      }
+
+                      try {
+                        await updateProfile({ profilePhoto: null });
+                        setProfilePhoto('');
+                        setAlertMessage('Profile photo removed successfully!');
+                        setAlertType('success');
+                        setShowFloatingAlert(true);
+                        
+                        // Dispatch event to update navbar
+                        window.dispatchEvent(new CustomEvent('profileUpdated', {
+                          detail: { userId: user.id }
+                        }));
+                        
+                        // Reload profile
+                        await loadProfile();
+                        
+                        setTimeout(() => {
+                          setShowFloatingAlert(false);
+                          setAlertMessage(null);
+                        }, 4000);
+                      } catch (err) {
+                        console.error('Error deleting profile image:', err);
+                        let errorMessage = 'Failed to remove profile photo';
+                        if (err.message) {
+                          errorMessage = err.message;
+                        }
+                        setAlertMessage(errorMessage);
+                        setAlertType('error');
+                        setShowFloatingAlert(true);
+                        setTimeout(() => {
+                          setShowFloatingAlert(false);
+                          setAlertMessage(null);
+                        }, 4000);
+                      }
+                    }}
+                    className="absolute top-2.5 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 -translate-x-1/2"
+                    title="Remove profile photo"
+                  >
+                    <XCircle size={14} className="text-white" />
+                  </button>
+                )}
                 <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                   <Camera size={24} className="text-white" />
                   <input

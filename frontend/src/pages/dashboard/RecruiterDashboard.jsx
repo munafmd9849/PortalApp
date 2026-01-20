@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FiHome, FiBriefcase, FiUsers, FiCalendar, FiMessageSquare, FiBarChart2, FiSettings, FiLogOut } from 'react-icons/fi';
 import { SquarePen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import PWIOILOGO from '../../assets/images/brand_logo.webp';
 import Dashboard from '../recruiter/dashboard';
 import JobPostings from '../recruiter/JobPostings';
@@ -20,9 +20,48 @@ const RecruiterDashboard = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const location = useLocation();
+  const { logout, user, role, loading: authLoading } = useAuth();
   const [recruiterProfile, setRecruiterProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // MANDATORY: Hard block unauthorized access on mount
+  useEffect(() => {
+    if (authLoading) return;
+
+    const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+    const allowedRoles = ['RECRUITER', 'ADMIN']; // ADMIN can also access recruiter dashboard
+
+    if (!user) {
+      console.error('🚫 RecruiterDashboard: No authenticated user');
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (!allowedRoles.includes(userRole)) {
+      console.error('🚫 RecruiterDashboard: Unauthorized access attempt:', {
+        userRole,
+        userId: user?.id,
+        email: user?.email,
+        path: location.pathname,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Redirect based on role
+      const redirectPath = userRole === 'STUDENT' ? '/student' : '/';
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, role, authLoading, navigate, location.pathname]);
+
+  // Don't render anything if unauthorized
+  if (authLoading) return null;
+
+  const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
+  const allowedRoles = ['RECRUITER', 'ADMIN'];
+
+  if (!user || !allowedRoles.includes(userRole)) {
+    return null; // Will redirect via useEffect
+  }
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },

@@ -334,189 +334,210 @@ const InterviewerRoundEvaluation = () => {
 
       {/* Main Content */}
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-full mx-auto">
+          {/* Candidates Table */}
+          {candidates.length === 0 ? (
+            <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-12 text-center">
+              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No candidates available</h3>
+              <p className="text-gray-600 mb-6">There are no candidates assigned to this round yet.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    <tr>
+                      <th className="px-4 py-4 text-left text-sm font-bold uppercase tracking-wider">Details</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Selected</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Rejected</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">On Hold</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold uppercase tracking-wider">Remarks</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Resume</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Profile</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {candidates.map((candidate) => {
+                      const evaluation = evaluations[candidate.applicationId] || { status: '', remarks: '' };
+                      const isEvaluated = candidate.evaluation && candidate.evaluation.status;
+                      const isSaving = saving[candidate.applicationId];
 
-          {/* Candidates List */}
-          <div className="space-y-4">
-            {candidates.length === 0 ? (
-              <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-12 text-center">
-                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No candidates available</h3>
-                <p className="text-gray-600 mb-6">There are no candidates assigned to this round yet.</p>
-              </div>
-            ) : (
-            candidates.map((candidate) => {
-              const evaluation = evaluations[candidate.applicationId] || { status: '', remarks: '' };
-              const isEvaluated = candidate.evaluation && candidate.evaluation.status;
-              const isSaving = saving[candidate.applicationId];
-
-              return (
-                <div
-                  key={candidate.applicationId}
-                  className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-6 hover:shadow-xl transition-all duration-200"
-                >
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                        <User className="w-7 h-7 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">{candidate.student.fullName}</h3>
-                        <p className="text-sm text-gray-600 mb-2">{candidate.student.email}</p>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {candidate.student.enrollmentId && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                              ID: {candidate.student.enrollmentId}
-                            </span>
-                          )}
-                          {candidate.student.batch && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                              Batch: {candidate.student.batch}
-                            </span>
-                          )}
-                        </div>
-                        {candidate.student.skills && candidate.student.skills.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs font-semibold text-gray-700 mb-2">Skills:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {candidate.student.skills.map((skill, idx) => (
-                                <span key={idx} className="px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
-                                  {skill}
-                                </span>
-                              ))}
+                      return (
+                        <tr key={candidate.applicationId} className="hover:bg-gray-50 transition-colors">
+                          {/* Details Column */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                                <User className="w-5 h-5 text-white" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-gray-900 truncate">{candidate.student.fullName}</div>
+                                <div className="text-xs text-gray-600 truncate">{candidate.student.email}</div>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {candidate.student.enrollmentId && (
+                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                                      {candidate.student.enrollmentId}
+                                    </span>
+                                  )}
+                                  {candidate.student.batch && (
+                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                                      {candidate.student.batch}
+                                    </span>
+                                  )}
+                                </div>
+                                {candidate.student.skills && candidate.student.skills.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {candidate.student.skills.slice(0, 3).map((skill, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                        {skill}
+                                      </span>
+                                    ))}
+                                    {candidate.student.skills.length > 3 && (
+                                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                        +{candidate.student.skills.length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {candidate.previousRoundRemarks && (
+                                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
+                                    <span className="font-semibold">Prev Round:</span> {candidate.previousRoundRemarks}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        {/* Resume and Profile Links */}
-                        <div className="flex flex-wrap gap-2 mt-4">
-                          {candidate.student.resumeUrl && (
-                            <button
-                              onClick={() => {
-                                // Open PDF in new window/tab for inline viewing
-                                const pdfWindow = window.open(candidate.student.resumeUrl, '_blank');
-                                if (pdfWindow) {
-                                  pdfWindow.focus();
-                                }
-                              }}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 text-sm font-medium flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
-                            >
-                              <FileText className="w-4 h-4" />
-                              View Resume
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
-                          )}
-                          {(candidate.student.profileUrl || candidate.student.id) && (
-                            <button
-                              onClick={() => {
-                                // Construct profile URL from student ID or use provided profileUrl
-                                const profileUrl = candidate.student.profileUrl || `/student/profile/${candidate.student.id}`;
-                                window.open(profileUrl, '_blank');
-                              }}
-                              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:from-purple-600 hover:to-pink-700 text-sm font-medium flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
-                            >
-                              <LinkIcon className="w-4 h-4" />
-                              View Profile
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {isEvaluated && (
-                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                          {getStatusIcon(candidate.evaluation.status)}
-                          <span className="text-sm font-medium text-gray-700">
-                            {candidate.evaluation.status}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                          </td>
 
-                  {/* Previous Round Remarks */}
-                  {candidate.previousRoundRemarks && (
-                    <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg shadow-sm">
-                      <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Previous Round Remarks:</p>
-                      <p className="text-sm text-blue-900 leading-relaxed">{candidate.previousRoundRemarks}</p>
-                    </div>
-                  )}
+                          {/* Selected Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            <input
+                              type="radio"
+                              name={`status-${candidate.applicationId}`}
+                              checked={evaluation.status === 'SELECTED'}
+                              onChange={() => handleStatusChange(candidate.applicationId, 'SELECTED')}
+                              disabled={isEvaluated || isSaving}
+                              className="w-5 h-5 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </td>
 
-                  <div className="space-y-5">
-                    {/* Status Selection */}
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2">
-                        Status <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={evaluation.status}
-                        onChange={(e) => handleStatusChange(candidate.applicationId, e.target.value)}
-                        disabled={isEvaluated}
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium transition-all"
-                      >
-                        <option value="">Select status</option>
-                        <option value="SELECTED">Selected</option>
-                        <option value="REJECTED">Rejected</option>
-                        <option value="ON_HOLD">On Hold</option>
-                      </select>
-                    </div>
+                          {/* Rejected Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            <input
+                              type="radio"
+                              name={`status-${candidate.applicationId}`}
+                              checked={evaluation.status === 'REJECTED'}
+                              onChange={() => handleStatusChange(candidate.applicationId, 'REJECTED')}
+                              disabled={isEvaluated || isSaving}
+                              className="w-5 h-5 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </td>
 
-                    {/* Remarks */}
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2">
-                        Remarks
-                        {(evaluation.status === 'REJECTED' || evaluation.status === 'ON_HOLD') && (
-                          <span className="text-red-500"> *</span>
-                        )}
-                      </label>
-                      <textarea
-                        value={evaluation.remarks}
-                        onChange={(e) => handleRemarksChange(candidate.applicationId, e.target.value)}
-                        disabled={isEvaluated}
-                        rows={4}
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all resize-none"
-                        placeholder="Enter remarks about the candidate's performance..."
-                      />
-                    </div>
+                          {/* On Hold Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            <input
+                              type="radio"
+                              name={`status-${candidate.applicationId}`}
+                              checked={evaluation.status === 'ON_HOLD'}
+                              onChange={() => handleStatusChange(candidate.applicationId, 'ON_HOLD')}
+                              disabled={isEvaluated || isSaving}
+                              className="w-5 h-5 text-yellow-600 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </td>
 
-                    {/* Save Button */}
-                    {!isEvaluated && (
-                      <button
-                        onClick={() => handleSaveEvaluation(candidate.applicationId)}
-                        disabled={isSaving || !evaluation.status}
-                        className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all"
-                      >
-                        {isSaving ? (
-                          <>
-                            <Loader className="w-5 h-5 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-5 h-5" />
-                            Save Evaluation
-                          </>
-                        )}
-                      </button>
-                    )}
+                          {/* Remarks Column */}
+                          <td className="px-4 py-4">
+                            <textarea
+                              value={evaluation.remarks}
+                              onChange={(e) => handleRemarksChange(candidate.applicationId, e.target.value)}
+                              disabled={isEvaluated || isSaving}
+                              rows={3}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+                              placeholder="Enter remarks..."
+                            />
+                            {(evaluation.status === 'REJECTED' || evaluation.status === 'ON_HOLD') && !evaluation.remarks?.trim() && (
+                              <p className="text-xs text-red-600 mt-1">Remarks required</p>
+                            )}
+                            {isEvaluated && candidate.evaluation?.status && (
+                              <div className="mt-2 flex items-center gap-1 text-xs">
+                                {getStatusIcon(candidate.evaluation.status)}
+                                <span className="font-medium text-gray-700">{candidate.evaluation.status}</span>
+                              </div>
+                            )}
+                          </td>
 
-                    {isEvaluated && (
-                      <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <p className="text-sm font-bold text-green-800">Evaluation Saved</p>
-                        </div>
-                        <p className="text-xs text-green-700">
-                          {new Date(candidate.evaluation.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
+                          {/* Resume Link Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {candidate.student.resumeUrl ? (
+                              <button
+                                onClick={() => {
+                                  const pdfWindow = window.open(candidate.student.resumeUrl, '_blank');
+                                  if (pdfWindow) pdfWindow.focus();
+                                }}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-1 transition-colors"
+                                title="View Resume"
+                              >
+                                <FileText className="w-4 h-4" />
+                                <span className="hidden sm:inline">Resume</span>
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">N/A</span>
+                            )}
+                          </td>
+
+                          {/* Profile Link Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {(candidate.student.profileUrl || candidate.student.id) && (
+                              <button
+                                onClick={() => {
+                                  const profileUrl = candidate.student.profileUrl || `/student/profile/${candidate.student.id}`;
+                                  window.open(profileUrl, '_blank');
+                                }}
+                                className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center gap-1 transition-colors"
+                                title="View Profile"
+                              >
+                                <LinkIcon className="w-4 h-4" />
+                                <span className="hidden sm:inline">Profile</span>
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Action Column */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {!isEvaluated ? (
+                              <button
+                                onClick={() => handleSaveEvaluation(candidate.applicationId)}
+                                disabled={isSaving || !evaluation.status}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                    <span className="hidden sm:inline">Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Save</span>
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2 justify-center">
+                                {getStatusIcon(candidate.evaluation.status)}
+                                <span className="text-xs text-gray-600">Saved</span>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
-          </div>
         </div>
       </div>
     </div>

@@ -37,6 +37,14 @@ export default function InterviewScheduling() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Check if drive date has been reached
+  const isDriveDateReached = (job) => {
+    if (!job?.driveDate) return false;
+    const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
+    const now = new Date();
+    return now >= driveDate;
+  };
+
   useEffect(() => {
     loadJobs();
   }, []);
@@ -149,8 +157,8 @@ export default function InterviewScheduling() {
         setRounds(sessionRounds);
         setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
         
-        // Track completed sessions (Issue #6)
-        if (data.session.status === 'COMPLETED') {
+        // Track completed and incomplete sessions
+        if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
           setCompletedSessions(prev => new Set([...prev, job.id]));
         } else {
           setCompletedSessions(prev => {
@@ -168,12 +176,27 @@ export default function InterviewScheduling() {
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         
+        console.error('Failed to get/create session:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          jobId: job.id
+        });
+        
         if (response.status === 401 || response.status === 403) {
           showError('Authentication failed. Please log in again.');
         } else if (response.status === 404) {
           showError(errorData.error || errorData.message || 'Session not found');
+        } else if (response.status === 400) {
+          showError(errorData.error || errorData.message || 'Invalid request. Please check the job configuration.');
         } else {
-          showError(errorData.error || errorData.message || `Failed to load session (${response.status})`);
+          // Show detailed error message from backend
+          const errorMessage = errorData.details || errorData.message || errorData.error || `Failed to load session (${response.status})`;
+          showError(errorMessage);
+          // Log full error details for debugging
+          if (errorData.stack) {
+            console.error('Backend error stack:', errorData.stack);
+          }
         }
       }
     } catch (error) {
@@ -448,16 +471,20 @@ export default function InterviewScheduling() {
           </div>
         ) : (
           jobs.map((job) => {
-            const isDisabled = completedSessions.has(job.id);
+            // Get session status if available (from backend response)
+            // For now, we'll determine this when we load the session
             const isSelected = selectedJob?.id === job.id;
+            // Remove canStartSession - will be determined from backend session status
+            // isDisabled tracks COMPLETED/INCOMPLETE sessions
+            const hasCompletedSession = completedSessions.has(job.id);
             
             return (
               <div 
                 key={job.id} 
-                className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
+                    className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
                   isSelected 
                     ? 'bg-blue-50 border-blue-300' 
-                    : isDisabled
+                    : hasCompletedSession
                     ? 'bg-gray-100 opacity-60'
                     : 'bg-green-50'
                 }`}
@@ -476,10 +503,10 @@ export default function InterviewScheduling() {
                             Selected
                           </span>
                         )}
-                        {isDisabled && (
+                        {hasCompletedSession && (
                           <span className="px-2 py-1 text-xs rounded-md bg-gray-100 text-gray-800 border border-gray-200 flex items-center gap-1">
                             <CheckCircle className="w-3 h-3" />
-                            Completed
+                            Session Complete/Incomplete
                           </span>
                         )}
                       </div>
@@ -547,37 +574,47 @@ export default function InterviewScheduling() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 ml-4">
-                        {/* Manage Interview Session Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (!isDisabled) {
+                        {/* 
+                          CRITICAL: Buttons are ONLY shown based on backend session.status
+                          COMPLETED and INCOMPLETE sessions have NO buttons (removed from DOM)
+                          NOT_STARTED with valid drive date shows "Start Session"
+                          ONGOING with valid drive date shows "Continue Session"
+                        */}
+                        {!hasCompletedSession && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               console.log('Button clicked for job:', job.id);
                               handleSelectJob(job);
-                            }
-                          }}
-                          disabled={isDisabled}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
-                            isDisabled
-                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                              : isSelected
-                              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                              : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
-                          }`}
-                        >
-                          {isSelected ? (
-                            <>
-                              <Settings className="w-4 h-4" />
-                              <span>Manage Session</span>
-                            </>
-                          ) : (
-                            <>
-                              <PlayCircle className="w-4 h-4" />
-                              <span>Start Session</span>
-                            </>
-                          )}
-                        </button>
+                            }}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
+                              isSelected
+                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                                : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                            }`}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Settings className="w-4 h-4" />
+                                <span>Manage Session</span>
+                              </>
+                            ) : (
+                              <>
+                                <PlayCircle className="w-4 h-4" />
+                                <span>Start Session</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* Show status label for COMPLETED/INCOMPLETE sessions */}
+                        {hasCompletedSession && (
+                          <div className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-100 text-gray-700">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Session Completed/Incomplete</span>
+                          </div>
+                        )}
 
                         {/* View JD Button */}
                         <button
@@ -659,19 +696,26 @@ export default function InterviewScheduling() {
                             <p className={`text-base font-bold ${
                               session.status === 'NOT_STARTED' ? 'text-gray-700' :
                               session.status === 'ONGOING' ? 'text-blue-700' :
-                              'text-green-700'
+                              session.status === 'COMPLETED' ? 'text-green-700' :
+                              session.status === 'INCOMPLETE' ? 'text-red-700' :
+                              'text-gray-700'
                             }`}>
                               {session.status === 'NOT_STARTED' && 'Not Started'}
                               {session.status === 'ONGOING' && 'Ongoing'}
                               {session.status === 'COMPLETED' && 'Completed'}
+                              {session.status === 'INCOMPLETE' && 'Incomplete'}
+                              {!session.status && 'Unknown'}
                             </p>
                           </div>
                           <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
                             <div className="flex items-center gap-2 mb-1">
                               <Users className="w-4 h-4 text-blue-500" />
-                              <p className="text-xs font-medium text-slate-600">Applications</p>
+                              <p className="text-xs font-medium text-slate-600">Eligible Candidates</p>
                             </div>
-                            <p className="text-base font-bold text-slate-900">{session.totalApplications || 0}</p>
+                            <p className="text-base font-bold text-slate-900">{session.eligibleApplications || 0}</p>
+                            {session.totalApplications !== undefined && session.totalApplications !== session.eligibleApplications && (
+                              <p className="text-xs text-slate-500 mt-1">of {session.totalApplications} total</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -690,21 +734,27 @@ export default function InterviewScheduling() {
                     </div>
                   </div>
                   
-                  {session.status === 'ONGOING' || session.status === 'COMPLETED' ? (
+                  {session.status === 'ONGOING' || session.status === 'COMPLETED' || session.status === 'INCOMPLETE' ? (
                     <div className={`border-2 rounded-xl p-4 ${
                       session.status === 'COMPLETED' 
                         ? 'bg-green-50 border-green-300' 
+                        : session.status === 'INCOMPLETE'
+                        ? 'bg-red-50 border-red-300'
                         : 'bg-yellow-50 border-yellow-300'
                     }`}>
                       <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-lg ${
                           session.status === 'COMPLETED' 
                             ? 'bg-green-100' 
+                            : session.status === 'INCOMPLETE'
+                            ? 'bg-red-100'
                             : 'bg-yellow-100'
                         }`}>
                           <AlertCircle className={`w-5 h-5 ${
                             session.status === 'COMPLETED' 
                               ? 'text-green-600' 
+                              : session.status === 'INCOMPLETE'
+                              ? 'text-red-600'
                               : 'text-yellow-600'
                           }`} />
                         </div>
@@ -712,20 +762,28 @@ export default function InterviewScheduling() {
                           <p className={`text-sm font-semibold mb-1 ${
                             session.status === 'COMPLETED' 
                               ? 'text-green-900' 
+                              : session.status === 'INCOMPLETE'
+                              ? 'text-red-900'
                               : 'text-yellow-900'
                           }`}>
                             {session.status === 'COMPLETED' 
                               ? 'Session Completed'
+                              : session.status === 'INCOMPLETE'
+                              ? 'Session Incomplete'
                               : 'Session In Progress'
                             }
                           </p>
                           <p className={`text-sm ${
                             session.status === 'COMPLETED' 
                               ? 'text-green-700' 
+                              : session.status === 'INCOMPLETE'
+                              ? 'text-red-700'
                               : 'text-yellow-700'
                           }`}>
                             {session.status === 'COMPLETED' 
                               ? 'This session has been completed. You can view the configuration but cannot modify it.'
+                              : session.status === 'INCOMPLETE'
+                              ? 'This session is incomplete. The interview drive date passed before the session was completed. No further actions are allowed.'
                               : `Rounds cannot be modified while the session is ${session.status.toLowerCase()}.`
                             }
                           </p>
@@ -865,16 +923,42 @@ export default function InterviewScheduling() {
                       <p className="text-xs text-slate-500 mt-0.5">Add interviewers and send invitation links</p>
                     </div>
                   </div>
-                  {session.status === 'COMPLETED' && (
-                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 mb-4">
+                  {(session.status === 'COMPLETED' || session.status === 'INCOMPLETE') && (
+                    <div className={`border-2 rounded-xl p-4 mb-4 ${
+                      session.status === 'COMPLETED'
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-red-50 border-red-300'
+                    }`}>
                       <div className="flex items-start gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        <div className={`p-2 rounded-lg ${
+                          session.status === 'COMPLETED'
+                            ? 'bg-green-100'
+                            : 'bg-red-100'
+                        }`}>
+                          <CheckCircle className={`w-5 h-5 ${
+                            session.status === 'COMPLETED'
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`} />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-green-900 mb-1">Session Completed</p>
-                          <p className="text-sm text-green-700">
-                            Interviewer information is view-only for completed sessions.
+                          <p className={`text-sm font-semibold mb-1 ${
+                            session.status === 'COMPLETED'
+                              ? 'text-green-900'
+                              : 'text-red-900'
+                          }`}>
+                            {session.status === 'COMPLETED'
+                              ? 'Session Completed'
+                              : 'Session Incomplete'}
+                          </p>
+                          <p className={`text-sm ${
+                            session.status === 'COMPLETED'
+                              ? 'text-green-700'
+                              : 'text-red-700'
+                          }`}>
+                            {session.status === 'COMPLETED'
+                              ? 'Interviewer information is view-only for completed sessions.'
+                              : 'The interview drive date passed before the session was completed. No further actions are allowed.'}
                           </p>
                         </div>
                       </div>
@@ -882,7 +966,7 @@ export default function InterviewScheduling() {
                   )}
                   <div className="space-y-4">
                     {(() => {
-                      const isSessionCompleted = session.status === 'COMPLETED';
+                      const isSessionCompleted = session.status === 'COMPLETED' || session.status === 'INCOMPLETE';
                       return (
                         <>
                           <div className="bg-white rounded-lg p-4 border border-slate-200">
