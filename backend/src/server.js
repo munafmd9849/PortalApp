@@ -217,7 +217,8 @@ app.get('/', (req, res) => {
       health: '/health',
       api: '/api',
       documentation: 'See API documentation for available endpoints'
-    }
+    },
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
