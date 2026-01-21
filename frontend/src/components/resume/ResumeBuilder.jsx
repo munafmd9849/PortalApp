@@ -18,7 +18,6 @@ import {
   generateProjectContent
 } from '../../services/students';
 import api from '../../services/api';
-import { API_BASE_URL } from '../../config/api';
 import ResumeTemplate1 from './ResumeTemplate1';
 import ResumeTemplate2 from './ResumeTemplate2';
 import ResumeTemplate3 from './ResumeTemplate3';
@@ -115,21 +114,12 @@ const ResumeBuilder = () => {
   const loadResumes = async () => {
     if (!user?.id) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/students/resumes`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setResumes(data || []);
-      } else if (response.status !== 404) {
-        throw new Error('Failed to load resumes');
-      }
+      const data = await api.getResumes();
+      setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
       // Don't show error if endpoint doesn't exist yet (backward compatibility)
-      if (err.message && !err.message.includes('404')) {
+      if (err.status !== 404) {
         // Silently fail for now to avoid breaking the profile load
       }
     }
@@ -610,19 +600,9 @@ const ResumeBuilder = () => {
   };
 
   const handleDeleteResume = async (resumeId) => {
-    
     try {
       setSaving(true);
-      const response = await fetch(`${API_BASE_URL}/students/resume/${resumeId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete resume');
-      }
+      await api.deleteResume(resumeId);
       
       // Reload resumes list
       await loadResumes();
@@ -821,12 +801,16 @@ const ResumeBuilder = () => {
 
       // Try backend PDF generation first
       try {
+        // For PDF generation, we need to handle blob response, so use direct fetch
+        // but still use API_BASE_URL from config
+        const { API_BASE_URL } = await import('../../config/api');
         const response = await fetch(`${API_BASE_URL}/students/generate-resume-pdf`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
+          credentials: 'include',
           body: JSON.stringify({ templateId: selectedTemplate })
         });
 

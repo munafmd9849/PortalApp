@@ -36,7 +36,8 @@ export default function ProtectedRoute({ allowRoles }) {
       timestamp: new Date().toISOString(),
     });
     
-    // Redirect based on role
+    // Backend is source of truth - if user doesn't have required role, redirect to their dashboard
+    // This handles both frontend route protection and backend 403 errors gracefully
     const userRoleUpper = role?.toUpperCase() || user?.role?.toUpperCase() || '';
     const redirectPath = userRoleUpper === 'STUDENT' ? '/student' :
                          userRoleUpper === 'RECRUITER' ? '/recruiter' :

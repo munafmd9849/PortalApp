@@ -3,7 +3,7 @@
  * Handles contact form submissions from landing page
  */
 
-import { API_BASE_URL } from '../config/api.js';
+import api from './api.js';
 
 /**
  * Submit contact form
@@ -57,21 +57,12 @@ export async function submitContactForm(formData) {
 
     console.log('[Contact Service] Submitting contact form with payload:', payload);
 
-    const response = await fetch(`${API_BASE_URL}/contact`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const data = await api.post('/contact', payload, { silent: true });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      // Extract validation errors if available
-      if (data.errors && Array.isArray(data.errors)) {
-        const validationErrors = data.errors.map(e => `${e.param}: ${e.msg}`).join(', ');
-        throw new Error(`Validation failed: ${validationErrors}`);
+    // Extract validation errors if available
+    if (data.errors && Array.isArray(data.errors)) {
+      const validationErrors = data.errors.map(e => `${e.param}: ${e.msg}`).join(', ');
+      throw new Error(`Validation failed: ${validationErrors}`);
       }
       throw new Error(data.error || 'Failed to submit contact form');
     }

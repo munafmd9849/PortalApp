@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../../../config/api';
+import api from '../../../services/api';
 import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 import { useNavigate } from 'react-router-dom';
@@ -75,88 +75,40 @@ export default function InterviewScheduling() {
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
+      // Use centralized API client
+      const data = await api.getJobs({ isPosted: true, status: 'POSTED' });
+      
+      // Handle both response formats: { jobs: [...] } or direct array
+      const jobsList = data.jobs || (Array.isArray(data) ? data : []);
+      setJobs(jobsList);
+      
+      if (jobsList.length === 0) {
+        console.log('No jobs found with isPosted=true filter');
       }
-
-      const response = await fetch(`${API_BASE_URL}/jobs?isPosted=true&status=POSTED`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Handle both response formats: { jobs: [...] } or direct array
-        const jobsList = data.jobs || (Array.isArray(data) ? data : []);
-        setJobs(jobsList);
-        
-        if (jobsList.length === 0) {
-          console.log('No jobs found with isPosted=true filter');
-        }
-        
-        // Check session status for all jobs to properly show/hide Start Session buttons
-        const completedSet = new Set();
-        for (const job of jobsList) {
-          try {
-            const sessionResponse = await fetch(`${API_BASE_URL}/interview-sessions/${job.id}`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            });
-            
-            if (sessionResponse.ok) {
-              const sessionData = await sessionResponse.json();
-              if (sessionData.session && (sessionData.session.status === 'COMPLETED' || sessionData.session.status === 'INCOMPLETE')) {
-                completedSet.add(job.id);
-              }
-            }
-          } catch (error) {
-            // Ignore errors - session might not exist yet
-            console.log(`No session found for job ${job.id}`);
+      
+      // Check session status for all jobs to properly show/hide Start Session buttons
+      const completedSet = new Set();
+      for (const job of jobsList) {
+        try {
+          // Use centralized API client
+          const sessionData = await api.get(`/interview-sessions/${job.id}`, { silent: true });
+          
+          if (sessionData?.session && (sessionData.session.status === 'COMPLETED' || sessionData.session.status === 'INCOMPLETE')) {
+            completedSet.add(job.id);
           }
+        } catch (error) {
+          // Ignore errors - session might not exist yet
+          console.log(`No session found for job ${job.id}`);
         }
-        
-        if (completedSet.size > 0) {
-          setCompletedSessions(completedSet);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ 
-          success: false,
-          error: 'Unknown error',
-          message: `HTTP ${response.status}: ${response.statusText}`
-        }));
-        
-        console.error('Failed to load jobs:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.message || errorData.error || 'Failed to load jobs. Please try again.');
-        }
+      }
+      
+      if (completedSet.size > 0) {
+        setCompletedSessions(completedSet);
       }
     } catch (error) {
-      console.error('Error loading jobs:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
-      
-      // Check if it's a network error or API error
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        showError('Network error. Please check your connection and ensure the backend server is running.');
-      } else {
-        showError(error.message || 'Failed to load jobs. Please try again.');
-      }
+      console.error('Error loading jobs:', error);
+      // Error is already handled by centralized API client (toast shown)
     } finally {
       setLoading(false);
     }
@@ -174,23 +126,8 @@ export default function InterviewScheduling() {
       setLoadingSession(true);
       setSession(null); // Clear previous session to show loading state
       
-      const token = localStorage.getItem('accessToken');
-      
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        setLoadingSession(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${job.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
+      // Use centralized API client
+      const data = await api.get(`/admin/interview-scheduling/session/${job.id}`);
         
         if (!data.session) {
           showError('Session data not found in response');
@@ -318,37 +255,18 @@ export default function InterviewScheduling() {
 
     try {
       setConfiguringRounds(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${session.id}/rounds`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ rounds: safeRounds }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRounds(Array.isArray(data.rounds) ? data.rounds : []);
-        showSuccess('Rounds configured successfully');
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.error || errorData.message || 'Failed to configure rounds');
-        }
-      }
+      // Use centralized API client
+      const data = await api.post(`/admin/interview-scheduling/session/${session.id}/rounds`, 
+        { rounds: safeRounds },
+        { showSuccess: true }
+      );
+      
+      setRounds(Array.isArray(data.rounds) ? data.rounds : []);
+      showSuccess('Rounds configured successfully');
     } catch (error) {
       console.error('Error configuring rounds:', error);
-      showError('Network error. Please check your connection and try again.');
+      // Error handling is done by centralized API client
     } finally {
       setConfiguringRounds(false);
     }
@@ -388,41 +306,22 @@ export default function InterviewScheduling() {
 
     try {
       setInviting(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${session.id}/invite-interviewers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ emails: safeInterviewerEmails }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
-        showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
-        // Reload session to get updated invites
-        if (selectedJob) {
-          handleSelectJob(selectedJob);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.error || errorData.message || 'Failed to invite interviewers');
-        }
+      // Use centralized API client
+      const data = await api.post(`/admin/interview-scheduling/session/${session.id}/invite-interviewers`, 
+        { emails: safeInterviewerEmails },
+        { showSuccess: true }
+      );
+      
+      const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
+      showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
+      // Reload session to get updated invites
+      if (selectedJob) {
+        handleSelectJob(selectedJob);
       }
     } catch (error) {
       console.error('Error inviting interviewers:', error);
-      showError('Network error. Please check your connection and try again.');
+      // Error handling is done by centralized API client
     } finally {
       setInviting(false);
     }

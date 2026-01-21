@@ -12,7 +12,6 @@ import {
 import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from '../../config/api';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
@@ -848,23 +847,14 @@ export default function StudentDashboard() {
     
     try {
       setLoadingResumes(true);
-      const response = await fetch(`${API_BASE_URL}/students/resumes`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setResumes(Array.isArray(data) ? data : []);
-      } else if (response.status === 404) {
-        setResumes([]);
-      } else {
-        throw new Error('Failed to load resumes');
-      }
+      const data = await api.getResumes();
+      setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
-      setResumes([]);
+      // If 404, set empty array; otherwise keep existing resumes
+      if (err.status === 404) {
+        setResumes([]);
+      }
     } finally {
       setLoadingResumes(false);
     }

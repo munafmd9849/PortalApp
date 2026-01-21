@@ -4,7 +4,6 @@
  */
 
 import api from './api.js';
-import { API_BASE_URL } from '../config/api.js';
 
 /**
  * Transform backend notification to frontend format
@@ -115,21 +114,7 @@ export async function createNotification({ userId, title, body, data = {}, sendE
     // Backend endpoint: POST /api/notifications
     const token = localStorage.getItem('accessToken');
     
-    const response = await fetch(`${API_BASE_URL}/notifications`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-      },
-      body: JSON.stringify({ userId, title, body, data, sendEmail }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      throw new Error(errorData.error || 'Failed to create notification');
-    }
-    
-    return await response.json();
+    return await api.post('/notifications', { userId, title, body, data, sendEmail });
   } catch (error) {
     console.error('createNotification error:', error);
     throw error;
@@ -237,20 +222,7 @@ export async function deleteNotification(notificationId) {
   try {
     const token = localStorage.getItem('accessToken');
     
-    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-      },
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      throw new Error(errorData.error || 'Failed to delete notification');
-    }
-    
-    return await response.json();
+    return await api.delete(`/notifications/${notificationId}`);
   } catch (error) {
     console.error('deleteNotification error:', error);
     throw error;

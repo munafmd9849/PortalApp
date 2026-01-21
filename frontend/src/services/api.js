@@ -64,6 +64,8 @@ function clearAuthTokens() {
 
 /**
  * Refresh access token
+ * Uses centralized API client for consistency
+ * Internal function - bypasses normal API request flow to avoid circular dependency
  */
 async function refreshAccessToken() {
   try {
@@ -72,22 +74,37 @@ async function refreshAccessToken() {
       throw new Error('No refresh token');
     }
 
+    // Use internal fetch for token refresh (bypasses apiRequest to avoid circular dependency)
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // Include credentials for CORS
       body: JSON.stringify({ refreshToken }),
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
     if (!response.ok) {
-      throw new Error('Token refresh failed');
+      let errorData;
+      try {
+        const text = await response.text();
+        errorData = text ? JSON.parse(text) : { error: `HTTP ${response.status}: ${response.statusText}` };
+      } catch (e) {
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      throw new Error(errorData.error || errorData.message || 'Token refresh failed');
     }
 
     const data = await response.json();
+    if (!data.accessToken) {
+      throw new Error('Invalid refresh response: missing accessToken');
+    }
+    
     setAuthTokens(data.accessToken, refreshToken);
     return data.accessToken;
   } catch (error) {
+    // Clear tokens and redirect on refresh failure
     clearAuthTokens();
     window.location.href = '/';
     throw error;
@@ -123,6 +140,7 @@ async function apiRequest(endpoint, options = {}) {
       response = await fetch(url, {
         ...fetchOptions,
         headers,
+        credentials: 'include', // Include credentials for CORS (cookies, auth headers)
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
     } catch (fetchError) {
@@ -173,6 +191,7 @@ async function apiRequest(endpoint, options = {}) {
         response = await fetch(url, {
           ...fetchOptions,
           headers,
+          credentials: 'include', // Include credentials for retry
         });
       } catch (error) {
         throw error;
@@ -423,18 +442,10 @@ export const api = {
   
   // Public Profile (NO AUTH - public access)
   getPublicProfile: (publicProfileId) => {
-    // Public endpoint - no auth token needed
-    return fetch(`${API_BASE_URL}/public/profile/${publicProfileId}`, {
+    // Public endpoint - use apiRequest but without auth token
+    return apiRequest(`/public/profile/${publicProfileId}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }).then(async (response) => {
-      const data = await response.json();
-      if (!response.ok) {
-        throw { response, status: response.status, ...data };
-      }
-      return data;
+      silent: true, // Don't show error toasts for public endpoints
     });
   },
   
@@ -568,11 +579,25 @@ export const api = {
     });
   },
   getResumes: () => apiRequest('/students/resumes'),
+  getResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`),
   setDefaultResume: (resumeId) => apiRequest(`/students/resume/${resumeId}/default`, {
     method: 'PATCH',
   }),
   deleteResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`, {
     method: 'DELETE',
+  }),
+  extractResumeText: (data) => apiRequest('/students/resume/extract-text', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    silent: true,
+  }),
+  analyzeResumeATS: (data) => apiRequest('/students/resume/ats-analysis', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  generateResumePDF: (data) => apiRequest('/students/generate-resume-pdf', {
+    method: 'POST',
+    body: JSON.stringify(data),
   }),
 
   // Jobs
@@ -714,11 +739,52 @@ export const api = {
   deleteEndorsementRequest: (tokenId) => apiRequest(`/endorsements/request/${tokenId}`, {
     method: 'DELETE',
   }),
-  getEndorsementByToken: (token) => apiRequest(`/endorsements/${token}`),
+  getEndorsementByToken: (token) => apiRequest(`/endorsements/${token}`, { silent: true }),
   submitEndorsement: (token, data) => apiRequest(`/endorsements/submit/${token}`, {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  
+  // Admin Interview Management
+  getInterviewSession: (interviewId) => apiRequest(`/admin/interview/${interviewId}`),
+  getInterviewRound: (interviewId) => apiRequest(`/admin/interview/${interviewId}/round`),
+  updateInterviewRound: (interviewId, data) => apiRequest(`/admin/interview/${interviewId}/round`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  startInterviewRound: (interviewId, roundName) => apiRequest(`/admin/interview/${interviewId}/round/${encodeURIComponent(roundName)}/start`, {
+    method: 'POST',
+  }),
+  endInterviewSession: (interviewId) => apiRequest(`/admin/interview/${interviewId}/end`, {
+    method: 'POST',
+  }),
+  getInterviewCandidates: (interviewId, roundName) => apiRequest(`/admin/interview/${interviewId}/round/${encodeURIComponent(roundName)}/candidates`),
+  getInterviewActivities: (interviewId) => apiRequest(`/admin/interview/${interviewId}/activities`),
+  evaluateCandidate: (interviewId, candidateId, data) => apiRequest(`/admin/interview/${interviewId}/candidate/${candidateId}/evaluate`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  // Interviewer endpoints (token-based, no auth required)
+  getInterviewSessionByToken: (sessionId, token) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true }),
+  getActiveRound: (sessionId, token) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true }),
+  getRoundCandidates: (roundId, token) => apiRequest(`/interview/round/${roundId}/candidates?token=${encodeURIComponent(token)}`, { silent: true }),
+  evaluateRoundCandidate: (roundId, token, data) => apiRequest(`/interview/round/${roundId}/evaluate?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    silent: true,
+  }),
+  startRound: (roundId, token) => apiRequest(`/interview/round/${roundId}/start?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    silent: true,
+  }),
+  endRound: (roundId, token) => apiRequest(`/interview/round/${roundId}/end?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    silent: true,
+  }),
+  
+  // Auth Profile (for admin/recruiter)
+  getAuthProfile: () => apiRequest('/auth/profile'),
 
   // Admin Requests
   createAdminRequest: (data) => apiRequest('/admin-requests', {
