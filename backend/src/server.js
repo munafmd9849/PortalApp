@@ -206,6 +206,21 @@ app.use('/api/auth/send-otp', authLimiter);
 app.use('/api/auth/verify-otp', authLimiter);
 app.use('/api/', generalLimiter);
 
+// Root route - API information
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'PWIOI Placement Portal API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      documentation: 'See API documentation for available endpoints'
+    }
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
