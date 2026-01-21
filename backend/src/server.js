@@ -63,12 +63,12 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Validate DATABASE_URL format for SQLite
+// Validate DATABASE_URL format for PostgreSQL
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (!dbUrlLower.startsWith('file:')) {
-  console.error('❌ CRITICAL: DATABASE_URL must start with file: for SQLite database.');
-  console.error(`   Current value: ${dbUrl}`);
+if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://')) {
+  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+  console.error(`   Current value: ${dbUrl.substring(0, 20)}...`);
   process.exit(1);
 }
 
@@ -84,11 +84,17 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
 function logDatabaseTarget() {
   try {
     const dbUrl = process.env.DATABASE_URL || '';
-    // Extract filename from file: path
-    const dbPath = dbUrl.replace(/^file:/, '').replace(/^\//, '');
-    console.log(`🗄️  Database: SQLite (${dbPath})`);
+    // Extract host from PostgreSQL connection string
+    const match = dbUrl.match(/@([^:]+):(\d+)\//);
+    if (match) {
+      const host = match[1];
+      const port = match[2];
+      console.log(`🗄️  Database: PostgreSQL (${host}:${port})`);
+    } else {
+      console.log('🗄️  Database: PostgreSQL');
+    }
   } catch {
-    console.log('🗄️  Database: SQLite');
+    console.log('🗄️  Database: PostgreSQL');
   }
 }
 
@@ -219,6 +225,7 @@ app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin/interview', interviewRoutes);
 app.use('/api/admin/interview-scheduling', interviewSchedulingRoutes); // New interview scheduling routes (admin)
+app.use('/api/interview-sessions', interviewSchedulingRoutes); // Direct route alias for frontend compatibility
 app.use('/api/interview', interviewerRoutes); // New interviewer token-based routes (no auth required) - MUST come before old routes
 app.use('/api/interview', interviewTokenRoutes); // Old token-based interview routes (no auth required) - fallback for legacy
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)

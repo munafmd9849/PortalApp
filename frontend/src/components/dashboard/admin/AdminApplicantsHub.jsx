@@ -45,8 +45,9 @@ export default function AdminApplicantsHub() {
         const params = {
           page: 1,
           limit: 200,
+          isPosted: true, // Only show posted jobs to match InterviewScheduling
+          status: 'POSTED', // Only show POSTED status jobs (exclude ACTIVE and ARCHIVED)
           search: debouncedSearch || undefined,
-          status: filters.status || undefined,
         };
 
         // Remove undefined params

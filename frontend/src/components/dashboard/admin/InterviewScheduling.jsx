@@ -37,16 +37,39 @@ export default function InterviewScheduling() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Check if drive date has been reached
+  // Check if drive date has been reached (date-only comparison, ignoring time)
   const isDriveDateReached = (job) => {
     if (!job?.driveDate) return false;
     const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
     const now = new Date();
-    return now >= driveDate;
+    
+    // Use date-only comparison (ignore time) to match dateStatus logic
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const interviewDay = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
+    
+    // Date is reached if today >= interview day
+    return today >= interviewDay;
   };
 
   useEffect(() => {
     loadJobs();
+  }, []);
+
+  // Listen for job update events from other components (e.g., ManageJobs date updates)
+  useEffect(() => {
+    const handleJobsRefresh = (event) => {
+      const { action, jobId, jobTitle } = event.detail || {};
+      console.log(`📢 InterviewScheduling received jobsRefresh event: ${action} for job ${jobId} (${jobTitle})`);
+      
+      // Reload jobs to get updated dates and information
+      loadJobs();
+    };
+
+    window.addEventListener('jobsRefresh', handleJobsRefresh);
+    
+    return () => {
+      window.removeEventListener('jobsRefresh', handleJobsRefresh);
+    };
   }, []);
 
   const loadJobs = async () => {
@@ -59,7 +82,7 @@ export default function InterviewScheduling() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/jobs?isPosted=true`, {
+      const response = await fetch(`${API_BASE_URL}/jobs?isPosted=true&status=POSTED`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -76,8 +99,32 @@ export default function InterviewScheduling() {
           console.log('No jobs found with isPosted=true filter');
         }
         
-        // Note: Completed session check is done lazily when selecting a job
-        // to avoid making too many API calls on initial load
+        // Check session status for all jobs to properly show/hide Start Session buttons
+        const completedSet = new Set();
+        for (const job of jobsList) {
+          try {
+            const sessionResponse = await fetch(`${API_BASE_URL}/interview-sessions/${job.id}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (sessionResponse.ok) {
+              const sessionData = await sessionResponse.json();
+              if (sessionData.session && (sessionData.session.status === 'COMPLETED' || sessionData.session.status === 'INCOMPLETE')) {
+                completedSet.add(job.id);
+              }
+            }
+          } catch (error) {
+            // Ignore errors - session might not exist yet
+            console.log(`No session found for job ${job.id}`);
+          }
+        }
+        
+        if (completedSet.size > 0) {
+          setCompletedSessions(completedSet);
+        }
       } else {
         const errorData = await response.json().catch(() => ({ 
           success: false,
@@ -606,7 +653,9 @@ export default function InterviewScheduling() {
                       <div className="flex items-center gap-2 ml-4">
                         {!hasCompletedSession && (
                           <>
-                            {driveDateReached || isSelected ? (
+                            {/* Enable button only if: (date is today) OR (session already selected) */}
+                            {/* Disable if: (date is past) OR (date is future) */}
+                            {((dateStatus === 'today') || isSelected) ? (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -635,10 +684,18 @@ export default function InterviewScheduling() {
                               <button
                                 disabled
                                 className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
-                                title={`Session can only be started after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
+                                title={dateStatus === 'past' 
+                                  ? `Cannot start session: Interview date (${driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date'}) has already passed`
+                                  : `Session can only be started on ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
                               >
                                 <Clock className="w-4 h-4" />
-                                <span>Starts {dateStatus === 'future' ? 'After ' + (driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date') : 'On Date'}</span>
+                                <span>
+                                  {dateStatus === 'past' 
+                                    ? 'Date Passed' 
+                                    : dateStatus === 'future' 
+                                    ? 'Starts After ' + (driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date')
+                                    : 'Starts On Date'}
+                                </span>
                               </button>
                             )}
                           </>

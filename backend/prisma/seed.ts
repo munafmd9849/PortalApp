@@ -363,8 +363,17 @@ async function truncateAll(prisma: PrismaClient) {
     'users',
   ];
 
-  const quoted = tables.map((t) => `"${t}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE;`);
+  // PostgreSQL: Use TRUNCATE CASCADE to delete all data and handle foreign keys
+  // CASCADE automatically truncates dependent tables
+  for (const table of tables) {
+    try {
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
+    } catch (e) {
+      console.warn(`⚠️  Could not truncate table ${table}, trying DELETE instead:`, e.message);
+      // Fallback to DELETE if TRUNCATE fails (e.g., table doesn't exist)
+      await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
+    }
+  }
 }
 
 async function main() {
@@ -647,26 +656,58 @@ async function main() {
         });
       }
 
-      // Endorsements (1–3 positive)
-      const endCount = rng.int(1, 3);
-      const endSkills = pickUnique(skills, rng.int(2, Math.min(4, skills.length)));
+      // Endorsements (1–4 per student for better coverage)
+      const endCount = s.isIncomplete ? rng.int(0, 1) : rng.int(2, 4);
+      const endSkills = pickUnique(skills, rng.int(2, Math.min(5, skills.length)));
+      
+      const endorsementMessages = [
+        'Consistently demonstrated strong ownership, clear communication, and dependable execution. Delivered high-quality work with thoughtful trade-offs and attention to detail.',
+        'Outstanding problem-solving skills and ability to work independently. Showed great initiative in taking on complex challenges and delivering results ahead of schedule.',
+        'Excellent team player with strong leadership qualities. Collaborated effectively with peers and consistently contributed valuable insights during project discussions.',
+        'Strong technical foundation with the ability to quickly learn new technologies. Demonstrated exceptional debugging skills and attention to code quality.',
+        'Reliable and proactive student who consistently exceeded expectations. Great attention to detail and ability to see projects through from concept to completion.',
+        'Impressive analytical thinking and ability to break down complex problems into manageable components. Highly recommended for any technical role.',
+        'Showed exceptional growth during the course/project. Strong work ethic, excellent communication skills, and genuine passion for software development.',
+        'Outstanding performance with demonstrated expertise in multiple technologies. Would confidently recommend for any challenging development position.',
+        'Exceptional student with strong fundamentals and practical application skills. Consistently delivered innovative solutions and showed great potential.',
+        'Demonstrated excellent code quality and best practices. Strong understanding of software engineering principles with practical implementation experience.',
+      ];
+      
+      const relationships = ['Professor', 'Mentor', 'Manager', 'Team Lead', 'Supervisor', 'Instructor', 'Guide'];
+      const contexts = ['Capstone Project', 'Internship', 'Coursework', 'Research Project', 'Industry Project', 'Hackathon', 'Competition', 'Thesis'];
+      const roles = ['Professor', 'Mentor', 'Senior Software Engineer', 'Team Lead', 'CTO', 'Technical Manager', 'Course Instructor', 'Project Guide'];
+      
       for (let e = 0; e < endCount; e += 1) {
         const dt = uniqueDateInPast(1, 60);
         const endFirst = rng.pick(FIRST_NAMES);
         const endLast = rng.pick(LAST_NAMES);
-        const endorserName = `${endFirst} ${endLast}`;
-        const org = rng.pick([s.school === 'SOT' ? 'School of Technology' : 'School of Management', ...companiesToCreate]);
-        const role = rng.pick(['Professor', 'Mentor', 'Manager', 'Team Lead']);
+        const endorserName = e === 0 && rng.next() < 0.3 
+          ? `Dr. ${endFirst} ${endLast}` // First endorsement often from a professor
+          : `${endFirst} ${endLast}`;
+        
+        // Mix of academic and industry endorsers
+        const isAcademic = e === 0 || rng.next() < 0.4;
+        const org = isAcademic
+          ? rng.pick([s.school === 'SOT' ? 'School of Technology' : s.school === 'SOM' ? 'School of Management' : 'School of Humanities', ...UNIVERSITIES.slice(0, 3)])
+          : rng.pick([...companiesToCreate.slice(0, 5)]);
+        
+        const role = isAcademic ? rng.pick(['Professor', 'Associate Professor', 'Course Instructor', 'Research Guide']) : rng.pick(['Senior Software Engineer', 'Technical Manager', 'CTO', 'Team Lead', 'Engineering Manager']);
+        const relationship = isAcademic ? rng.pick(['Professor', 'Mentor', 'Guide', 'Instructor']) : rng.pick(['Manager', 'Supervisor', 'Team Lead', 'Mentor']);
+        
+        // More diverse endorsement messages
+        const message = rng.pick(endorsementMessages);
+        
         endorsementRows.push({
           studentId: s.studentId,
           endorserName,
-          endorserEmail: `${safeEmailLocalPart(endorserName)}@${safeEmailLocalPart(org).replace(/\./g, '')}.org`,
+          endorserEmail: isAcademic 
+            ? `${safeEmailLocalPart(endorserName)}@${safeEmailLocalPart(org).replace(/\./g, '').replace(/\s+/g, '')}.edu.in`
+            : `${safeEmailLocalPart(endorserName)}@${safeEmailLocalPart(org).replace(/\./g, '').replace(/\s+/g, '')}.com`,
           endorserRole: role,
           organization: org,
-          relationship: role,
-          context: rng.next() < 0.6 ? rng.pick(['Capstone Project', 'Internship', 'Coursework', 'Research']) : null,
-          message:
-            'Consistently demonstrated strong ownership, clear communication, and dependable execution. Delivered high-quality work with thoughtful trade-offs and attention to detail.',
+          relationship: relationship,
+          context: rng.next() < 0.65 ? rng.pick(contexts) : null,
+          message: message,
           skills: JSON.stringify(endSkills),
           overallRating: rng.int(4, 5),
           consent: true,
@@ -677,12 +718,66 @@ async function main() {
       }
     }
 
-    await prisma.skill.createMany({ data: skillRows });
+    // Skills have unique constraint on (studentId, skillName) - handle duplicates
+    try {
+      await prisma.skill.createMany({ data: skillRows });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        console.log('[seed] Some skills already exist, skipping duplicates...');
+      } else {
+        throw error;
+      }
+    }
+    
     await prisma.education.createMany({ data: educationRows });
-    if (projectRows.length) await prisma.project.createMany({ data: projectRows });
-    if (certificationRows.length) await prisma.certification.createMany({ data: certificationRows });
-    if (achievementRows.length) await prisma.achievement.createMany({ data: achievementRows });
-    if (endorsementRows.length) await prisma.endorsement.createMany({ data: endorsementRows });
+    
+    if (projectRows.length) {
+      try {
+        await prisma.project.createMany({ data: projectRows });
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log('[seed] Some projects already exist, skipping duplicates...');
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    if (certificationRows.length) {
+      try {
+        await prisma.certification.createMany({ data: certificationRows });
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log('[seed] Some certifications already exist, skipping duplicates...');
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    if (achievementRows.length) {
+      try {
+        await prisma.achievement.createMany({ data: achievementRows });
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log('[seed] Some achievements already exist, skipping duplicates...');
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    if (endorsementRows.length) {
+      try {
+        await prisma.endorsement.createMany({ data: endorsementRows });
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log('[seed] Some endorsements already exist, skipping duplicates...');
+        } else {
+          throw error;
+        }
+      }
+    }
 
     // Jobs
     const jobs: SeedJob[] = [];
@@ -706,7 +801,12 @@ async function main() {
     for (let i = 0; i < JOB_COUNT; i += 1) {
       const category = categories[i]!;
       const company = rng.pick(companies);
-      const recruiter = rng.pick(recruitersByCompany.get(company.id)!);
+      const companyRecruiters = recruitersByCompany.get(company.id);
+      if (!companyRecruiters || companyRecruiters.length === 0) {
+        console.warn(`[seed] Warning: Company ${company.name} has no recruiters, skipping job creation`);
+        continue;
+      }
+      const recruiter = rng.pick(companyRecruiters);
 
       const createdAt = uniqueDateInPast(20, 70);
       const postedAt = uniqueDateInPast(10, 60);
@@ -975,7 +1075,11 @@ async function main() {
     const applicationRows: Array<Prisma.ApplicationCreateManyInput> = [];
     for (const pair of applicationPairs) {
       const [studentId, jobId] = pair.split(':');
-      const job = jobById.get(jobId)!;
+      const job = jobById.get(jobId);
+      if (!job) {
+        console.warn(`[seed] Warning: Job ${jobId} not found, skipping application`);
+        continue;
+      }
 
       const stage = stageForApplication(job.category);
       const appliedDate =
@@ -1054,7 +1158,16 @@ async function main() {
     }
 
     console.log(`[seed] Creating applications: ${applicationRows.length}`);
-    await prisma.application.createMany({ data: applicationRows });
+    // Applications have unique constraint on (studentId, jobId) - handle duplicates
+    try {
+      await prisma.application.createMany({ data: applicationRows });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        console.log('[seed] Some applications already exist, skipping duplicates...');
+      } else {
+        throw error;
+      }
+    }
 
     // Round evaluations
     const apps = await prisma.application.findMany({
@@ -1102,7 +1215,19 @@ async function main() {
 
     if (evaluationRows.length) {
       console.log(`[seed] Creating round evaluations: ${evaluationRows.length}`);
-      await prisma.roundEvaluation.createMany({ data: evaluationRows, skipDuplicates: true });
+      // PostgreSQL supports skipDuplicates
+      try {
+        await prisma.roundEvaluation.createMany({ 
+          data: evaluationRows,
+          skipDuplicates: true 
+        });
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log('[seed] Some round evaluations already exist, skipping duplicates...');
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Basic verification counts

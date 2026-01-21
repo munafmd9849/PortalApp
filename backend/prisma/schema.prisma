@@ -1,13 +1,13 @@
 // Prisma Schema for PWIOI Placement Portal
-// Migrated from Firebase Firestore to SQLite
-// This project uses SQLite database.
+// Migrated from Firebase Firestore to PostgreSQL
+// This project uses PostgreSQL database (Render).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

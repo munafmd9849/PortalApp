@@ -419,7 +419,7 @@ export const configureRounds = async (req, res) => {
     }
 
     // Get session
-    const session = await prisma.interviewSession.findUnique({
+    let session = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { rounds: true },
     });
@@ -1276,11 +1276,14 @@ export const startRound = async (req, res) => {
       }
 
       const now = new Date();
-      const driveDateTime = new Date(sessionWithJob.job.driveDate);
-      driveDateTime.setHours(23, 59, 59, 999); // End of drive date
+      const driveDate = new Date(sessionWithJob.job.driveDate);
       
-      // Reject if drive date has not been reached
-      if (now < driveDateTime) {
+      // Compare dates only (ignore time) - allow if today is drive date or later
+      const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const driveDateOnly = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
+      
+      // Reject if current date is before drive date (date-only comparison)
+      if (nowDateOnly < driveDateOnly) {
         return res.status(400).json({
           error: 'Interview drive has not started yet',
           message: 'Interview session can start only on or after the drive date',

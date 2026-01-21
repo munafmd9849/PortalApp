@@ -1062,21 +1062,6 @@ export default function ManageJobs() {
                           <View className="w-4 h-4" />
                         </button>
 
-                        {/* View Applicants Button - Show only for POSTED jobs (only posted jobs have applicants) */}
-                        {isJobPosted(job) && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              navigate(`/admin/jobs/${job.id}/applications`);
-                            }}
-                            className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors shadow-sm"
-                            title="View Applicants"
-                          >
-                            <Users className="w-4 h-4" />
-                          </button>
-                        )}
-
                         {/* Share Action */}
                         <button
                           onClick={() => handleShare(job)}
@@ -1202,6 +1187,17 @@ export default function ManageJobs() {
                     if (jobsSubscriptionRef.current?.refresh) {
                       jobsSubscriptionRef.current.refresh();
                     }
+                    
+                    // Dispatch event to notify other components (e.g., InterviewScheduling)
+                    const refreshEvent = new CustomEvent('jobsRefresh', {
+                      detail: {
+                        action: 'update',
+                        jobId: editingDatesJobId,
+                        jobTitle: jobs.find(j => j.id === editingDatesJobId)?.jobTitle || 'Job'
+                      }
+                    });
+                    window.dispatchEvent(refreshEvent);
+                    console.log('📢 Dispatched jobsRefresh event after date update');
                     
                     toast.success('Dates updated successfully');
                     setEditingDatesJobId(null);

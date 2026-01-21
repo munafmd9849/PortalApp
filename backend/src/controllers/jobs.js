@@ -126,14 +126,26 @@ export async function getJobs(req, res) {
               },
             },
           },
+          _count: {
+            select: {
+              applications: true,
+            },
+          },
         },
       }),
       prisma.job.count({ where }),
     ]);
 
+    // Add applicationCount to each job
+    const jobsWithCounts = jobs.map(job => ({
+      ...job,
+      applicationCount: job._count?.applications || 0,
+      totalApplications: job._count?.applications || 0,
+    }));
+
     res.json({
       success: true,
-      jobs,
+      jobs: jobsWithCounts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
