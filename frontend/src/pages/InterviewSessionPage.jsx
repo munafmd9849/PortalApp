@@ -237,13 +237,28 @@ const InterviewSessionPage = () => {
 
   const handleStartAssessment = async (roundName) => {
     try {
+      console.log(`🚀 [InterviewSessionPage] Starting round: ${roundName} for interview: ${interviewId}`);
       const data = await api.startInterviewRound(interviewId, roundName);
+      console.log('✅ [InterviewSessionPage] Round started successfully:', data);
       
       // Redirect to assessment page
       navigate(`/admin/assessment/${interviewId}/${encodeURIComponent(roundName)}`);
     } catch (error) {
-      console.error('Error starting assessment:', error);
-      alert(`Failed to start assessment: ${error.message}`);
+      console.error('❌ [InterviewSessionPage] Error starting assessment:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.status,
+        interviewId,
+        roundName,
+      });
+      
+      // Show detailed error message
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Failed to start assessment';
+      alert(`Failed to start assessment: ${errorMessage}`);
     }
   };
 

@@ -93,12 +93,24 @@ const Assessment = () => {
 
   const loadCandidates = async () => {
     try {
+      console.log('🔍 [Assessment] Loading candidates:', { interviewId, roundName });
       const data = await api.getInterviewCandidates(interviewId, roundName);
+      console.log('✅ [Assessment] Candidates loaded:', {
+        count: data.candidates?.length || 0,
+        candidates: data.candidates,
+      });
       setCandidates(data.candidates || []);
       setRoundInfo(data.round);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading candidates:', error);
+      console.error('❌ [Assessment] Error loading candidates:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.status,
+        interviewId,
+        roundName,
+      });
       setLoading(false);
     }
   };

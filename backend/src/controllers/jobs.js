@@ -811,8 +811,23 @@ export async function updateJob(req, res) {
 
     // CRITICAL: Validate date relationship if both dates are being updated
     if (updateData.applicationDeadline !== undefined || updateData.driveDate !== undefined) {
-      const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : new Date(existingJob.applicationDeadline);
-      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : new Date(existingJob.driveDate);
+      const oldDeadline = existingJob.applicationDeadline ? new Date(existingJob.applicationDeadline) : null;
+      const oldDriveDate = existingJob.driveDate ? new Date(existingJob.driveDate) : null;
+      
+      const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : oldDeadline;
+      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : oldDriveDate;
+
+      // LOG: Old vs new values
+      logger.info('📅 [updateJob] Date update request:', {
+        jobId,
+        userId,
+        userRole,
+        oldApplicationDeadline: oldDeadline?.toISOString(),
+        newApplicationDeadline: updateData.applicationDeadline ? new Date(updateData.applicationDeadline).toISOString() : 'unchanged',
+        oldDriveDate: oldDriveDate?.toISOString(),
+        newDriveDate: updateData.driveDate ? new Date(updateData.driveDate).toISOString() : 'unchanged',
+        timestamp: new Date().toISOString(),
+      });
 
       if (!existingJob.applicationDeadline && !updateData.applicationDeadline) {
         return res.status(400).json({ 
@@ -830,6 +845,12 @@ export async function updateJob(req, res) {
 
       // Enforce: driveDate must be AFTER applicationDeadline
       if (newDriveDate <= newDeadline) {
+        logger.warn('❌ [updateJob] Invalid date configuration rejected:', {
+          jobId,
+          applicationDeadline: newDeadline?.toISOString(),
+          driveDate: newDriveDate?.toISOString(),
+          difference: newDriveDate && newDeadline ? (newDriveDate - newDeadline) / (1000 * 60) + ' minutes' : 'N/A',
+        });
         return res.status(400).json({ 
           error: 'Invalid date configuration',
           message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
@@ -837,10 +858,21 @@ export async function updateJob(req, res) {
       }
     }
 
+    // Prepare update data with proper date handling
+    const finalUpdateData = { ...updateData };
+    
+    // Ensure dates are properly formatted as Date objects
+    if (finalUpdateData.applicationDeadline) {
+      finalUpdateData.applicationDeadline = new Date(finalUpdateData.applicationDeadline);
+    }
+    if (finalUpdateData.driveDate) {
+      finalUpdateData.driveDate = new Date(finalUpdateData.driveDate);
+    }
+
     // Update the job
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: updateData,
+      data: finalUpdateData,
       include: {
         company: true,
         recruiter: {
@@ -854,6 +886,17 @@ export async function updateJob(req, res) {
           },
         },
       },
+    });
+
+    // LOG: Update success
+    logger.info('✅ [updateJob] Job updated successfully:', {
+      jobId,
+      userId,
+      userRole,
+      updatedFields: Object.keys(updateData),
+      finalApplicationDeadline: job.applicationDeadline?.toISOString(),
+      finalDriveDate: job.driveDate?.toISOString(),
+      timestamp: new Date().toISOString(),
     });
 
     res.json(job);

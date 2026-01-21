@@ -726,16 +726,21 @@ export default function StudentDashboard() {
       return;
     }
     
-    // OPTIMIZED: Check cache first
+    // OPTIMIZED: Check cache first (but verify it's not empty)
     if (!forceRefresh) {
       const cacheKey = getCacheKey('applications');
       if (cacheKey) {
         const cachedApplications = getCachedData(cacheKey);
-        if (cachedApplications) {
-          console.log('✅ Using cached applications data');
+        // Only use cache if it has data (not empty array)
+        if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length > 0) {
+          console.log('✅ Using cached applications data:', cachedApplications.length, 'applications');
           setApplications(cachedApplications);
           setLoadingApplications(false);
           return; // Use cached data, skip API call
+        } else if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length === 0) {
+          // Cache exists but is empty array - clear it and fetch fresh data
+          console.log('⚠️ Cached data is empty array, clearing cache and fetching fresh data');
+          localStorage.removeItem(cacheKey);
         }
       }
     }

@@ -3,36 +3,36 @@ import { Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'applied': return 'bg-[#3c80a7]/20 text-[#3c80a7]';
-      case 'shortlisted': return 'bg-yellow-100 text-yellow-800';
-      case 'interviewed': return 'bg-purple-100 text-purple-800';
-      case 'offered': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    const statusLower = status?.toLowerCase() || '';
+    // Handle both old status values and new currentStage values
+    if (statusLower === 'applied') return 'bg-[#3c80a7]/20 text-[#3c80a7]';
+    if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return 'bg-yellow-100 text-yellow-800';
+    if (statusLower === 'interviewed' || statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return 'bg-purple-100 text-purple-800';
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
+    if (statusLower === 'rejected' || statusLower.includes('rejected')) return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   const getStatusIcon = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'applied': return <Clock className="h-3 w-3 mr-1" />;
-      case 'shortlisted': return <AlertCircle className="h-3 w-3 mr-1" />;
-      case 'interviewed': return <CheckCircle className="h-3 w-3 mr-1" />;
-      case 'offered': return <CheckCircle className="h-3 w-3 mr-1" />;
-      case 'rejected': return <XCircle className="h-3 w-3 mr-1" />;
-      default: return <Clock className="h-3 w-3 mr-1" />;
-    }
+    const statusLower = status?.toLowerCase() || '';
+    // Handle both old status values and new currentStage values
+    if (statusLower === 'applied') return <Clock className="h-3 w-3 mr-1" />;
+    if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return <AlertCircle className="h-3 w-3 mr-1" />;
+    if (statusLower === 'interviewed' || statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return <CheckCircle className="h-3 w-3 mr-1" />;
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return <CheckCircle className="h-3 w-3 mr-1" />;
+    if (statusLower === 'rejected' || statusLower.includes('rejected')) return <XCircle className="h-3 w-3 mr-1" />;
+    return <Clock className="h-3 w-3 mr-1" />;
   };
 
   const getRowBgColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'applied': return 'from-[#f0f8fa] to-[#d6eaf5]';   // lighter teal shades
-      case 'shortlisted': return 'from-yellow-50 to-yellow-100';
-      case 'interviewed': return 'from-purple-50 to-purple-100';
-      case 'offered': return 'from-green-50 to-green-100';
-      case 'rejected': return 'from-red-50 to-red-100';
-      default: return 'from-gray-50 to-gray-100';
-    }
+    const statusLower = status?.toLowerCase() || '';
+    // Handle both old status values and new currentStage values
+    if (statusLower === 'applied') return 'from-[#f0f8fa] to-[#d6eaf5]';   // lighter teal shades
+    if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return 'from-yellow-50 to-yellow-100';
+    if (statusLower === 'interviewed' || statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return 'from-purple-50 to-purple-100';
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return 'from-green-50 to-green-100';
+    if (statusLower === 'rejected' || statusLower.includes('rejected')) return 'from-red-50 to-red-100';
+    return 'from-gray-50 to-gray-100';
   };
 
   const formatDate = (dateString) => {
@@ -88,7 +88,7 @@ const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
               {applications.slice(0, 3).map((application) => (
                 <div
                   key={application.id}
-                  className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r ${getRowBgColor(application.status)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group`}
+                  className={`flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r ${getRowBgColor(application.currentStage || application.status)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group`}
                 >
                   {/* Mobile Layout */}
                   <div className="md:hidden space-y-3">
@@ -111,10 +111,10 @@ const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
                       <span className="text-sm font-medium text-gray-700">
                         {formatDate(application.appliedDate)}
                       </span>
-                      <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(application.status)}`}>
-                        {getStatusIcon(application.status)}
-                        {application.status
-                          ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                      <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(application.currentStage || application.status)}`}>
+                        {getStatusIcon(application.currentStage || application.status)}
+                        {application.currentStage || application.status
+                          ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
                           : 'Unknown'}
                       </span>
                     </div>
@@ -139,10 +139,10 @@ const ApplicationTrackerSection = ({ applications, onTrackAll }) => {
                       {formatDate(application.appliedDate)}
                     </div>
                     <div className="hidden md:flex justify-end">
-                      <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(application.status)}`}>
-                        {getStatusIcon(application.status)}
-                        {application.status
-                          ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                      <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(application.currentStage || application.status)}`}>
+                        {getStatusIcon(application.currentStage || application.status)}
+                        {application.currentStage || application.status
+                          ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
                           : 'Unknown'}
                       </span>
                     </div>

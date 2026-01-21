@@ -4,8 +4,8 @@
  * This ensures consistency across the application
  * 
  * ENVIRONMENT VARIABLES REQUIRED:
- * - VITE_API_URL: Base backend URL (e.g., https://portal-backend-orcin.vercel.app/api)
- * - VITE_SOCKET_URL: Socket.IO URL (e.g., https://portal-backend-orcin.vercel.app)
+ * - VITE_API_URL: Base backend URL (e.g., http://localhost:3000/api)
+ * - VITE_SOCKET_URL: Socket.IO URL (e.g., http://localhost:3000)
  * 
  * NO LOCALHOST FALLBACKS - App will fail if env vars not set (production-grade)
  */
@@ -29,7 +29,7 @@ const getApiBaseUrl = () => {
   
   // CRITICAL: No fallbacks - app must fail if backend URL not configured
   const errorMsg = '❌ CRITICAL: VITE_API_BASE_URL (or VITE_API_URL) environment variable is not set. ' +
-    'Please set it in your environment (e.g., VITE_API_BASE_URL=https://portal-backend-orcin.vercel.app/api)';
+    'Please set it in your environment (e.g., VITE_API_BASE_URL=http://localhost:3000/api)';
   
   console.error(errorMsg);
   
@@ -55,7 +55,7 @@ const getSocketUrl = () => {
   
   // CRITICAL: No fallbacks - app must fail if socket URL not configured
   const errorMsg = '❌ CRITICAL: VITE_SOCKET_URL environment variable is not set. ' +
-    'Please set it in your environment (e.g., VITE_SOCKET_URL=https://portal-backend-orcin.vercel.app)';
+    'Please set it in your environment (e.g., VITE_SOCKET_URL=http://localhost:3000)';
   
   console.error(errorMsg);
   

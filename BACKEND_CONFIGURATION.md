@@ -7,8 +7,8 @@
 The frontend uses environment variables to configure the backend URL. These are configured in `frontend/.env`:
 
 ```
-VITE_API_URL=https://portal-backend-orcin.vercel.app/api
-VITE_SOCKET_URL=https://portal-backend-orcin.vercel.app
+VITE_API_URL=http://localhost:3000/api
+VITE_SOCKET_URL=http://localhost:3000
 VITE_FRONTEND_URL=http://localhost:5173
 ```
 
@@ -29,17 +29,19 @@ VITE_FRONTEND_URL=http://localhost:5173
 
 ### For Local Development
 
-If you want to use the Vercel backend during local development, make sure `frontend/.env` has:
+The default configuration uses localhost backend. Make sure `frontend/.env` has:
+```
+VITE_API_URL=http://localhost:3000/api
+VITE_SOCKET_URL=http://localhost:3000
+```
+
+If you want to use the deployed Vercel backend, update to:
 ```
 VITE_API_URL=https://portal-backend-orcin.vercel.app/api
 VITE_SOCKET_URL=https://portal-backend-orcin.vercel.app
 ```
 
-If you want to use a local backend, comment out the above and uncomment:
-```
-# VITE_API_URL=http://localhost:3000/api
-# VITE_SOCKET_URL=http://localhost:3000
-```
+**Note:** The default configuration now uses localhost for local development.
 
 ### For Vercel Deployment
 
@@ -47,19 +49,22 @@ If you want to use a local backend, comment out the above and uncomment:
 
 1. Go to your Vercel project → Settings → Environment Variables
 2. Add these variables:
-   - `VITE_API_URL` = `https://portal-backend-orcin.vercel.app/api`
-   - `VITE_SOCKET_URL` = `https://portal-backend-orcin.vercel.app`
+   - `VITE_API_URL` = `http://localhost:3000/api` (or your deployed backend URL)
+   - `VITE_SOCKET_URL` = `http://localhost:3000` (or your deployed backend URL)
    - `VITE_FRONTEND_URL` = `https://your-frontend-domain.vercel.app`
 
 **Note**: The `.env` file is NOT used in Vercel deployment. You must set environment variables in the Vercel dashboard.
 
-### Backend URL: https://portal-backend-orcin.vercel.app
+### Backend URL: http://localhost:3000
 
-This is your deployed backend on Vercel. All API endpoints are under `/api`.
+This is your local backend server. All API endpoints are under `/api`.
+
+**Note**: Make sure the backend server is running on port 3000 before starting the frontend.
 
 ### Verification
 
 To verify the backend is connected:
-1. Check browser console - should see API requests going to `https://portal-backend-orcin.vercel.app/api`
-2. Check Socket.IO connection - should connect to `https://portal-backend-orcin.vercel.app`
-3. Test an API call - should work with the Vercel backend
+1. Check browser console - should see API requests going to `http://localhost:3000/api`
+2. Check Socket.IO connection - should connect to `http://localhost:3000`
+3. Test an API call - should work with the local backend
+4. Ensure backend server is running: `cd backend && npm run dev`
