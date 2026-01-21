@@ -1,38 +1,27 @@
 /**
  * Database Configuration
  * Prisma Client singleton for database access
- * Replaces Firebase Firestore client
+ * Uses SQLite database
  */
 
 import { PrismaClient } from '@prisma/client';
 
-function assertPostgresOnlyDatabaseUrl() {
+function assertDatabaseUrl() {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    throw new Error('CRITICAL: DATABASE_URL is required (Neon PostgreSQL only).');
+    throw new Error('CRITICAL: DATABASE_URL is required.');
   }
 
   const lowered = url.toLowerCase();
-  if (lowered.startsWith('file:') || lowered.includes('file:')) {
-    throw new Error('CRITICAL: File-based DATABASE_URL values are forbidden. Use PostgreSQL (Neon) with sslmode=require.');
-  }
-  // Also block URLs that explicitly mention the forbidden keyword (constructed to avoid accidental reintroduction via search/replace)
-  const forbiddenKeyword = 'sq' + 'lite';
-  if (lowered.includes(forbiddenKeyword)) {
-    throw new Error('CRITICAL: Forbidden database URL. Use PostgreSQL (Neon) with sslmode=require.');
-  }
-
-  // Accept both schemes commonly used for Postgres
-  if (!lowered.startsWith('postgresql://') && !lowered.startsWith('postgres://')) {
-    throw new Error('CRITICAL: DATABASE_URL must start with postgresql:// (or postgres://).');
+  // SQLite uses file: protocol
+  if (!lowered.startsWith('file:')) {
+    throw new Error('CRITICAL: DATABASE_URL must start with file: for SQLite database.');
   }
 }
 
-assertPostgresOnlyDatabaseUrl();
+assertDatabaseUrl();
 
-// Prisma client configuration for Postgres
-// Note: Prisma's built-in error logging can't be easily filtered,
-// but we handle quota errors gracefully in our code
+// Prisma client configuration for SQLite
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' 
     ? ['error', 'warn'] // Removed 'query' to reduce noise, keep errors/warnings

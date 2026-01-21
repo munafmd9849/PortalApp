@@ -54,25 +54,21 @@ const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'FRONTEND_URL'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  // Hard fail in all environments (Neon Postgres is mandatory)
+  // Hard fail in all environments (database is mandatory)
   console.error('❌ CRITICAL: Missing required environment variables:');
   missingVars.forEach(varName => {
     console.error(`   - ${varName}`);
   });
-  console.error('\n💡 This project requires Neon (PostgreSQL) and will not run without DATABASE_URL.');
+  console.error('\n💡 This project requires DATABASE_URL to run.');
   process.exit(1);
 }
 
-// Hard guard: file-based DB URLs must never be used
+// Validate DATABASE_URL format for SQLite
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (dbUrlLower.startsWith('file:') || dbUrlLower.includes('file:')) {
-  console.error('❌ CRITICAL: File-based DATABASE_URL values are forbidden. Set DATABASE_URL to Neon PostgreSQL (sslmode=require).');
-  process.exit(1);
-}
-const forbiddenKeyword = 'sq' + 'lite';
-if (dbUrlLower.includes(forbiddenKeyword)) {
-  console.error('❌ CRITICAL: Forbidden database URL. Set DATABASE_URL to Neon PostgreSQL (sslmode=require).');
+if (!dbUrlLower.startsWith('file:')) {
+  console.error('❌ CRITICAL: DATABASE_URL must start with file: for SQLite database.');
+  console.error(`   Current value: ${dbUrl}`);
   process.exit(1);
 }
 
@@ -84,14 +80,15 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
   process.exit(1);
 }
 
-// Connection validation (fail fast) + safe logging of Neon host/db
+// Connection validation (fail fast) + safe logging of database
 function logDatabaseTarget() {
   try {
-    const u = new URL(process.env.DATABASE_URL);
-    const dbName = (u.pathname || '').replace(/^\//, '') || '(no-db)';
-    console.log(`🗄️  Database: PostgreSQL (host=${u.hostname}, db=${dbName})`);
+    const dbUrl = process.env.DATABASE_URL || '';
+    // Extract filename from file: path
+    const dbPath = dbUrl.replace(/^file:/, '').replace(/^\//, '');
+    console.log(`🗄️  Database: SQLite (${dbPath})`);
   } catch {
-    console.log('🗄️  Database: PostgreSQL');
+    console.log('🗄️  Database: SQLite');
   }
 }
 
@@ -306,7 +303,7 @@ async function start() {
       dbConnected = false;
     } else {
       // For other connection errors, fail fast
-      console.error('❌ CRITICAL: Failed to connect to PostgreSQL. Server will not start.');
+      console.error('❌ CRITICAL: Failed to connect to database. Server will not start.');
       console.error(dbErr?.message || dbErr);
       process.exit(1);
     }
