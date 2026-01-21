@@ -1473,15 +1473,25 @@ export const endRound = async (req, res) => {
       return res.status(403).json({ error: 'Token expired or invalid' });
     }
 
-    // Get all applications for this job
-    let candidateApplicationIds = await prisma.application.findMany({
-      where: { jobId: round.session.jobId },
-      select: { id: true },
-    });
-    candidateApplicationIds = candidateApplicationIds.map(a => a.id);
-
-    // For rounds after first, filter by previous round selections
-    if (round.roundNumber > 1) {
+    // Get eligible applications for this round
+    // CRITICAL: For Round 1, only include candidates who passed screening (INTERVIEW_ELIGIBLE or TEST_SELECTED)
+    // For rounds after first, only include SELECTED candidates from previous round
+    let candidateApplicationIds;
+    
+    if (round.roundNumber === 1) {
+      // Round 1: Only include candidates who passed screening
+      const eligibleApplications = await prisma.application.findMany({
+        where: { 
+          jobId: round.session.jobId,
+          screeningStatus: {
+            in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
+          }
+        },
+        select: { id: true },
+      });
+      candidateApplicationIds = eligibleApplications.map(a => a.id);
+    } else {
+      // Rounds after first: Filter by previous round selections
       const previousRound = round.session.rounds.find(r => r.roundNumber === round.roundNumber - 1);
       if (previousRound) {
         const previousEvaluations = await prisma.roundEvaluation.findMany({
@@ -1492,6 +1502,9 @@ export const endRound = async (req, res) => {
           select: { applicationId: true },
         });
         candidateApplicationIds = previousEvaluations.map(e => e.applicationId);
+      } else {
+        // No previous round found, no candidates eligible
+        candidateApplicationIds = [];
       }
     }
 
