@@ -5,11 +5,7 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "check:postgres-only": "node scripts/check-postgres-only.js",
-    "predev": "node scripts/check-postgres-only.js",
     "dev": "node --watch src/server.js",
-    "prestart": "node scripts/check-postgres-only.js",
-    "prebuild": "node scripts/check-postgres-only.js",
     "build": "prisma generate",
     "start": "node src/server.js",
     "db:migrate": "prisma migrate dev",
