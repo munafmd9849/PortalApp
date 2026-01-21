@@ -1,7 +1,7 @@
 // components/NotificationModal.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import api from '../services/api';
+// import api from '../services/api'; // Unused import removed
 import { listNotificationsForUser, markNotificationRead } from '../services/notifications';
 
 const NotificationModal = () => {

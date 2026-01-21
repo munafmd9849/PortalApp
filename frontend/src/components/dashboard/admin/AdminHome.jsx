@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+// import useRef removed - unused
 import { PieChart } from 'react-minimal-pie-chart';
 import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, BarChart3, Target, DollarSign, X, Loader2 } from 'lucide-react';
 import { FaChevronDown, FaTimes, FaMapMarkerAlt, FaGraduationCap, FaUsers, FaUserShield } from 'react-icons/fa';
@@ -6,7 +7,7 @@ import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
 import { Radar, PolarArea, Bar, Doughnut, Line } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
-import api from '../../../services/api';
+// import api from '../../../services/api'; // Unused import removed
 // TODO: Replace Firebase operations with API calls
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
