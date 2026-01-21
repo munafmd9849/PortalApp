@@ -223,8 +223,7 @@ const StudentQuerySystem = () => {
     } else if (file.size > 5 * 1024 * 1024) {
       validation = { isValid: false, error: 'File size must be less than 5MB' };
     } else if (!['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
-        validation = { isValid: false, error: 'Only PDF, JPG, and PNG files are allowed' };
-      }
+      validation = { isValid: false, error: 'Only PDF, JPG, and PNG files are allowed' };
     }
     
     if (!validation.isValid) {
