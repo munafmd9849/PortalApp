@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from '../../config/api';
+import api from '../../services/api';
 import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 
@@ -39,37 +39,8 @@ const InterviewerRoundEvaluation = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch candidates
-      const candidatesResponse = await fetch(
-        `${API_BASE_URL}/interview/round/${roundId}/candidates?token=${token}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!candidatesResponse.ok) {
-        const errorData = await candidatesResponse.json();
-        if (candidatesResponse.status === 404 || errorData.error?.includes('No candidates')) {
-          setCandidates([]);
-          setRound(null);
-          setEvaluations({});
-          setCanEndRound(false);
-          setLoading(false);
-          return;
-        }
-        setError(errorData.error || 'Failed to load candidates');
-        setCandidates([]);
-        setRound(null);
-        setEvaluations({});
-        setCanEndRound(false);
-        setLoading(false);
-        return;
-      }
-
-      const candidatesData = await candidatesResponse.json();
+      // Fetch candidates using API client
+      const candidatesData = await api.getRoundCandidates(roundId, token);
       const list = Array.isArray(candidatesData.candidates) ? candidatesData.candidates : [];
       setCandidates(list);
       setRound(candidatesData.round || null);
@@ -105,7 +76,16 @@ const InterviewerRoundEvaluation = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error loading round data:', err);
-      setError('Failed to load round data. Please try again.');
+      // Handle 404 or no candidates gracefully
+      if (err.status === 404 || err.message?.includes('No candidates')) {
+        setCandidates([]);
+        setRound(null);
+        setEvaluations({});
+        setCanEndRound(false);
+        setLoading(false);
+        return;
+      }
+      setError(err.message || 'Failed to load round data. Please try again.');
       setCandidates([]);
       setRound(null);
       setEvaluations({});
@@ -149,25 +129,12 @@ const InterviewerRoundEvaluation = () => {
     try {
       setSaving((prev) => ({ ...prev, [applicationId]: true }));
 
-      const response = await fetch(
-        `${API_BASE_URL}/interview/round/${roundId}/evaluate?token=${token}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            applicationId,
-            status: evaluation.status,
-            remarks: evaluation.remarks || null,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || 'Failed to save evaluation');
-      }
+      // Use API client to save evaluation
+      await api.evaluateRoundCandidate(roundId, token, {
+        applicationId,
+        status: evaluation.status,
+        remarks: evaluation.remarks || null,
+      });
 
       // Show success message
       const statusMessages = {
@@ -197,28 +164,8 @@ const InterviewerRoundEvaluation = () => {
       setEndingRound(true);
       loadingToastId = showLoading('Ending round...');
 
-      // URL encode the token
-      const encodedToken = encodeURIComponent(token);
-      const response = await fetch(
-        `${API_BASE_URL}/interview/round/${roundId}/end?token=${encodedToken}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        let errorMessage = errorData.error || errorData.message || 'Failed to end round';
-        if (errorData.details) {
-          errorMessage += `: ${errorData.details}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
+      // Use API client to end round
+      const result = await api.endRound(roundId, token);
       const message = result.message || 'Round ended successfully! Only selected candidates will proceed to the next round.';
       
       replaceLoadingToast(loadingToastId, 'success', message);

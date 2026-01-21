@@ -127,62 +127,39 @@ export default function InterviewScheduling() {
       setSession(null); // Clear previous session to show loading state
       
       // Use centralized API client
-      const data = await api.get(`/admin/interview-scheduling/session/${job.id}`);
+      const response = await api.get(`/admin/interview-scheduling/session/${job.id}`);
+      const data = response.data || response;
         
-        if (!data.session) {
-          showError('Session data not found in response');
-          setLoadingSession(false);
-          return;
-        }
-
-        setSession(data.session);
-        // Ensure rounds is always an array
-        const sessionRounds = Array.isArray(data.session.rounds) ? data.session.rounds : [];
-        setRounds(sessionRounds);
-        setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
-        
-        // Track completed and incomplete sessions
-        if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
-          setCompletedSessions(prev => new Set([...prev, job.id]));
-        } else {
-          setCompletedSessions(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(job.id);
-            return newSet;
-          });
-        }
-        
-        // Auto-populate rounds from job description if no rounds exist (Issue #7)
-        if (sessionRounds.length === 0 && data.session.suggestedRounds && Array.isArray(data.session.suggestedRounds) && data.session.suggestedRounds.length > 0) {
-          setRounds(data.session.suggestedRounds);
-          showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        
-        console.error('Failed to get/create session:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          jobId: job.id
-        });
-        
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else if (response.status === 404) {
-          showError(errorData.error || errorData.message || 'Session not found');
-        } else if (response.status === 400) {
-          showError(errorData.error || errorData.message || 'Invalid request. Please check the job configuration.');
-        } else {
-          // Show detailed error message from backend
-          const errorMessage = errorData.details || errorData.message || errorData.error || `Failed to load session (${response.status})`;
-          showError(errorMessage);
-          // Log full error details for debugging
-          if (errorData.stack) {
-            console.error('Backend error stack:', errorData.stack);
-          }
-        }
+      if (!data.session) {
+        showError('Session data not found in response');
+        setLoadingSession(false);
+        return;
       }
+
+      setSession(data.session);
+      // Ensure rounds is always an array
+      const sessionRounds = Array.isArray(data.session.rounds) ? data.session.rounds : [];
+      setRounds(sessionRounds);
+      setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
+      
+      // Track completed and incomplete sessions
+      if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
+        setCompletedSessions(prev => new Set([...prev, job.id]));
+      } else {
+        setCompletedSessions(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(job.id);
+          return newSet;
+        });
+      }
+      
+      // Auto-populate rounds from job description if no rounds exist (Issue #7)
+      if (sessionRounds.length === 0 && data.session.suggestedRounds && Array.isArray(data.session.suggestedRounds) && data.session.suggestedRounds.length > 0) {
+        setRounds(data.session.suggestedRounds);
+        showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
+      }
+      
+      setLoadingSession(false);
     } catch (error) {
       console.error('Error loading session:', error);
       showError('Network error. Please check your connection and try again.');

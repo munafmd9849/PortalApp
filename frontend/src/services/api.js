@@ -215,13 +215,25 @@ async function apiRequest(endpoint, options = {}) {
         error: errorData,
       });
       
-      const error = new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      // Use exact backend error message (backend is source of truth)
+      const errorMessage = errorData.error || errorData.message || errorData.details || `HTTP ${response.status}: ${response.statusText}`;
+      
+      const error = new Error(errorMessage);
       error.response = {
         data: errorData,
         status: response.status,
         statusText: response.statusText,
       };
       error.status = response.status;
+      
+      // Handle 403 specifically - permission denied
+      if (response.status === 403) {
+        error.isPermissionError = true;
+        // If no specific message, provide context-aware message
+        if (!errorData.error && !errorData.message) {
+          error.message = 'Access denied. You do not have permission to perform this action.';
+        }
+      }
       
       // Automatically show error toast unless silent
       if (!silent) {

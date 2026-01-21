@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from '../../config/api';
+import api from '../../services/api';
 import { Loader, Building2, Briefcase, AlertCircle, CheckCircle, Clock, Lock, PlayCircle, ArrowRight } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
@@ -74,61 +74,15 @@ const InterviewerDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch session details
-      // URL encode the token to handle special characters
-      const encodedToken = encodeURIComponent(token);
-      const sessionResponse = await fetch(
-        `${API_BASE_URL}/interview/session/${sessionId}?token=${encodedToken}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json();
-        let errorMessage = errorData.error || 'Failed to load session';
-        if (errorData.details) {
-          errorMessage += ` (${errorData.details})`;
-        }
-        if (sessionResponse.status === 403) {
-          errorMessage = errorData.error || 'Token expired or invalid. Please contact the administrator for a new invitation link.';
-          if (errorData.details) {
-            errorMessage += `\n\nDetails: ${errorData.details}`;
-          }
-        } else if (sessionResponse.status === 404) {
-          errorMessage = errorData.error || 'Interview session not found.';
-          if (errorData.details) {
-            errorMessage += `\n\nDetails: ${errorData.details}`;
-          }
-        }
-        setError(errorMessage);
-        setLoading(false);
-        return;
-      }
-
-      const sessionData = await sessionResponse.json();
+      // Fetch session details using API client
+      const sessionData = await api.getInterviewSessionByToken(sessionId, token);
       setSession(sessionData);
 
       // Fetch active round if session is ongoing
       if (sessionData.status === 'ONGOING') {
         try {
-          const roundResponse = await fetch(
-            `${API_BASE_URL}/interview/session/${sessionId}/active-round?token=${token}`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          if (roundResponse.ok) {
-            const roundData = await roundResponse.json();
-            setActiveRound(roundData);
-          }
+          const roundData = await api.getActiveRound(sessionId, token);
+          setActiveRound(roundData);
         } catch (err) {
           console.error('Error fetching active round:', err);
         }
@@ -154,22 +108,7 @@ const InterviewerDashboard = () => {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/interview/round/${roundId}/start?token=${token}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        alert(errorData.error || 'Failed to start round');
-        return;
-      }
-
+      await api.startRound(roundId, token);
       alert('Round started successfully!');
       loadSession(); // Reload to show updated status
     } catch (error) {

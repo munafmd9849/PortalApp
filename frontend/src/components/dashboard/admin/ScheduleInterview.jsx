@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subscribeJobs } from '../../../services/jobs';
-import { API_BASE_URL } from '../../../config/api';
+import api from '../../../services/api';
 import { Loader, Building2, Calendar, GraduationCap, View, Users, Briefcase, MapPin, PlayCircle, XCircle, AlertTriangle, Clock, CheckSquare, CheckCircle, Lock } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
 
@@ -111,31 +111,10 @@ export default function ScheduleInterview() {
     setStartingInterview(prev => new Set([...prev, jobId]));
     
     try {
-      const token = localStorage.getItem('accessToken');
-      const apiUrl = `${API_BASE_URL}/admin/interview/${jobId}/start`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.message || errorData.error || 'Failed to start interview session';
-        
-        // Handle specific error messages
-        if (errorData.error === 'Interview drive has not started yet') {
-          throw new Error('Interview session can start only on the drive date');
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      const interviewId = data.interview?.id || data.id;
+      // Use API client to start interview session
+      const response = await api.post(`/admin/interview/${jobId}/start`, {});
+      const data = response.data || response;
+      const interviewId = data.interview?.id || data.id || data.interviewId;
       
       if (!interviewId) {
         throw new Error('Interview ID not returned from server');

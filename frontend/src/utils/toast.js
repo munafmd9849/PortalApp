@@ -171,9 +171,11 @@ export function handleApiError(error, defaultMessage = 'An error occurred') {
     message = error.message;
   }
 
-  // Network errors
-  if (error?.isNetworkError || error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
-    message = 'Network error. Please check your connection and try again.';
+  // Network errors - use exact error message from API client
+  if (error?.isNetworkError) {
+    message = error.message || 'Network error. Please check your connection and try again.';
+  } else if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+    message = error.message || 'Network error. Please check your connection and try again.';
   }
 
   // Timeout errors

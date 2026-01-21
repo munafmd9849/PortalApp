@@ -57,13 +57,17 @@ export async function submitContactForm(formData) {
 
     console.log('[Contact Service] Submitting contact form with payload:', payload);
 
-    const data = await api.post('/contact', payload, { silent: true });
+    const response = await api.post('/contact', payload, { silent: true });
+    const data = response.data || response;
 
-    // Extract validation errors if available
+    // Extract validation errors if available (API client should handle this, but check just in case)
     if (data.errors && Array.isArray(data.errors)) {
       const validationErrors = data.errors.map(e => `${e.param}: ${e.msg}`).join(', ');
       throw new Error(`Validation failed: ${validationErrors}`);
-      }
+    }
+
+    // Check for error in response
+    if (data.error) {
       throw new Error(data.error || 'Failed to submit contact form');
     }
 

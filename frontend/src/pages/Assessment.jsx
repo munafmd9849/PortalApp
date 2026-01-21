@@ -203,15 +203,9 @@ const Assessment = () => {
     try {
       setEndingSession(true);
       const data = await api.endInterviewSession(interviewId);
-
-      if (!response.ok) {
-        throw new Error('Failed to end session');
-      }
-
-      const data = await response.json();
       
       // Show summary modal
-      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.total}\n- Selected: ${data.summary.selected}\n- Rejected: ${data.summary.rejected}\n- On Hold: ${data.summary.onHold}\n- Pending: ${data.summary.pending}`);
+      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary?.totalCandidates || data.summary?.total || 0}\n- Selected: ${data.summary?.selectedCandidates || data.summary?.selected || 0}\n- Rejected: ${data.summary?.rejectedCandidates || data.summary?.rejected || 0}\n- On Hold: ${data.summary?.onHoldCandidates || data.summary?.onHold || 0}\n- Pending: ${data.summary?.pendingCandidates || data.summary?.pending || 0}`);
       
       // Close tab after confirmation
       if (window.confirm('Session ended. Close this tab?')) {
