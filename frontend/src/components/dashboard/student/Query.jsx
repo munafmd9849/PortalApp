@@ -215,18 +215,14 @@ const StudentQuerySystem = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     
-    // Validate file using the service function or fallback validation
+    // Validate file (fallback validation)
     let validation = { isValid: true, error: null };
     
-    if (queryServices?.validateFile) {
-      validation = queryServices.validateFile(file);
-    } else {
-      // Fallback validation
-      if (!file) {
-        validation = { isValid: false, error: 'No file selected' };
-      } else if (file.size > 5 * 1024 * 1024) {
-        validation = { isValid: false, error: 'File size must be less than 5MB' };
-      } else if (!['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+    if (!file) {
+      validation = { isValid: false, error: 'No file selected' };
+    } else if (file.size > 5 * 1024 * 1024) {
+      validation = { isValid: false, error: 'File size must be less than 5MB' };
+    } else if (!['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
         validation = { isValid: false, error: 'Only PDF, JPG, and PNG files are allowed' };
       }
     }
