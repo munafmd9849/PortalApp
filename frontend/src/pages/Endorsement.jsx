@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from '../config/api.js';
+import api from '../services/api';
 import { 
   CheckCircle, 
   XCircle, 
@@ -84,16 +84,7 @@ const EndorsementPage = () => {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`${API_BASE_URL}/endorsements/${token}`);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          // Use detailed error message if available
-          const errorMessage = errorData.message || errorData.error || 'Failed to load endorsement request';
-          throw new Error(errorMessage);
-        }
-        
-        const data = await response.json();
+        const data = await api.getEndorsementByToken(token);
         setEndorsementData(data);
       } catch (err) {
         console.error('Error fetching endorsement:', err);
@@ -239,29 +230,18 @@ const EndorsementPage = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/endorsements/submit/${token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          endorserName: formData.endorserName.trim(),
-          endorserRole: formData.endorserRole.trim(),
-          organization: formData.organization.trim(),
-          relationship: formData.relationship,
-          context: formData.context?.trim() || null,
-          endorsementMessage: formData.endorsementMessage.trim(),
-          relatedSkills: formData.relatedSkills,
+      await api.submitEndorsement(token, {
+        endorserName: formData.endorserName.trim(),
+        endorserRole: formData.endorserRole.trim(),
+        organization: formData.organization.trim(),
+        relationship: formData.relationship,
+        context: formData.context?.trim() || null,
+        endorsementMessage: formData.endorsementMessage.trim(),
+        relatedSkills: formData.relatedSkills,
           skillRatings: Object.keys(formData.skillRatings).length > 0 ? formData.skillRatings : null,
           strengthRating: formData.strengthRating,
           consent: Boolean(formData.consent), // Ensure boolean type
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit endorsement');
-      }
+        });
 
       setSuccess(true);
       

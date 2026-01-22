@@ -119,16 +119,12 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
   // Use pagination total if available, otherwise use array length
   const totalJobs = jobsPayload?.pagination?.total ?? jobs.length;
 
-  const applicationsPayload = applicationsRes.status === 'fulfilled' ? applicationsRes.value : null;
-  const applications = safeArray(applicationsPayload?.applications).length ? safeArray(applicationsPayload?.applications) : safeArray(applicationsPayload);
-  // Use pagination total if available, otherwise use array length
-  const totalApplications = applicationsPayload?.pagination?.total ?? applications.length;
+  let applicationsPayload = applicationsRes.status === 'fulfilled' ? applicationsRes.value : null;
+  let applications = safeArray(applicationsPayload?.applications).length ? safeArray(applicationsPayload?.applications) : safeArray(applicationsPayload);
 
-  const studentsPayload = studentsRes.status === 'fulfilled' ? studentsRes.value : null;
-  const students = safeArray(studentsPayload?.students).length ? safeArray(studentsPayload?.students) : safeArray(studentsPayload);
-  // Use pagination total if available, otherwise use array length
-  const totalStudents = studentsPayload?.pagination?.total ?? students.length;
-
+  let studentsPayload = studentsRes.status === 'fulfilled' ? studentsRes.value : null;
+  let students = safeArray(studentsPayload?.students).length ? safeArray(studentsPayload?.students) : safeArray(studentsPayload);
+  
   const recruitersPayload = recruitersRes.status === 'fulfilled' ? recruitersRes.value : null;
   const recruiters = safeArray(recruitersPayload?.recruiters).length ? safeArray(recruitersPayload?.recruiters) : safeArray(recruitersPayload);
   // Count active recruiters (ACTIVE or PENDING status - PENDING should be treated as active for recruiters)
@@ -137,8 +133,73 @@ export async function getAdminPanelData(filters = {}, dayWindow = 90) {
     return status === 'ACTIVE' || status === 'PENDING' || !status; // PENDING treated as active
   }).length;
 
-  const queriesPayload = queriesRes.status === 'fulfilled' ? queriesRes.value : null;
-  const queries = safeArray(queriesPayload?.queries).length ? safeArray(queriesPayload?.queries) : safeArray(queriesPayload?.data).length ? safeArray(queriesPayload?.data) : safeArray(queriesPayload);
+  let queriesPayload = queriesRes.status === 'fulfilled' ? queriesRes.value : null;
+  let queries = safeArray(queriesPayload?.queries).length ? safeArray(queriesPayload?.queries) : safeArray(queriesPayload?.data).length ? safeArray(queriesPayload?.data) : safeArray(queriesPayload);
+
+  // Apply filters if provided (campus/school/batch)
+  if (filters && (filters.campus?.length > 0 || filters.school?.length > 0 || filters.batch?.length > 0)) {
+    console.log('🔍 [AdminPanelService] Applying filters:', filters);
+    
+    // Filter students by campus (center), school, and batch
+    const originalStudentCount = students.length;
+    students = students.filter(s => {
+      const studentCenter = String(s?.center || '').toUpperCase();
+      const studentSchool = String(s?.school || '').toUpperCase();
+      const studentBatch = String(s?.batch || '').toUpperCase();
+      
+      // Center (campus) filter
+      const centerMatch = !filters.campus?.length || filters.campus.some(c => {
+        const filterCenter = String(c).toUpperCase();
+        return filterCenter === studentCenter || studentCenter.includes(filterCenter) || filterCenter.includes(studentCenter);
+      });
+      
+      // School filter
+      const schoolMatch = !filters.school?.length || filters.school.some(sch => {
+        const filterSchool = String(sch).toUpperCase();
+        return filterSchool === studentSchool || studentSchool.includes(filterSchool) || filterSchool.includes(studentSchool);
+      });
+      
+      // Batch filter
+      const batchMatch = !filters.batch?.length || filters.batch.some(b => {
+        const filterBatch = String(b).toUpperCase();
+        return filterBatch === studentBatch || studentBatch.includes(filterBatch) || filterBatch.includes(studentBatch);
+      });
+      
+      return centerMatch && schoolMatch && batchMatch;
+    });
+    
+    console.log(`🔍 [AdminPanelService] Students filtered: ${originalStudentCount} -> ${students.length}`);
+
+    // Filter applications to only include those from filtered students
+    const originalApplicationCount = applications.length;
+    if (students.length > 0) {
+      const filteredStudentIds = new Set(students.map(s => s.id));
+      applications = applications.filter(a => filteredStudentIds.has(a?.studentId));
+    } else {
+      // If no students match filter, no applications should match
+      applications = [];
+    }
+    console.log(`🔍 [AdminPanelService] Applications filtered: ${originalApplicationCount} -> ${applications.length}`);
+
+    // Filter queries to only include those from filtered students
+    const originalQueryCount = queries.length;
+    if (students.length > 0 && queries.length > 0) {
+      const filteredStudentIds = new Set(students.map(s => s.id));
+      const filteredUserIds = new Set(students.map(s => s.userId));
+      
+      queries = queries.filter(q => {
+        const queryUserId = q?.userId || q?.studentId || q?.student?.userId || q?.student?.id;
+        return filteredStudentIds.has(queryUserId) || filteredUserIds.has(queryUserId);
+      });
+    } else if (students.length === 0) {
+      queries = [];
+    }
+    console.log(`🔍 [AdminPanelService] Queries filtered: ${originalQueryCount} -> ${queries.length}`);
+  }
+  
+  // Use pagination total if available, otherwise use array length (after filtering)
+  const totalStudents = students.length;
+  const totalApplications = applications.length;
 
   // Calculate placed students from fetched applications (we need to fetch all to count unique studentIds)
   // Note: This might not be 100% accurate if there are more than 1000 applications, but it's the best we can do without a backend count endpoint

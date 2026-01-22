@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
-import { API_BASE_URL } from '../config/api';
 
 const InterviewSessionPage = () => {
   const { interviewId } = useParams();
@@ -58,72 +57,43 @@ const InterviewSessionPage = () => {
       try {
         setLoading(true);
         setError('');
-        const token = localStorage.getItem('accessToken');
         
-        // Wrap fetch in try-catch to handle network errors gracefully
-        let response;
-        let timeoutId;
-        try {
-          // Create AbortController for timeout (AbortSignal.timeout not available in all browsers)
-          const controller = new AbortController();
-          timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token && { Authorization: `Bearer ${token}` }),
-            },
-            signal: controller.signal,
-          });
-          
-          if (timeoutId) clearTimeout(timeoutId);
-        } catch (fetchError) {
-          // Clear timeout if it exists
-          if (timeoutId) clearTimeout(timeoutId);
-          throw fetchError;
-        }
-
-        if (response && response.ok) {
-          const data = await response.json();
+        const data = await api.getInterviewSession(interviewId);
         
-          // Parse rounds from JSON string if needed
-          let rounds = [];
-          if (data.rounds) {
-            try {
-              rounds = typeof data.rounds === 'string' ? JSON.parse(data.rounds) : data.rounds;
-            } catch (e) {
-              console.error('Error parsing rounds:', e);
-              rounds = [];
-            }
+        // Parse rounds from JSON string if needed
+        let rounds = [];
+        if (data.rounds) {
+          try {
+            rounds = typeof data.rounds === 'string' ? JSON.parse(data.rounds) : data.rounds;
+          } catch (e) {
+            console.error('Error parsing rounds:', e);
+            rounds = [];
           }
-
-          // Format the data for the component
-          const formattedData = {
-            id: data.id,
-            company: data.job?.company?.name || data.job?.companyName || '',
-            job: data.job?.jobTitle || '',
-            round: data.currentRound || rounds[0]?.name || '',
-            status: data.status?.toLowerCase() || '',
-            stats: {
-              total: data.totalCandidates || 0,
-              done: data.doneCandidates || 0,
-              pending: data.pendingCandidates || 0,
-              selected: data.selectedCandidates || 0,
-              onHold: data.onHoldCandidates || 0
-            },
-            rounds: rounds.map((round, index) => ({
-              id: index + 1,
-              name: round.name || '',
-              criteria: round.criteria || '',
-              status: round.status || ''
-            }))
-          };
-          
-          setInterviewData(formattedData);
-        } else {
-          throw new Error(`Failed to load interview session${response ? ` (HTTP ${response.status})` : ''}`);
         }
+
+        // Format the data for the component
+        const formattedData = {
+          id: data.id,
+          company: data.job?.company?.name || data.job?.companyName || '',
+          job: data.job?.jobTitle || '',
+          round: data.currentRound || rounds[0]?.name || '',
+          status: data.status?.toLowerCase() || '',
+          stats: {
+            total: data.totalCandidates || 0,
+            done: data.doneCandidates || 0,
+            pending: data.pendingCandidates || 0,
+            selected: data.selectedCandidates || 0,
+            onHold: data.onHoldCandidates || 0
+          },
+          rounds: rounds.map((round, index) => ({
+            id: index + 1,
+            name: round.name || '',
+            criteria: round.criteria || '',
+            status: round.status || ''
+          }))
+        };
+        
+        setInterviewData(formattedData);
       } catch (error) {
         console.error('Error loading interview session:', error);
         setInterviewData(null);
@@ -178,36 +148,15 @@ const InterviewSessionPage = () => {
       const round = interviewData.rounds.find(r => r.id === roundId);
       if (!round) return;
 
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/round`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({
-          action: 'update',
-          roundName: roundName,
-          newRoundName: roundName,
-          criteria: criteriaText
-        }),
+      await api.updateInterviewRound(interviewId, {
+        action: 'update',
+        roundName: roundName,
+        newRoundName: roundName,
+        criteria: criteriaText
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to update round');
-      }
-
-      const data = await response.json();
       
       // Reload interview data from server to ensure we have the latest state
-      const refreshResponse = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
+      const data = await api.getInterviewSession(interviewId);
 
       if (refreshResponse.ok) {
         const refreshedData = await refreshResponse.json();
@@ -275,21 +224,7 @@ const InterviewSessionPage = () => {
     }
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to end session');
-      }
-
-      const data = await response.json();
+      const data = await api.endInterviewSession(interviewId);
       alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.totalCandidates}\n- Done: ${data.summary.doneCandidates}\n- Selected: ${data.summary.selectedCandidates}\n- On Hold: ${data.summary.onHoldCandidates}\n- Rejected: ${data.summary.rejectedCandidates}`);
       
       // Reload interview data to show completed status
@@ -302,27 +237,28 @@ const InterviewSessionPage = () => {
 
   const handleStartAssessment = async (roundName) => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/round/${encodeURIComponent(roundName)}/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to start assessment');
-      }
-
-      const data = await response.json();
+      console.log(`🚀 [InterviewSessionPage] Starting round: ${roundName} for interview: ${interviewId}`);
+      const data = await api.startInterviewRound(interviewId, roundName);
+      console.log('✅ [InterviewSessionPage] Round started successfully:', data);
       
       // Redirect to assessment page
       navigate(`/admin/assessment/${interviewId}/${encodeURIComponent(roundName)}`);
     } catch (error) {
-      console.error('Error starting assessment:', error);
-      alert(`Failed to start assessment: ${error.message}`);
+      console.error('❌ [InterviewSessionPage] Error starting assessment:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.status,
+        interviewId,
+        roundName,
+      });
+      
+      // Show detailed error message
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Failed to start assessment';
+      alert(`Failed to start assessment: ${errorMessage}`);
     }
   };
 
@@ -333,72 +269,49 @@ const InterviewSessionPage = () => {
     }
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/round`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({
-          action: 'create',
-          newRoundName: newRoundName.trim(),
-          criteria: newRoundCriteria || ''
-        }),
+      await api.updateInterviewRound(interviewId, {
+        action: 'create',
+        newRoundName: newRoundName.trim(),
+        criteria: newRoundCriteria || ''
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to create round');
-      }
 
       // Reload interview data from server to ensure we have the latest state
-      const refreshResponse = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (refreshResponse.ok) {
-        const refreshedData = await refreshResponse.json();
-        
-        // Parse rounds from JSON string if needed
-        let rounds = [];
-        if (refreshedData.rounds) {
-          try {
-            rounds = typeof refreshedData.rounds === 'string' ? JSON.parse(refreshedData.rounds) : refreshedData.rounds;
-          } catch (e) {
-            console.error('Error parsing rounds:', e);
-            rounds = [];
-          }
+      const refreshedData = await api.getInterviewSession(interviewId);
+      
+      // Parse rounds from JSON string if needed
+      let rounds = [];
+      if (refreshedData.rounds) {
+        try {
+          rounds = typeof refreshedData.rounds === 'string' ? JSON.parse(refreshedData.rounds) : refreshedData.rounds;
+        } catch (e) {
+          console.error('Error parsing rounds:', e);
+          rounds = [];
         }
-
-        // Format the data for the component
-        const formattedData = {
-          id: refreshedData.id,
-          company: refreshedData.job?.company?.name || refreshedData.job?.companyName || 'Company',
-          job: refreshedData.job?.jobTitle || 'Job Title',
-          round: refreshedData.currentRound || rounds[0]?.name || 'Round 1',
-          status: refreshedData.status?.toLowerCase() || 'ongoing',
-          stats: {
-            total: refreshedData.totalCandidates || 0,
-            done: refreshedData.doneCandidates || 0,
-            pending: refreshedData.pendingCandidates || 0,
-            selected: refreshedData.selectedCandidates || 0,
-            onHold: refreshedData.onHoldCandidates || 0
-          },
-          rounds: rounds.map((round, index) => ({
-            id: index + 1,
-            name: round.name || `Round ${index + 1}`,
-            criteria: round.criteria || 'Assessment criteria',
-            status: round.status || 'pending'
-          }))
-        };
-        
-        setInterviewData(formattedData);
       }
+
+      // Format the data for the component
+      const formattedData = {
+        id: refreshedData.id,
+        company: refreshedData.job?.company?.name || refreshedData.job?.companyName || 'Company',
+        job: refreshedData.job?.jobTitle || 'Job Title',
+        round: refreshedData.currentRound || rounds[0]?.name || 'Round 1',
+        status: refreshedData.status?.toLowerCase() || 'ongoing',
+        stats: {
+          total: refreshedData.totalCandidates || 0,
+          done: refreshedData.doneCandidates || 0,
+          pending: refreshedData.pendingCandidates || 0,
+          selected: refreshedData.selectedCandidates || 0,
+          onHold: refreshedData.onHoldCandidates || 0
+        },
+        rounds: rounds.map((round, index) => ({
+          id: index + 1,
+          name: round.name || `Round ${index + 1}`,
+          criteria: round.criteria || 'Assessment criteria',
+          status: round.status || 'pending'
+        }))
+      };
+      
+      setInterviewData(formattedData);
 
       // Reset form
       setNewRoundName('');

@@ -438,6 +438,20 @@ router.put('/profile', authenticate, [
       return res.status(400).json({ error: 'No fields to update' });
     }
 
+    // Get user to check role
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: {
+        admin: true,
+        recruiter: true,
+      },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update User model
     const updatedUser = await prisma.user.update({
       where: { id: req.userId },
       data: updateData,
@@ -451,6 +465,19 @@ router.put('/profile', authenticate, [
         emailVerified: true,
       },
     });
+
+    // If admin and displayName is being updated, also update Admin.name
+    if (currentUser.role === 'ADMIN' && updateData.displayName !== undefined && currentUser.admin) {
+      await prisma.admin.update({
+        where: { userId: req.userId },
+        data: {
+          name: updateData.displayName,
+        },
+      });
+    }
+
+    // If recruiter and displayName is being updated, update could be added here if needed
+    // (Recruiter model doesn't have a name field, uses companyName instead)
 
     res.json({
       user: updatedUser,

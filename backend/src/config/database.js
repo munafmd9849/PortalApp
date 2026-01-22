@@ -1,7 +1,13 @@
 /**
  * Database Configuration
  * Prisma Client singleton for database access
- * Replaces Firebase Firestore client
+ * Uses PostgreSQL database (Render)
+ * 
+ * Connection Pool Configuration:
+ * - Render PostgreSQL free tier has a limit of ~20 connections
+ * - Pool size set to 10 to leave room for migrations/scripts
+ * - Pool timeout increased to 20s for Render's slower wake-up times
+ * - Connection timeout set to 10s
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -14,35 +20,70 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../../.env') });
 
-function assertPostgresOnlyDatabaseUrl() {
-  const url = process.env.DATABASE_URL;
+/**
+ * Enhance DATABASE_URL with connection pool parameters for Render PostgreSQL
+ * Render free tier has ~20 connection limit, so we optimize pool size
+ * 
+ * Note: Render PostgreSQL free tier databases spin down after ~90 seconds of inactivity
+ * and take 30-60 seconds to wake up. The increased pool_timeout helps handle this.
+ */
+function getOptimizedDatabaseUrl() {
+  let url = process.env.DATABASE_URL;
   if (!url) {
-    throw new Error('CRITICAL: DATABASE_URL is required (Neon PostgreSQL only).');
+    throw new Error('CRITICAL: DATABASE_URL is required.');
   }
 
   const lowered = url.toLowerCase().trim();
-  // Only check for file: at the start (file:// is the file-based URL scheme)
+  
+  // Validate: Block file-based databases (SQLite)
   if (lowered.startsWith('file:')) {
     throw new Error('CRITICAL: File-based DATABASE_URL values are forbidden. Use PostgreSQL (Neon) with sslmode=require.');
   }
-  // Also block URLs that explicitly mention the forbidden keyword (constructed to avoid accidental reintroduction via search/replace)
+  // Also block URLs that explicitly mention the forbidden keyword
   const forbiddenKeyword = 'sq' + 'lite';
   if (lowered.includes(forbiddenKeyword)) {
     throw new Error('CRITICAL: Forbidden database URL. Use PostgreSQL (Neon) with sslmode=require.');
   }
-
-  // Accept both schemes commonly used for Postgres
+  
+  // Validate: Must be PostgreSQL connection string
   if (!lowered.startsWith('postgresql://') && !lowered.startsWith('postgres://')) {
-    throw new Error('CRITICAL: DATABASE_URL must start with postgresql:// (or postgres://).');
+    throw new Error('CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+  }
+
+  try {
+    // Add connection pool parameters if not already present
+    // Render PostgreSQL free tier limit: ~20 connections
+    // We set pool to 10 to leave room for migrations/scripts
+    const urlObj = new URL(url);
+    
+    // Only add parameters if they don't exist
+    if (!urlObj.searchParams.has('connection_limit')) {
+      urlObj.searchParams.set('connection_limit', '10');
+    }
+    if (!urlObj.searchParams.has('pool_timeout')) {
+      urlObj.searchParams.set('pool_timeout', '20'); // Increased from default 10s for Render wake-up time
+    }
+    if (!urlObj.searchParams.has('connect_timeout')) {
+      urlObj.searchParams.set('connect_timeout', '10');
+    }
+
+    return urlObj.toString();
+  } catch (error) {
+    // If URL parsing fails, return original URL and log warning
+    console.warn('Failed to parse DATABASE_URL for optimization:', error.message);
+    console.warn('Using original DATABASE_URL without connection pool parameters');
+    return url;
   }
 }
 
-// Run assertion first to ensure DATABASE_URL is valid
-assertPostgresOnlyDatabaseUrl();
+// Get optimized database URL with connection pool parameters
+// This also validates the DATABASE_URL format
+const optimizedDatabaseUrl = getOptimizedDatabaseUrl();
 
-// Prisma client configuration for Postgres
-// Note: Prisma's built-in error logging can't be easily filtered,
-// but we handle quota errors gracefully in our code
+// Set it back to process.env so Prisma uses it
+process.env.DATABASE_URL = optimizedDatabaseUrl;
+
+// Prisma client configuration for PostgreSQL with connection pool optimization
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' 
     ? ['error', 'warn'] // Removed 'query' to reduce noise, keep errors/warnings
@@ -55,5 +96,38 @@ const prisma = new PrismaClient({
 process.on('beforeExit', async () => {
   await prisma.$disconnect();
 });
+
+// Handle process termination signals
+process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+// Helper function to handle connection pool errors
+export function handleDatabaseError(error) {
+  if (error?.code === 'P2024') {
+    // Connection pool timeout
+    console.error('Database connection pool exhausted. This may indicate:');
+    console.error('1. Too many concurrent requests');
+    console.error('2. Long-running queries holding connections');
+    console.error('3. Database connection leaks');
+    console.error('4. Render database may be sleeping (free tier)');
+  } else if (error?.code === 'P1017') {
+    // Server closed connection
+    console.error('Database server closed the connection. Render database may have gone to sleep.');
+  } else if (error?.code === 'P1001') {
+    // Can't reach database server
+    console.error('Cannot reach database server. Please check:');
+    console.error('1. Database is running on Render');
+    console.error('2. DATABASE_URL is correct');
+    console.error('3. Network connectivity');
+  }
+  return error;
+}
 
 export default prisma;

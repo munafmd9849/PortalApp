@@ -54,25 +54,21 @@ const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'FRONTEND_URL'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  // Hard fail in all environments (Neon Postgres is mandatory)
+  // Hard fail in all environments (database is mandatory)
   console.error('❌ CRITICAL: Missing required environment variables:');
   missingVars.forEach(varName => {
     console.error(`   - ${varName}`);
   });
-  console.error('\n💡 This project requires Neon (PostgreSQL) and will not run without DATABASE_URL.');
+  console.error('\n💡 This project requires DATABASE_URL to run.');
   process.exit(1);
 }
 
-// Hard guard: file-based DB URLs must never be used
+// Validate DATABASE_URL format for PostgreSQL
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (dbUrlLower.startsWith('file:') || dbUrlLower.includes('file:')) {
-  console.error('❌ CRITICAL: File-based DATABASE_URL values are forbidden. Set DATABASE_URL to Neon PostgreSQL (sslmode=require).');
-  process.exit(1);
-}
-const forbiddenKeyword = 'sq' + 'lite';
-if (dbUrlLower.includes(forbiddenKeyword)) {
-  console.error('❌ CRITICAL: Forbidden database URL. Set DATABASE_URL to Neon PostgreSQL (sslmode=require).');
+if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://')) {
+  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+  console.error(`   Current value: ${dbUrl.substring(0, 20)}...`);
   process.exit(1);
 }
 
@@ -84,12 +80,19 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
   process.exit(1);
 }
 
-// Connection validation (fail fast) + safe logging of Neon host/db
+// Connection validation (fail fast) + safe logging of database
 function logDatabaseTarget() {
   try {
-    const u = new URL(process.env.DATABASE_URL);
-    const dbName = (u.pathname || '').replace(/^\//, '') || '(no-db)';
-    console.log(`🗄️  Database: PostgreSQL (host=${u.hostname}, db=${dbName})`);
+    const dbUrl = process.env.DATABASE_URL || '';
+    // Extract host from PostgreSQL connection string
+    const match = dbUrl.match(/@([^:]+):(\d+)\//);
+    if (match) {
+      const host = match[1];
+      const port = match[2];
+      console.log(`🗄️  Database: PostgreSQL (${host}:${port})`);
+    } else {
+      console.log('🗄️  Database: PostgreSQL');
+    }
   } catch {
     console.log('🗄️  Database: PostgreSQL');
   }
@@ -203,6 +206,22 @@ app.use('/api/auth/send-otp', authLimiter);
 app.use('/api/auth/verify-otp', authLimiter);
 app.use('/api/', generalLimiter);
 
+// Root route - API information
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'PWIOI Placement Portal API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      documentation: 'See API documentation for available endpoints'
+    },
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -222,6 +241,7 @@ app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin/interview', interviewRoutes);
 app.use('/api/admin/interview-scheduling', interviewSchedulingRoutes); // New interview scheduling routes (admin)
+app.use('/api/interview-sessions', interviewSchedulingRoutes); // Direct route alias for frontend compatibility
 app.use('/api/interview', interviewerRoutes); // New interviewer token-based routes (no auth required) - MUST come before old routes
 app.use('/api/interview', interviewTokenRoutes); // Old token-based interview routes (no auth required) - fallback for legacy
 app.use('/api/google/calendar', googleCalendarConnectRoutes); // Legacy routes (keep for compatibility)
@@ -306,7 +326,7 @@ async function start() {
       dbConnected = false;
     } else {
       // For other connection errors, fail fast
-      console.error('❌ CRITICAL: Failed to connect to PostgreSQL. Server will not start.');
+      console.error('❌ CRITICAL: Failed to connect to database. Server will not start.');
       console.error(dbErr?.message || dbErr);
       process.exit(1);
     }

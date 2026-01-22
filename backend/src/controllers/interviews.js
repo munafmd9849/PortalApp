@@ -335,10 +335,49 @@ export const startAssessment = async (req, res) => {
 
     const interview = await prisma.interview.findUnique({
       where: { id: interviewId },
+      include: {
+        job: {
+          select: {
+            driveDate: true,
+            applicationDeadline: true,
+          },
+        },
+      },
     });
 
     if (!interview) {
       return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    // CRITICAL: Check drive date before allowing round start
+    if (interview.job?.driveDate) {
+      const now = new Date();
+      const driveDate = new Date(interview.job.driveDate);
+      
+      // Compare dates only (ignore time) - use UTC to avoid timezone issues
+      // Extract UTC date components to ensure consistent comparison
+      const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const driveDateUTC = new Date(Date.UTC(driveDate.getUTCFullYear(), driveDate.getUTCMonth(), driveDate.getUTCDate()));
+      
+      // Log for debugging
+      console.log('📅 [startAssessment] Drive date check:', {
+        now: now.toISOString(),
+        driveDate: driveDate.toISOString(),
+        nowUTC: nowUTC.toISOString(),
+        driveDateUTC: driveDateUTC.toISOString(),
+        canStart: nowUTC >= driveDateUTC,
+      });
+      
+      if (nowUTC < driveDateUTC) {
+        return res.status(400).json({
+          error: 'Interview drive has not started yet',
+          message: 'Interview rounds can start only on or after the drive date',
+          driveDate: interview.job.driveDate,
+          currentDate: now,
+          driveDateUTC: driveDateUTC.toISOString().split('T')[0],
+          currentDateUTC: nowUTC.toISOString().split('T')[0],
+        });
+      }
     }
 
     // Validate interview status - allow ONGOING or any non-terminal status
@@ -373,6 +412,17 @@ export const startAssessment = async (req, res) => {
       return res.status(400).json({ error: 'Cannot start a completed round' });
     }
 
+    // For first round, check if previous rounds need to be completed
+    if (roundIndex > 0) {
+      const previousRound = rounds[roundIndex - 1];
+      if (previousRound && previousRound.status !== 'completed' && previousRound.status !== 'ongoing') {
+        return res.status(400).json({
+          error: 'Previous round must be completed',
+          message: `Round "${previousRound.name}" must be completed before starting "${roundName}"`,
+        });
+      }
+    }
+
     // Set selected round to ongoing, mark others as not ongoing
     rounds = rounds.map((r, idx) => ({
       ...r,
@@ -384,6 +434,8 @@ export const startAssessment = async (req, res) => {
       data: {
         currentRound: roundName,
         rounds: JSON.stringify(rounds),
+        // Update status to ONGOING if it's the first round
+        status: roundIndex === 0 && interview.status !== 'ONGOING' ? 'ONGOING' : interview.status,
       },
     });
 
@@ -394,9 +446,17 @@ export const startAssessment = async (req, res) => {
         roundName,
         activityType: 'ROUND_STARTED',
         message: `Assessment started for ${roundName}`,
-        metadata: JSON.stringify({ roundName, roundOrder: rounds[roundIndex].order }),
+        metadata: JSON.stringify({ roundName, roundOrder: rounds[roundIndex].order || roundIndex + 1 }),
         performedBy: userId,
       },
+    });
+
+    console.log(`✅ [startAssessment] Round started successfully:`, {
+      interviewId,
+      roundName,
+      userId,
+      roundIndex,
+      timestamp: new Date().toISOString(),
     });
 
     res.json({
@@ -404,8 +464,20 @@ export const startAssessment = async (req, res) => {
       round: rounds[roundIndex],
     });
   } catch (error) {
-    console.error('Error starting assessment:', error);
-    res.status(500).json({ error: 'Failed to start assessment', details: error.message });
+    console.error('❌ [startAssessment] Error starting assessment:', error);
+    console.error('Error details:', {
+      interviewId: req.params.interviewId,
+      roundName: req.params.roundName,
+      userId: req.user?.id,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ 
+      error: 'Failed to start assessment', 
+      details: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+    });
   }
 };
 
@@ -417,6 +489,15 @@ export const getRoundCandidates = async (req, res) => {
   try {
     const { interviewId, roundName } = req.params;
 
+    // Decode URL-encoded round name
+    const decodedRoundName = decodeURIComponent(roundName);
+
+    console.log('📋 [getRoundCandidates] Request:', {
+      interviewId,
+      roundName,
+      decodedRoundName,
+    });
+
     const interview = await prisma.interview.findUnique({
       where: { id: interviewId },
       include: { job: true },
@@ -427,11 +508,25 @@ export const getRoundCandidates = async (req, res) => {
     }
 
     const rounds = JSON.parse(interview.rounds || '[]');
-    const currentRoundIndex = rounds.findIndex((r) => r.name === roundName);
+    console.log('📋 [getRoundCandidates] Available rounds:', rounds.map(r => r.name));
+    
+    const currentRoundIndex = rounds.findIndex((r) => r.name === decodedRoundName || r.name === roundName);
 
     if (currentRoundIndex === -1) {
-      return res.status(404).json({ error: 'Round not found' });
+      console.error('❌ [getRoundCandidates] Round not found:', {
+        requested: roundName,
+        decoded: decodedRoundName,
+        available: rounds.map(r => r.name),
+      });
+      return res.status(404).json({ 
+        error: 'Round not found',
+        requested: roundName,
+        decoded: decodedRoundName,
+        available: rounds.map(r => r.name),
+      });
     }
+
+    console.log('✅ [getRoundCandidates] Round found at index:', currentRoundIndex);
 
     // Get job requirements
     const job = await prisma.job.findUnique({
@@ -532,6 +627,11 @@ export const getRoundCandidates = async (req, res) => {
           evaluatedAt: evaluation.evaluatedAt,
         } : null,
       };
+    });
+
+    console.log('✅ [getRoundCandidates] Returning candidates:', {
+      count: candidates.length,
+      roundName: decodedRoundName,
     });
 
     res.json({ candidates });

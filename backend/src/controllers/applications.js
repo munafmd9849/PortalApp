@@ -31,7 +31,10 @@ function normalizeScreeningStatus(value) {
 }
 
 function normalizeInterviewStatus(value) {
-  return value ? String(value).toUpperCase() : null;
+  // Handle null, undefined, and trim whitespace
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed.toUpperCase() : null;
 }
 
 function getRejectedIn({ screeningStatus, interviewStatus }) {
@@ -50,8 +53,10 @@ function getRejectedIn({ screeningStatus, interviewStatus }) {
 
 function getFinalStatus({ status, screeningStatus, interviewStatus }) {
   // Prefer explicit final interview status
-  if (interviewStatus === 'SELECTED') return 'SELECTED';
-  if (interviewStatus && interviewStatus.startsWith('REJECTED_IN_ROUND_')) return 'REJECTED';
+  // Normalize interviewStatus for comparison (handle case sensitivity and whitespace)
+  const normalizedInterview = interviewStatus ? String(interviewStatus).trim().toUpperCase() : null;
+  if (normalizedInterview === 'SELECTED') return 'SELECTED';
+  if (normalizedInterview && normalizedInterview.startsWith('REJECTED_IN_ROUND_')) return 'REJECTED';
 
   // Pre-interview rejection states
   if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'TEST_REJECTED') return 'REJECTED';
@@ -71,6 +76,8 @@ function computeApplicationTrackingFields({
   lastRoundReached,
   hasInterviewSession,
   hasInterviewStarted,
+  sessionStatus,
+  sessionRounds,
 }) {
   const screening = normalizeScreeningStatus(screeningStatus);
   const interview = normalizeInterviewStatus(interviewStatus);
@@ -79,9 +86,15 @@ function computeApplicationTrackingFields({
   const finalStatus = getFinalStatus({ status, screeningStatus: screening, interviewStatus: interview });
   const rejectedIn = finalStatus === 'REJECTED' ? getRejectedIn({ screeningStatus: screening, interviewStatus: interview }) : null;
 
+  // Check if all rounds are completed
+  const allRoundsCompleted = sessionRounds && sessionRounds.length > 0 && 
+    sessionRounds.every(round => round.status === 'ENDED');
+  const sessionCompleted = sessionStatus === 'COMPLETED';
+
   // Derive "current stage" text strictly from DB fields
   let currentStage = 'Applied';
 
+  // CRITICAL: Check SELECTED status FIRST, before checking interview session status
   if (finalStatus === 'SELECTED') {
     currentStage = 'Selected (Final)';
   } else if (finalStatus === 'REJECTED') {
@@ -97,12 +110,18 @@ function computeApplicationTrackingFields({
     // ONGOING
     if (screening === 'RESUME_SELECTED') {
       currentStage = 'Screening Qualified';
-    } else if (screening === 'TEST_SELECTED') {
+    } else if (screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE') {
       // Candidate has cleared screening + test and is eligible for interview
+      // INTERVIEW_ELIGIBLE is the final status after screening/test completion
       if (hasInterviewSession && hasInterviewStarted) {
-        // lastRoundReached is "last completed round" => current round is +1
-        const currentRound = Math.max(1, dbLastRoundReached + 1);
-        currentStage = `Interview Round ${currentRound}`;
+        // Check if all rounds are completed
+        if (allRoundsCompleted || sessionCompleted) {
+          currentStage = 'Interview Completed';
+        } else {
+          // lastRoundReached is "last completed round" => current round is +1
+          const currentRound = Math.max(1, dbLastRoundReached + 1);
+          currentStage = `Interview Round ${currentRound}`;
+        }
       } else {
         currentStage = 'Qualified for Interview';
       }
@@ -118,7 +137,7 @@ function computeApplicationTrackingFields({
   let lastRoundReachedOut = 0;
   if (finalStatus === 'SELECTED' || (finalStatus === 'REJECTED' && interview && interview.startsWith('REJECTED_IN_ROUND_'))) {
     lastRoundReachedOut = dbLastRoundReached || 0;
-  } else if (hasInterviewSession && hasInterviewStarted && screening === 'TEST_SELECTED') {
+  } else if (hasInterviewSession && hasInterviewStarted && (screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE')) {
     lastRoundReachedOut = Math.max(1, dbLastRoundReached + 1);
   }
 
@@ -242,7 +261,7 @@ export async function getJobScreeningSummary(req, res) {
       applied: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,
       resumeSelected: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED').length,
       resumeRejected: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED').length,
-      testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED').length,
+      testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED' || a.screeningStatus === 'INTERVIEW_ELIGIBLE').length,
       testRejected: applications.filter(a => a.screeningStatus === 'TEST_REJECTED').length
     };
 
@@ -251,7 +270,7 @@ export async function getJobScreeningSummary(req, res) {
       APPLIED: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED'),
       RESUME_SELECTED: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED'),
       RESUME_REJECTED: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED'),
-      TEST_SELECTED: applications.filter(a => a.screeningStatus === 'TEST_SELECTED'),
+      TEST_SELECTED: applications.filter(a => a.screeningStatus === 'TEST_SELECTED' || a.screeningStatus === 'INTERVIEW_ELIGIBLE'),
       TEST_REJECTED: applications.filter(a => a.screeningStatus === 'TEST_REJECTED')
     };
 
@@ -361,7 +380,10 @@ export async function getStudentApplications(req, res) {
 
       const screeningStatus = app.screeningStatus || 'APPLIED';
       const hasInterviewSession = !!session;
-      const hasInterviewStarted = (app.lastRoundReached || 0) > 0 || evaluations.length > 0;
+      // Interview has started if: lastRoundReached > 0, OR has evaluations, OR session is completed/ongoing with rounds
+      const hasInterviewStarted = (app.lastRoundReached || 0) > 0 || 
+                                  evaluations.length > 0 || 
+                                  (session && (session.status === 'COMPLETED' || session.status === 'ONGOING') && session.rounds && session.rounds.length > 0);
 
       const tracking = computeApplicationTrackingFields({
         status: app.status,
@@ -370,6 +392,8 @@ export async function getStudentApplications(req, res) {
         lastRoundReached: app.lastRoundReached || 0,
         hasInterviewSession,
         hasInterviewStarted,
+        sessionStatus: session?.status || null,
+        sessionRounds: session?.rounds || null,
       });
 
       // Keep existing fields for UI compatibility, but align wording + add canonical fields
@@ -378,13 +402,14 @@ export async function getStudentApplications(req, res) {
         if (s === 'RESUME_REJECTED') return 'Rejected in Screening';
         if (s === 'TEST_REJECTED') return 'Rejected in Test';
         if (s === 'RESUME_SELECTED') return 'Screening Qualified';
-        if (s === 'TEST_SELECTED') return 'Qualified for Interview';
+        if (s === 'TEST_SELECTED' || s === 'INTERVIEW_ELIGIBLE') return 'Qualified for Interview';
         return 'Applied';
       })();
 
       const interviewStatusText = (() => {
-        // Only meaningful after test qualification
-        if (normalizeScreeningStatus(screeningStatus) !== 'TEST_SELECTED') return null;
+        // Only meaningful after test qualification or interview eligibility
+        const s = normalizeScreeningStatus(screeningStatus);
+        if (s !== 'TEST_SELECTED' && s !== 'INTERVIEW_ELIGIBLE') return null;
         return tracking.currentStage;
       })();
 
@@ -514,7 +539,7 @@ export async function getStudentInterviewHistory(req, res) {
         screeningStatusText = 'Rejected in Resume Screening';
       } else if (screeningStatus === 'TEST_REJECTED') {
         screeningStatusText = 'Rejected in Screening Test';
-      } else if (screeningStatus === 'TEST_SELECTED') {
+      } else       if (screeningStatus === 'TEST_SELECTED' || screeningStatus === 'INTERVIEW_ELIGIBLE') {
         screeningStatusText = 'Qualified for Interview';
       } else if (screeningStatus === 'RESUME_SELECTED') {
         screeningStatusText = 'Resume Selected';
@@ -722,7 +747,11 @@ export async function getAdminJobApplications(req, res) {
 
     const interviewSession = await prisma.interviewSession.findUnique({
       where: { jobId },
-      select: { id: true },
+      include: {
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+        },
+      },
     });
     const hasInterviewSession = !!interviewSession;
 
@@ -767,14 +796,14 @@ export async function getAdminJobApplications(req, res) {
       } else if (statusUpper === 'INTERVIEW_SCHEDULED') {
         filterConditions.push({
           AND: [
-            { screeningStatus: 'TEST_SELECTED' },
+            { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } },
             { interviewDate: { not: null } },
           ],
         });
       } else if (statusUpper === 'INTERVIEWED') {
         filterConditions.push({
           AND: [
-            { screeningStatus: 'TEST_SELECTED' },
+            { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } },
             { roundEvaluations: { some: {} } },
           ],
         });
@@ -803,7 +832,7 @@ export async function getAdminJobApplications(req, res) {
         filterConditions.push({
           AND: [
             { interviewDate: null },
-            { screeningStatus: 'TEST_SELECTED' },
+            { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } },
           ],
         });
       } else if (interviewStatusUpper === 'SCHEDULED') {
@@ -816,7 +845,7 @@ export async function getAdminJobApplications(req, res) {
       } else if (interviewStatusUpper === 'IN_PROGRESS') {
         filterConditions.push({
           AND: [
-            { screeningStatus: 'TEST_SELECTED' },
+            { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } },
             { roundEvaluations: { some: {} } },
             {
               NOT: {
@@ -981,7 +1010,7 @@ export async function getAdminJobApplications(req, res) {
       } else if (normalizedStage === 'screening qualified') {
         filterConditions.push({ screeningStatus: 'RESUME_SELECTED' });
       } else if (normalizedStage === 'qualified for interview' || normalizedStage === 'test qualified') {
-        const stageCondition = { screeningStatus: 'TEST_SELECTED' };
+        const stageCondition = { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } };
         if (hasInterviewSession) {
           stageCondition.AND = [
             {
@@ -997,7 +1026,7 @@ export async function getAdminJobApplications(req, res) {
       } else if (normalizedStage.startsWith('interview round')) {
         const roundNum = parseInt(normalizedStage.replace('interview round', '').trim(), 10);
         if (!Number.isNaN(roundNum)) {
-          const stageCondition = { screeningStatus: 'TEST_SELECTED' };
+          const stageCondition = { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } };
           if (hasInterviewSession) {
             stageCondition.AND = [
               { roundEvaluations: { some: {} } },
@@ -1090,6 +1119,8 @@ export async function getAdminJobApplications(req, res) {
         lastRoundReached: app.lastRoundReached || 0,
         hasInterviewSession,
         hasInterviewStarted,
+        sessionStatus: interviewSession?.status || null,
+        sessionRounds: interviewSession?.rounds || null,
       });
 
       const publicProfileId = app.student?.publicProfileId || null;
@@ -1172,10 +1203,10 @@ export async function getAdminJobApplications(req, res) {
       }),
       hasInterviewSession
         ? prisma.application.count({
-            where: {
-              jobId,
-              screeningStatus: 'TEST_SELECTED',
-              roundEvaluations: { some: {} },
+          where: {
+            jobId,
+            screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] },
+            roundEvaluations: { some: {} },
               NOT: {
                 OR: [
                   { interviewStatus: 'SELECTED' },

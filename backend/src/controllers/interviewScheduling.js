@@ -288,11 +288,13 @@ export const getOrCreateSession = async (req, res) => {
       session.interviewerInvites = [];
     }
 
-    // Get application count (only TEST_SELECTED candidates are eligible for interviews)
+    // Get application count (only INTERVIEW_ELIGIBLE or TEST_SELECTED candidates are eligible for interviews)
     const eligibleApplicationCount = await prisma.application.count({
       where: { 
         jobId,
-        screeningStatus: 'TEST_SELECTED'
+        screeningStatus: {
+          in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
+        }
       },
     });
 
@@ -419,7 +421,7 @@ export const configureRounds = async (req, res) => {
     }
 
     // Get session
-    const session = await prisma.interviewSession.findUnique({
+    let session = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { rounds: true },
     });
@@ -917,11 +919,14 @@ export const getRoundCandidates = async (req, res) => {
     }
 
     // Get all applications for this job
-    // CRITICAL: Only include candidates who passed screening (TEST_SELECTED)
+    // CRITICAL: Only include candidates who passed screening (INTERVIEW_ELIGIBLE or TEST_SELECTED for backward compatibility)
+    // INTERVIEW_ELIGIBLE is the final status after screening is finalized
     let applications = await prisma.application.findMany({
       where: { 
         jobId: round.session.jobId,
-        screeningStatus: 'TEST_SELECTED' // Only candidates who passed screening
+        screeningStatus: {
+          in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
+        }
       },
       include: {
         student: {
@@ -941,9 +946,11 @@ export const getRoundCandidates = async (req, res) => {
       },
     });
 
-    // If no TEST_SELECTED candidates found, return empty list with warning
+    // If no eligible candidates found, return empty list with warning
     if (applications.length === 0) {
-      console.warn(`No TEST_SELECTED candidates found for job ${round.session.jobId}. Interview session can only include candidates who passed screening.`);
+      console.warn(`No INTERVIEW_ELIGIBLE or TEST_SELECTED candidates found for job ${round.session.jobId}. Interview session can only include candidates who passed screening.`);
+    } else {
+      console.log(`✅ [getRoundCandidates] Found ${applications.length} eligible candidates for round ${round.name} (Round ${round.roundNumber})`);
     }
 
     // Backend-enforced filtering: For rounds after the first, only show SELECTED from previous round
@@ -1226,6 +1233,34 @@ export const startRound = async (req, res) => {
       });
     }
 
+    // CRITICAL: Get session with job and auto-correct session status (needed for ALL rounds)
+    const sessionWithJob = await prisma.interviewSession.findUnique({
+      where: { id: round.sessionId },
+      include: { job: true },
+    });
+
+    if (!sessionWithJob || !sessionWithJob.job) {
+      return res.status(404).json({ error: 'Session or job not found' });
+    }
+
+    // CRITICAL: Auto-correct session status before validation (for ALL rounds)
+    const correctedSession = await autoCorrectSessionStatus(sessionWithJob, sessionWithJob.job);
+
+    // Reject if session is already COMPLETED or INCOMPLETE (applies to ALL rounds)
+    if (correctedSession.status === 'COMPLETED') {
+      return res.status(409).json({
+        error: 'Session already completed',
+        message: 'Cannot start rounds for a completed interview session.',
+      });
+    }
+
+    if (correctedSession.status === 'INCOMPLETE') {
+      return res.status(409).json({
+        error: 'Interview drive date has passed',
+        message: 'Cannot start rounds. The interview drive date has passed and the session is incomplete.',
+      });
+    }
+
     // For first round, check that interviewers are added (Issue #8)
     if (round.roundNumber === 1) {
       const interviewerCount = await prisma.interviewerInvite.count({
@@ -1235,34 +1270,6 @@ export const startRound = async (req, res) => {
       if (interviewerCount === 0) {
         return res.status(409).json({
           error: 'Cannot start session. At least one interviewer must be invited before starting the first round.',
-        });
-      }
-
-      // CRITICAL: Check drive date - session can only start on or after drive date
-      const sessionWithJob = await prisma.interviewSession.findUnique({
-        where: { id: round.sessionId },
-        include: { job: true },
-      });
-
-      if (!sessionWithJob || !sessionWithJob.job) {
-        return res.status(404).json({ error: 'Session or job not found' });
-      }
-
-      // CRITICAL: Auto-correct session status before validation
-      const correctedSession = await autoCorrectSessionStatus(sessionWithJob, sessionWithJob.job);
-
-      // Reject if session is already COMPLETED or INCOMPLETE
-      if (correctedSession.status === 'COMPLETED') {
-        return res.status(409).json({
-          error: 'Session already completed',
-          message: 'Cannot start rounds for a completed interview session.',
-        });
-      }
-
-      if (correctedSession.status === 'INCOMPLETE') {
-        return res.status(409).json({
-          error: 'Interview drive date has passed',
-          message: 'Cannot start rounds. The interview drive date has passed and the session is incomplete.',
         });
       }
 
@@ -1276,11 +1283,14 @@ export const startRound = async (req, res) => {
       }
 
       const now = new Date();
-      const driveDateTime = new Date(sessionWithJob.job.driveDate);
-      driveDateTime.setHours(23, 59, 59, 999); // End of drive date
+      const driveDate = new Date(sessionWithJob.job.driveDate);
       
-      // Reject if drive date has not been reached
-      if (now < driveDateTime) {
+      // Compare dates only (ignore time) - allow if today is drive date or later
+      const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const driveDateOnly = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
+      
+      // Reject if current date is before drive date (date-only comparison)
+      if (nowDateOnly < driveDateOnly) {
         return res.status(400).json({
           error: 'Interview drive has not started yet',
           message: 'Interview session can start only on or after the drive date',
@@ -1463,15 +1473,25 @@ export const endRound = async (req, res) => {
       return res.status(403).json({ error: 'Token expired or invalid' });
     }
 
-    // Get all applications for this job
-    let candidateApplicationIds = await prisma.application.findMany({
-      where: { jobId: round.session.jobId },
-      select: { id: true },
-    });
-    candidateApplicationIds = candidateApplicationIds.map(a => a.id);
-
-    // For rounds after first, filter by previous round selections
-    if (round.roundNumber > 1) {
+    // Get eligible applications for this round
+    // CRITICAL: For Round 1, only include candidates who passed screening (INTERVIEW_ELIGIBLE or TEST_SELECTED)
+    // For rounds after first, only include SELECTED candidates from previous round
+    let candidateApplicationIds;
+    
+    if (round.roundNumber === 1) {
+      // Round 1: Only include candidates who passed screening
+      const eligibleApplications = await prisma.application.findMany({
+        where: { 
+          jobId: round.session.jobId,
+          screeningStatus: {
+            in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
+          }
+        },
+        select: { id: true },
+      });
+      candidateApplicationIds = eligibleApplications.map(a => a.id);
+    } else {
+      // Rounds after first: Filter by previous round selections
       const previousRound = round.session.rounds.find(r => r.roundNumber === round.roundNumber - 1);
       if (previousRound) {
         const previousEvaluations = await prisma.roundEvaluation.findMany({
@@ -1482,6 +1502,9 @@ export const endRound = async (req, res) => {
           select: { applicationId: true },
         });
         candidateApplicationIds = previousEvaluations.map(e => e.applicationId);
+      } else {
+        // No previous round found, no candidates eligible
+        candidateApplicationIds = [];
       }
     }
 

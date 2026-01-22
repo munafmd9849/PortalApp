@@ -226,18 +226,58 @@ const fetchJobsFromAPI = async (filters = {}) => {
           isPosted: isPosted,
           posted: isPosted,
           responsibilities: job.description,
-          skills: typeof job.requiredSkills === 'string' 
-            ? JSON.parse(job.requiredSkills || '[]')
-            : (job.requiredSkills || []),
-          targetSchools: typeof job.targetSchools === 'string'
-            ? JSON.parse(job.targetSchools || '[]')
-            : (job.targetSchools || []),
-          targetCenters: typeof job.targetCenters === 'string'
-            ? JSON.parse(job.targetCenters || '[]')
-            : (job.targetCenters || []),
-          targetBatches: typeof job.targetBatches === 'string'
-            ? JSON.parse(job.targetBatches || '[]')
-            : (job.targetBatches || []),
+          skills: (() => {
+            try {
+              if (typeof job.requiredSkills === 'string') {
+                // Try to parse as JSON first
+                if (job.requiredSkills.trim().startsWith('[')) {
+                  return JSON.parse(job.requiredSkills || '[]');
+                }
+                // If not JSON, treat as comma-separated string and convert to array
+                return job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
+              }
+              return Array.isArray(job.requiredSkills) ? job.requiredSkills : [];
+            } catch (e) {
+              // If JSON parse fails, try comma-separated string
+              if (typeof job.requiredSkills === 'string') {
+                return job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
+              }
+              return [];
+            }
+          })(),
+          targetSchools: (() => {
+            try {
+              if (typeof job.targetSchools === 'string') {
+                return JSON.parse(job.targetSchools || '[]');
+              }
+              return Array.isArray(job.targetSchools) ? job.targetSchools : [];
+            } catch (e) {
+              console.warn('Failed to parse targetSchools:', job.targetSchools);
+              return [];
+            }
+          })(),
+          targetCenters: (() => {
+            try {
+              if (typeof job.targetCenters === 'string') {
+                return JSON.parse(job.targetCenters || '[]');
+              }
+              return Array.isArray(job.targetCenters) ? job.targetCenters : [];
+            } catch (e) {
+              console.warn('Failed to parse targetCenters:', job.targetCenters);
+              return [];
+            }
+          })(),
+          targetBatches: (() => {
+            try {
+              if (typeof job.targetBatches === 'string') {
+                return JSON.parse(job.targetBatches || '[]');
+              }
+              return Array.isArray(job.targetBatches) ? job.targetBatches : [];
+            } catch (e) {
+              console.warn('Failed to parse targetBatches:', job.targetBatches);
+              return [];
+            }
+          })(),
           createdAt: job.createdAt,
           postedAt: job.postedAt,
           submittedAt: job.submittedAt,

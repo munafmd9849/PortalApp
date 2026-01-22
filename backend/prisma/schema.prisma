@@ -1,6 +1,6 @@
 // Prisma Schema for PWIOI Placement Portal
-// Migrated from Firebase Firestore to Neon (PostgreSQL)
-// This project uses PostgreSQL exclusively.
+// Migrated from Firebase Firestore to PostgreSQL
+// This project uses PostgreSQL database (Render).
 
 generator client {
   provider = "prisma-client-js"

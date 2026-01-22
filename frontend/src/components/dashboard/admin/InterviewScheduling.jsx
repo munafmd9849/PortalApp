@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../../../config/api';
+import api from '../../../services/api';
 import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 import { useNavigate } from 'react-router-dom';
@@ -37,79 +37,78 @@ export default function InterviewScheduling() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Check if drive date has been reached
+  // Check if drive date has been reached (date-only comparison, ignoring time)
   const isDriveDateReached = (job) => {
     if (!job?.driveDate) return false;
     const driveDate = job.driveDate?.toDate ? job.driveDate.toDate() : new Date(job.driveDate);
     const now = new Date();
-    return now >= driveDate;
+    
+    // Use date-only comparison (ignore time) to match dateStatus logic
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const interviewDay = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
+    
+    // Date is reached if today >= interview day
+    return today >= interviewDay;
   };
 
   useEffect(() => {
     loadJobs();
   }, []);
 
+  // Listen for job update events from other components (e.g., ManageJobs date updates)
+  useEffect(() => {
+    const handleJobsRefresh = (event) => {
+      const { action, jobId, jobTitle } = event.detail || {};
+      console.log(`📢 InterviewScheduling received jobsRefresh event: ${action} for job ${jobId} (${jobTitle})`);
+      
+      // Reload jobs to get updated dates and information
+      loadJobs();
+    };
+
+    window.addEventListener('jobsRefresh', handleJobsRefresh);
+    
+    return () => {
+      window.removeEventListener('jobsRefresh', handleJobsRefresh);
+    };
+  }, []);
+
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
+      // Use centralized API client
+      const data = await api.getJobs({ isPosted: true, status: 'POSTED' });
+      
+      // Handle both response formats: { jobs: [...] } or direct array
+      const jobsList = data.jobs || (Array.isArray(data) ? data : []);
+      setJobs(jobsList);
+      
+      if (jobsList.length === 0) {
+        console.log('No jobs found with isPosted=true filter');
       }
-
-      const response = await fetch(`${API_BASE_URL}/jobs?isPosted=true`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Handle both response formats: { jobs: [...] } or direct array
-        const jobsList = data.jobs || (Array.isArray(data) ? data : []);
-        setJobs(jobsList);
-        
-        if (jobsList.length === 0) {
-          console.log('No jobs found with isPosted=true filter');
+      
+      // Check session status for all jobs to properly show/hide Start Session buttons
+      const completedSet = new Set();
+      for (const job of jobsList) {
+        try {
+          // Use centralized API client
+          const sessionData = await api.get(`/interview-sessions/${job.id}`, { silent: true });
+          
+          if (sessionData?.session && (sessionData.session.status === 'COMPLETED' || sessionData.session.status === 'INCOMPLETE')) {
+            completedSet.add(job.id);
+          }
+        } catch (error) {
+          // Ignore errors - session might not exist yet
+          console.log(`No session found for job ${job.id}`);
         }
-        
-        // Note: Completed session check is done lazily when selecting a job
-        // to avoid making too many API calls on initial load
-      } else {
-        const errorData = await response.json().catch(() => ({ 
-          success: false,
-          error: 'Unknown error',
-          message: `HTTP ${response.status}: ${response.statusText}`
-        }));
-        
-        console.error('Failed to load jobs:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.message || errorData.error || 'Failed to load jobs. Please try again.');
-        }
+      }
+      
+      if (completedSet.size > 0) {
+        setCompletedSessions(completedSet);
       }
     } catch (error) {
-      console.error('Error loading jobs:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
-      
-      // Check if it's a network error or API error
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        showError('Network error. Please check your connection and ensure the backend server is running.');
-      } else {
-        showError(error.message || 'Failed to load jobs. Please try again.');
-      }
+      console.error('Error loading jobs:', error);
+      // Error is already handled by centralized API client (toast shown)
     } finally {
       setLoading(false);
     }
@@ -127,78 +126,40 @@ export default function InterviewScheduling() {
       setLoadingSession(true);
       setSession(null); // Clear previous session to show loading state
       
-      const token = localStorage.getItem('accessToken');
-      
-      if (!token) {
-        showError('Authentication required. Please log in again.');
+      // Use centralized API client
+      const response = await api.get(`/admin/interview-scheduling/session/${job.id}`);
+      const data = response.data || response;
+        
+      if (!data.session) {
+        showError('Session data not found in response');
         setLoadingSession(false);
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${job.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (!data.session) {
-          showError('Session data not found in response');
-          setLoadingSession(false);
-          return;
-        }
-
-        setSession(data.session);
-        // Ensure rounds is always an array
-        const sessionRounds = Array.isArray(data.session.rounds) ? data.session.rounds : [];
-        setRounds(sessionRounds);
-        setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
-        
-        // Track completed and incomplete sessions
-        if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
-          setCompletedSessions(prev => new Set([...prev, job.id]));
-        } else {
-          setCompletedSessions(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(job.id);
-            return newSet;
-          });
-        }
-        
-        // Auto-populate rounds from job description if no rounds exist (Issue #7)
-        if (sessionRounds.length === 0 && data.session.suggestedRounds && Array.isArray(data.session.suggestedRounds) && data.session.suggestedRounds.length > 0) {
-          setRounds(data.session.suggestedRounds);
-          showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
-        }
+      setSession(data.session);
+      // Ensure rounds is always an array
+      const sessionRounds = Array.isArray(data.session.rounds) ? data.session.rounds : [];
+      setRounds(sessionRounds);
+      setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
+      
+      // Track completed and incomplete sessions
+      if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
+        setCompletedSessions(prev => new Set([...prev, job.id]));
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        
-        console.error('Failed to get/create session:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          jobId: job.id
+        setCompletedSessions(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(job.id);
+          return newSet;
         });
-        
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else if (response.status === 404) {
-          showError(errorData.error || errorData.message || 'Session not found');
-        } else if (response.status === 400) {
-          showError(errorData.error || errorData.message || 'Invalid request. Please check the job configuration.');
-        } else {
-          // Show detailed error message from backend
-          const errorMessage = errorData.details || errorData.message || errorData.error || `Failed to load session (${response.status})`;
-          showError(errorMessage);
-          // Log full error details for debugging
-          if (errorData.stack) {
-            console.error('Backend error stack:', errorData.stack);
-          }
-        }
       }
+      
+      // Auto-populate rounds from job description if no rounds exist (Issue #7)
+      if (sessionRounds.length === 0 && data.session.suggestedRounds && Array.isArray(data.session.suggestedRounds) && data.session.suggestedRounds.length > 0) {
+        setRounds(data.session.suggestedRounds);
+        showSuccess(`Found ${data.session.suggestedRounds.length} round(s) from job description. You can modify them before saving.`);
+      }
+      
+      setLoadingSession(false);
     } catch (error) {
       console.error('Error loading session:', error);
       showError('Network error. Please check your connection and try again.');
@@ -271,37 +232,18 @@ export default function InterviewScheduling() {
 
     try {
       setConfiguringRounds(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${session.id}/rounds`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ rounds: safeRounds }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRounds(Array.isArray(data.rounds) ? data.rounds : []);
-        showSuccess('Rounds configured successfully');
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.error || errorData.message || 'Failed to configure rounds');
-        }
-      }
+      // Use centralized API client
+      const data = await api.post(`/admin/interview-scheduling/session/${session.id}/rounds`, 
+        { rounds: safeRounds },
+        { showSuccess: true }
+      );
+      
+      setRounds(Array.isArray(data.rounds) ? data.rounds : []);
+      showSuccess('Rounds configured successfully');
     } catch (error) {
       console.error('Error configuring rounds:', error);
-      showError('Network error. Please check your connection and try again.');
+      // Error handling is done by centralized API client
     } finally {
       setConfiguringRounds(false);
     }
@@ -341,41 +283,22 @@ export default function InterviewScheduling() {
 
     try {
       setInviting(true);
-      const token = localStorage.getItem('accessToken');
       
-      if (!token) {
-        showError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/interview-scheduling/session/${session.id}/invite-interviewers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ emails: safeInterviewerEmails }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
-        showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
-        // Reload session to get updated invites
-        if (selectedJob) {
-          handleSelectJob(selectedJob);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        if (response.status === 401 || response.status === 403) {
-          showError('Authentication failed. Please log in again.');
-        } else {
-          showError(errorData.error || errorData.message || 'Failed to invite interviewers');
-        }
+      // Use centralized API client
+      const data = await api.post(`/admin/interview-scheduling/session/${session.id}/invite-interviewers`, 
+        { emails: safeInterviewerEmails },
+        { showSuccess: true }
+      );
+      
+      const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
+      showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
+      // Reload session to get updated invites
+      if (selectedJob) {
+        handleSelectJob(selectedJob);
       }
     } catch (error) {
       console.error('Error inviting interviewers:', error);
-      showError('Network error. Please check your connection and try again.');
+      // Error handling is done by centralized API client
     } finally {
       setInviting(false);
     }
@@ -606,7 +529,9 @@ export default function InterviewScheduling() {
                       <div className="flex items-center gap-2 ml-4">
                         {!hasCompletedSession && (
                           <>
-                            {driveDateReached || isSelected ? (
+                            {/* Enable button only if: (date is today) OR (session already selected) */}
+                            {/* Disable if: (date is past) OR (date is future) */}
+                            {((dateStatus === 'today') || isSelected) ? (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -635,10 +560,18 @@ export default function InterviewScheduling() {
                               <button
                                 disabled
                                 className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
-                                title={`Session can only be started after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
+                                title={dateStatus === 'past' 
+                                  ? `Cannot start session: Interview date (${driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date'}) has already passed`
+                                  : `Session can only be started on ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
                               >
                                 <Clock className="w-4 h-4" />
-                                <span>Starts {dateStatus === 'future' ? 'After ' + (driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date') : 'On Date'}</span>
+                                <span>
+                                  {dateStatus === 'past' 
+                                    ? 'Date Passed' 
+                                    : dateStatus === 'future' 
+                                    ? 'Starts After ' + (driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date')
+                                    : 'Starts On Date'}
+                                </span>
                               </button>
                             )}
                           </>

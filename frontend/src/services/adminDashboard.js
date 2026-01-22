@@ -75,15 +75,15 @@ export class AdminDashboardService {
       }
 
       const jobsPayload = jobsRes.status === 'fulfilled' ? jobsRes.value : null;
-      const jobs = Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : (Array.isArray(jobsPayload) ? jobsPayload : []);
+      let jobs = Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : (Array.isArray(jobsPayload) ? jobsPayload : []);
 
       const applicationsPayload = applicationsRes.status === 'fulfilled' ? applicationsRes.value : null;
-      const applications = Array.isArray(applicationsPayload?.applications)
+      let applications = Array.isArray(applicationsPayload?.applications)
         ? applicationsPayload.applications
         : (Array.isArray(applicationsPayload) ? applicationsPayload : []);
 
       const studentsPayload = studentsRes.status === 'fulfilled' ? studentsRes.value : null;
-      const students = Array.isArray(studentsPayload?.students)
+      let students = Array.isArray(studentsPayload?.students)
         ? studentsPayload.students
         : (Array.isArray(studentsPayload) ? studentsPayload : []);
 
@@ -91,16 +91,98 @@ export class AdminDashboardService {
       const recruiters = Array.isArray(recruitersPayload) ? recruitersPayload : (Array.isArray(recruitersPayload?.recruiters) ? recruitersPayload.recruiters : []);
 
       const queriesPayload = queriesRes.status === 'fulfilled' ? queriesRes.value : null;
-      const queries = Array.isArray(queriesPayload)
+      let queries = Array.isArray(queriesPayload)
         ? queriesPayload
         : (Array.isArray(queriesPayload?.queries) ? queriesPayload.queries : (Array.isArray(queriesPayload?.data) ? queriesPayload.data : []));
 
-      console.log('📊 [AdminDashboard] Data received:', {
+      // Apply filters if provided
+      if (filters && (filters.center?.length > 0 || filters.school?.length > 0 || filters.quarter?.length > 0 || filters.batch?.length > 0)) {
+        console.log('🔍 [AdminDashboard] Applying filters:', filters);
+        
+        // Filter students by campus (center), school, and batch
+        const originalStudentCount = students.length;
+        students = students.filter(s => {
+          const studentCenter = String(s?.center || '').toUpperCase();
+          const studentSchool = String(s?.school || '').toUpperCase();
+          const studentBatch = String(s?.batch || '').toUpperCase();
+          
+          // Center (campus) filter
+          const centerMatch = !filters.center?.length || filters.center.some(c => {
+            const filterCenter = String(c).toUpperCase();
+            return filterCenter === studentCenter || studentCenter.includes(filterCenter) || filterCenter.includes(studentCenter);
+          });
+          
+          // School filter
+          const schoolMatch = !filters.school?.length || filters.school.some(sch => {
+            const filterSchool = String(sch).toUpperCase();
+            return filterSchool === studentSchool || studentSchool.includes(filterSchool) || filterSchool.includes(studentSchool);
+          });
+          
+          // Batch filter (maps from quarter back to batch format, or use direct batch filter)
+          let batchMatch = true;
+          if (filters.quarter?.length > 0) {
+            // Map quarter back to batch format
+            // Q1 (Pre-Placement) -> 25-29, Q2 (Placement Drive) -> 24-28, Q3 (Internship) -> 23-27
+            const quarterToBatch = {
+              'Q1 (PRE-PLACEMENT)': '25-29',
+              'Q2 (PLACEMENT DRIVE)': '24-28',
+              'Q3 (INTERNSHIP)': '23-27',
+              'Q4 (FINAL PLACEMENTS)': '26-30'
+            };
+            const batchFromQuarter = filters.quarter.map(q => quarterToBatch[String(q).toUpperCase()] || q);
+            batchMatch = batchFromQuarter.some(b => {
+              const filterBatch = String(b).toUpperCase();
+              return filterBatch === studentBatch || studentBatch.includes(filterBatch) || filterBatch.includes(studentBatch);
+            });
+          } else if (filters.batch?.length > 0) {
+            batchMatch = filters.batch.some(b => {
+              const filterBatch = String(b).toUpperCase();
+              return filterBatch === studentBatch || studentBatch.includes(filterBatch) || filterBatch.includes(studentBatch);
+            });
+          }
+          
+          return centerMatch && schoolMatch && batchMatch;
+        });
+        
+        console.log(`🔍 [AdminDashboard] Students filtered: ${originalStudentCount} -> ${students.length}`);
+
+        // Filter applications to only include those from filtered students
+        const originalApplicationCount = applications.length;
+        if (students.length > 0) {
+          const filteredStudentIds = new Set(students.map(s => s.id));
+          applications = applications.filter(a => filteredStudentIds.has(a?.studentId));
+        } else {
+          // If no students match filter, no applications should match
+          applications = [];
+        }
+        console.log(`🔍 [AdminDashboard] Applications filtered: ${originalApplicationCount} -> ${applications.length}`);
+
+        // Filter queries to only include those from filtered students
+        const originalQueryCount = queries.length;
+        if (students.length > 0 && queries.length > 0) {
+          const filteredStudentIds = new Set(students.map(s => s.id));
+          const filteredUserIds = new Set(students.map(s => s.userId));
+          
+          queries = queries.filter(q => {
+            const queryUserId = q?.userId || q?.studentId || q?.student?.userId || q?.student?.id;
+            return filteredStudentIds.has(queryUserId) || filteredUserIds.has(queryUserId);
+          });
+        } else if (students.length === 0) {
+          queries = [];
+        }
+        console.log(`🔍 [AdminDashboard] Queries filtered: ${originalQueryCount} -> ${queries.length}`);
+
+        // Jobs are not filtered by student attributes (they're posted by recruiters)
+        // But we keep them as-is for now
+      }
+
+      console.log('📊 [AdminDashboard] Data received (after filtering):', {
         jobs: jobs.length,
         applications: applications.length,
         students: students.length,
         recruiters: recruiters.length,
         queries: queries.length,
+        filters: filters,
       });
 
       const totalJobsPosted = jobs.filter(j => j?.isPosted === true || String(j?.status || '').toUpperCase() === 'POSTED').length;

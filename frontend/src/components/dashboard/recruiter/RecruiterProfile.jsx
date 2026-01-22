@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
-import { API_BASE_URL } from '../../../config/api';
 import { User, Camera, Image as ImageIcon, Mail, XCircle } from 'lucide-react';
 
 export default function RecruiterProfile() {
@@ -96,23 +95,7 @@ export default function RecruiterProfile() {
 
   // Use api service directly
   const updateProfile = async (data) => {
-    const token = localStorage.getItem('accessToken');
-    
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to update profile' }));
-      throw new Error(error.error || error.message || 'Failed to update profile');
-    }
-
-    return response.json();
+    return await api.put('/auth/profile', data);
   };
 
   return (

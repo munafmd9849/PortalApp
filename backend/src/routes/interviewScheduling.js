@@ -27,4 +27,7 @@ router.post('/session', authenticate, requireRole('ADMIN'), getOrCreateSession);
 router.post('/session/:sessionId/rounds', authenticate, requireRole('ADMIN'), configureRounds);
 router.post('/session/:sessionId/invite-interviewers', authenticate, requireRole('ADMIN'), inviteInterviewers);
 
+// Direct route for frontend compatibility (GET /api/interview-sessions/:jobId)
+router.get('/:jobId', authenticate, requireRole('ADMIN'), getOrCreateSession);
+
 export default router;

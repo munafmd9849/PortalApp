@@ -2,38 +2,50 @@
  * Centralized API Configuration
  * All API URLs should be imported from here
  * This ensures consistency across the application
+ * 
+ * ENVIRONMENT VARIABLES REQUIRED:
+ * - VITE_API_URL: Base backend URL (e.g., http://localhost:3000/api)
+ * - VITE_SOCKET_URL: Socket.IO URL (e.g., http://localhost:3000)
+ * 
+ * NO LOCALHOST FALLBACKS - App will fail if env vars not set (production-grade)
  */
 
 // Check if we're in production build
 const isProduction = import.meta.env.PROD;
 const isDevelopment = import.meta.env.DEV;
 
-// Get API base URL from environment variable
-// Development: Allows localhost defaults for local development
-// Production: Requires environment variable (no localhost)
+/**
+ * Get API base URL from environment variable
+ * BACKEND IS SINGLE SOURCE OF TRUTH - No localhost fallbacks
+ */
 const getApiBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
+  // Prefer VITE_API_BASE_URL, fallback to VITE_API_URL for backward compatibility
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
   
   if (envUrl) {
+    // Ensure URL ends with /api for consistency
     return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
   }
   
-  // In production, require env var
+  // CRITICAL: No fallbacks - app must fail if backend URL not configured
+  const errorMsg = '❌ CRITICAL: VITE_API_BASE_URL (or VITE_API_URL) environment variable is not set. ' +
+    'Please set it in your environment (e.g., VITE_API_BASE_URL=http://localhost:3000/api)';
+  
+  console.error(errorMsg);
+  
+  // In production, throw error to prevent silent failures
   if (isProduction) {
-    console.error('❌ CRITICAL: VITE_API_URL environment variable is not set.');
-    console.error('   Please set VITE_API_URL in your production environment (e.g., VITE_API_URL=https://api.yourdomain.com/api)');
-    // Don't throw - return a placeholder that will fail gracefully
-    return '/api';
+    throw new Error(errorMsg);
   }
   
-  // Development: Use localhost default
-  console.warn('⚠️  VITE_API_URL not set, using development default: http://localhost:3000/api');
-  return 'http://localhost:3000/api';
+  // In development, still throw but with helpful message
+  throw new Error(errorMsg + '\nApp cannot run without backend URL configured.');
 };
 
-// Get Socket URL from environment variable
-// Development: Allows localhost defaults for local development
-// Production: Requires environment variable (no localhost)
+/**
+ * Get Socket.IO URL from environment variable
+ * BACKEND IS SINGLE SOURCE OF TRUTH - No localhost fallbacks
+ */
 const getSocketUrl = () => {
   const envUrl = import.meta.env.VITE_SOCKET_URL;
   
@@ -41,25 +53,26 @@ const getSocketUrl = () => {
     return envUrl;
   }
   
-  // In production, require env var
+  // CRITICAL: No fallbacks - app must fail if socket URL not configured
+  const errorMsg = '❌ CRITICAL: VITE_SOCKET_URL environment variable is not set. ' +
+    'Please set it in your environment (e.g., VITE_SOCKET_URL=http://localhost:3000)';
+  
+  console.error(errorMsg);
+  
+  // In production, throw error to prevent silent failures
   if (isProduction) {
-    console.error('❌ CRITICAL: VITE_SOCKET_URL environment variable is not set.');
-    console.error('   Please set VITE_SOCKET_URL in your production environment (e.g., VITE_SOCKET_URL=https://api.yourdomain.com)');
-    // Don't throw - return a placeholder that will fail gracefully
-    return '';
+    throw new Error(errorMsg);
   }
   
-  // Development: Use localhost default
-  console.warn('⚠️  VITE_SOCKET_URL not set, using development default: http://localhost:3000');
-  return 'http://localhost:3000';
+  // In development, still throw but with helpful message
+  throw new Error(errorMsg + '\nApp cannot run without Socket.IO URL configured.');
 };
 
+// Export constants - will throw if env vars not set (production-grade)
 export const API_BASE_URL = getApiBaseUrl();
 export const SOCKET_URL = getSocketUrl();
 
-// Export getters for dynamic access (in case env changes)
+// Export getters for dynamic access (if needed)
 export const getAPIBaseURL = () => getApiBaseUrl();
 export const getSocketURL = () => getSocketUrl();
-
-// Helper removed - no longer needed since we don't show localhost URLs in error messages
 

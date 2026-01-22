@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { API_BASE_URL } from '../config/api';
+import api from '../services/api';
 import { 
   Loader, 
   X, 
@@ -93,44 +93,32 @@ const Assessment = () => {
 
   const loadCandidates = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/round/${encodeURIComponent(roundName)}/candidates`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+      console.log('🔍 [Assessment] Loading candidates:', { interviewId, roundName });
+      const data = await api.getInterviewCandidates(interviewId, roundName);
+      console.log('✅ [Assessment] Candidates loaded:', {
+        count: data.candidates?.length || 0,
+        candidates: data.candidates,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to load candidates');
-      }
-
-      const data = await response.json();
       setCandidates(data.candidates || []);
       setRoundInfo(data.round);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading candidates:', error);
+      console.error('❌ [Assessment] Error loading candidates:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.status,
+        interviewId,
+        roundName,
+      });
       setLoading(false);
     }
   };
 
   const loadActivities = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/activities`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setActivities(data.activities || []);
-      }
+      const data = await api.getInterviewActivities(interviewId);
+      setActivities(data.activities || []);
     } catch (error) {
       console.error('Error loading activities:', error);
     }
@@ -200,25 +188,12 @@ const Assessment = () => {
 
     try {
       setSavingEvaluation(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/candidate/${candidate.student.id}/evaluate`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({
-          roundName: roundName,
-          marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
-          remarks: editingRemarks.trim() || null,
-          status: editingStatus
-        }),
+      await api.evaluateCandidate(interviewId, candidate.student.id, {
+        roundName: roundName,
+        marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
+        remarks: editingRemarks.trim() || null,
+        status: editingStatus
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to save evaluation');
-      }
 
       // Reload candidates to reflect changes
       await loadCandidates();
@@ -239,23 +214,10 @@ const Assessment = () => {
   const handleEndSession = async () => {
     try {
       setEndingSession(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/admin/interview/${interviewId}/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to end session');
-      }
-
-      const data = await response.json();
+      const data = await api.endInterviewSession(interviewId);
       
       // Show summary modal
-      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.total}\n- Selected: ${data.summary.selected}\n- Rejected: ${data.summary.rejected}\n- On Hold: ${data.summary.onHold}\n- Pending: ${data.summary.pending}`);
+      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary?.totalCandidates || data.summary?.total || 0}\n- Selected: ${data.summary?.selectedCandidates || data.summary?.selected || 0}\n- Rejected: ${data.summary?.rejectedCandidates || data.summary?.rejected || 0}\n- On Hold: ${data.summary?.onHoldCandidates || data.summary?.onHold || 0}\n- Pending: ${data.summary?.pendingCandidates || data.summary?.pending || 0}`);
       
       // Close tab after confirmation
       if (window.confirm('Session ended. Close this tab?')) {

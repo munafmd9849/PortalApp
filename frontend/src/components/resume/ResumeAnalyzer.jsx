@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Sparkles
 } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api';
+import api from '../../services/api';
 import * as pdfjsLib from 'pdfjs-dist';
 import { formatFileSize } from '../../utils/resumeUtils';
 
@@ -47,24 +47,12 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
       }
 
       try {
-        const backendResponse = await fetch(`${API_BASE_URL}/students/resume/extract-text`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            resumeUrl: pdfUrl,
-            resumeId: resumeInfo?.resumeId || null,
-          }),
+        // Use API client for extract-text endpoint
+        const backendData = await api.extractResumeText({
+          resumeUrl: pdfUrl,
+          resumeId: resumeInfo?.resumeId || null,
         });
 
-        if (!backendResponse.ok) {
-          const errorData = await backendResponse.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(errorData.error || errorData.details || `Backend extraction failed (${backendResponse.status})`);
-        }
-
-        const backendData = await backendResponse.json();
         if (!backendData.success || !backendData.resumeText) {
           throw new Error(backendData.error || 'Failed to extract text from PDF');
         }
@@ -224,40 +212,24 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-      let response;
+      // Use API client for ATS analysis (timeout handled by API client)
+      let data;
       try {
-        response = await fetch(`${API_BASE_URL}/students/resume/ats-analysis`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            resumeText: resumeText,
-            resumeId: resumeId || null,
-          }),
-          signal: controller.signal,
+        data = await api.analyzeResumeATS({
+          resumeText: resumeText,
+          resumeId: resumeId || null,
         });
         clearTimeout(timeoutId);
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
+        if (fetchError.name === 'AbortError' || fetchError.message?.includes('timeout')) {
           throw new Error('Analysis timed out. The server may be slow or unresponsive. Please try again.');
         }
-        if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+        if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('NetworkError')) {
           throw new Error('Cannot connect to server. Please ensure the backend server is running and try again.');
         }
         throw fetchError;
       }
-      console.log('📊 [ATS Analysis] Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('❌ [ATS Analysis] API error:', errorData);
-        throw new Error(errorData.error || errorData.details || `Analysis failed (${response.status})`);
-      }
-
-      const data = await response.json();
       console.log('📊 [ATS Analysis] Analysis received:', {
         success: data.success,
         hasAnalysis: !!data.analysis,

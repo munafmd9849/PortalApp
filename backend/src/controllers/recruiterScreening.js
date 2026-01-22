@@ -358,10 +358,16 @@ export async function updateScreeningStatus(req, res) {
     }
 
     // Determine final status after update
-    // If TEST_SELECTED, set to INTERVIEW_ELIGIBLE
-    // Otherwise use the provided status
+    // Automatically convert to INTERVIEW_ELIGIBLE when candidate passes final stage:
+    // - If TEST_SELECTED: Candidate passed both screening + test → INTERVIEW_ELIGIBLE
+    // - If SCREENING_SELECTED and job only requires screening (no test): Candidate passed screening → INTERVIEW_ELIGIBLE
     let finalStatus = screeningStatus;
+    
     if (screeningStatus === 'TEST_SELECTED') {
+      // Job requires test: candidate passed test → eligible for interview
+      finalStatus = 'INTERVIEW_ELIGIBLE';
+    } else if (screeningStatus === 'SCREENING_SELECTED' && job.requiresScreening && !job.requiresTest) {
+      // Job only requires screening (no test): candidate passed screening → eligible for interview
       finalStatus = 'INTERVIEW_ELIGIBLE';
     }
     

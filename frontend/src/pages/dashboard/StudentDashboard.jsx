@@ -12,7 +12,6 @@ import {
 import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from '../../config/api';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
@@ -727,16 +726,21 @@ export default function StudentDashboard() {
       return;
     }
     
-    // OPTIMIZED: Check cache first
+    // OPTIMIZED: Check cache first (but verify it's not empty)
     if (!forceRefresh) {
       const cacheKey = getCacheKey('applications');
       if (cacheKey) {
         const cachedApplications = getCachedData(cacheKey);
-        if (cachedApplications) {
-          console.log('✅ Using cached applications data');
+        // Only use cache if it has data (not empty array)
+        if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length > 0) {
+          console.log('✅ Using cached applications data:', cachedApplications.length, 'applications');
           setApplications(cachedApplications);
           setLoadingApplications(false);
           return; // Use cached data, skip API call
+        } else if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length === 0) {
+          // Cache exists but is empty array - clear it and fetch fresh data
+          console.log('⚠️ Cached data is empty array, clearing cache and fetching fresh data');
+          localStorage.removeItem(cacheKey);
         }
       }
     }
@@ -848,23 +852,14 @@ export default function StudentDashboard() {
     
     try {
       setLoadingResumes(true);
-      const response = await fetch(`${API_BASE_URL}/students/resumes`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setResumes(Array.isArray(data) ? data : []);
-      } else if (response.status === 404) {
-        setResumes([]);
-      } else {
-        throw new Error('Failed to load resumes');
-      }
+      const data = await api.getResumes();
+      setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
-      setResumes([]);
+      // If 404, set empty array; otherwise keep existing resumes
+      if (err.status === 404) {
+        setResumes([]);
+      }
     } finally {
       setLoadingResumes(false);
     }
@@ -1887,6 +1882,13 @@ export default function StudentDashboard() {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const getStatusIcon = (status) => {
+    const statusLower = status?.toLowerCase() || '';
+    // Handle both old status values and new currentStage values
+    if (statusLower === 'applied') return <Clock size={16} />;
+    if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return <AlertCircle size={16} />;
+    if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return <CheckCircle size={16} />;
+    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return <CheckCircle size={16} />;
+    if (statusLower.includes('rejected')) return <XCircle size={16} />;
     switch (status) {
       case 'applied': return <Clock size={16} />;
       case 'shortlisted': return <AlertCircle size={16} />;
@@ -1900,6 +1902,13 @@ export default function StudentDashboard() {
   };
 
   const getStatusColor = (status) => {
+    const statusLower = status?.toLowerCase() || '';
+    // Handle both old status values and new currentStage values
+    if (statusLower === 'applied') return 'bg-[#3c80a7]/20 text-[#3c80a7]';
+    if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return 'bg-yellow-100 text-yellow-800';
+    if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return 'bg-purple-100 text-purple-800';
+    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
+    if (statusLower.includes('rejected')) return 'bg-red-100 text-red-800';
     switch (status?.toLowerCase()) {
       case 'applied': return 'bg-[#3c80a7]/20 text-[#3c80a7]';
       case 'shortlisted': return 'bg-yellow-100 text-yellow-800';
@@ -2378,17 +2387,26 @@ export default function StudentDashboard() {
         // The useEffect hooks above handle loading appropriately
         
         const totalApplied = applications.length;
+        
+        // Use currentStage for accurate stats (backend computed status)
         const shortlisted = applications.filter(app => {
-          const status = app.status?.toUpperCase();
-          return status === 'SHORTLISTED';
+          const status = (app.currentStage || app.status)?.toLowerCase() || '';
+          return status === 'shortlisted' || status === 'screening qualified';
         }).length;
+        
         const interviewed = applications.filter(app => {
-          const status = app.status?.toUpperCase();
-          return status === 'INTERVIEWED';
+          const status = (app.currentStage || app.status)?.toLowerCase() || '';
+          return status.includes('interview round') || 
+                 status === 'qualified for interview' || 
+                 status === 'interview completed' ||
+                 status === 'interviewed';
         }).length;
+        
         const offers = applications.filter(app => {
-          const status = app.status?.toUpperCase();
-          return status === 'OFFERED' || status === 'SELECTED';
+          const status = (app.currentStage || app.status)?.toLowerCase() || '';
+          return status === 'offered' || 
+                 status === 'selected' || 
+                 status === 'selected (final)';
         }).length;
 
         // Filter applications with interview history (Past Records)
@@ -2811,44 +2829,56 @@ export default function StudentDashboard() {
                       >
                         {/* Gradient accent bar */}
                         <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
-                          application.status?.toLowerCase() === 'applied' ? 'from-blue-500 to-cyan-500' :
-                          application.status?.toLowerCase() === 'shortlisted' ? 'from-yellow-500 to-amber-500' :
-                          application.status?.toLowerCase() === 'interviewed' ? 'from-purple-500 to-pink-500' :
-                          application.status?.toLowerCase() === 'offered' || application.status?.toLowerCase() === 'selected' ? 'from-green-500 to-emerald-500' :
-                          application.status?.toLowerCase() === 'rejected' ? 'from-red-500 to-rose-500' :
-                          'from-gray-400 to-gray-500'
+                          (() => {
+                            const status = (application.currentStage || application.status)?.toLowerCase() || '';
+                            if (status === 'applied') return 'from-blue-500 to-cyan-500';
+                            if (status === 'shortlisted' || status === 'screening qualified') return 'from-yellow-500 to-amber-500';
+                            if (status.includes('interview round') || status === 'qualified for interview' || status === 'interview completed') return 'from-purple-500 to-pink-500';
+                            if (status === 'offered' || status === 'selected' || status === 'selected (final)') return 'from-green-500 to-emerald-500';
+                            if (status.includes('rejected')) return 'from-red-500 to-rose-500';
+                            return 'from-gray-400 to-gray-500';
+                          })()
                         }`}></div>
                         
                         <div className="p-8">
-                          {/* Screening Status Badge (shown first, before interview status) */}
-                          {application.screeningStatusText && (
-                            <div className={`mb-4 p-3 border rounded-lg ${
-                              application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                ? 'bg-red-50 border-red-200'
-                                : application.screeningStatus === 'TEST_SELECTED'
-                                ? 'bg-green-50 border-green-200'
-                                : 'bg-yellow-50 border-yellow-200'
-                            }`}>
-                              <div className="flex items-center gap-2">
-                                <Info className={`w-4 h-4 ${
-                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                    ? 'text-red-600'
-                                    : application.screeningStatus === 'TEST_SELECTED'
-                                    ? 'text-green-600'
-                                    : 'text-yellow-600'
-                                }`} />
-                                <span className={`text-sm font-medium ${
-                                  application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                    ? 'text-red-800'
-                                    : application.screeningStatus === 'TEST_SELECTED'
-                                    ? 'text-green-800'
-                                    : 'text-yellow-800'
-                                }`}>
-                                  {application.screeningStatusText}
-                                </span>
+                          {/* Screening Status Badge (only show if not selected/completed - use currentStage for final status) */}
+                          {(() => {
+                            // Don't show screening status badge if already selected or completed
+                            const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
+                            const isFinal = currentStage === 'selected (final)' || currentStage === 'interview completed';
+                            
+                            // Only show screening status if not in final state
+                            if (isFinal || !application.screeningStatusText) return null;
+                            
+                            return (
+                              <div className={`mb-4 p-3 border rounded-lg ${
+                                application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                  ? 'bg-red-50 border-red-200'
+                                  : application.screeningStatus === 'TEST_SELECTED'
+                                  ? 'bg-green-50 border-green-200'
+                                  : 'bg-yellow-50 border-yellow-200'
+                              }`}>
+                                <div className="flex items-center gap-2">
+                                  <Info className={`w-4 h-4 ${
+                                    application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                      ? 'text-red-600'
+                                      : application.screeningStatus === 'TEST_SELECTED'
+                                      ? 'text-green-600'
+                                      : 'text-yellow-600'
+                                  }`} />
+                                  <span className={`text-sm font-medium ${
+                                    application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                      ? 'text-red-800'
+                                      : application.screeningStatus === 'TEST_SELECTED'
+                                      ? 'text-green-800'
+                                      : 'text-yellow-800'
+                                  }`}>
+                                    {application.screeningStatusText}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                           
                           {/* Interview Status Badge (only if passed screening) */}
                           {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
@@ -2886,13 +2916,14 @@ export default function StudentDashboard() {
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.status)}`}>
-                                {getStatusIcon(application.status)}
-                                {application.status === 'job_removed'
-                                  ? 'Job Removed'
-                                  : application.status
-                                  ? application.status.charAt(0).toUpperCase() + application.status.slice(1)
-                                  : 'Unknown'}
+                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
+                                {getStatusIcon(application.currentStage || application.status)}
+                                {(() => {
+                                  const status = application.currentStage || application.status;
+                                  if (status === 'job_removed') return 'Job Removed';
+                                  if (status) return status.charAt(0).toUpperCase() + status.slice(1);
+                                  return 'Unknown';
+                                })()}
                               </span>
                             </div>
                           </div>

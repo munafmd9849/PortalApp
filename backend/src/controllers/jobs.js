@@ -126,14 +126,26 @@ export async function getJobs(req, res) {
               },
             },
           },
+          _count: {
+            select: {
+              applications: true,
+            },
+          },
         },
       }),
       prisma.job.count({ where }),
     ]);
 
+    // Add applicationCount to each job
+    const jobsWithCounts = jobs.map(job => ({
+      ...job,
+      applicationCount: job._count?.applications || 0,
+      totalApplications: job._count?.applications || 0,
+    }));
+
     res.json({
       success: true,
-      jobs,
+      jobs: jobsWithCounts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -799,8 +811,23 @@ export async function updateJob(req, res) {
 
     // CRITICAL: Validate date relationship if both dates are being updated
     if (updateData.applicationDeadline !== undefined || updateData.driveDate !== undefined) {
-      const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : new Date(existingJob.applicationDeadline);
-      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : new Date(existingJob.driveDate);
+      const oldDeadline = existingJob.applicationDeadline ? new Date(existingJob.applicationDeadline) : null;
+      const oldDriveDate = existingJob.driveDate ? new Date(existingJob.driveDate) : null;
+      
+      const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : oldDeadline;
+      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : oldDriveDate;
+
+      // LOG: Old vs new values
+      logger.info('📅 [updateJob] Date update request:', {
+        jobId,
+        userId,
+        userRole,
+        oldApplicationDeadline: oldDeadline?.toISOString(),
+        newApplicationDeadline: updateData.applicationDeadline ? new Date(updateData.applicationDeadline).toISOString() : 'unchanged',
+        oldDriveDate: oldDriveDate?.toISOString(),
+        newDriveDate: updateData.driveDate ? new Date(updateData.driveDate).toISOString() : 'unchanged',
+        timestamp: new Date().toISOString(),
+      });
 
       if (!existingJob.applicationDeadline && !updateData.applicationDeadline) {
         return res.status(400).json({ 
@@ -818,6 +845,12 @@ export async function updateJob(req, res) {
 
       // Enforce: driveDate must be AFTER applicationDeadline
       if (newDriveDate <= newDeadline) {
+        logger.warn('❌ [updateJob] Invalid date configuration rejected:', {
+          jobId,
+          applicationDeadline: newDeadline?.toISOString(),
+          driveDate: newDriveDate?.toISOString(),
+          difference: newDriveDate && newDeadline ? (newDriveDate - newDeadline) / (1000 * 60) + ' minutes' : 'N/A',
+        });
         return res.status(400).json({ 
           error: 'Invalid date configuration',
           message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
@@ -825,10 +858,214 @@ export async function updateJob(req, res) {
       }
     }
 
+    // Prepare update data with proper date handling
+    // Filter out relation fields and non-database fields that shouldn't be passed directly to Prisma
+    const fieldsToExclude = [
+      'company', // Relation field - use companyId instead
+      'recruiter', // Relation field - use recruiterId instead
+      'companyName', // Computed/display field, not a DB field
+      'recruiterEmails', // JSON string field - needs special handling
+      'recruiterEmail', // Legacy field
+      'recruiterName', // Legacy field
+      'adminId', // Should not be updated via this endpoint
+      'postedBy', // Should not be updated via this endpoint
+      'createdAt', // Auto-managed
+      'updatedAt', // Auto-managed
+      'website', // Company field - handled separately
+      'companyLocation', // Company field - handled separately
+      'linkedin', // Not a valid Company/Job field - ignore
+      'stipend', // Frontend field - map to salary if needed
+      'duration', // Not in Job schema - ignore
+      'workMode', // Not in Job schema - ignore
+      'openings', // Not in Job schema - ignore
+      'responsibilities', // Frontend field - map to description
+      'skills', // Frontend field - already handled as requiredSkills
+      'serviceAgreement', // Not in Job schema - ignore
+      'blockingPeriod', // Not in Job schema - ignore
+      'instructions', // Not in Job schema - ignore
+      'interviewRounds', // Not a DB field - convert to requirements text
+    ];
+    
+    const finalUpdateData = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      if (!fieldsToExclude.includes(key) && value !== undefined) {
+        finalUpdateData[key] = value;
+      }
+    }
+    
+    // Map frontend fields to database fields
+    // Map responsibilities to description if description is not provided
+    if (updateData.responsibilities && !finalUpdateData.description) {
+      finalUpdateData.description = updateData.responsibilities;
+    }
+    
+    // Map stipend to salary for internships
+    if (updateData.stipend && updateData.jobType === 'Internship' && !finalUpdateData.salary) {
+      finalUpdateData.salary = updateData.stipend;
+    }
+    
+    // Handle company update if companyName is provided
+    if (updateData.companyName && !updateData.companyId) {
+      // Find or create company by name
+      let company = await prisma.company.findFirst({
+        where: { name: updateData.companyName },
+      });
+      
+      if (!company) {
+        company = await prisma.company.create({
+          data: {
+            name: updateData.companyName,
+            website: updateData.website || null,
+            location: updateData.companyLocation || null,
+          },
+        });
+      } else {
+        // Update company fields if provided (only valid Company model fields)
+        const companyUpdateData = {};
+        if (updateData.website !== undefined) {
+          companyUpdateData.website = updateData.website || null;
+        }
+        if (updateData.companyLocation !== undefined) {
+          companyUpdateData.location = updateData.companyLocation || null;
+        }
+        
+        if (Object.keys(companyUpdateData).length > 0) {
+          await prisma.company.update({
+            where: { id: company.id },
+            data: companyUpdateData,
+          });
+        }
+      }
+      
+      finalUpdateData.companyId = company.id;
+    } else if (updateData.companyId && (updateData.website !== undefined || updateData.companyLocation !== undefined)) {
+      // If companyId is provided, update the company directly
+      const companyUpdateData = {};
+      if (updateData.website !== undefined) {
+        companyUpdateData.website = updateData.website || null;
+      }
+      if (updateData.companyLocation !== undefined) {
+        companyUpdateData.location = updateData.companyLocation || null;
+      }
+      
+      if (Object.keys(companyUpdateData).length > 0) {
+        await prisma.company.update({
+          where: { id: updateData.companyId },
+          data: companyUpdateData,
+        });
+      }
+    }
+    
+    // Handle recruiterEmails if provided (store as JSON string)
+    if (updateData.recruiterEmails && Array.isArray(updateData.recruiterEmails)) {
+      finalUpdateData.recruiterEmails = JSON.stringify(updateData.recruiterEmails);
+    }
+    
+    // Handle other JSON string fields
+    if (updateData.driveVenues && Array.isArray(updateData.driveVenues)) {
+      finalUpdateData.driveVenues = JSON.stringify(updateData.driveVenues);
+    }
+    if (updateData.targetSchools && Array.isArray(updateData.targetSchools)) {
+      finalUpdateData.targetSchools = JSON.stringify(updateData.targetSchools);
+    }
+    if (updateData.targetCenters && Array.isArray(updateData.targetCenters)) {
+      finalUpdateData.targetCenters = JSON.stringify(updateData.targetCenters);
+    }
+    if (updateData.targetBatches && Array.isArray(updateData.targetBatches)) {
+      finalUpdateData.targetBatches = JSON.stringify(updateData.targetBatches);
+    }
+    // Handle skills - map to requiredSkills (skills is frontend field, requiredSkills is DB field)
+    if (updateData.skills && Array.isArray(updateData.skills)) {
+      finalUpdateData.requiredSkills = JSON.stringify(updateData.skills);
+    } else if (updateData.requiredSkills && Array.isArray(updateData.requiredSkills)) {
+      finalUpdateData.requiredSkills = JSON.stringify(updateData.requiredSkills);
+    } else if (updateData.requiredSkills && typeof updateData.requiredSkills === 'string') {
+      // Already a JSON string, use as-is
+      finalUpdateData.requiredSkills = updateData.requiredSkills;
+    }
+    if (updateData.spocs && Array.isArray(updateData.spocs)) {
+      finalUpdateData.spocs = JSON.stringify(updateData.spocs);
+    }
+    
+    // Handle interviewRounds - convert to requirements text (interviewRounds is not a DB field)
+    if (updateData.interviewRounds) {
+      let interviewRoundsArray = [];
+      if (Array.isArray(updateData.interviewRounds)) {
+        interviewRoundsArray = updateData.interviewRounds;
+      } else if (typeof updateData.interviewRounds === 'string') {
+        try {
+          interviewRoundsArray = JSON.parse(updateData.interviewRounds);
+        } catch (e) {
+          // If parsing fails, ignore
+        }
+      }
+      
+      if (interviewRoundsArray.length > 0) {
+        const requirementsText = interviewRoundsArray
+          .map(round => `${round.title || 'Round'}: ${round.detail || ''}`)
+          .filter(r => r.trim().length > 0)
+          .join('\n');
+        
+        // Merge with existing requirements if any
+        const existingRequirements = finalUpdateData.requirements || updateData.requirements || '';
+        finalUpdateData.requirements = existingRequirements 
+          ? (requirementsText ? `${existingRequirements}\n\n${requirementsText}` : existingRequirements)
+          : requirementsText;
+      }
+    }
+    
+    // Ensure dates are properly formatted as Date objects
+    if (finalUpdateData.applicationDeadline) {
+      finalUpdateData.applicationDeadline = new Date(finalUpdateData.applicationDeadline);
+    }
+    if (finalUpdateData.driveDate) {
+      finalUpdateData.driveDate = new Date(finalUpdateData.driveDate);
+    }
+
+    // Handle recruiterId update - validate before updating
+    // Only update recruiterId if it's explicitly provided and valid
+    if (finalUpdateData.recruiterId !== undefined) {
+      // If recruiterId is null or empty string, allow setting it to null
+      if (!finalUpdateData.recruiterId || finalUpdateData.recruiterId === '') {
+        finalUpdateData.recruiterId = null;
+      } else {
+        // Check if recruiterId is the same as existing - if so, preserve it without validation
+        if (existingJob.recruiterId === finalUpdateData.recruiterId) {
+          // Same as existing, no need to validate
+        } else {
+          // Validate that the recruiterId exists
+          const recruiter = await prisma.recruiter.findUnique({
+            where: { id: finalUpdateData.recruiterId },
+          });
+          
+          if (!recruiter) {
+            // If recruiterId doesn't exist, try to see if it's a userId that should map to a recruiter
+            // But for now, if it's being changed and doesn't exist, preserve the existing one
+            console.warn(`⚠️ [updateJob] Invalid recruiterId ${finalUpdateData.recruiterId}, preserving existing recruiterId ${existingJob.recruiterId}`);
+            delete finalUpdateData.recruiterId; // Don't update - preserve existing
+          }
+        }
+      }
+    }
+
+    // Validate companyId if it's being updated
+    if (finalUpdateData.companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: finalUpdateData.companyId },
+      });
+      
+      if (!company) {
+        return res.status(400).json({ 
+          error: 'Invalid company',
+          message: `Company with ID ${finalUpdateData.companyId} does not exist.`
+        });
+      }
+    }
+
     // Update the job
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: updateData,
+      data: finalUpdateData,
       include: {
         company: true,
         recruiter: {
@@ -842,6 +1079,17 @@ export async function updateJob(req, res) {
           },
         },
       },
+    });
+
+    // LOG: Update success
+    logger.info('✅ [updateJob] Job updated successfully:', {
+      jobId,
+      userId,
+      userRole,
+      updatedFields: Object.keys(updateData),
+      finalApplicationDeadline: job.applicationDeadline?.toISOString(),
+      finalDriveDate: job.driveDate?.toISOString(),
+      timestamp: new Date().toISOString(),
     });
 
     res.json(job);
