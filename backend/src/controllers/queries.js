@@ -129,7 +129,10 @@ async function notifyAdminsAboutQuery(query, metadata, studentProfile) {
 
 export async function createStudentQuery(req, res) {
   try {
-    const studentId = req.userId;
+    const userId = req.userId;
+    const userRole = req.user?.role || req.userRole;
+    // Support both students and recruiters
+    const studentId = userId; // For recruiters, we still use userId (field name is misleading but works)
     const {
       subject,
       message,
@@ -252,16 +255,37 @@ export async function createStudentQuery(req, res) {
       proofDocumentUrl: proofDocumentUrl || null, // Store proof document URL if uploaded
     };
 
-    const studentProfile = await prisma.student.findUnique({
-      where: { userId: studentId },
-      select: {
-        fullName: true,
-        enrollmentId: true,
-        center: true,
-        school: true,
-        batch: true,
-      },
-    });
+    // Get profile based on role
+    let studentProfile = null;
+    if (userRole === 'STUDENT' || userRole === 'student') {
+      studentProfile = await prisma.student.findUnique({
+        where: { userId },
+        select: {
+          fullName: true,
+          enrollmentId: true,
+          center: true,
+          school: true,
+          batch: true,
+        },
+      });
+    } else if (userRole === 'RECRUITER' || userRole === 'recruiter') {
+      // For recruiters, get recruiter profile
+      const recruiterProfile = await prisma.recruiter.findFirst({
+        where: { userId },
+        select: {
+          company: { select: { name: true } },
+        },
+      });
+      // Create a compatible profile object
+      studentProfile = recruiterProfile ? {
+        fullName: null,
+        enrollmentId: null,
+        center: null,
+        school: null,
+        batch: null,
+        companyName: recruiterProfile.company?.name,
+      } : null;
+    }
 
     const userProfile = await prisma.user.findUnique({
       where: { id: studentId },
@@ -285,7 +309,7 @@ export async function createStudentQuery(req, res) {
 
     const query = await prisma.studentQuery.create({
       data: {
-        studentId,
+        studentId: userId, // Works for both students and recruiters
         subject,
         message: queryMessage,
         type: normalizedType,
@@ -311,7 +335,7 @@ export async function createStudentQuery(req, res) {
       },
     });
 
-    console.log(`[Query Creation] Query created successfully: ${query.id}, studentId: ${studentId}`);
+    console.log(`[Query Creation] Query created successfully: ${query.id}, userId: ${userId}, role: ${userRole}`);
     
     // Handle endorsement type - create endorsement record and send email
     if (normalizedType === 'endorsement' && teacherEmail) {
@@ -323,11 +347,14 @@ export async function createStudentQuery(req, res) {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30);
         
-        // Get student profile for email
-        const studentProfileData = await prisma.student.findUnique({
-          where: { userId: studentId },
-          select: { fullName: true },
-        });
+        // Get profile for email (students only for endorsements)
+        let studentProfileData = null;
+        if (userRole === 'STUDENT' || userRole === 'student') {
+          studentProfileData = await prisma.student.findUnique({
+            where: { userId },
+            select: { fullName: true },
+          });
+        }
         
         const studentName = studentProfileData?.fullName || userProfile?.displayName || userProfile?.email || 'Student';
         
@@ -397,7 +424,9 @@ export async function createStudentQuery(req, res) {
 
 export async function getStudentQueries(req, res) {
   try {
-    const studentId = req.userId;
+    const userId = req.userId;
+    // Support both students and recruiters
+    const studentId = userId;
 
     const queries = await prisma.studentQuery.findMany({
       where: { studentId },

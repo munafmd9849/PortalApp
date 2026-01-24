@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { uploadToS3, deleteFromS3 } from '../config/s3.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
+import { createNotification } from './notifications.js';
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
   if (profilePhotoValue === undefined) {
@@ -2279,5 +2280,72 @@ export async function analyzeATSResume(req, res) {
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+}
+
+/**
+ * Block/unblock student (Admin or Super Admin only)
+ * PATCH /api/students/:studentId/block
+ */
+export async function blockUnblockStudent(req, res) {
+  try {
+    const { studentId } = req.params;
+    const { isUnblocking, blockType, endDate, endTime, reason, notes } = req.body;
+    const adminId = req.userId;
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { id: true, email: true } } },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const updateData = {
+      status: isUnblocking ? 'ACTIVE' : 'BLOCKED',
+    };
+
+    if (isUnblocking) {
+      updateData.blockInfo = null;
+    } else {
+      const blockInfo = {
+        type: blockType === 'temporary' ? 'temporary' : 'permanent',
+        endDate: blockType === 'temporary' ? endDate : null,
+        endTime: blockType === 'temporary' ? endTime : null,
+        reason: reason || '',
+        notes: notes || '',
+        blockedAt: new Date(),
+        blockedBy: adminId,
+      };
+      updateData.blockInfo = JSON.stringify(blockInfo);
+    }
+
+    await prisma.user.update({
+      where: { id: student.userId },
+      data: updateData,
+    });
+
+    await createNotification({
+      userId: student.userId,
+      title: isUnblocking ? 'Account Unblocked' : 'Account Blocked',
+      body: isUnblocking
+        ? 'Your student account has been unblocked.'
+        : `Your student account has been blocked. Reason: ${reason || 'Not specified'}`,
+      data: {
+        type: isUnblocking ? 'student_unblocked' : 'student_blocked',
+        studentId,
+        adminId,
+        reason: isUnblocking ? null : reason,
+      },
+    });
+
+    res.json({
+      success: true,
+      action: isUnblocking ? 'unblocked' : 'blocked',
+    });
+  } catch (error) {
+    console.error('Block/unblock student error:', error);
+    res.status(500).json({ error: 'Failed to update student status' });
   }
 }

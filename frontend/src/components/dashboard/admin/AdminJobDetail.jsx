@@ -36,6 +36,7 @@ export default function AdminJobDetail() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -160,7 +161,7 @@ export default function AdminJobDetail() {
     
     if (wasOpened || !isFromSameOrigin) {
       // Opened in new tab/window - navigate to recruiter directory
-      navigate('/admin?tab=recruiterDirectory');
+      navigate(`${base}?tab=recruiterDirectory`);
     } else {
       // Normal navigation - go back
       navigate(-1);
@@ -240,7 +241,7 @@ export default function AdminJobDetail() {
           {/* View Applicants Button - Show only for POSTED jobs (only posted jobs have applicants) */}
           {(job.status === 'POSTED' || job.status === 'posted') && (
             <button
-              onClick={() => navigate(`/admin/jobs/${jobId}/applications`)}
+              onClick={() => navigate(`${base}/jobs/${jobId}/applications`)}
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
               title="View Applicants"
             >

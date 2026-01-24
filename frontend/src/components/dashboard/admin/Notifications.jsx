@@ -56,7 +56,8 @@ import { useAuth } from '../../../hooks/useAuth';
 import { respondToStudentQuery } from '../../../services/queries';
 
 const Notifications = () => {
-  const { getPendingAdminRequests, approveAdminRequest, rejectAdminRequest } = useAuth();
+  const { user, role, getPendingAdminRequests, approveAdminRequest, rejectAdminRequest } = useAuth();
+  const isSuperAdmin = (role || user?.role || '').toLowerCase() === 'super_admin';
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -219,6 +220,7 @@ const Notifications = () => {
         );
       case 'admincollab':
       case 'admin_coordination':
+      case 'admin_login':
         return (
           <div className="p-3 bg-gradient-to-br from-violet-100 to-violet-200 text-violet-700 rounded-xl border border-violet-200 shadow-sm">
             <FaUsers className="text-2xl" />
@@ -270,7 +272,7 @@ const Notifications = () => {
             notification.type !== 'applicationreview' && 
             notification.type !== 'application') return false;
       } else if (activeFilter === 'admin_coordination') {
-        if (notification.type !== 'admincollab' && notification.type !== 'admin_coordination') return false;
+        if (notification.type !== 'admincollab' && notification.type !== 'admin_coordination' && notification.type !== 'admin_login') return false;
       } else if (activeFilter === 'recruiter_inquiries') {
         if (notification.type !== NOTIFICATION_TYPES.RECRUITER_INQUIRY && notification.type !== 'recruiter_inquiry') return false;
       } else if (activeFilter === 'unread') {
@@ -435,7 +437,7 @@ const Notifications = () => {
         n.type === 'application'
       ).length,
       admin_coordination: notifications.filter(n => 
-        n.type === 'admincollab' || n.type === 'admin_coordination'
+        n.type === 'admincollab' || n.type === 'admin_coordination' || n.type === 'admin_login'
       ).length + adminRequests.length,
       recruiter_inquiries: notifications.filter(n => 
         n.type === NOTIFICATION_TYPES.RECRUITER_INQUIRY || n.type === 'recruiter_inquiry'
@@ -813,41 +815,35 @@ const Notifications = () => {
                                     </div>
                                   </div>
 
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() => handleApproveAdmin(request.id, request.uid, request.email)}
-                                      disabled={actionLoading[`admin_${request.id}`]}
-                                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                    >
-                                      {actionLoading[`admin_${request.id}`] === 'approving' ? (
-                                        <>
-                                          <FaSync className="animate-spin text-xs" />
-                                          Approving...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FaCheck className="text-xs" />
-                                          Approve
-                                        </>
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={() => handleRejectAdmin(request.id, request.uid, request.email)}
-                                      disabled={actionLoading[`admin_${request.id}`]}
-                                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                    >
-                                      {actionLoading[`admin_${request.id}`] === 'rejecting' ? (
-                                        <>
-                                          <FaSync className="animate-spin text-xs" />
-                                          Rejecting...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FaTimes className="text-xs" />
-                                          Reject
-                                        </>
-                                      )}
-                                    </button>
+                                  <div className="flex space-x-2 items-center">
+                                    {isSuperAdmin ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleApproveAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                          disabled={actionLoading[`admin_${request.id}`]}
+                                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          {actionLoading[`admin_${request.id}`] === 'approving' ? (
+                                            <><FaSync className="animate-spin text-xs" /> Approving...</>
+                                          ) : (
+                                            <><FaCheck className="text-xs" /> Approve</>
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() => handleRejectAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                          disabled={actionLoading[`admin_${request.id}`]}
+                                          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          {actionLoading[`admin_${request.id}`] === 'rejecting' ? (
+                                            <><FaSync className="animate-spin text-xs" /> Rejecting...</>
+                                          ) : (
+                                            <><FaTimes className="text-xs" /> Reject</>
+                                          )}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm text-gray-500">Only Super Admin can approve/reject</span>
+                                    )}
                                   </div>
                                 </div>
                               </div>

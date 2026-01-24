@@ -36,23 +36,23 @@ router.post(
   createAdminRequest
 );
 
-// Get pending admin requests (admin only)
+// Get pending admin requests (admin + super admin)
 router.get('/pending', requireRole(['ADMIN', 'SUPER_ADMIN']), getPendingAdminRequests);
 
-// Get all admin requests (admin only)
+// Get all admin requests (admin + super admin)
 router.get('/', requireRole(['ADMIN', 'SUPER_ADMIN']), getAllAdminRequests);
 
-// Approve admin request (admin only)
+// Approve admin request (Super Admin only)
 router.patch(
   '/:requestId/approve',
-  requireRole(['ADMIN', 'SUPER_ADMIN']),
+  requireRole(['SUPER_ADMIN']),
   approveAdminRequest
 );
 
-// Reject admin request (admin only)
+// Reject admin request (Super Admin only)
 router.patch(
   '/:requestId/reject',
-  requireRole(['ADMIN', 'SUPER_ADMIN']),
+  requireRole(['SUPER_ADMIN']),
   body('reason').optional().isString().trim(),
   handleValidation,
   rejectAdminRequest

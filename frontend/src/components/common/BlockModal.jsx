@@ -51,10 +51,12 @@ const BlockModal = ({
   }, [isOpen, entityType]);
 
   // Validation for student
-  const isStudentConfirmEnabled = 
-    reason &&
-    notes &&
-    (blockType === 'Permanent' || (blockType === 'Temporary' && endDate && endTime));
+  const isStudentUnblock = entityType === 'student' && isUnblocking;
+  const isStudentConfirmEnabled = isStudentUnblock
+    ? true
+    : (reason &&
+        notes &&
+        (blockType === 'Permanent' || (blockType === 'Temporary' && endDate && endTime)));
 
   // Validation for recruiter
   const isRecruiterConfirmEnabled = 
@@ -67,13 +69,17 @@ const BlockModal = ({
     if (!isConfirmEnabled) return;
 
     if (entityType === 'student') {
-      onConfirm({
-        blockType,
-        endDate: blockType === 'Temporary' ? endDate : null,
-        endTime: blockType === 'Temporary' ? endTime : null,
-        reason: reason === 'Other' ? otherReason : reason,
-        notes,
-      });
+      if (isUnblocking) {
+        onConfirm({ isUnblocking: true });
+      } else {
+        onConfirm({
+          blockType,
+          endDate: blockType === 'Temporary' ? endDate : null,
+          endTime: blockType === 'Temporary' ? endTime : null,
+          reason: reason === 'Other' ? otherReason : reason,
+          notes,
+        });
+      }
     } else {
       // Recruiter
       if (!isUnblocking) {
@@ -144,6 +150,15 @@ const BlockModal = ({
               </p>
               <p className="text-sm text-gray-600 mt-2">
                 This will restore their access to post jobs and manage applications.
+              </p>
+            </div>
+          ) : isStudentUnblock ? (
+            <div className="mb-4">
+              <p className="text-gray-700">
+                Are you sure you want to unblock <strong>{entity?.fullName}</strong> ({entity?.enrollmentId})?
+              </p>
+              <p className="text-sm text-gray-600 mt-2">
+                This will restore their access to apply for jobs and use the placement portal.
               </p>
             </div>
           ) : (

@@ -51,6 +51,11 @@ async function autoCorrectSessionStatus(session, job) {
     return session;
   }
 
+  // FROZEN sessions are never auto-corrected (Super Admin freeze)
+  if (session.status === 'FROZEN') {
+    return session;
+  }
+
   const now = new Date();
   const driveDate = new Date(job.driveDate);
   driveDate.setHours(23, 59, 59, 999); // End of drive date
@@ -187,6 +192,10 @@ export const getOrCreateSession = async (req, res) => {
       return res.status(401).json({ error: 'User ID not found in request' });
     }
 
+    // Get user role for permission check
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     // Check if job exists and get driveDate
     const job = await prisma.job.findUnique({
       where: { id: jobId },
@@ -194,10 +203,16 @@ export const getOrCreateSession = async (req, res) => {
         id: true,
         jobTitle: true,
         companyId: true,
+        recruiterId: true,
         driveDate: true, // CRITICAL: Get driveDate for validation
         company: {
           select: {
             name: true
+          }
+        },
+        recruiter: {
+          select: {
+            userId: true
           }
         },
         description: true
@@ -206,6 +221,13 @@ export const getOrCreateSession = async (req, res) => {
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!job.recruiter || job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to access this job\'s interview session' });
+      }
     }
 
     // CRITICAL: Interview session cannot start before driveDate
@@ -430,14 +452,30 @@ export const configureRounds = async (req, res) => {
       return sendNotFound(res, 'Interview session');
     }
 
-    // Get job to check drive date
+    // Get job to check drive date and ownership
+    const userId = req.userId || req.user?.id;
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     const job = await prisma.job.findUnique({
       where: { id: session.jobId },
-      select: { driveDate: true },
+      select: { 
+        driveDate: true,
+        recruiter: {
+          select: { userId: true }
+        }
+      },
     });
 
     if (!job) {
       return sendNotFound(res, 'Job');
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!job.recruiter || job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to configure rounds for this job' });
+      }
     }
 
     // CRITICAL: Auto-correct session status before validation
@@ -450,6 +488,10 @@ export const configureRounds = async (req, res) => {
 
     if (session.status === 'INCOMPLETE') {
       return sendError(res, 'Cannot configure rounds for incomplete session', 'This interview session is incomplete (drive date passed). Rounds cannot be modified.', 409);
+    }
+
+    if (session.status === 'FROZEN') {
+      return sendError(res, 'Cannot configure rounds for frozen session', 'A Super Admin has frozen this interview session. Rounds cannot be modified.', 409);
     }
 
     if (session.status === 'ONGOING') {
@@ -525,17 +567,33 @@ export const inviteInterviewers = async (req, res) => {
     }
 
     // Get session
+    const userId = req.userId || req.user?.id;
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     const session = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: {
         job: {
-          include: { company: true },
+          include: { 
+            company: true,
+            recruiter: {
+              select: { userId: true }
+            }
+          },
         },
       },
     });
 
     if (!session) {
       return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!session.job.recruiter || session.job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to invite interviewers for this job' });
+      }
     }
 
     // FRONTEND_URL is validated at startup, so it's guaranteed to exist
@@ -1113,6 +1171,13 @@ export const evaluateCandidate = async (req, res) => {
       return res.status(409).json({ error: 'Round is not active. Cannot evaluate candidates.' });
     }
 
+    if (round.session?.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'A Super Admin has frozen this interview session. Evaluations are paused.',
+      });
+    }
+
     // Validate token
     const invite = await prisma.interviewerInvite.findFirst({
       where: {
@@ -1251,6 +1316,13 @@ export const startRound = async (req, res) => {
       return res.status(409).json({
         error: 'Session already completed',
         message: 'Cannot start rounds for a completed interview session.',
+      });
+    }
+
+    if (correctedSession.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'Cannot start rounds. A Super Admin has frozen this interview session.',
       });
     }
 
@@ -1445,6 +1517,13 @@ export const endRound = async (req, res) => {
       return res.status(409).json({
         error: 'Session already completed',
         message: 'Cannot end rounds for a completed interview session.',
+      });
+    }
+
+    if (correctedSession.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'Cannot end rounds. A Super Admin has frozen this interview session.',
       });
     }
 
@@ -1754,6 +1833,13 @@ export const endSession = async (req, res) => {
       return res.status(409).json({ error: 'Session is already completed' });
     }
 
+    if (session.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'A Super Admin has frozen this session. It cannot be ended until unfrozen.',
+      });
+    }
+
     // Check if any round is still active
     const activeRound = session.rounds.find(r => r.status === 'ACTIVE');
     if (activeRound) {
@@ -1777,5 +1863,94 @@ export const endSession = async (req, res) => {
   } catch (error) {
     console.error('Error ending interview session:', error);
     res.status(500).json({ error: 'Failed to end interview session', details: error.message });
+  }
+};
+
+/**
+ * Freeze interview session (Super Admin only)
+ * PATCH /api/admin/interview-scheduling/session/:sessionId/freeze
+ */
+export const freezeInterviewSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: { job: { select: { jobTitle: true } } },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status === 'COMPLETED' || session.status === 'INCOMPLETE') {
+      return res.status(409).json({
+        error: 'Cannot freeze session',
+        message: 'Only NOT_STARTED or ONGOING sessions can be frozen.',
+      });
+    }
+
+    if (session.status === 'FROZEN') {
+      return res.status(409).json({ error: 'Session is already frozen' });
+    }
+
+    await prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { status: 'FROZEN' },
+    });
+
+    logger.info(`Super Admin froze interview session ${sessionId} (job: ${session.job?.jobTitle})`);
+
+    res.json({
+      message: 'Interview session frozen successfully',
+      sessionId,
+      status: 'FROZEN',
+    });
+  } catch (error) {
+    console.error('Error freezing interview session:', error);
+    res.status(500).json({ error: 'Failed to freeze interview session', details: error.message });
+  }
+};
+
+/**
+ * Unfreeze interview session (Super Admin only)
+ * PATCH /api/admin/interview-scheduling/session/:sessionId/unfreeze
+ */
+export const unfreezeInterviewSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: { job: { select: { jobTitle: true } } },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status !== 'FROZEN') {
+      return res.status(409).json({
+        error: 'Session is not frozen',
+        message: 'Only frozen sessions can be unfrozen.',
+      });
+    }
+
+    const newStatus = session.startedAt ? 'ONGOING' : 'NOT_STARTED';
+    await prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { status: newStatus },
+    });
+
+    logger.info(`Super Admin unfroze interview session ${sessionId} (job: ${session.job?.jobTitle})`);
+
+    res.json({
+      message: 'Interview session unfrozen successfully',
+      sessionId,
+      status: newStatus,
+    });
+  } catch (error) {
+    console.error('Error unfreezing interview session:', error);
+    res.status(500).json({ error: 'Failed to unfreeze interview session', details: error.message });
   }
 };

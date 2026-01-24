@@ -19,6 +19,7 @@ import { body, validationResult } from 'express-validator';
 import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
+import { createNotification } from '../controllers/notifications.js';
 
 const router = express.Router();
 
@@ -217,13 +218,13 @@ router.post('/login', [
   body('role').optional().custom((value) => {
     if (!value) return true;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(upper);
+  }).withMessage('Role must be STUDENT, RECRUITER, ADMIN, or SUPER_ADMIN'),
   body('selectedRole').optional().custom((value) => {
     if (!value) return true;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('SelectedRole must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(upper);
+  }).withMessage('SelectedRole must be STUDENT, RECRUITER, ADMIN, or SUPER_ADMIN'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -235,8 +236,57 @@ router.post('/login', [
     // Normalize role to uppercase (accept both 'role' and 'selectedRole')
     const role = (selectedRole || roleFromBody) ? (selectedRole || roleFromBody).toUpperCase() : undefined;
 
-    // Find user
-    const user = await prisma.user.findUnique({
+    // Super Admin: specific email + password → always log in as Super Admin (no role selector on login).
+    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
+    const isSuperAdminLogin = email.toLowerCase() === superAdminEmail;
+
+    let user = null;
+    if (isSuperAdminLogin) {
+      user = await prisma.user.findUnique({
+        where: { email },
+        include: { student: true, recruiter: true, admin: true },
+      });
+      if (user && user.role !== 'SUPER_ADMIN') {
+        user = null; // email matches but not a Super Admin user
+      }
+      if (user) {
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) user = null;
+      }
+      if (user) {
+        if (user.status === 'BLOCKED') {
+          return res.status(403).json({ error: 'Account is blocked' });
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+        const accessToken = generateAccessToken(user.id);
+        const refreshToken = generateRefreshToken(user.id);
+        await prisma.refreshToken.create({
+          data: {
+            userId: user.id,
+            token: refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+        return res.json({
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            emailVerified: user.emailVerified,
+          },
+          accessToken,
+          refreshToken,
+        });
+      }
+      // Wrong password or no Super Admin user → fall through to 401
+    }
+
+    // Normal login
+    user = await prisma.user.findUnique({
       where: { email },
       include: {
         student: true,
@@ -249,13 +299,11 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check password
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Verify role if specified (case-insensitive comparison)
     if (role && user.role.toUpperCase() !== role.toUpperCase()) {
       return res.status(403).json({ error: 'Invalid role for this account' });
     }
@@ -270,6 +318,37 @@ router.post('/login', [
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+
+    // Notify Super Admins when an Admin logs in (for approval workflow)
+    if (user.role === 'ADMIN') {
+      try {
+        const superAdmins = await prisma.user.findMany({
+          where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
+          select: { id: true },
+        });
+        const adminName = user.displayName || user.email;
+        const loginAt = new Date().toLocaleString();
+        for (const sa of superAdmins) {
+          await createNotification({
+            userId: sa.id,
+            title: `Admin logged in: ${adminName}`,
+            body: `${adminName} (${user.email}) logged in at ${loginAt}. Review in Notifications to approve or disable.`,
+            data: {
+              type: 'admin_login',
+              adminUserId: user.id,
+              adminEmail: user.email,
+              adminName,
+              loggedInAt: new Date().toISOString(),
+            },
+          });
+        }
+        if (superAdmins.length > 0) {
+          logger.info(`Admin login notifications sent to ${superAdmins.length} Super Admin(s) for ${user.email}`);
+        }
+      } catch (notifErr) {
+        logger.error('Failed to notify Super Admins of admin login:', notifErr);
+      }
+    }
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id);

@@ -42,6 +42,7 @@ export default function ProtectedRoute({ allowRoles }) {
     const redirectPath = userRoleUpper === 'STUDENT' ? '/student' :
                          userRoleUpper === 'RECRUITER' ? '/recruiter' :
                          userRoleUpper === 'ADMIN' ? '/admin' :
+                         userRoleUpper === 'SUPER_ADMIN' ? '/super-admin' :
                          '/';
     
     return <Navigate to={redirectPath} replace />;

@@ -451,6 +451,10 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  blockUnblockStudent: (studentId, data) => apiRequest(`/students/${studentId}/block`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
   
   // Public Profile (NO AUTH - public access)
   getPublicProfile: (publicProfileId) => {
@@ -828,6 +832,18 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(data),
   }),
+
+  // Super Admin
+  listSuperAdminAdmins: () => apiRequest('/super-admin/admins'),
+  createSuperAdminAdmin: (data) => apiRequest('/super-admin/admins', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  disableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/disable`, { method: 'PATCH' }),
+  enableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/enable`, { method: 'PATCH' }),
+  getSuperAdminStats: () => apiRequest('/super-admin/stats'),
+  freezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/freeze`, { method: 'PATCH' }),
+  unfreezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/unfreeze`, { method: 'PATCH' }),
 
   // Utility
   uploadFile,

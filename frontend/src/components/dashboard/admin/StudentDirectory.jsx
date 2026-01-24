@@ -4,7 +4,7 @@ import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaU
 import { MdBlock } from 'react-icons/md';
 import { Loader, Download, Upload, SquarePen, User, LinkIcon } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { getAllStudents, updateStudentStatus, updateStudentProfile, updateEducationalBackground } from '../../../services/students';
+import { getAllStudents, updateStudentProfile, updateEducationalBackground } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -933,9 +933,10 @@ export default function StudentDirectory() {
     }
   };
 
-  // Permission check for admin-only actions
+  // Permission check for admin / super admin actions
   const canModifyStudents = () => {
-    return user && (user.role === 'admin' || user.userType === 'admin');
+    const r = (user?.role || user?.userType || '').toLowerCase();
+    return user && (r === 'admin' || r === 'super_admin');
   };
 
   const handleBlockConfirm = async (blockDetails) => {
@@ -945,7 +946,7 @@ export default function StudentDirectory() {
     }
 
     if (operationLoading) {
-      return; // Prevent multiple operations
+      return;
     }
 
     try {
@@ -953,52 +954,23 @@ export default function StudentDirectory() {
       const newStatus = selectedStudent.status === 'Blocked' ? 'Active' : 'Blocked';
       const isBlocking = newStatus === 'Blocked';
 
-      // Enhanced block details with admin info
-      const enhancedBlockDetails = isBlocking ? {
-        ...blockDetails,
-        blockedBy: user.id,
-        blockedByName: user.displayName || user.email || 'Admin',
-        blockedAt: new Date()
-      } : null;
+      const unblock = blockDetails?.isUnblocking === true || !isBlocking;
+      const payload = {
+        isUnblocking: unblock,
+        blockType: !unblock && blockDetails?.blockType
+          ? (blockDetails.blockType === 'Temporary' || blockDetails.blockType === 'temporary' ? 'temporary' : 'permanent')
+          : 'permanent',
+        endDate: !unblock && blockDetails?.endDate ? blockDetails.endDate : null,
+        endTime: !unblock && blockDetails?.endTime ? blockDetails.endTime : null,
+        reason: !unblock && blockDetails?.reason ? blockDetails.reason : '',
+        notes: !unblock && blockDetails?.notes ? blockDetails.notes : '',
+      };
 
-      // Update student status
-      await updateStudentStatus(selectedStudent.id, newStatus, enhancedBlockDetails);
-
-      // Create notification entry for audit trail
-      try {
-        const notificationData = {
-          type: isBlocking ? 'student_blocked' : 'student_unblocked',
-          title: `Student ${isBlocking ? 'Blocked' : 'Unblocked'}`,
-          message: `${selectedStudent.fullName} (${selectedStudent.enrollmentId}) has been ${isBlocking ? 'blocked' : 'unblocked'} by ${user.displayName || user.email}`,
-          studentId: selectedStudent.id,
-          studentName: selectedStudent.fullName,
-          studentEnrollmentId: selectedStudent.enrollmentId,
-          adminId: user.id,
-          adminName: user.displayName || user.email || 'Admin',
-          priority: 'high',
-          metadata: {
-            reason: isBlocking ? blockDetails.reason : 'Unblocked',
-            notes: isBlocking ? blockDetails.notes : 'Student account unblocked',
-            studentEmail: selectedStudent.email,
-            studentCenter: selectedStudent.center,
-            studentSchool: selectedStudent.school
-          },
-          createdAt: new Date().toISOString(),
-          date: new Date().toISOString().split('T')[0],
-          time: new Date().toTimeString().split(' ')[0]
-        };
-
-        // TODO: Replace with API call: api.createNotification() or backend handles automatically
-        console.log('Notification would be created for student status change');
-
-      } catch (notificationError) {
-        console.warn('Failed to create notification:', notificationError);
-        // Don't fail the operation if notification fails
-      }
-
-      console.log(`Student ${isBlocking ? 'blocked' : 'unblocked'} successfully`);
+      await api.blockUnblockStudent(selectedStudent.id, payload);
+      setBlockModalOpen(false);
+      setSelectedStudent(null);
+      await loadStudents();
       alert(`Student has been ${isBlocking ? 'blocked' : 'unblocked'} successfully.`);
-
     } catch (error) {
       console.error('Error updating student status:', error);
       setError('Failed to update student status');
@@ -1568,9 +1540,10 @@ export default function StudentDirectory() {
 
       <BlockModal
         isOpen={blockModalOpen}
-        onClose={() => setBlockModalOpen(false)}
+        onClose={() => { setBlockModalOpen(false); setSelectedStudent(null); }}
         entity={selectedStudent}
         entityType="student"
+        isUnblocking={selectedStudent?.status === 'Blocked'}
         onConfirm={handleBlockConfirm}
       />
 

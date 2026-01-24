@@ -41,6 +41,7 @@ export default function AuthRedirect() {
       const targetDashboard = roleLower === 'student' ? '/student' 
         : roleLower === 'recruiter' ? '/recruiter'
         : roleLower === 'admin' ? '/admin'
+        : roleLower === 'super_admin' ? '/super-admin'
         : null;
 
       // Public paths that authenticated users can visit without redirect
@@ -53,12 +54,13 @@ export default function AuthRedirect() {
         || currentPath.startsWith('/interview/')
         || currentPath.startsWith('/recruiter/screening');
       
-      // Admin sub-routes that should not redirect
-      const isAdminSubRoute = roleLower === 'admin' && (
+      // Admin / Super Admin sub-routes that should not redirect
+      const isAdminSubRoute = (roleLower === 'admin' || roleLower === 'super_admin') && (
         currentPath.startsWith('/admin/interview-session/') ||
         currentPath.startsWith('/admin/assessment/') ||
         currentPath.startsWith('/admin/job/') ||
-        currentPath.startsWith('/admin/jobs/') || // Admin applicants tracking pages
+        currentPath.startsWith('/admin/jobs/') ||
+        currentPath.startsWith('/super-admin') ||
         currentPath.startsWith('/job/')
       );
 

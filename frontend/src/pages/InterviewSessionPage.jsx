@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
@@ -7,6 +7,8 @@ import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, 
 const InterviewSessionPage = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const { user, role } = useAuth();
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -38,12 +40,13 @@ const InterviewSessionPage = () => {
     document.head.appendChild(script);
   }, []);
 
-  // Check authentication
+  // Check authentication (admin or super_admin)
   useEffect(() => {
-    if (!user || role?.toLowerCase() !== 'admin') {
-      navigate('/admin', { replace: true });
+    const r = (role || '').toLowerCase();
+    if (!user || (r !== 'admin' && r !== 'super_admin')) {
+      navigate(base || '/admin', { replace: true });
     }
-  }, [user, role, navigate]);
+  }, [user, role, navigate, base]);
 
   // Load interview session data
   useEffect(() => {
@@ -344,7 +347,7 @@ const InterviewSessionPage = () => {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Interview Session Not Found</h2>
           {error ? <p className="text-gray-600">{error}</p> : null}
           <button
-            onClick={() => navigate('/admin?tab=scheduleInterview')}
+            onClick={() => navigate(`${base}?tab=interviewScheduling`)}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mt-4"
           >
             Back to Schedule Interview
@@ -399,7 +402,7 @@ const InterviewSessionPage = () => {
                 </button>
               )}
               <button
-                onClick={() => navigate('/admin?tab=scheduleInterview')}
+                onClick={() => navigate(`${base}?tab=interviewScheduling`)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />

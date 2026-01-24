@@ -880,7 +880,7 @@ model InterviewSession {
   jobId     String  @unique
   companyId String?
 
-  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE
+  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE, FROZEN
 
   // Creator
   createdBy String // Admin user ID

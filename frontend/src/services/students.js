@@ -355,19 +355,31 @@ export const getAllStudents = async (filters = {}, options = {}) => {
 
 /**
  * Update student status (admin only - block/unblock, activate/deactivate)
+ * Prefer blockUnblockStudent for block/unblock; this remains for compatibility.
  */
 export const updateStudentStatus = async (studentId, newStatus, statusData = {}) => {
   try {
-    // TODO: Add admin API endpoint for updating student status
-    console.warn('updateStudentStatus: Backend endpoint needed');
-    // For now, use updateStudentProfile with status and additional data
-    const result = await api.updateStudentProfile({ 
-      status: newStatus, 
-      ...statusData 
-    });
+    const isUnblocking = newStatus === 'Active' || newStatus === 'ACTIVE';
+    const payload = {
+      isUnblocking,
+      blockType: (statusData.blockType || 'Permanent').toString().toLowerCase().startsWith('temp') ? 'temporary' : 'permanent',
+      endDate: statusData.endDate || null,
+      endTime: statusData.endTime || null,
+      reason: statusData.reason || '',
+      notes: statusData.notes || '',
+    };
+    const result = await api.blockUnblockStudent(studentId, payload);
     return { success: true, ...result };
   } catch (error) {
     console.error('updateStudentStatus error:', error);
     throw error;
   }
+};
+
+/**
+ * Block or unblock a student (admin / super admin only)
+ */
+export const blockUnblockStudent = async (studentId, payload) => {
+  const res = await api.blockUnblockStudent(studentId, payload);
+  return res;
 };
