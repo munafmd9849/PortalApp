@@ -291,6 +291,8 @@ const Notifications = () => {
         notification.body?.toLowerCase().includes(query) ||
         notification.from?.toLowerCase().includes(query) ||
         notification.meta?.studentName?.toLowerCase().includes(query) ||
+        notification.meta?.recruiterName?.toLowerCase().includes(query) ||
+        notification.meta?.userName?.toLowerCase().includes(query) ||
         notification.meta?.company?.toLowerCase().includes(query) ||
         notification.meta?.companyName?.toLowerCase().includes(query) ||
         notification.meta?.email?.toLowerCase().includes(query) ||
@@ -906,16 +908,26 @@ const Notifications = () => {
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <h3 className="text-sm font-medium text-gray-700 mb-3">Additional Information</h3>
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      {selectedNotification.meta.studentName && (
+                      {(selectedNotification.meta.studentName || selectedNotification.meta.recruiterName || selectedNotification.meta.userName) && (
                         <div>
-                          <span className="text-gray-500">Student:</span>
-                          <p className="text-gray-800 font-medium">{selectedNotification.meta.studentName}</p>
+                          <span className="text-gray-500">
+                            {selectedNotification.meta.recruiterName ? 'Recruiter' : 'Student'}:
+                          </span>
+                          <p className="text-gray-800 font-medium">
+                            {selectedNotification.meta.studentName || selectedNotification.meta.recruiterName || selectedNotification.meta.userName}
+                          </p>
                         </div>
                       )}
                       {selectedNotification.meta.enrollmentId && (
                         <div>
                           <span className="text-gray-500">Enrollment ID:</span>
                           <p className="text-gray-800 font-medium">{selectedNotification.meta.enrollmentId}</p>
+                        </div>
+                      )}
+                      {selectedNotification.meta.companyName && (
+                        <div>
+                          <span className="text-gray-500">Company:</span>
+                          <p className="text-gray-800 font-medium">{selectedNotification.meta.companyName}</p>
                         </div>
                       )}
                       {selectedNotification.meta.queryType && (
@@ -1103,10 +1115,10 @@ const Notifications = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                      Respond to Student Query
+                      Respond to {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
                     </h2>
                     <p className="text-sm text-gray-500">
-                      {selectedNotification.meta?.studentName} - {selectedNotification.meta?.subject}
+                      {selectedNotification.meta?.studentName || selectedNotification.meta?.recruiterName || selectedNotification.meta?.userName || 'User'} - {selectedNotification.meta?.subject}
                     </p>
                   </div>
                   <button
@@ -1124,7 +1136,9 @@ const Notifications = () => {
               <div className="p-6">
                 {/* Query Details */}
                 <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Student Query</h3>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">
+                    {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
+                  </h3>
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <p className="text-gray-800 whitespace-pre-wrap">
                       {selectedNotification.meta?.message || selectedNotification.message}

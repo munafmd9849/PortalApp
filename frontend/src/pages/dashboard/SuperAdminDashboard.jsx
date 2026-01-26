@@ -1,8 +1,3 @@
-/**
- * Super Admin Dashboard
- * Same layout as Admin, with extra tabs: Create/Disable Admins, Admin Panel & Statistics.
- * Super Admin can: approve/reject admins (Notifications), freeze interview, block students/recruiters.
- */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '../../components/dashboard/shared/AdminLayout';

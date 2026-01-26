@@ -13,6 +13,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '../middleware/auth.js';
+import { requireRole } from '../middleware/roles.js';
 import jwt from 'jsonwebtoken';
 import { validateUUID } from '../middleware/validation.js';
 import { body, validationResult } from 'express-validator';
@@ -565,6 +566,132 @@ router.put('/profile', authenticate, [
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/**
+ * PUT /auth/company-details
+ * Update company details for recruiters
+ */
+router.put('/company-details', authenticate, requireRole(['RECRUITER']), [
+  body('companyName').optional().isString().trim().isLength({ min: 1, max: 200 }),
+  body('website').optional().isURL().withMessage('Website must be a valid URL').orEmpty(),
+  body('address').optional().isString().trim().isLength({ max: 500 }),
+  body('registrationNumber').optional().isString().trim().isLength({ max: 100 }),
+  body('phone').optional().isString().trim().isLength({ max: 20 }),
+  body('email').optional().isEmail().normalizeEmail(),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { companyName, website, address, registrationNumber, phone, email } = req.body;
+    const userId = req.userId;
+
+    // Get recruiter with company
+    const recruiter = await prisma.recruiter.findUnique({
+      where: { userId },
+      include: { company: true },
+    });
+
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter profile not found' });
+    }
+
+    let companyId = recruiter.companyId;
+    let updatedCompany = null;
+
+    // Update or create company
+    if (companyName) {
+      if (companyId && recruiter.company) {
+        // Update existing company
+        const companyUpdateData = {};
+        if (website !== undefined) companyUpdateData.website = website?.trim() || null;
+        if (address !== undefined) companyUpdateData.location = address?.trim() || null;
+        
+        // Store additional info in description as JSON
+        const additionalInfo = {};
+        if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+        if (phone) additionalInfo.phone = phone.trim();
+        if (email) additionalInfo.email = email.trim();
+        
+        if (Object.keys(additionalInfo).length > 0) {
+          companyUpdateData.description = JSON.stringify(additionalInfo);
+        }
+
+        if (Object.keys(companyUpdateData).length > 0) {
+          updatedCompany = await prisma.company.update({
+            where: { id: companyId },
+            data: companyUpdateData,
+          });
+        } else {
+          updatedCompany = recruiter.company;
+        }
+      } else {
+        // Create new company or find existing by name
+        const existingCompany = await prisma.company.findFirst({
+          where: { name: companyName.trim() },
+        });
+
+        if (existingCompany) {
+          companyId = existingCompany.id;
+          // Update existing company
+          const companyUpdateData = {};
+          if (website !== undefined) companyUpdateData.website = website?.trim() || null;
+          if (address !== undefined) companyUpdateData.location = address?.trim() || null;
+          
+          const additionalInfo = {};
+          if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+          if (phone) additionalInfo.phone = phone.trim();
+          if (email) additionalInfo.email = email.trim();
+          
+          if (Object.keys(additionalInfo).length > 0) {
+            companyUpdateData.description = JSON.stringify(additionalInfo);
+          }
+
+          if (Object.keys(companyUpdateData).length > 0) {
+            updatedCompany = await prisma.company.update({
+              where: { id: companyId },
+              data: companyUpdateData,
+            });
+          } else {
+            updatedCompany = existingCompany;
+          }
+        } else {
+          // Create new company
+          const additionalInfo = {};
+          if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+          if (phone) additionalInfo.phone = phone.trim();
+          if (email) additionalInfo.email = email.trim();
+
+          updatedCompany = await prisma.company.create({
+            data: {
+              name: companyName.trim(),
+              website: website?.trim() || null,
+              location: address?.trim() || null,
+              description: Object.keys(additionalInfo).length > 0 ? JSON.stringify(additionalInfo) : null,
+            },
+          });
+          companyId = updatedCompany.id;
+        }
+
+        // Link recruiter to company
+        await prisma.recruiter.update({
+          where: { userId },
+          data: { companyId },
+        });
+      }
+    }
+
+    res.json({
+      company: updatedCompany || recruiter.company,
+      message: 'Company details updated successfully',
+    });
+  } catch (error) {
+    console.error('Update company details error:', error);
+    res.status(500).json({ error: 'Failed to update company details' });
   }
 });
 

@@ -80,12 +80,14 @@ export default function InterviewScheduling() {
     try {
       setLoading(true);
       
-      // For recruiters, only load their own jobs
+      // For recruiters, only load their own posted and approved jobs
+      // Recruiters can start interview sessions for their jobs on the drive date
       let jobsList = [];
       if ((role || user?.role || '').toLowerCase() === 'recruiter') {
         const me = await api.getCurrentUser();
         const recruiterId = me?.user?.recruiter?.id;
         if (recruiterId) {
+          // Only show jobs that are posted and approved (status: POSTED)
           const data = await api.getJobs({ recruiterId, isPosted: true, status: 'POSTED', limit: 1000 });
           jobsList = data.jobs || (Array.isArray(data) ? data : []);
         }
@@ -571,9 +573,9 @@ export default function InterviewScheduling() {
                       <div className="flex items-center gap-2 ml-4">
                         {!hasCompletedSession && (
                           <>
-                            {/* Enable button only if: (date is today) OR (session already selected) */}
-                            {/* Disable if: (date is past) OR (date is future) */}
-                            {((dateStatus === 'today') || isSelected) ? (
+                            {/* Enable button if: (date is today or past) OR (session already selected) */}
+                            {/* Allow starting on drive date or after (not before) */}
+                            {((dateStatus === 'today' || dateStatus === 'past' || driveDateReached) || isSelected) ? (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -602,9 +604,9 @@ export default function InterviewScheduling() {
                               <button
                                 disabled
                                 className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
-                                title={dateStatus === 'past' 
-                                  ? `Cannot start session: Interview date (${driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date'}) has already passed`
-                                  : `Session can only be started on ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
+                                title={dateStatus === 'future'
+                                  ? `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`
+                                  : `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
                               >
                                 <Clock className="w-4 h-4" />
                                 <span>

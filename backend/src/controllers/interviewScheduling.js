@@ -1605,6 +1605,16 @@ export const endRound = async (req, res) => {
       });
     }
 
+    // CRITICAL: Check if any students are on hold - cannot end round with on-hold students
+    const onHoldEvaluations = evaluations.filter(e => e.status === 'ON_HOLD');
+    if (onHoldEvaluations.length > 0) {
+      return res.status(409).json({
+        error: 'Cannot end round with on-hold students',
+        message: 'You cannot end the round when a student is on hold, either accept or reject',
+        onHoldCount: onHoldEvaluations.length,
+      });
+    }
+
     // Use transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
       // End current round

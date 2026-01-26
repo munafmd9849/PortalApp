@@ -53,7 +53,7 @@ function formatQuery(query) {
   };
 }
 
-async function notifyAdminsAboutQuery(query, metadata, studentProfile) {
+async function notifyAdminsAboutQuery(query, metadata, profile, userRole) {
   try {
     const admins = await prisma.user.findMany({
       where: {
@@ -73,26 +73,40 @@ async function notifyAdminsAboutQuery(query, metadata, studentProfile) {
     const notificationType =
       QUERY_NOTIFICATION_TYPES[query.type] || QUERY_NOTIFICATION_TYPES.question;
 
-    const title = `New Student Query: ${query.subject}`;
-    const body = `${studentProfile.fullName || 'Student'} submitted a ${query.type.toUpperCase()} query.`;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+    const profileName = isRecruiter 
+      ? (profile.displayName || profile.companyName || 'Recruiter')
+      : (profile.fullName || profile.displayName || 'Student');
+    
+    const title = isRecruiter 
+      ? `New Recruiter Query: ${query.subject}`
+      : `New Student Query: ${query.subject}`;
+    const body = `${profileName} submitted a ${query.type.toUpperCase()} query.`;
 
     const data = {
       queryId: query.id,
       referenceId: metadata.referenceId,
       queryType: query.type,
-      studentId: query.studentId,
-      studentName: studentProfile.fullName || studentProfile.displayName || '',
-      enrollmentId: studentProfile.enrollmentId,
-      center: studentProfile.center,
-      school: studentProfile.school,
-      batch: studentProfile.batch,
+      userId: query.studentId, // For both students and recruiters
+      userName: profileName,
       message: query.message,
-      jobId: metadata.jobId || null, // Include jobId for question type queries
-      type: notificationType, // Store type in data for frontend to extract
-      // Include CGPA and backlog values for CGPA/backlog update queries
+      jobId: metadata.jobId || null,
+      type: notificationType,
+      // Student-specific fields
+      studentId: isRecruiter ? null : query.studentId,
+      studentName: isRecruiter ? null : (profile.fullName || profile.displayName || ''),
+      enrollmentId: profile.enrollmentId || null,
+      center: profile.center || null,
+      school: profile.school || null,
+      batch: profile.batch || null,
+      // Recruiter-specific fields
+      recruiterId: isRecruiter ? query.studentId : null, // studentId field stores userId for recruiters
+      recruiterName: isRecruiter ? profileName : null,
+      companyName: profile.companyName || null,
+      // Common fields
       cgpa: metadata.cgpa || null,
       backlogs: metadata.backlogs || null,
-      proofDocumentUrl: metadata.proofDocumentUrl || null, // Proof document URL if uploaded by student
+      proofDocumentUrl: metadata.proofDocumentUrl || null,
     };
 
     console.log(`[Query Notification] Creating notifications for query ${query.id}, type: ${notificationType}`);
@@ -268,39 +282,51 @@ export async function createStudentQuery(req, res) {
           batch: true,
         },
       });
-    } else if (userRole === 'RECRUITER' || userRole === 'recruiter') {
-      // For recruiters, get recruiter profile
-      const recruiterProfile = await prisma.recruiter.findFirst({
-        where: { userId },
-        select: {
-          company: { select: { name: true } },
-        },
-      });
-      // Create a compatible profile object
-      studentProfile = recruiterProfile ? {
-        fullName: null,
-        enrollmentId: null,
-        center: null,
-        school: null,
-        batch: null,
-        companyName: recruiterProfile.company?.name,
-      } : null;
     }
 
     const userProfile = await prisma.user.findUnique({
-      where: { id: studentId },
+      where: { id: userId },
       select: { email: true, displayName: true },
     });
 
-    const profileForNotification =
-      studentProfile || {
-        fullName:
-          userProfile?.displayName || userProfile?.email || 'Student',
+    // Build profile for notification (students and recruiters)
+    let profileForNotification;
+    if (userRole === 'STUDENT' || userRole === 'student') {
+      profileForNotification = studentProfile || {
+        fullName: userProfile?.displayName || userProfile?.email || 'Student',
         enrollmentId: null,
         center: null,
         school: null,
         batch: null,
       };
+    } else if (userRole === 'RECRUITER' || userRole === 'recruiter') {
+      // For recruiters, get company info
+      const recruiterProfile = await prisma.recruiter.findFirst({
+        where: { userId },
+        select: {
+          company: { select: { name: true } },
+          companyName: true,
+        },
+      });
+      profileForNotification = {
+        fullName: userProfile?.displayName || userProfile?.email || 'Recruiter',
+        displayName: userProfile?.displayName || userProfile?.email || 'Recruiter',
+        companyName: recruiterProfile?.company?.name || recruiterProfile?.companyName || null,
+        enrollmentId: null,
+        center: null,
+        school: null,
+        batch: null,
+      };
+    } else {
+      profileForNotification = {
+        fullName: userProfile?.displayName || userProfile?.email || 'User',
+        displayName: userProfile?.displayName || userProfile?.email || 'User',
+        enrollmentId: null,
+        center: null,
+        school: null,
+        batch: null,
+      };
+    }
 
     // For endorsement type, use a default message if none provided
     const queryMessage = normalizedType === 'endorsement' && !message?.trim()
@@ -404,10 +430,7 @@ export async function createStudentQuery(req, res) {
     
     // Notify admins about the new query (skip for endorsement as it's handled separately)
     if (normalizedType !== 'endorsement') {
-      await notifyAdminsAboutQuery(query, metadata, {
-        ...profileForNotification,
-        displayName: userProfile?.displayName,
-      });
+      await notifyAdminsAboutQuery(query, metadata, profileForNotification, userRole);
     }
 
     res.status(201).json({
