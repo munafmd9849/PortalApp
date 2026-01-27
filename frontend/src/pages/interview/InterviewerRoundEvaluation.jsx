@@ -8,6 +8,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
+import ThankYouPopup from '../../components/common/ThankYouPopup';
 
 const InterviewerRoundEvaluation = () => {
   const { roundId } = useParams();
@@ -23,6 +24,8 @@ const InterviewerRoundEvaluation = () => {
   const [evaluations, setEvaluations] = useState({});
   const [canEndRound, setCanEndRound] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
+  const [showThankYouPopup, setShowThankYouPopup] = useState(false);
+  const [pendingNavigate, setPendingNavigate] = useState(null);
 
   useEffect(() => {
     if (!token) {
@@ -164,28 +167,39 @@ const InterviewerRoundEvaluation = () => {
       setEndingRound(true);
       loadingToastId = showLoading('Ending round...');
 
-      // Use API client to end round
       const result = await api.endRound(roundId, token);
-      const message = result.message || 'Round ended successfully! Only selected candidates will proceed to the next round.';
-      
-      replaceLoadingToast(loadingToastId, 'success', message);
-      
-      // Navigate back to session page
-      if (round && round.sessionId) {
-        const encodedToken = encodeURIComponent(token);
-        navigate(`/interview/session/${round.sessionId}?token=${encodedToken}`);
+      const sessionCompleted = result.sessionCompleted === true;
+
+      if (sessionCompleted) {
+        dismissToast(loadingToastId);
+        setPendingNavigate(round?.sessionId ? { sessionId: round.sessionId, token } : null);
+        setShowThankYouPopup(true);
       } else {
-        navigate(-1);
+        const message = result.message || 'Round ended successfully! Only selected candidates will proceed to the next round.';
+        replaceLoadingToast(loadingToastId, 'success', message);
+        if (round?.sessionId) {
+          navigate(`/interview/session/${round.sessionId}?token=${encodeURIComponent(token)}`);
+        } else {
+          navigate(-1);
+        }
       }
     } catch (err) {
       console.error('Error ending round:', err);
-      if (loadingToastId) {
-        dismissToast(loadingToastId);
-      }
+      if (loadingToastId) dismissToast(loadingToastId);
       showError(err.message || 'Failed to end round. Please ensure all candidates are evaluated and try again.');
     } finally {
       setEndingRound(false);
     }
+  };
+
+  const handleThankYouClose = () => {
+    setShowThankYouPopup(false);
+    if (pendingNavigate?.sessionId && pendingNavigate?.token) {
+      navigate(`/interview/session/${pendingNavigate.sessionId}?token=${encodeURIComponent(pendingNavigate.token)}`);
+    } else {
+      navigate(-1);
+    }
+    setPendingNavigate(null);
   };
 
   const getStatusIcon = (status) => {
@@ -487,6 +501,11 @@ const InterviewerRoundEvaluation = () => {
           )}
         </div>
       </div>
+
+      <ThankYouPopup
+        isOpen={showThankYouPopup}
+        onClose={handleThankYouClose}
+      />
     </div>
   );
 };

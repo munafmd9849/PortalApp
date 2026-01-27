@@ -873,6 +873,7 @@ export async function getAllStudents(req, res) {
                 status: true,
                 emailVerified: true,
                 createdAt: true,
+                blockInfo: true,
               },
             },
           },
@@ -906,6 +907,7 @@ export async function getAllStudents(req, res) {
                 status: true,
                 emailVerified: true,
                 createdAt: true,
+                blockInfo: true,
               },
             });
 
@@ -960,12 +962,14 @@ export async function getAllStudents(req, res) {
         createdAt: student.user.createdAt 
           ? new Date(student.user.createdAt).toISOString() 
           : (student.createdAt ? new Date(student.createdAt).toISOString() : new Date().toISOString()),
+        blockInfo: student.user.blockInfo || null,
       } : {
         status: 'ACTIVE',
         emailVerified: false,
         createdAt: student.createdAt 
           ? new Date(student.createdAt).toISOString() 
           : new Date().toISOString(),
+        blockInfo: null,
       };
 
       // Return student with serialized dates and safe user

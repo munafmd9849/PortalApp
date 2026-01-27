@@ -798,7 +798,34 @@ export const api = {
     method: 'POST',
     silent: true,
   }),
-  
+
+  /**
+   * Download interview session as CSV spreadsheet (after last round).
+   * Fetches blob and triggers browser download; does not use apiRequest.
+   */
+  async exportInterviewSessionSpreadsheet(sessionId, token) {
+    const { API_BASE_URL } = await import('../config/api.js');
+    const url = `${API_BASE_URL}/interview/session/${sessionId}/export?token=${encodeURIComponent(token)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.details || `Export failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = 'interview-session-export.csv';
+    if (disposition) {
+      const m = disposition.match(/filename="?([^";\n]+)"?/);
+      if (m) filename = m[1].trim();
+    }
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(u);
+  },
+
   // Auth Profile (for admin/recruiter)
   getAuthProfile: () => apiRequest('/auth/profile'),
 

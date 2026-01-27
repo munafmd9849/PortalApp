@@ -248,42 +248,46 @@ router.post('/login', [
         include: { student: true, recruiter: true, admin: true },
       });
       if (user && user.role !== 'SUPER_ADMIN') {
-        user = null; // email matches but not a Super Admin user
+        // Email matches Super Admin email but user has different role
+        return res.status(403).json({ error: 'Invalid credentials for Super Admin' });
       }
-      if (user) {
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) user = null;
+      if (!user) {
+        // Super Admin email but user doesn't exist
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
-      if (user) {
-        if (user.status === 'BLOCKED') {
-          return res.status(403).json({ error: 'Account is blocked' });
-        }
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        });
-        const accessToken = generateAccessToken(user.id);
-        const refreshToken = generateRefreshToken(user.id);
-        await prisma.refreshToken.create({
-          data: {
-            userId: user.id,
-            token: refreshToken,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        });
-        return res.json({
-          user: {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            status: user.status,
-            emailVerified: user.emailVerified,
-          },
-          accessToken,
-          refreshToken,
-        });
+      // User exists and has SUPER_ADMIN role, verify password
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
-      // Wrong password or no Super Admin user → fall through to 401
+      // Password valid, authenticate as Super Admin
+      if (user.status === 'BLOCKED') {
+        return res.status(403).json({ error: 'Account is blocked' });
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+      return res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          emailVerified: user.emailVerified,
+        },
+        accessToken,
+        refreshToken,
+      });
     }
 
     // Normal login
@@ -305,7 +309,8 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    if (role && user.role.toUpperCase() !== role.toUpperCase()) {
+    // Skip role check for Super Admin (they can login with any role selector)
+    if (role && user.role.toUpperCase() !== role.toUpperCase() && user.role.toUpperCase() !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'Invalid role for this account' });
     }
 
@@ -320,8 +325,8 @@ router.post('/login', [
       data: { lastLoginAt: new Date() },
     });
 
-    // Notify Super Admins when an Admin logs in (for approval workflow)
-    if (user.role === 'ADMIN') {
+    // Notify Super Admins when a PENDING admin tries to enter (login) — for Admit/Reject workflow
+    if (user.role === 'ADMIN' && user.status === 'PENDING') {
       try {
         const superAdmins = await prisma.user.findMany({
           where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
@@ -332,8 +337,8 @@ router.post('/login', [
         for (const sa of superAdmins) {
           await createNotification({
             userId: sa.id,
-            title: `Admin logged in: ${adminName}`,
-            body: `${adminName} (${user.email}) logged in at ${loginAt}. Review in Notifications to approve or disable.`,
+            title: `Admin requesting access: ${adminName}`,
+            body: `${adminName} (${user.email}) tried to log in at ${loginAt}. Admit or Reject in Notifications.`,
             data: {
               type: 'admin_login',
               adminUserId: user.id,
@@ -344,7 +349,7 @@ router.post('/login', [
           });
         }
         if (superAdmins.length > 0) {
-          logger.info(`Admin login notifications sent to ${superAdmins.length} Super Admin(s) for ${user.email}`);
+          logger.info(`Admin login (PENDING) notifications sent to ${superAdmins.length} Super Admin(s) for ${user.email}`);
         }
       } catch (notifErr) {
         logger.error('Failed to notify Super Admins of admin login:', notifErr);
@@ -575,7 +580,16 @@ router.put('/profile', authenticate, [
  */
 router.put('/company-details', authenticate, requireRole(['RECRUITER']), [
   body('companyName').optional().isString().trim().isLength({ min: 1, max: 200 }),
-  body('website').optional().isURL().withMessage('Website must be a valid URL').orEmpty(),
+  body('website').optional().custom((value) => {
+    if (!value || value.trim() === '') return true;
+    // Basic URL validation - allow http://, https://, or URLs without protocol
+    try {
+      new URL(value.startsWith('http') ? value : `https://${value}`);
+      return true;
+    } catch {
+      throw new Error('Website must be a valid URL');
+    }
+  }),
   body('address').optional().isString().trim().isLength({ max: 500 }),
   body('registrationNumber').optional().isString().trim().isLength({ max: 100 }),
   body('phone').optional().isString().trim().isLength({ max: 20 }),

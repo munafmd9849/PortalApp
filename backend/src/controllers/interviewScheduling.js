@@ -744,18 +744,13 @@ export const getSession = async (req, res) => {
       });
     }
 
-    // Get session first to check if it's completed
+    // Get session first to check status
     const sessionCheck = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       select: { status: true },
     });
 
-    if (sessionCheck?.status === 'COMPLETED') {
-      return res.status(403).json({ 
-        error: 'Session completed',
-        details: 'This interview session has been completed. The access link is no longer valid.' 
-      });
-    }
+    const isCompletedOrIncomplete = sessionCheck?.status === 'COMPLETED' || sessionCheck?.status === 'INCOMPLETE';
 
     // Check if token is valid in database
     const invite = await prisma.interviewerInvite.findFirst({
@@ -766,31 +761,26 @@ export const getSession = async (req, res) => {
       },
     });
 
-    // Log for debugging (remove in production)
     if (process.env.NODE_ENV === 'development') {
       console.log('Database lookup:', {
         tokenFound: !!invite,
         sessionId,
         email: decoded.email,
-        inviteId: invite?.id,
-        inviteExpiresAt: invite?.expiresAt,
-        inviteUsed: invite?.used
+        inviteUsed: invite?.used,
+        isCompletedOrIncomplete,
       });
     }
 
     if (!invite) {
-      // Try to find invite without email match (for debugging)
       const inviteByToken = await prisma.interviewerInvite.findFirst({
         where: { token },
       });
-      
       if (inviteByToken) {
         return res.status(403).json({ 
           error: 'Token email mismatch',
           details: `Token email (${decoded.email}) does not match invite email (${inviteByToken.email})` 
         });
       }
-      
       return res.status(403).json({ 
         error: 'Token not found in database',
         details: 'This token may not have been properly saved. Please contact the administrator.' 
@@ -804,7 +794,8 @@ export const getSession = async (req, res) => {
       });
     }
 
-    if (invite.used) {
+    // For NOT_STARTED / ONGOING / FROZEN: reject used tokens. For COMPLETED/INCOMPLETE: allow used (so recruiter can view + download).
+    if (!isCompletedOrIncomplete && invite.used) {
       return res.status(403).json({ 
         error: 'Token has already been used',
         details: `Token was used on ${invite.usedAt ? new Date(invite.usedAt).toLocaleString() : 'unknown date'}. The session may have been completed.` 
@@ -1873,6 +1864,162 @@ export const endSession = async (req, res) => {
   } catch (error) {
     console.error('Error ending interview session:', error);
     res.status(500).json({ error: 'Failed to end interview session', details: error.message });
+  }
+};
+
+/**
+ * Escape a CSV field (quote if contains comma, newline, or double-quote)
+ */
+function csvEscape(s) {
+  if (s == null) return '';
+  const t = String(s).trim();
+  if (/[,\n"]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+  return t;
+}
+
+/**
+ * Export interview session data as CSV (spreadsheet) for recruiters after last round.
+ * GET /api/interview/session/:sessionId/export?token=...
+ * Token may be used (invite.used) when session is COMPLETED or INCOMPLETE.
+ */
+export const exportSessionSpreadsheet = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    let token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    if (token && token.includes('%')) {
+      try { token = decodeURIComponent(token); } catch (e) { /* keep original */ }
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: 'Token required' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      if (decoded.type !== 'interviewer' || decoded.sessionId !== sessionId) {
+        return res.status(403).json({ error: 'Invalid token' });
+      }
+    } catch (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        job: { include: { company: true } },
+        rounds: { orderBy: { roundNumber: 'asc' } },
+      },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status !== 'COMPLETED' && session.status !== 'INCOMPLETE') {
+      return res.status(400).json({
+        error: 'Export only available after session is completed',
+        details: 'Spreadsheet download is available only after the last round has been ended.',
+      });
+    }
+
+    const invite = await prisma.interviewerInvite.findFirst({
+      where: { token, sessionId, email: decoded.email },
+    });
+
+    if (!invite || invite.expiresAt < new Date()) {
+      return res.status(403).json({ error: 'Token expired or invalid' });
+    }
+
+    const roundIds = session.rounds.map((r) => r.id);
+
+    const evaluations = await prisma.roundEvaluation.findMany({
+      where: { roundId: { in: roundIds } },
+      include: {
+        round: true,
+        application: {
+          include: {
+            student: {
+              include: {
+                user: { select: { email: true, displayName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const appMap = new Map();
+    for (const e of evaluations) {
+      const app = e.application;
+      if (!app || !app.student) continue;
+      const aid = app.id;
+      if (!appMap.has(aid)) {
+        appMap.set(aid, {
+          application: app,
+          student: app.student,
+          byRound: new Map(),
+        });
+      }
+      appMap.get(aid).byRound.set(e.roundId, { status: e.status, remarks: e.remarks });
+    }
+
+    const roundHeaders = [];
+    for (const r of session.rounds) {
+      roundHeaders.push(`${r.name} Status`, `${r.name} Remarks`);
+    }
+
+    const headers = [
+      'Student Name',
+      'Email',
+      'Enrollment ID',
+      'Batch',
+      'Center',
+      'School',
+      ...roundHeaders,
+      'Final Status',
+      'Last Round Reached',
+    ];
+
+    const entries = Array.from(appMap.values()).sort((a, b) => {
+      const na = (a.student.user?.displayName || a.student.fullName || '').toLowerCase();
+      const nb = (b.student.user?.displayName || b.student.fullName || '').toLowerCase();
+      return na.localeCompare(nb);
+    });
+    const rows = [];
+    for (const { application, student, byRound } of entries) {
+      const u = student.user || {};
+      const cells = [
+        csvEscape(u.displayName || student.fullName || ''),
+        csvEscape(u.email || student.email || ''),
+        csvEscape(student.enrollmentId || ''),
+        csvEscape(student.batch || ''),
+        csvEscape(student.center || ''),
+        csvEscape(student.school || ''),
+      ];
+      for (const r of session.rounds) {
+        const ev = byRound.get(r.id);
+        cells.push(csvEscape(ev?.status || ''));
+        cells.push(csvEscape(ev?.remarks || ''));
+      }
+      cells.push(csvEscape(application.interviewStatus || ''));
+      cells.push(csvEscape(application.lastRoundReached != null ? String(application.lastRoundReached) : ''));
+      rows.push(cells.join(','));
+    }
+
+    const BOM = '\uFEFF';
+    const csv = BOM + headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
+
+    const jobTitle = (session.job?.jobTitle || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `interview-session-${jobTitle}-${date}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting interview session spreadsheet:', error);
+    res.status(500).json({ error: 'Failed to export spreadsheet', details: error.message });
   }
 };
 

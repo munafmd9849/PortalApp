@@ -56,25 +56,21 @@ export async function createAdminRequest(req, res) {
       },
     });
 
-    // Notify all existing admins about the new request
+    // Notify only Super Admins — Admit/Reject is Super Admin only
     try {
-      const admins = await prisma.user.findMany({
-        where: {
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-          status: 'ACTIVE',
-        },
+      const superAdmins = await prisma.user.findMany({
+        where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
         select: { id: true },
       });
 
-      if (admins.length > 0) {
+      if (superAdmins.length > 0) {
         const requesterName = user.displayName || user.email;
-        
         await Promise.all(
-          admins.map((admin) =>
+          superAdmins.map((sa) =>
             createNotification({
-              userId: admin.id,
+              userId: sa.id,
               title: `New Admin Access Request: ${requesterName}`,
-              body: `${requesterName} (${user.email}) has requested admin access.${reason ? ` Reason: ${reason}` : ''}`,
+              body: `${requesterName} (${user.email}) has requested admin access. Admit or Reject in Notifications.${reason ? ` Reason: ${reason}` : ''}`,
               data: {
                 type: 'admin_coordination',
                 requestId: adminRequest.id,
@@ -87,11 +83,10 @@ export async function createAdminRequest(req, res) {
             })
           )
         );
-        logger.info(`Admin coordination notifications sent to ${admins.length} admins for request ${adminRequest.id}`);
+        logger.info(`Admin request notifications sent to ${superAdmins.length} Super Admin(s) for request ${adminRequest.id}`);
       }
     } catch (notificationError) {
-      // Don't fail request creation if notification fails
-      logger.error(`Failed to send admin coordination notifications for request ${adminRequest.id}:`, notificationError);
+      logger.error(`Failed to send admin request notifications for request ${adminRequest.id}:`, notificationError);
     }
 
     res.status(201).json(adminRequest);

@@ -281,8 +281,8 @@ export default function RecruiterDirectory() {
 
   const handleBlockUnblock = async (blockData) => {
     const role = (user?.role || '').toLowerCase();
-    if (!user || (role !== 'admin' && role !== 'super_admin')) {
-      toast.showError('Only admin users can block/unblock recruiters');
+    if (!user || role !== 'super_admin') {
+      toast.showError('Only Super Admin users can block/unblock recruiters');
       return;
     }
 
@@ -873,22 +873,23 @@ export default function RecruiterDirectory() {
                               <FaEye className="w-4 h-4" />
                             </button>
 
-                            {/* Block/Unblock Button */}
+                            {/* Block/Unblock Button - Super Admin only */}
                             <button
                               onClick={() => {
-                                if (['admin', 'super_admin'].includes((user?.role || '').toLowerCase())) {
+                                const userRole = (user?.role || '').toLowerCase();
+                                if (userRole === 'super_admin') {
                                   setBlockModal({ 
                                     isOpen: true, 
                                     recruiter, 
                                     isUnblocking: recruiter.status === 'Blocked' 
                                   });
                                 } else {
-                                  toast.showError('Only admin users can block/unblock recruiters');
+                                  toast.showError('Only Super Admin users can block/unblock recruiters');
                                 }
                               }}
-                              disabled={!['admin', 'super_admin'].includes((user?.role || '').toLowerCase()) || operationLoading[`block_${recruiter.id}`]}
+                              disabled={(user?.role || '').toLowerCase() !== 'super_admin' || operationLoading[`block_${recruiter.id}`]}
                               className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                              title={recruiter.status === 'Blocked' ? 'Unblock Recruiter' : 'Block Recruiter'}
+                              title={recruiter.status === 'Blocked' ? 'Unblock Recruiter' : 'Block Recruiter (Super Admin only)'}
                             >
                               {operationLoading[`block_${recruiter.id}`] ? (
                                 <FaSpinner className="w-4 h-4 animate-spin" />

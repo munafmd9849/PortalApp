@@ -394,6 +394,7 @@ model Job {
 
   // Job Details
   jobType         String? // 'Full-time', 'Internship', etc.
+  workMode        String? // 'Remote', 'Hybrid', 'On-site', etc.
   experienceLevel String?
   driveVenues     String // Array of venue strings (stored as JSON string)
   

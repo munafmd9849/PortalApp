@@ -134,12 +134,19 @@ const Notifications = () => {
     setSearchQuery('');
   }, [activeFilter]);
 
-  // Load admin requests when admin_coordination filter is active
+  // Switch away from Admin Coordination if viewer is not Super Admin
   useEffect(() => {
-    if (activeFilter === 'admin_coordination') {
+    if (!isSuperAdmin && activeFilter === 'admin_coordination') {
+      setActiveFilter('all');
+    }
+  }, [isSuperAdmin, activeFilter]);
+
+  // Load admin requests only for Super Admin when admin_coordination filter is active
+  useEffect(() => {
+    if (isSuperAdmin && activeFilter === 'admin_coordination') {
       loadAdminRequests();
     }
-  }, [activeFilter]);
+  }, [isSuperAdmin, activeFilter]);
 
   const loadAdminRequests = async () => {
     try {
@@ -180,6 +187,37 @@ const Notifications = () => {
       alert(`Failed to reject ${email}: ${error.message}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [`admin_${requestId}`]: null }));
+    }
+  };
+
+  // Admit/Reject PENDING admin who tried to log in (admin_login notification) — Super Admin only
+  const handleAdmitAdminLogin = async (notificationId, userId, email) => {
+    const key = `admin_login_admit_${notificationId}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
+    try {
+      await api.enableSuperAdminAdmin(userId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      console.log(`✅ Admin admitted: ${email}`);
+    } catch (error) {
+      console.error('Error admitting admin:', error);
+      alert(`Failed to admit ${email}: ${error.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleRejectAdminLogin = async (notificationId, userId, email) => {
+    const key = `admin_login_reject_${notificationId}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
+    try {
+      await api.disableSuperAdminAdmin(userId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      console.log(`❌ Admin rejected: ${email}`);
+    } catch (error) {
+      console.error('Error rejecting admin:', error);
+      alert(`Failed to reject ${email}: ${error.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -455,7 +493,8 @@ const Notifications = () => {
   const filterCounts = getFilterCounts();
 
   // Filter buttons configuration with COUNTS - MATCHING STUDENT QUERY ICONS
-  const filters = [
+  // Admin Coordination (Admit/Reject admin) only for Super Admin
+  const allFilters = [
     { 
       id: 'all', 
       name: 'All', 
@@ -506,6 +545,9 @@ const Notifications = () => {
       count: filterCounts.recruiter_inquiries
     }
   ];
+  const filters = isSuperAdmin
+    ? allFilters
+    : allFilters.filter((f) => f.id !== 'admin_coordination');
 
   console.log('🎨 Rendering notifications component:', {
     total: notifications.length,
@@ -771,14 +813,57 @@ const Notifications = () => {
                             <FaEye className="mr-2" />
                             View Details
                           </button>
+                          {/* Admit/Reject for admin_login (PENDING admin tried to enter) — Super Admin only */}
+                          {isSuperAdmin &&
+                            notification.type === 'admin_login' &&
+                            (notification.meta?.adminUserId || notification.data?.adminUserId) && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    handleAdmitAdminLogin(
+                                      notification.id,
+                                      notification.meta?.adminUserId || notification.data?.adminUserId,
+                                      notification.meta?.adminEmail || notification.data?.adminEmail || 'admin'
+                                    )
+                                  }
+                                  disabled={actionLoading[`admin_login_admit_${notification.id}`]}
+                                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                >
+                                  {actionLoading[`admin_login_admit_${notification.id}`] ? (
+                                    <FaSync className="animate-spin" />
+                                  ) : (
+                                    <FaCheck />
+                                  )}
+                                  Admit
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleRejectAdminLogin(
+                                      notification.id,
+                                      notification.meta?.adminUserId || notification.data?.adminUserId,
+                                      notification.meta?.adminEmail || notification.data?.adminEmail || 'admin'
+                                    )
+                                  }
+                                  disabled={actionLoading[`admin_login_reject_${notification.id}`]}
+                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                >
+                                  {actionLoading[`admin_login_reject_${notification.id}`] ? (
+                                    <FaSync className="animate-spin" />
+                                  ) : (
+                                    <FaTimes />
+                                  )}
+                                  Reject
+                                </button>
+                              </>
+                            )}
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
                 
-                {/* Admin Requests Section - Only show when admin_coordination filter is active */}
-                {activeFilter === 'admin_coordination' && (
+                {/* Admin Requests Section - Super Admin only, when admin_coordination filter is active */}
+                {activeFilter === 'admin_coordination' && isSuperAdmin && (
                   <>
                     {filteredAdminRequests.length > 0 && (
                       <div className="mt-6 pt-6 border-t border-gray-200">
@@ -809,10 +894,10 @@ const Notifications = () => {
                                     <div>
                                       <h4 className="font-semibold text-gray-900">{request.email}</h4>
                                       <p className="text-sm text-gray-600">
-                                        Requested: {new Date(request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
+                                        Requested: {new Date(request.requestedAt || request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
                                       </p>
                                       <p className="text-xs text-gray-500">
-                                        UID: <code className="bg-gray-200 px-1 rounded">{request.uid}</code>
+                                        User ID: <code className="bg-gray-200 px-1 rounded">{request.userId || request.user?.id || request.uid}</code>
                                       </p>
                                     </div>
                                   </div>

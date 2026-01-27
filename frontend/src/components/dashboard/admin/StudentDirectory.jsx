@@ -565,19 +565,34 @@ export default function StudentDirectory() {
         return 'Active'; // Default to Active for unknown statuses
       };
       
-      const formattedStudents = studentsArray.map(student => ({
-        ...student,
-        status: normalizeStatus(student.user?.status || 'ACTIVE'),
-        emailVerified: student.user?.emailVerified || false,
-        createdAt: student.user?.createdAt || student.createdAt,
-        // Ensure all fields have safe defaults for filtering
-        fullName: student.fullName || student.email || 'N/A',
-        email: student.email || '',
-        enrollmentId: student.enrollmentId || null,
-        center: student.center || '',
-        school: student.school || '',
-        cgpa: student.cgpa || null,
-      }));
+      const formattedStudents = studentsArray.map(student => {
+        // Parse blockInfo if it exists
+        let blockInfo = null;
+        if (student.user?.blockInfo) {
+          try {
+            blockInfo = typeof student.user.blockInfo === 'string' 
+              ? JSON.parse(student.user.blockInfo) 
+              : student.user.blockInfo;
+          } catch (e) {
+            console.warn('Failed to parse blockInfo for student:', student.id, e);
+          }
+        }
+        
+        return {
+          ...student,
+          status: normalizeStatus(student.user?.status || 'ACTIVE'),
+          emailVerified: student.user?.emailVerified || false,
+          createdAt: student.user?.createdAt || student.createdAt,
+          blockInfo: blockInfo,
+          // Ensure all fields have safe defaults for filtering
+          fullName: student.fullName || student.email || 'N/A',
+          email: student.email || '',
+          enrollmentId: student.enrollmentId || null,
+          center: student.center || '',
+          school: student.school || '',
+          cgpa: student.cgpa || null,
+        };
+      });
 
       console.log(`✅ Loaded ${formattedStudents.length} students`);
       setStudents(formattedStudents);
@@ -1463,9 +1478,19 @@ export default function StudentDirectory() {
                           {/* Block/Unblock Button */}
                           <button
                             onClick={() => handleBlockClick(student)}
-                            disabled={!canModifyStudents() || operationLoading}
-                            className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                            title={student.status === 'Blocked' ? 'Unblock Student' : 'Block Student'}
+                            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
+                            className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${
+                              student.status === 'Blocked' 
+                                ? 'bg-gray-500 hover:bg-gray-600 text-white' 
+                                : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
+                            }`}
+                            title={
+                              student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
+                                ? 'Permanently blocked - cannot be unblocked'
+                                : student.status === 'Blocked'
+                                ? 'Unblock Student'
+                                : 'Block Student'
+                            }
                           >
                             {operationLoading ? (
                               <Loader className="w-4 h-4 animate-spin" />

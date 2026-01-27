@@ -50,11 +50,15 @@ const BlockModal = ({
     }
   }, [isOpen, entityType]);
 
+  // Check if student is permanently blocked
+  const isPermanentlyBlocked = entityType === 'student' && entity?.blockInfo?.type === 'permanent';
+  
   // Validation for student
   const isStudentUnblock = entityType === 'student' && isUnblocking;
+  const hasValidReason = reason && reason.trim() !== '' && (reason !== 'Other' || (otherReason && otherReason.trim() !== ''));
   const isStudentConfirmEnabled = isStudentUnblock
-    ? true
-    : (reason &&
+    ? !isPermanentlyBlocked // Cannot unblock if permanently blocked
+    : (hasValidReason && // Reason is mandatory (and otherReason if reason is "Other")
         notes &&
         (blockType === 'Permanent' || (blockType === 'Temporary' && endDate && endTime)));
 
@@ -154,12 +158,25 @@ const BlockModal = ({
             </div>
           ) : isStudentUnblock ? (
             <div className="mb-4">
-              <p className="text-gray-700">
-                Are you sure you want to unblock <strong>{entity?.fullName}</strong> ({entity?.enrollmentId})?
-              </p>
-              <p className="text-sm text-gray-600 mt-2">
-                This will restore their access to apply for jobs and use the placement portal.
-              </p>
+              {isPermanentlyBlocked ? (
+                <>
+                  <p className="text-red-700 font-semibold">
+                    This student is permanently blocked and cannot be unblocked.
+                  </p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Permanent blocks are irreversible. If you need to restore access, please contact a system administrator.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-700">
+                    Are you sure you want to unblock <strong>{entity?.fullName}</strong> ({entity?.enrollmentId})?
+                  </p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    This will restore their access to apply for jobs and use the placement portal.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -240,6 +257,9 @@ const BlockModal = ({
               <div className="mb-4">
                 {isStudent ? (
                   <>
+                    <label className="block text-sm sm:text-base font-medium text-gray-700 mb-1">
+                      Reason for Blocking <span className="text-red-500">*</span>
+                    </label>
                     <CustomDropdown
                       label="Reason for Blocking"
                       icon={FaInfoCircle}
@@ -249,6 +269,9 @@ const BlockModal = ({
                       onChange={(value) => setReason(value)}
                       placeholder="Select a reason"
                     />
+                    {!reason && (
+                      <p className="text-red-500 text-sm mt-1">Reason is required</p>
+                    )}
                     {reason === 'Other' && (
                       <input
                         type="text"
@@ -256,6 +279,7 @@ const BlockModal = ({
                         onChange={(e) => setOtherReason(e.target.value)}
                         placeholder="Specify the reason"
                         className="w-full mt-2 p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
                       />
                     )}
                   </>
@@ -316,9 +340,9 @@ const BlockModal = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!isConfirmEnabled && !isUnblocking}
+            disabled={!isConfirmEnabled || (isStudentUnblock && isPermanentlyBlocked)}
             className={`${isStudent 
-              ? `px-4 py-2 rounded-lg text-white ${isConfirmEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`
+              ? `px-4 py-2 rounded-lg text-white ${isConfirmEnabled && !(isStudentUnblock && isPermanentlyBlocked) ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`
               : `px-5 py-2.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm hover:shadow-md ${
                 isUnblocking 
                   ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white' 

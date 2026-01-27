@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
+import ThankYouPopup from '../components/common/ThankYouPopup';
 
 const InterviewSessionPage = () => {
   const { interviewId } = useParams();
@@ -20,6 +21,7 @@ const InterviewSessionPage = () => {
   const [showCreateRound, setShowCreateRound] = useState(false);
   const [newRoundName, setNewRoundName] = useState('');
   const [newRoundCriteria, setNewRoundCriteria] = useState('');
+  const [showThankYouPopup, setShowThankYouPopup] = useState(false);
   const containerRef = useRef(null);
 
   // Load the dotlottie script
@@ -228,10 +230,14 @@ const InterviewSessionPage = () => {
 
     try {
       const data = await api.endInterviewSession(interviewId);
-      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.totalCandidates}\n- Done: ${data.summary.doneCandidates}\n- Selected: ${data.summary.selectedCandidates}\n- On Hold: ${data.summary.onHoldCandidates}\n- Rejected: ${data.summary.rejectedCandidates}`);
       
-      // Reload interview data to show completed status
-      window.location.reload();
+      // Show thank you popup
+      setShowThankYouPopup(true);
+      
+      // Reload interview data to show completed status after popup closes
+      setTimeout(() => {
+        window.location.reload();
+      }, 6000); // Reload after popup animation completes
     } catch (error) {
       console.error('Error ending session:', error);
       alert(`Failed to end session: ${error.message}`);
@@ -681,6 +687,12 @@ const InterviewSessionPage = () => {
           </fieldset>
         </div>
       </div>
+
+      {/* Thank You Popup */}
+      <ThankYouPopup 
+        isOpen={showThankYouPopup} 
+        onClose={() => setShowThankYouPopup(false)} 
+      />
     </div>
   );
 };
