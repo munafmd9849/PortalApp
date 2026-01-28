@@ -4,11 +4,23 @@
  * Replaces Firebase Functions/backend
  */
 
+// CRITICAL: Load environment variables FIRST before any imports that use them
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend root directory (parent of src/)
+dotenv.config({ path: join(__dirname, '../.env') });
+
+// Now import modules that depend on environment variables
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import http from 'http';
 
 import { initSocket } from './config/socket.js';
@@ -36,15 +48,6 @@ import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
 import adminJobsRoutes from './routes/adminJobs.js';
 import publicRoutes from './routes/public.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// Get the directory of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env file from the backend root directory (parent of src/)
-dotenv.config({ path: join(__dirname, '../.env') });
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables

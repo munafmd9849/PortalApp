@@ -10,6 +10,19 @@
  * - Connection timeout set to 10s
  */
 
+// CRITICAL: Load environment variables FIRST before accessing process.env
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend root directory (parent of src/config/)
+// This ensures DATABASE_URL is available when we access it below
+dotenv.config({ path: join(__dirname, '../../.env') });
+
 import { PrismaClient } from '@prisma/client';
 
 /**
