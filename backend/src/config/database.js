@@ -24,14 +24,6 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../../.env') });
 
 import { PrismaClient } from '@prisma/client';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// Ensure .env is loaded before validation
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '../../.env') });
 
 /**
  * Enhance DATABASE_URL with connection pool parameters for Render PostgreSQL

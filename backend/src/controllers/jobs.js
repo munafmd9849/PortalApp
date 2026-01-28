@@ -859,35 +859,25 @@ export async function updateJob(req, res) {
       }
     }
 
-    // Prepare update data with proper date handling
-    // Filter out relation fields and non-database fields that shouldn't be passed directly to Prisma
-    const fieldsToExclude = [
-      'company', // Relation field - use companyId instead
-      'recruiter', // Relation field - use recruiterId instead
-      'companyName', // Computed/display field, not a DB field
-      'recruiterEmails', // JSON string field - needs special handling
-      'recruiterEmail', // Legacy field
-      'recruiterName', // Legacy field
-      'adminId', // Should not be updated via this endpoint
-      'postedBy', // Should not be updated via this endpoint
-      'createdAt', // Auto-managed
-      'updatedAt', // Auto-managed
-      'website', // Company field - handled separately
-      'linkedin', // Not a valid Company/Job field - ignore
-      'stipend', // Frontend field - map to salary if needed
-      'duration', // Not in Job schema - ignore
-      'openings', // Not in Job schema - ignore
-      'responsibilities', // Frontend field - map to description
-      'skills', // Frontend field - already handled as requiredSkills
-      'serviceAgreement', // Not in Job schema - ignore
-      'blockingPeriod', // Not in Job schema - ignore
-      'instructions', // Not in Job schema - ignore
-      'interviewRounds', // Not a DB field - convert to requirements text
+    // Prepare update data: only pass Job model scalar fields to Prisma (explicit allowlist)
+    // This avoids "Unknown argument" errors if client is stale and prevents invalid fields
+    const jobUpdateAllowedFields = [
+      'jobTitle', 'description', 'requirements', 'requiredSkills',
+      'companyId', 'recruiterId', 'companyName', 'recruiterEmail', 'recruiterName', 'recruiterEmails',
+      'salary', 'ctc', 'salaryRange',
+      'location', 'companyLocation', 'driveDate', 'applicationDeadline',
+      'jobType', 'workMode', 'experienceLevel', 'driveVenues',
+      'qualification', 'specialization', 'yop', 'minCgpa', 'gapAllowed', 'gapYears', 'backlogs',
+      'spocs', 'status', 'isActive', 'isPosted', 'applicationDeadlineMailSent',
+      'requiresScreening', 'requiresTest',
+      'targetSchools', 'targetCenters', 'targetBatches',
+      'submittedAt', 'postedAt', 'postedBy', 'approvedAt', 'approvedBy',
+      'rejectedAt', 'rejectedBy', 'rejectionReason', 'archivedAt', 'archivedBy',
     ];
     
     const finalUpdateData = {};
     for (const [key, value] of Object.entries(updateData)) {
-      if (!fieldsToExclude.includes(key) && value !== undefined) {
+      if (jobUpdateAllowedFields.includes(key) && value !== undefined) {
         finalUpdateData[key] = value;
       }
     }

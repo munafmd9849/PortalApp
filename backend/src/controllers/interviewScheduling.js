@@ -60,10 +60,32 @@ async function autoCorrectSessionStatus(session, job) {
   const driveDate = new Date(job.driveDate);
   driveDate.setHours(23, 59, 59, 999); // End of drive date
 
-  // If drive date has passed and session is not COMPLETED, mark as INCOMPLETE
+  // If drive date has passed, only mark INCOMPLETE if no round has been started yet.
+  // If at least one round is ACTIVE or ENDED, allow the session to continue (or revert INCOMPLETE to ONGOING) so interviewers can end the current round (e.g. interview started Jan 28, ending round Jan 29).
   if (now > driveDate) {
+    const rounds = session.rounds ?? await prisma.interviewRound.findMany({
+      where: { sessionId: session.id },
+      select: { status: true },
+    });
+    const hasStartedRounds = rounds.some(r => r.status === 'ACTIVE' || r.status === 'ENDED');
+    if (hasStartedRounds) {
+      // Session has already started - do not mark INCOMPLETE; if it was wrongly marked INCOMPLETE earlier, set back to ONGOING so end-round can proceed
+      if (session.status === 'INCOMPLETE') {
+        const updatedSession = await prisma.interviewSession.update({
+          where: { id: session.id },
+          data: { status: 'ONGOING' },
+          include: {
+            rounds: { orderBy: { roundNumber: 'asc' } },
+            interviewerInvites: { orderBy: { createdAt: 'desc' } },
+          },
+        });
+        return { ...updatedSession, job: session.job || job };
+      }
+      return session;
+    }
+
     if (session.status !== 'INCOMPLETE') {
-      // Update session to INCOMPLETE
+      // Update session to INCOMPLETE (drive date passed and no round started yet)
       const updatedSession = await prisma.interviewSession.update({
         where: { id: session.id },
         data: {
@@ -1098,7 +1120,8 @@ export const getRoundCandidates = async (req, res) => {
           remarks: evaluation.remarks,
           createdAt: evaluation.createdAt,
         } : null,
-        previousRoundRemarks: previousEvaluation?.remarks || null, // Issue #4
+        previousRoundRemarks: previousEvaluation?.remarks || null,
+        previousRoundStatus: previousEvaluation?.status || null, // So next round interviewer sees prev status + remarks
       };
     });
 
@@ -1518,7 +1541,9 @@ export const endRound = async (req, res) => {
       });
     }
 
-    if (correctedSession.status === 'INCOMPLETE') {
+    // If session was marked INCOMPLETE (drive date passed) but the current round is ACTIVE,
+    // allow ending this round so evaluations are saved and application statuses updated (e.g. interview started Jan 28, ending round Jan 29).
+    if (correctedSession.status === 'INCOMPLETE' && round.status !== 'ACTIVE') {
       return res.status(409).json({
         error: 'Interview drive date has passed',
         message: 'Cannot continue rounds. The interview drive date has passed and the session is incomplete.',
@@ -1692,33 +1717,16 @@ export const endRound = async (req, res) => {
       const maxRoundNumber = allRounds[0].roundNumber;
 
       if (round.roundNumber === maxRoundNumber) {
-        // This was the last round - end session
-        // Check drive date one more time before marking as COMPLETED
-        const jobCheck = await tx.job.findUnique({
-          where: { id: round.session.jobId },
-          select: { driveDate: true },
-        });
-        
-        const nowCheck = new Date();
-        const driveDateCheck = jobCheck?.driveDate ? new Date(jobCheck.driveDate) : null;
-        driveDateCheck?.setHours(23, 59, 59, 999);
-        
-        // Only mark as COMPLETED if drive date hasn't passed
-        // If drive date passed, it should have been caught by auto-correction earlier
-        const finalStatus = (driveDateCheck && nowCheck > driveDateCheck) ? 'INCOMPLETE' : 'COMPLETED';
-        
+        // This was the last round - end session. All rounds completed successfully,
+        // so mark session as COMPLETED regardless of drive date (recruiter can still
+        // download spreadsheet and optionally "End Interview" from dashboard if shown).
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: {
-            status: finalStatus,
+            status: 'COMPLETED',
             completedAt: new Date(),
           },
         });
-        
-        // If marked as INCOMPLETE, update application statuses
-        if (finalStatus === 'INCOMPLETE') {
-          await updateApplicationsForIncompleteSession(round.session.jobId);
-        }
 
         // Invalidate all interviewer invites (mark as used) - Issue #1
         await tx.interviewerInvite.updateMany({

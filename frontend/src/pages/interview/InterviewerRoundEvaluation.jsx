@@ -70,11 +70,11 @@ const InterviewerRoundEvaluation = () => {
       });
       setEvaluations(evalMap);
 
-      // Check if all candidates are evaluated
-      const allEvaluated = list.every(
-        (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED', 'ON_HOLD'].includes(c.evaluation.status)
+      // End round only when all candidates are SELECTED or REJECTED (no ON_HOLD)
+      const allDecided = list.length > 0 && list.every(
+        (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED'].includes(c.evaluation.status)
       );
-      setCanEndRound(allEvaluated && list.length > 0);
+      setCanEndRound(allDecided);
 
       setLoading(false);
     } catch (err) {
@@ -362,23 +362,29 @@ const InterviewerRoundEvaluation = () => {
                                     )}
                                   </div>
                                 )}
-                                {candidate.previousRoundRemarks && (
+                                {(candidate.previousRoundStatus || candidate.previousRoundRemarks) && (
                                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
-                                    <span className="font-semibold">Prev Round:</span> {candidate.previousRoundRemarks}
+                                    <span className="font-semibold">Prev Round:</span>
+                                    {candidate.previousRoundStatus && (
+                                      <span className="ml-1 font-medium">{candidate.previousRoundStatus}</span>
+                                    )}
+                                    {candidate.previousRoundRemarks && (
+                                      <span className={candidate.previousRoundStatus ? ' ml-1' : ''}> – {candidate.previousRoundRemarks}</span>
+                                    )}
                                   </div>
                                 )}
                               </div>
                             </div>
                           </td>
 
-                          {/* Selected Column */}
+                          {/* Selected Column - always editable so on-hold can be changed to accept/reject */}
                           <td className="px-4 py-4 text-center whitespace-nowrap">
                             <input
                               type="radio"
                               name={`status-${candidate.applicationId}`}
                               checked={evaluation.status === 'SELECTED'}
                               onChange={() => handleStatusChange(candidate.applicationId, 'SELECTED')}
-                              disabled={isEvaluated || isSaving}
+                              disabled={isSaving}
                               className="w-5 h-5 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -390,7 +396,7 @@ const InterviewerRoundEvaluation = () => {
                               name={`status-${candidate.applicationId}`}
                               checked={evaluation.status === 'REJECTED'}
                               onChange={() => handleStatusChange(candidate.applicationId, 'REJECTED')}
-                              disabled={isEvaluated || isSaving}
+                              disabled={isSaving}
                               className="w-5 h-5 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -402,17 +408,17 @@ const InterviewerRoundEvaluation = () => {
                               name={`status-${candidate.applicationId}`}
                               checked={evaluation.status === 'ON_HOLD'}
                               onChange={() => handleStatusChange(candidate.applicationId, 'ON_HOLD')}
-                              disabled={isEvaluated || isSaving}
+                              disabled={isSaving}
                               className="w-5 h-5 text-yellow-600 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
 
-                          {/* Remarks Column */}
+                          {/* Remarks Column - always editable so on-hold can be updated to accept/reject with remarks */}
                           <td className="px-4 py-4">
                             <textarea
                               value={evaluation.remarks}
                               onChange={(e) => handleRemarksChange(candidate.applicationId, e.target.value)}
-                              disabled={isEvaluated || isSaving}
+                              disabled={isSaving}
                               rows={3}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
                               placeholder="Enter remarks..."
@@ -464,32 +470,25 @@ const InterviewerRoundEvaluation = () => {
                             )}
                           </td>
 
-                          {/* Action Column */}
+                          {/* Action Column - always show Save/Update so on-hold can be changed to accept/reject */}
                           <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {!isEvaluated ? (
-                              <button
-                                onClick={() => handleSaveEvaluation(candidate.applicationId)}
-                                disabled={isSaving || !evaluation.status}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <Loader className="w-4 h-4 animate-spin" />
-                                    <span className="hidden sm:inline">Saving...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Save className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Save</span>
-                                  </>
-                                )}
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-2 justify-center">
-                                {getStatusIcon(candidate.evaluation.status)}
-                                <span className="text-xs text-gray-600">Saved</span>
-                              </div>
-                            )}
+                            <button
+                              onClick={() => handleSaveEvaluation(candidate.applicationId)}
+                              disabled={isSaving || !evaluation.status}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
+                            >
+                              {isSaving ? (
+                                <>
+                                  <Loader className="w-4 h-4 animate-spin" />
+                                  <span className="hidden sm:inline">Saving...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  <span className="hidden sm:inline">{isEvaluated ? 'Update' : 'Save'}</span>
+                                </>
+                              )}
+                            </button>
                           </td>
                         </tr>
                       );
