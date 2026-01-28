@@ -83,12 +83,25 @@ export default function JobDetail() {
   if (loading) return <div className="p-6">Loading...</div>;
   if (error || !job) return <div className="p-6 text-red-600">{error || 'Job not found'}</div>;
 
+  const formatCtc = (val) => {
+    if (!val || (typeof val === 'string' && !val.trim())) return 'Not specified';
+    const s = String(val).trim();
+    if (s === 'As per industry standards') return 'As per industry standards';
+    return s.replace(/\$/g, '₹');
+  };
+
+  const location = job.companyLocation || job.company?.location || job.location || job.jobLocation;
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold">{job.jobTitle || job.title}</h1>
       <p className="text-gray-700">{job.company?.name || job.company}</p>
-      <p className="mt-2">CTC: {job.ctc || job.salaryRange}</p>
-      <p className="mt-2">Location: {job.location || job.jobLocation}</p>
+      <p className="mt-2">CTC: {formatCtc(job.ctc || job.salary || job.salaryRange)}</p>
+      {location && <p className="mt-2">Location: {location}</p>}
+      {job.workMode && <p className="mt-2">Work Mode: {job.workMode}</p>}
+      {(job.gapAllowed || job.gapYears) && (
+        <p className="mt-2">Year Gap: {[job.gapAllowed, job.gapYears].filter(Boolean).join(' ')}</p>
+      )}
       <p className="mt-4 whitespace-pre-wrap">{job.jobDescription || job.description}</p>
       <div className="mt-6">
         <button 

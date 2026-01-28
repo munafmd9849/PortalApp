@@ -11,10 +11,12 @@ import {
   getRecruitersForDropdown,
   autoArchiveExpiredJobs
 } from '../../../services/jobModeration';
+import { deleteJob } from '../../../services/jobs';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
 import CustomDropdown from '../../common/CustomDropdown';
 import JobDetailsModal from '../../common/JobDetailsModal.jsx';
+import CreateJob from './CreateJob';
 import { 
   FaSearch, 
   FaFilter, 
@@ -32,7 +34,9 @@ import {
   FaFileAlt,
   FaCheckCircle,
   FaTimesCircle,
-  FaInfoCircle
+  FaInfoCircle,
+  FaEdit,
+  FaTrash
 } from 'react-icons/fa';
 
 export default function JobPostingsManager() {
@@ -66,6 +70,7 @@ export default function JobPostingsManager() {
   // Modal state
   const [jobDetailModal, setJobDetailModal] = useState({ isOpen: false, job: null });
   const [rejectModal, setRejectModal] = useState({ isOpen: false, job: null, reason: '' });
+  const [editModal, setEditModal] = useState({ isOpen: false, job: null });
   
   // Action loading states
   const [actionLoading, setActionLoading] = useState({});
@@ -470,6 +475,56 @@ export default function JobPostingsManager() {
     } finally {
       setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
+  };
+
+  // Handle discard (delete) job
+  const handleDiscard = async (job) => {
+    if (!user || userRole !== 'admin') {
+      toast.error('Only admin users can discard jobs');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to discard "${job.jobTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const actionKey = `discard_${job.id}`;
+    try {
+      setActionLoading(prev => ({ ...prev, [actionKey]: true }));
+      
+      await deleteJob(job.id);
+      
+      toast.success(`Job "${job.jobTitle}" discarded successfully!`);
+      
+      // Remove job from list immediately
+      setJobs(prev => prev.filter(j => j.id !== job.id));
+      
+      // Refresh jobs and analytics
+      setTimeout(() => {
+        if (jobsSubscriptionRef.current?.refresh) {
+          jobsSubscriptionRef.current.refresh();
+        }
+        if (analyticsSubscriptionRef.current?.refresh) {
+          analyticsSubscriptionRef.current.refresh();
+        }
+      }, 500);
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, 'Failed to discard job. Please try again.');
+      console.error('Error discarding job:', {
+        jobId: job.id,
+        jobTitle: job.jobTitle,
+        error: error,
+        errorMessage: errorMessage,
+      });
+      toast.error(`Failed to discard job "${job.jobTitle}": ${errorMessage}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [actionKey]: false }));
+    }
+  };
+
+  // Handle edit job
+  const handleEdit = (job) => {
+    setEditModal({ isOpen: true, job });
   };
 
   // Auto archive expired jobs
@@ -1086,6 +1141,34 @@ export default function JobPostingsManager() {
                             </button>
                           )}
 
+                          {/* Edit Button - Show for in_review status */}
+                          {job.status === 'in_review' && (
+                            <button
+                              onClick={() => handleEdit(job)}
+                              disabled={actionLoading[`edit_${job.id}`]}
+                              className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                              title="Edit this job posting"
+                            >
+                              <FaEdit className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Discard Button - Show for in_review status */}
+                          {job.status === 'in_review' && (
+                            <button
+                              onClick={() => handleDiscard(job)}
+                              disabled={actionLoading[`discard_${job.id}`]}
+                              className="p-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                              title="Discard this job posting"
+                            >
+                              {actionLoading[`discard_${job.id}`] ? (
+                                <FaSpinner className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <FaTrash className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+
                           {/* Archive Button */}
                           {(job.status === 'posted') && (
                             <button
@@ -1174,6 +1257,36 @@ export default function JobPostingsManager() {
         onClose={() => setRejectModal({ isOpen: false, job: null, reason: '' })}
         loading={actionLoading[`reject_${rejectModal.job?.id}`]}
       />
+
+      {/* Edit Job Modal */}
+      {editModal.isOpen && editModal.job && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <h2 className="text-2xl font-bold text-gray-800">Edit Job</h2>
+              <button
+                onClick={() => setEditModal({ isOpen: false, job: null })}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <FaTimesCircle className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <CreateJob 
+                job={editModal.job}
+                onCreated={() => {
+                  setEditModal({ isOpen: false, job: null });
+                  // Refresh jobs list
+                  if (jobsSubscriptionRef.current?.refresh) {
+                    jobsSubscriptionRef.current.refresh();
+                  }
+                  toast.success('Job updated successfully!');
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

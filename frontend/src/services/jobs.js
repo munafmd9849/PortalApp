@@ -32,8 +32,13 @@ export async function getJob(jobId) {
   try {
     const res = await api.getJob(jobId);
     // Backend commonly wraps responses as: { success: true, data: {...} }
-    // Normalize to always return the job object itself.
-    return res && typeof res === 'object' && 'data' in res ? res.data : res;
+    const raw = res && typeof res === 'object' && 'data' in res ? res.data : res;
+    if (!raw || typeof raw !== 'object') return raw;
+    // Ensure workMode is always preserved (backend uses workMode; handle work_mode)
+    return {
+      ...raw,
+      workMode: raw.workMode ?? raw.work_mode ?? null,
+    };
   } catch (error) {
     console.error('getJob error:', error);
     throw error;
@@ -213,6 +218,10 @@ const fetchJobsFromAPI = async (filters = {}) => {
           company: job.companyName || job.company?.name,
           companyName: job.companyName || job.company?.name,
           companyLocation: job.companyLocation || job.company?.location,
+          location: job.location || job.companyLocation || job.company?.location,
+          workMode: job.workMode,
+          gapAllowed: job.gapAllowed,
+          gapYears: job.gapYears,
           companyDetails: job.company,
           recruiter: job.recruiter ? {
             id: job.recruiter.id,

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ImMail } from 'react-icons/im';
 import { MdEditNote, MdBlock } from 'react-icons/md';
-import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes } from 'react-icons/fa';
+import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes, FaUser } from 'react-icons/fa';
 import { TbHistoryToggle } from 'react-icons/tb';
 import { subscribeRecruiterDirectory, blockUnblockRecruiter, getRecruiterJobs, getRecruiterHistory, sendEmailToRecruiter, getRecruiterSummary } from '../../../services/recruiters';
 import { useAuth } from '../../../hooks/useAuth';
@@ -11,6 +12,8 @@ import BlockModal from '../../common/BlockModal';
 import JobInfoDisplay from '../../common/JobInfoDisplay';
 
 export default function RecruiterDirectory() {
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const [expandedRecruiter, setExpandedRecruiter] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,8 +91,20 @@ export default function RecruiterDirectory() {
     }
     
     // Status filter
-    if (filters.status && recruiter.status !== filters.status) {
-      return false;
+    if (filters.status) {
+      const recruiterStatus = String(recruiter?.status || 'ACTIVE').toUpperCase();
+      const filterStatus = String(filters.status).toUpperCase();
+      // Map display names to database values
+      if (filterStatus === 'ACTIVE') {
+        if (recruiterStatus !== 'ACTIVE') return false;
+      } else if (filterStatus === 'BLOCKED') {
+        if (recruiterStatus !== 'BLOCKED') return false;
+      } else if (filterStatus === 'INACTIVE') {
+        // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+        if (recruiterStatus === 'ACTIVE' || recruiterStatus === 'BLOCKED') return false;
+      } else {
+        if (recruiterStatus !== filterStatus) return false;
+      }
     }
     
     // Location filter
@@ -223,7 +238,8 @@ export default function RecruiterDirectory() {
   };
 
   const handleSendMail = async () => {
-    if (!user || user.role !== 'admin') {
+    const r = (user?.role || '').toLowerCase();
+    if (!user || (r !== 'admin' && r !== 'super_admin')) {
       toast.showError('Only admin users can send emails to recruiters');
       return;
     }
@@ -237,7 +253,7 @@ export default function RecruiterDirectory() {
       setEmailSending(true);
       
       // Find the recruiter by email to get their ID
-      const targetRecruiter = recruiters.find(r => r.email === emailData.to);
+      const targetRecruiter = recruiters.find(rec => rec.email === emailData.to);
       if (!targetRecruiter) {
         throw new Error('Recruiter not found');
       }
@@ -264,8 +280,9 @@ export default function RecruiterDirectory() {
   };
 
   const handleBlockUnblock = async (blockData) => {
-    if (!user || user.role !== 'admin') {
-      toast.showError('Only admin users can block/unblock recruiters');
+    const role = (user?.role || '').toLowerCase();
+    if (!user || role !== 'super_admin') {
+      toast.showError('Only Super Admin users can block/unblock recruiters');
       return;
     }
 
@@ -570,12 +587,12 @@ export default function RecruiterDirectory() {
             </div>
             <div className="text-sm font-medium text-red-600">Blocked</div>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 p-5 rounded-xl shadow-sm border border-yellow-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaBriefcase className="w-5 h-5 text-purple-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-purple-700">{stats.totalJobs}</div>
+              <FaUser className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+              <div className="text-3xl font-bold text-yellow-700">{stats.inactive}</div>
             </div>
-            <div className="text-sm font-medium text-purple-600">Total Jobs</div>
+            <div className="text-sm font-medium text-yellow-600">Inactive</div>
           </div>
         </div>
       </div>
@@ -831,13 +848,13 @@ export default function RecruiterDirectory() {
                             {/* Send Mail Button */}
                             <button
                               onClick={() => {
-                                if (user?.role === 'admin') {
+                                if (['admin', 'super_admin'].includes((user?.role || '').toLowerCase())) {
                                   openMailModal(recruiter.email);
                                 } else {
                                   toast.showError('Only admin users can send emails');
                                 }
                               }}
-                              disabled={user?.role !== 'admin'}
+                              disabled={!['admin', 'super_admin'].includes((user?.role || '').toLowerCase())}
                               className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Send Mail"
                             >
@@ -856,22 +873,23 @@ export default function RecruiterDirectory() {
                               <FaEye className="w-4 h-4" />
                             </button>
 
-                            {/* Block/Unblock Button */}
+                            {/* Block/Unblock Button - Super Admin only */}
                             <button
                               onClick={() => {
-                                if (user?.role === 'admin') {
+                                const userRole = (user?.role || '').toLowerCase();
+                                if (userRole === 'super_admin') {
                                   setBlockModal({ 
                                     isOpen: true, 
                                     recruiter, 
                                     isUnblocking: recruiter.status === 'Blocked' 
                                   });
                                 } else {
-                                  toast.showError('Only admin users can block/unblock recruiters');
+                                  toast.showError('Only Super Admin users can block/unblock recruiters');
                                 }
                               }}
-                              disabled={user?.role !== 'admin' || operationLoading[`block_${recruiter.id}`]}
+                              disabled={(user?.role || '').toLowerCase() !== 'super_admin' || operationLoading[`block_${recruiter.id}`]}
                               className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                              title={recruiter.status === 'Blocked' ? 'Unblock Recruiter' : 'Block Recruiter'}
+                              title={recruiter.status === 'Blocked' ? 'Unblock Recruiter' : 'Block Recruiter (Super Admin only)'}
                             >
                               {operationLoading[`block_${recruiter.id}`] ? (
                                 <FaSpinner className="w-4 h-4 animate-spin" />
@@ -1080,7 +1098,7 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
                     <button
                       onClick={() => {
                         if (jobId) {
-                          window.open(`/admin/job/${jobId}`, '_blank');
+                          window.open(`${base}/job/${jobId}`, '_blank');
                         }
                       }}
                       className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors flex-shrink-0"

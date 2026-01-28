@@ -56,7 +56,8 @@ import { useAuth } from '../../../hooks/useAuth';
 import { respondToStudentQuery } from '../../../services/queries';
 
 const Notifications = () => {
-  const { getPendingAdminRequests, approveAdminRequest, rejectAdminRequest } = useAuth();
+  const { user, role, getPendingAdminRequests, approveAdminRequest, rejectAdminRequest } = useAuth();
+  const isSuperAdmin = (role || user?.role || '').toLowerCase() === 'super_admin';
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,12 +134,19 @@ const Notifications = () => {
     setSearchQuery('');
   }, [activeFilter]);
 
-  // Load admin requests when admin_coordination filter is active
+  // Switch away from Admin Coordination if viewer is not Super Admin
   useEffect(() => {
-    if (activeFilter === 'admin_coordination') {
+    if (!isSuperAdmin && activeFilter === 'admin_coordination') {
+      setActiveFilter('all');
+    }
+  }, [isSuperAdmin, activeFilter]);
+
+  // Load admin requests only for Super Admin when admin_coordination filter is active
+  useEffect(() => {
+    if (isSuperAdmin && activeFilter === 'admin_coordination') {
       loadAdminRequests();
     }
-  }, [activeFilter]);
+  }, [isSuperAdmin, activeFilter]);
 
   const loadAdminRequests = async () => {
     try {
@@ -182,6 +190,37 @@ const Notifications = () => {
     }
   };
 
+  // Admit/Reject PENDING admin who tried to log in (admin_login notification) — Super Admin only
+  const handleAdmitAdminLogin = async (notificationId, userId, email) => {
+    const key = `admin_login_admit_${notificationId}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
+    try {
+      await api.enableSuperAdminAdmin(userId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      console.log(`✅ Admin admitted: ${email}`);
+    } catch (error) {
+      console.error('Error admitting admin:', error);
+      alert(`Failed to admit ${email}: ${error.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleRejectAdminLogin = async (notificationId, userId, email) => {
+    const key = `admin_login_reject_${notificationId}`;
+    setActionLoading(prev => ({ ...prev, [key]: true }));
+    try {
+      await api.disableSuperAdminAdmin(userId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      console.log(`❌ Admin rejected: ${email}`);
+    } catch (error) {
+      console.error('Error rejecting admin:', error);
+      alert(`Failed to reject ${email}: ${error.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
   // Get BIG notification icon based on type - MATCHING STUDENT QUERY ICONS
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -219,6 +258,7 @@ const Notifications = () => {
         );
       case 'admincollab':
       case 'admin_coordination':
+      case 'admin_login':
         return (
           <div className="p-3 bg-gradient-to-br from-violet-100 to-violet-200 text-violet-700 rounded-xl border border-violet-200 shadow-sm">
             <FaUsers className="text-2xl" />
@@ -270,7 +310,7 @@ const Notifications = () => {
             notification.type !== 'applicationreview' && 
             notification.type !== 'application') return false;
       } else if (activeFilter === 'admin_coordination') {
-        if (notification.type !== 'admincollab' && notification.type !== 'admin_coordination') return false;
+        if (notification.type !== 'admincollab' && notification.type !== 'admin_coordination' && notification.type !== 'admin_login') return false;
       } else if (activeFilter === 'recruiter_inquiries') {
         if (notification.type !== NOTIFICATION_TYPES.RECRUITER_INQUIRY && notification.type !== 'recruiter_inquiry') return false;
       } else if (activeFilter === 'unread') {
@@ -289,6 +329,8 @@ const Notifications = () => {
         notification.body?.toLowerCase().includes(query) ||
         notification.from?.toLowerCase().includes(query) ||
         notification.meta?.studentName?.toLowerCase().includes(query) ||
+        notification.meta?.recruiterName?.toLowerCase().includes(query) ||
+        notification.meta?.userName?.toLowerCase().includes(query) ||
         notification.meta?.company?.toLowerCase().includes(query) ||
         notification.meta?.companyName?.toLowerCase().includes(query) ||
         notification.meta?.email?.toLowerCase().includes(query) ||
@@ -435,7 +477,7 @@ const Notifications = () => {
         n.type === 'application'
       ).length,
       admin_coordination: notifications.filter(n => 
-        n.type === 'admincollab' || n.type === 'admin_coordination'
+        n.type === 'admincollab' || n.type === 'admin_coordination' || n.type === 'admin_login'
       ).length + adminRequests.length,
       recruiter_inquiries: notifications.filter(n => 
         n.type === NOTIFICATION_TYPES.RECRUITER_INQUIRY || n.type === 'recruiter_inquiry'
@@ -451,7 +493,8 @@ const Notifications = () => {
   const filterCounts = getFilterCounts();
 
   // Filter buttons configuration with COUNTS - MATCHING STUDENT QUERY ICONS
-  const filters = [
+  // Admin Coordination (Admit/Reject admin) only for Super Admin
+  const allFilters = [
     { 
       id: 'all', 
       name: 'All', 
@@ -502,6 +545,9 @@ const Notifications = () => {
       count: filterCounts.recruiter_inquiries
     }
   ];
+  const filters = isSuperAdmin
+    ? allFilters
+    : allFilters.filter((f) => f.id !== 'admin_coordination');
 
   console.log('🎨 Rendering notifications component:', {
     total: notifications.length,
@@ -767,14 +813,57 @@ const Notifications = () => {
                             <FaEye className="mr-2" />
                             View Details
                           </button>
+                          {/* Admit/Reject for admin_login (PENDING admin tried to enter) — Super Admin only */}
+                          {isSuperAdmin &&
+                            notification.type === 'admin_login' &&
+                            (notification.meta?.adminUserId || notification.data?.adminUserId) && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    handleAdmitAdminLogin(
+                                      notification.id,
+                                      notification.meta?.adminUserId || notification.data?.adminUserId,
+                                      notification.meta?.adminEmail || notification.data?.adminEmail || 'admin'
+                                    )
+                                  }
+                                  disabled={actionLoading[`admin_login_admit_${notification.id}`]}
+                                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                >
+                                  {actionLoading[`admin_login_admit_${notification.id}`] ? (
+                                    <FaSync className="animate-spin" />
+                                  ) : (
+                                    <FaCheck />
+                                  )}
+                                  Admit
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleRejectAdminLogin(
+                                      notification.id,
+                                      notification.meta?.adminUserId || notification.data?.adminUserId,
+                                      notification.meta?.adminEmail || notification.data?.adminEmail || 'admin'
+                                    )
+                                  }
+                                  disabled={actionLoading[`admin_login_reject_${notification.id}`]}
+                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                >
+                                  {actionLoading[`admin_login_reject_${notification.id}`] ? (
+                                    <FaSync className="animate-spin" />
+                                  ) : (
+                                    <FaTimes />
+                                  )}
+                                  Reject
+                                </button>
+                              </>
+                            )}
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
                 
-                {/* Admin Requests Section - Only show when admin_coordination filter is active */}
-                {activeFilter === 'admin_coordination' && (
+                {/* Admin Requests Section - Super Admin only, when admin_coordination filter is active */}
+                {activeFilter === 'admin_coordination' && isSuperAdmin && (
                   <>
                     {filteredAdminRequests.length > 0 && (
                       <div className="mt-6 pt-6 border-t border-gray-200">
@@ -805,49 +894,43 @@ const Notifications = () => {
                                     <div>
                                       <h4 className="font-semibold text-gray-900">{request.email}</h4>
                                       <p className="text-sm text-gray-600">
-                                        Requested: {new Date(request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
+                                        Requested: {new Date(request.requestedAt || request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
                                       </p>
                                       <p className="text-xs text-gray-500">
-                                        UID: <code className="bg-gray-200 px-1 rounded">{request.uid}</code>
+                                        User ID: <code className="bg-gray-200 px-1 rounded">{request.userId || request.user?.id || request.uid}</code>
                                       </p>
                                     </div>
                                   </div>
 
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() => handleApproveAdmin(request.id, request.uid, request.email)}
-                                      disabled={actionLoading[`admin_${request.id}`]}
-                                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                    >
-                                      {actionLoading[`admin_${request.id}`] === 'approving' ? (
-                                        <>
-                                          <FaSync className="animate-spin text-xs" />
-                                          Approving...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FaCheck className="text-xs" />
-                                          Approve
-                                        </>
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={() => handleRejectAdmin(request.id, request.uid, request.email)}
-                                      disabled={actionLoading[`admin_${request.id}`]}
-                                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                    >
-                                      {actionLoading[`admin_${request.id}`] === 'rejecting' ? (
-                                        <>
-                                          <FaSync className="animate-spin text-xs" />
-                                          Rejecting...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FaTimes className="text-xs" />
-                                          Reject
-                                        </>
-                                      )}
-                                    </button>
+                                  <div className="flex space-x-2 items-center">
+                                    {isSuperAdmin ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleApproveAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                          disabled={actionLoading[`admin_${request.id}`]}
+                                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          {actionLoading[`admin_${request.id}`] === 'approving' ? (
+                                            <><FaSync className="animate-spin text-xs" /> Approving...</>
+                                          ) : (
+                                            <><FaCheck className="text-xs" /> Approve</>
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() => handleRejectAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                          disabled={actionLoading[`admin_${request.id}`]}
+                                          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          {actionLoading[`admin_${request.id}`] === 'rejecting' ? (
+                                            <><FaSync className="animate-spin text-xs" /> Rejecting...</>
+                                          ) : (
+                                            <><FaTimes className="text-xs" /> Reject</>
+                                          )}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm text-gray-500">Only Super Admin can approve/reject</span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -910,16 +993,26 @@ const Notifications = () => {
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <h3 className="text-sm font-medium text-gray-700 mb-3">Additional Information</h3>
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      {selectedNotification.meta.studentName && (
+                      {(selectedNotification.meta.studentName || selectedNotification.meta.recruiterName || selectedNotification.meta.userName) && (
                         <div>
-                          <span className="text-gray-500">Student:</span>
-                          <p className="text-gray-800 font-medium">{selectedNotification.meta.studentName}</p>
+                          <span className="text-gray-500">
+                            {selectedNotification.meta.recruiterName ? 'Recruiter' : 'Student'}:
+                          </span>
+                          <p className="text-gray-800 font-medium">
+                            {selectedNotification.meta.studentName || selectedNotification.meta.recruiterName || selectedNotification.meta.userName}
+                          </p>
                         </div>
                       )}
                       {selectedNotification.meta.enrollmentId && (
                         <div>
                           <span className="text-gray-500">Enrollment ID:</span>
                           <p className="text-gray-800 font-medium">{selectedNotification.meta.enrollmentId}</p>
+                        </div>
+                      )}
+                      {selectedNotification.meta.companyName && (
+                        <div>
+                          <span className="text-gray-500">Company:</span>
+                          <p className="text-gray-800 font-medium">{selectedNotification.meta.companyName}</p>
                         </div>
                       )}
                       {selectedNotification.meta.queryType && (
@@ -1107,10 +1200,10 @@ const Notifications = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                      Respond to Student Query
+                      Respond to {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
                     </h2>
                     <p className="text-sm text-gray-500">
-                      {selectedNotification.meta?.studentName} - {selectedNotification.meta?.subject}
+                      {selectedNotification.meta?.studentName || selectedNotification.meta?.recruiterName || selectedNotification.meta?.userName || 'User'} - {selectedNotification.meta?.subject}
                     </p>
                   </div>
                   <button
@@ -1128,7 +1221,9 @@ const Notifications = () => {
               <div className="p-6">
                 {/* Query Details */}
                 <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Student Query</h3>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">
+                    {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
+                  </h3>
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <p className="text-gray-800 whitespace-pre-wrap">
                       {selectedNotification.meta?.message || selectedNotification.message}

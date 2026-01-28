@@ -132,7 +132,10 @@ router.post('/public-profile/regenerate', requireRole(['STUDENT']), publicProfil
 router.get('/public-profile/settings', requireRole(['STUDENT']), publicProfileController.getPublicProfileSettings);
 router.patch('/public-profile/settings', requireRole(['STUDENT']), publicProfileController.updatePublicProfileSettings);
 
-// Admin route - Get all students (must be last to avoid route conflicts)
-router.get('/', requireRole(['ADMIN']), studentController.getAllStudents);
+// Admin / Super Admin - Block or unblock student
+router.patch('/:studentId/block', requireRole(['ADMIN', 'SUPER_ADMIN']), studentController.blockUnblockStudent);
+
+// Admin / Super Admin - Get all students (must be last to avoid route conflicts)
+router.get('/', requireRole(['ADMIN', 'SUPER_ADMIN']), studentController.getAllStudents);
 
 export default router;

@@ -89,7 +89,6 @@ export default function AdminJobApplications() {
     finalStatus: '',
     lastRoundReached: '',
   });
-
   const [sortBy, setSortBy] = useState('appliedAt');
   const [order, setOrder] = useState('desc');
 

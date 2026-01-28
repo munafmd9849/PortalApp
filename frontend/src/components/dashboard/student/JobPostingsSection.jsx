@@ -107,11 +107,10 @@ export default function JobPostingsSection({ jobs, onApply, hasApplied, applying
     if (typeof salary === 'number') {
       return `₹${(salary / 100000).toFixed(0)} LPA`;
     }
-    // Check if it contains "As per industry standards"
     if (typeof salary === 'string' && salary.includes('As per industry standards')) {
       return 'As per industry standards';
     }
-    return salary;
+    return String(salary).replace(/\$/g, '₹');
   };
 
   const formatDate = (dateString) => {

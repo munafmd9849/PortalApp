@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
-import { Loader, Building2, Briefcase, AlertCircle, CheckCircle, Clock, Lock, PlayCircle, ArrowRight } from 'lucide-react';
+import { Loader, Building2, Briefcase, AlertCircle, CheckCircle, Clock, Lock, PlayCircle, ArrowRight, Download } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 // Helper to decode JWT token
@@ -46,6 +46,7 @@ const InterviewerDashboard = () => {
   const [error, setError] = useState(null);
   const [session, setSession] = useState(null);
   const [activeRound, setActiveRound] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -117,6 +118,19 @@ const InterviewerDashboard = () => {
     }
   };
 
+  const handleDownloadSpreadsheet = async () => {
+    if (!sessionId || !token || downloading) return;
+    setDownloading(true);
+    try {
+      await api.exportInterviewSessionSpreadsheet(sessionId, token);
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert(e?.message || 'Failed to download spreadsheet. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-500 ease-in-out">
@@ -183,6 +197,12 @@ const InterviewerDashboard = () => {
           Completed
         </span>
       ),
+      INCOMPLETE: (
+        <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
+          <Clock className="w-4 h-4" />
+          Incomplete
+        </span>
+      ),
     };
     return badges[status] || badges.NOT_STARTED;
   };
@@ -224,12 +244,26 @@ const InterviewerDashboard = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Interview Session</h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-200">
                 <Briefcase className="w-5 h-5 text-indigo-600" />
                 <span className="font-semibold text-gray-800">{session.job.jobTitle}</span>
               </div>
               {getStatusBadge(session.status)}
+              {(session.status === 'COMPLETED' || session.status === 'INCOMPLETE') && (
+                <button
+                  onClick={handleDownloadSpreadsheet}
+                  disabled={downloading}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold shadow-md hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {downloading ? (
+                    <Loader className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Download className="w-5 h-5" />
+                  )}
+                  Download spreadsheet
+                </button>
+              )}
             </div>
           </div>
         </div>

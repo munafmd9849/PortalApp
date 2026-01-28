@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { User, SquarePen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../services/api';
 
 export default function AdminLayout({ children }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
+  const isSuperAdmin = (user?.role || '').toLowerCase() === 'super_admin';
   const [adminProfile, setAdminProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const profileLoadedRef = useRef(false);
@@ -167,7 +170,7 @@ export default function AdminLayout({ children }) {
                       </button>
                     </h2>
                   </div>
-                  <p className='font-medium'><span className='text-gray-600'>Role:</span> Admin</p>
+                  <p className='font-medium'><span className='text-gray-600'>Role:</span> {isSuperAdmin ? 'Super Admin' : 'Admin'}</p>
                 </div>
               </div>
 

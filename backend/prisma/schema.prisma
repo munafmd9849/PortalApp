@@ -394,6 +394,7 @@ model Job {
 
   // Job Details
   jobType         String? // 'Full-time', 'Internship', etc.
+  workMode        String? // 'Remote', 'Hybrid', 'On-site', etc.
   experienceLevel String?
   driveVenues     String // Array of venue strings (stored as JSON string)
   
@@ -880,7 +881,7 @@ model InterviewSession {
   jobId     String  @unique
   companyId String?
 
-  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE
+  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE, FROZEN
 
   // Creator
   createdBy String // Admin user ID

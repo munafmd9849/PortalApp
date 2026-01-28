@@ -4,7 +4,7 @@ import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaU
 import { MdBlock } from 'react-icons/md';
 import { Loader, Download, Upload, SquarePen, User, LinkIcon } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { getAllStudents, updateStudentStatus, updateStudentProfile, updateEducationalBackground } from '../../../services/students';
+import { getAllStudents, updateStudentProfile, updateEducationalBackground } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -565,19 +565,34 @@ export default function StudentDirectory() {
         return 'Active'; // Default to Active for unknown statuses
       };
       
-      const formattedStudents = studentsArray.map(student => ({
-        ...student,
-        status: normalizeStatus(student.user?.status || 'ACTIVE'),
-        emailVerified: student.user?.emailVerified || false,
-        createdAt: student.user?.createdAt || student.createdAt,
-        // Ensure all fields have safe defaults for filtering
-        fullName: student.fullName || student.email || 'N/A',
-        email: student.email || '',
-        enrollmentId: student.enrollmentId || null,
-        center: student.center || '',
-        school: student.school || '',
-        cgpa: student.cgpa || null,
-      }));
+      const formattedStudents = studentsArray.map(student => {
+        // Parse blockInfo if it exists
+        let blockInfo = null;
+        if (student.user?.blockInfo) {
+          try {
+            blockInfo = typeof student.user.blockInfo === 'string' 
+              ? JSON.parse(student.user.blockInfo) 
+              : student.user.blockInfo;
+          } catch (e) {
+            console.warn('Failed to parse blockInfo for student:', student.id, e);
+          }
+        }
+        
+        return {
+          ...student,
+          status: normalizeStatus(student.user?.status || 'ACTIVE'),
+          emailVerified: student.user?.emailVerified || false,
+          createdAt: student.user?.createdAt || student.createdAt,
+          blockInfo: blockInfo,
+          // Ensure all fields have safe defaults for filtering
+          fullName: student.fullName || student.email || 'N/A',
+          email: student.email || '',
+          enrollmentId: student.enrollmentId || null,
+          center: student.center || '',
+          school: student.school || '',
+          cgpa: student.cgpa || null,
+        };
+      });
 
       console.log(`✅ Loaded ${formattedStudents.length} students`);
       setStudents(formattedStudents);
@@ -676,7 +691,20 @@ export default function StudentDirectory() {
       enrollmentId.includes(searchLower);
     const matchesCenter = filters.center ? student.center === filters.center : true;
     const matchesSchool = filters.school ? student.school === filters.school : true;
-    const matchesStatus = filters.status ? student.status === filters.status : true;
+    const matchesStatus = filters.status ? (() => {
+      const studentStatus = String(student?.status || student?.user?.status || 'ACTIVE').toUpperCase();
+      const filterStatus = String(filters.status).toUpperCase();
+      // Map display names (Active, Inactive, Blocked) to database values (ACTIVE, PENDING/REJECTED, BLOCKED)
+      if (filterStatus === 'ACTIVE') {
+        return studentStatus === 'ACTIVE';
+      } else if (filterStatus === 'BLOCKED') {
+        return studentStatus === 'BLOCKED';
+      } else if (filterStatus === 'INACTIVE') {
+        // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
+        return studentStatus !== 'ACTIVE' && studentStatus !== 'BLOCKED';
+      }
+      return studentStatus === filterStatus;
+    })() : true;
     // Compare CGPA values using string comparison when possible to avoid rounding errors
     const matchesMinCgpa = filters.minCgpa ? (() => {
       const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
@@ -920,9 +948,10 @@ export default function StudentDirectory() {
     }
   };
 
-  // Permission check for admin-only actions
+  // Permission check for admin / super admin actions
   const canModifyStudents = () => {
-    return user && (user.role === 'admin' || user.userType === 'admin');
+    const r = (user?.role || user?.userType || '').toLowerCase();
+    return user && (r === 'admin' || r === 'super_admin');
   };
 
   const handleBlockConfirm = async (blockDetails) => {
@@ -932,7 +961,7 @@ export default function StudentDirectory() {
     }
 
     if (operationLoading) {
-      return; // Prevent multiple operations
+      return;
     }
 
     try {
@@ -940,52 +969,23 @@ export default function StudentDirectory() {
       const newStatus = selectedStudent.status === 'Blocked' ? 'Active' : 'Blocked';
       const isBlocking = newStatus === 'Blocked';
 
-      // Enhanced block details with admin info
-      const enhancedBlockDetails = isBlocking ? {
-        ...blockDetails,
-        blockedBy: user.id,
-        blockedByName: user.displayName || user.email || 'Admin',
-        blockedAt: new Date()
-      } : null;
+      const unblock = blockDetails?.isUnblocking === true || !isBlocking;
+      const payload = {
+        isUnblocking: unblock,
+        blockType: !unblock && blockDetails?.blockType
+          ? (blockDetails.blockType === 'Temporary' || blockDetails.blockType === 'temporary' ? 'temporary' : 'permanent')
+          : 'permanent',
+        endDate: !unblock && blockDetails?.endDate ? blockDetails.endDate : null,
+        endTime: !unblock && blockDetails?.endTime ? blockDetails.endTime : null,
+        reason: !unblock && blockDetails?.reason ? blockDetails.reason : '',
+        notes: !unblock && blockDetails?.notes ? blockDetails.notes : '',
+      };
 
-      // Update student status
-      await updateStudentStatus(selectedStudent.id, newStatus, enhancedBlockDetails);
-
-      // Create notification entry for audit trail
-      try {
-        const notificationData = {
-          type: isBlocking ? 'student_blocked' : 'student_unblocked',
-          title: `Student ${isBlocking ? 'Blocked' : 'Unblocked'}`,
-          message: `${selectedStudent.fullName} (${selectedStudent.enrollmentId}) has been ${isBlocking ? 'blocked' : 'unblocked'} by ${user.displayName || user.email}`,
-          studentId: selectedStudent.id,
-          studentName: selectedStudent.fullName,
-          studentEnrollmentId: selectedStudent.enrollmentId,
-          adminId: user.id,
-          adminName: user.displayName || user.email || 'Admin',
-          priority: 'high',
-          metadata: {
-            reason: isBlocking ? blockDetails.reason : 'Unblocked',
-            notes: isBlocking ? blockDetails.notes : 'Student account unblocked',
-            studentEmail: selectedStudent.email,
-            studentCenter: selectedStudent.center,
-            studentSchool: selectedStudent.school
-          },
-          createdAt: new Date().toISOString(),
-          date: new Date().toISOString().split('T')[0],
-          time: new Date().toTimeString().split(' ')[0]
-        };
-
-        // TODO: Replace with API call: api.createNotification() or backend handles automatically
-        console.log('Notification would be created for student status change');
-
-      } catch (notificationError) {
-        console.warn('Failed to create notification:', notificationError);
-        // Don't fail the operation if notification fails
-      }
-
-      console.log(`Student ${isBlocking ? 'blocked' : 'unblocked'} successfully`);
+      await api.blockUnblockStudent(selectedStudent.id, payload);
+      setBlockModalOpen(false);
+      setSelectedStudent(null);
+      await loadStudents();
       alert(`Student has been ${isBlocking ? 'blocked' : 'unblocked'} successfully.`);
-
     } catch (error) {
       console.error('Error updating student status:', error);
       setError('Failed to update student status');
@@ -1478,9 +1478,19 @@ export default function StudentDirectory() {
                           {/* Block/Unblock Button */}
                           <button
                             onClick={() => handleBlockClick(student)}
-                            disabled={!canModifyStudents() || operationLoading}
-                            className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                            title={student.status === 'Blocked' ? 'Unblock Student' : 'Block Student'}
+                            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
+                            className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${
+                              student.status === 'Blocked' 
+                                ? 'bg-gray-500 hover:bg-gray-600 text-white' 
+                                : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
+                            }`}
+                            title={
+                              student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
+                                ? 'Permanently blocked - cannot be unblocked'
+                                : student.status === 'Blocked'
+                                ? 'Unblock Student'
+                                : 'Block Student'
+                            }
                           >
                             {operationLoading ? (
                               <Loader className="w-4 h-4 animate-spin" />
@@ -1555,9 +1565,10 @@ export default function StudentDirectory() {
 
       <BlockModal
         isOpen={blockModalOpen}
-        onClose={() => setBlockModalOpen(false)}
+        onClose={() => { setBlockModalOpen(false); setSelectedStudent(null); }}
         entity={selectedStudent}
         entityType="student"
+        isUnblocking={selectedStudent?.status === 'Blocked'}
         onConfirm={handleBlockConfirm}
       />
 

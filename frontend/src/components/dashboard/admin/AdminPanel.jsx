@@ -561,7 +561,7 @@ const AdminPanel = () => {
         </div>
 
         {/* Enhanced Statistics Cards - Ultra Glassmorphic Style */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="bg-gradient-to-br from-blue-400/20 to-blue-500/25 backdrop-blur-xl border border-blue-300/30 rounded-xl shadow-lg shadow-blue-200/20 p-6 hover:shadow-xl hover:shadow-blue-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -569,6 +569,16 @@ const AdminPanel = () => {
                 <p className="text-3xl font-bold text-blue-800">{loading ? '...' : (statsData.totalStudents || 0).toLocaleString()}</p>
               </div>
               <FaUserGraduate className="text-4xl text-blue-500/70" />
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-emerald-400/20 to-emerald-500/25 backdrop-blur-xl border border-emerald-300/30 rounded-xl shadow-lg shadow-emerald-200/20 p-6 hover:shadow-xl hover:shadow-emerald-300/30 transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-700 text-sm font-medium">Active Students</p>
+                <p className="text-3xl font-bold text-emerald-800">{loading ? '...' : (statsData.activeStudents || 0).toLocaleString()}</p>
+              </div>
+              <FaCheckCircle className="text-4xl text-emerald-500/70" />
             </div>
           </div>
           

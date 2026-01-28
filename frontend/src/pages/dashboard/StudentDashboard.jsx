@@ -59,8 +59,7 @@ import {
   Globe,
   Plus,
   Link as LinkIcon,
-  Eye,
-  DollarSign
+  Eye
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -2010,12 +2009,10 @@ export default function StudentDashboard() {
           return `₹${numSalary.toLocaleString()}`;
         }
       }
-      // Check if it contains "As per industry standards"
       if (salary.includes('As per industry standards')) {
         return 'As per industry standards';
       }
-      // Return as-is if it's already formatted
-      return salary;
+      return salary.replace(/\$/g, '₹');
     }
     
     return 'As per industry standards';
@@ -2154,7 +2151,6 @@ export default function StudentDashboard() {
                       Drive Date
                     </div>
                     <div className="col-span-2 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
-                      <DollarSign className="h-4 w-4 mr-2 text-blue-600" />
                       Salary (CTC)
                     </div>
                     <div className="col-span-5 text-right text-gray-700 font-bold text-sm uppercase tracking-wide">
@@ -2191,7 +2187,6 @@ export default function StudentDashboard() {
                                     <span>{formatDate(job.driveDate || job.applicationDeadline)}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4 text-green-500" />
                                     <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
                                   </div>
                                 </div>
@@ -2280,10 +2275,7 @@ export default function StudentDashboard() {
                             </div>
 
                             <div className="col-span-2 flex items-center">
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="h-4 w-4 text-green-500" />
-                                <span className="text-sm font-bold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
-                              </div>
+                              <span className="text-sm font-bold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
                             </div>
 
                             <div className="col-span-5 flex items-center justify-end gap-3">

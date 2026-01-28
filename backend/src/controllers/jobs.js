@@ -592,6 +592,7 @@ export async function createJob(req, res) {
       driveDate: mappedData.driveDate || null,
       applicationDeadline: mappedData.applicationDeadline || null,
       jobType: mappedData.jobType || null,
+      workMode: mappedData.workMode || null,
       experienceLevel: mappedData.experienceLevel || null,
       // Eligibility Requirements
       qualification: mappedData.qualification || null,
@@ -872,11 +873,9 @@ export async function updateJob(req, res) {
       'createdAt', // Auto-managed
       'updatedAt', // Auto-managed
       'website', // Company field - handled separately
-      'companyLocation', // Company field - handled separately
       'linkedin', // Not a valid Company/Job field - ignore
       'stipend', // Frontend field - map to salary if needed
       'duration', // Not in Job schema - ignore
-      'workMode', // Not in Job schema - ignore
       'openings', // Not in Job schema - ignore
       'responsibilities', // Frontend field - map to description
       'skills', // Frontend field - already handled as requiredSkills
@@ -902,6 +901,11 @@ export async function updateJob(req, res) {
     // Map stipend to salary for internships
     if (updateData.stipend && updateData.jobType === 'Internship' && !finalUpdateData.salary) {
       finalUpdateData.salary = updateData.stipend;
+    }
+
+    // Persist Company Location on Job (job.companyLocation) when provided
+    if (updateData.companyLocation !== undefined) {
+      finalUpdateData.companyLocation = updateData.companyLocation || null;
     }
     
     // Handle company update if companyName is provided

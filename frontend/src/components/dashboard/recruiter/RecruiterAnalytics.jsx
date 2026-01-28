@@ -21,6 +21,7 @@ import {
 import CustomDropdown from '../../common/CustomDropdown';
 import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 import api from '../../../services/api';
+import { useAuth } from '../../../hooks/useAuth';
 
 // Register Chart.js components
 ChartJS.register(
@@ -38,6 +39,7 @@ ChartJS.register(
 );
 
 const RecruiterAnalytics = () => {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({
     center: [],
     school: []
@@ -60,16 +62,118 @@ const RecruiterAnalytics = () => {
       setLoading(true);
       setError(null);
 
-      // No recruiter analytics endpoint available yet; show empty state.
-      setStatsData({});
-      setChartData({});
+      // Get current user's company
+      const me = await api.getCurrentUser();
+      const recruiterId = me?.user?.recruiter?.id;
+      const companyId = me?.user?.recruiter?.companyId;
+      const companyName = me?.user?.recruiter?.companyName || me?.user?.recruiter?.company?.name;
+      
+      if (!recruiterId) {
+        setStatsData({});
+        setChartData({});
+        setLoading(false);
+        return;
+      }
+
+      // Get all jobs from current recruiter
+      const jobsResponse = await api.getJobs({ recruiterId, limit: 1000 });
+      const companyJobs = Array.isArray(jobsResponse) ? jobsResponse : (jobsResponse.jobs || []);
+
+      // Calculate stats (based on current recruiter's activity)
+      const totalHRs = 1; // Current recruiter
+      const totalManagers = me?.user?.displayName?.toLowerCase().includes('manager') ? 1 : 0;
+      const totalDrives = companyJobs.filter(job => 
+        job.status === 'POSTED' || job.isPosted
+      ).length;
+      const jobPostingFrequency = companyJobs.length;
+
+      // HR Distribution by Center (based on job locations)
+      const hrByCenter = {};
+      companyJobs.forEach(job => {
+        const center = job.companyLocation || job.location || 'Unknown';
+        hrByCenter[center] = (hrByCenter[center] || 0) + 1;
+      });
+      if (Object.keys(hrByCenter).length === 0) {
+        hrByCenter['All Locations'] = totalHRs;
+      }
+
+      // Manager Distribution by Center (same as HR for single recruiter)
+      const managerByCenter = totalManagers > 0 ? hrByCenter : {};
+
+      // Drive Participation Over Time (last 12 months)
+      const driveByMonth = {};
+      const last12Months = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        last12Months.push(monthKey);
+        driveByMonth[monthKey] = 0;
+      }
+
+      companyJobs.filter(job => job.status === 'POSTED' || job.isPosted).forEach(job => {
+        const jobDate = job.postedAt || job.createdAt;
+        if (jobDate) {
+          const date = new Date(jobDate);
+          const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+          if (driveByMonth.hasOwnProperty(monthKey)) {
+            driveByMonth[monthKey]++;
+          }
+        }
+      });
+
+      // Job Posting Frequency by School (if targeting data available)
+      const jobsBySchool = {};
+      companyJobs.forEach(job => {
+        let schools = job.targetSchools || [];
+        // Parse if it's a JSON string
+        if (typeof schools === 'string') {
+          try {
+            schools = JSON.parse(schools);
+          } catch (e) {
+            schools = [];
+          }
+        }
+        if (Array.isArray(schools) && schools.length > 0) {
+          schools.forEach(school => {
+            jobsBySchool[school] = (jobsBySchool[school] || 0) + 1;
+          });
+        }
+      });
+
+      setStatsData({
+        totalHRs,
+        totalManagers,
+        totalDrives,
+        jobPostingFrequency,
+      });
+
+      setChartData({
+        hrDistribution: {
+          labels: Object.keys(hrByCenter),
+          data: Object.values(hrByCenter),
+        },
+        managerDistribution: {
+          labels: Object.keys(managerByCenter),
+          data: Object.values(managerByCenter),
+        },
+        driveParticipation: {
+          labels: last12Months,
+          data: last12Months.map(month => driveByMonth[month] || 0),
+        },
+        jobPostingFrequency: {
+          labels: Object.keys(jobsBySchool).length > 0 ? Object.keys(jobsBySchool) : ['All Schools'],
+          data: Object.keys(jobsBySchool).length > 0 ? Object.values(jobsBySchool) : [jobPostingFrequency],
+        },
+      });
+
       setLoading(false);
     } catch (err) {
       console.error('❌ Failed to load RecruiterAnalytics data:', err);
       setError(err.message || 'Failed to load analytics');
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Handle filter changes
   const handleFilterChange = (filterType, values) => {

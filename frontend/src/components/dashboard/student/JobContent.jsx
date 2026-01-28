@@ -112,16 +112,15 @@ const getRoundIcon = (label) => {
  * Format salary for display
  */
 function formatSalary(salary) {
-  if (!salary || salary.trim() === '') return "As per industry standards";
+  if (!salary || (typeof salary === 'string' && salary.trim() === '')) return "As per industry standards";
   if (salary === 'As per industry standards') return "As per industry standards";
   if (typeof salary === "number") {
     return `₹${(salary / 100000).toFixed(1)} LPA`;
   }
-  // Check if it contains "As per industry standards"
-  if (salary.includes('As per industry standards')) {
+  if (typeof salary === 'string' && salary.includes('As per industry standards')) {
     return 'As per industry standards';
   }
-  return salary;
+  return String(salary).replace(/\$/g, '₹');
 }
 
 /**
@@ -210,6 +209,7 @@ const JobContent = React.memo(({
       gapAllowed: job.gapAllowed,
       gapYears: job.gapYears,
       backlogs: job.backlogs,
+      workMode: job.workMode ?? job.work_mode ?? null,
       // Additional fields
       reportingTime: job.reportingTime,
       documentsRequired: job.documentsRequired,
@@ -689,7 +689,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">Work Mode</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.workMode || '—'}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.workMode || displayJob.work_mode || '—'}</p>
       </div>
       <div 
         className="group relative p-6 rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-red-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
@@ -704,7 +704,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">Location</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.location || '—'}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.companyLocation || displayJob.company?.location || displayJob.location || '—'}</p>
       </div>
       <div 
         className="group relative p-6 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
@@ -719,7 +719,7 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
           </div>
           <span className="text-sm font-bold uppercase tracking-wide">CTC</span>
         </div>
-        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{formatSalary(displayJob.salary)}</p>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{formatSalary(displayJob.salary || displayJob.ctc || displayJob.stipend)}</p>
       </div>
     </div>
 

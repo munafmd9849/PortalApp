@@ -13,12 +13,14 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '../middleware/auth.js';
+import { requireRole } from '../middleware/roles.js';
 import jwt from 'jsonwebtoken';
 import { validateUUID } from '../middleware/validation.js';
 import { body, validationResult } from 'express-validator';
 import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
+import { createNotification } from '../controllers/notifications.js';
 
 const router = express.Router();
 
@@ -217,13 +219,13 @@ router.post('/login', [
   body('role').optional().custom((value) => {
     if (!value) return true;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(upper);
+  }).withMessage('Role must be STUDENT, RECRUITER, ADMIN, or SUPER_ADMIN'),
   body('selectedRole').optional().custom((value) => {
     if (!value) return true;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('SelectedRole must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(upper);
+  }).withMessage('SelectedRole must be STUDENT, RECRUITER, ADMIN, or SUPER_ADMIN'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -235,8 +237,61 @@ router.post('/login', [
     // Normalize role to uppercase (accept both 'role' and 'selectedRole')
     const role = (selectedRole || roleFromBody) ? (selectedRole || roleFromBody).toUpperCase() : undefined;
 
-    // Find user
-    const user = await prisma.user.findUnique({
+    // Super Admin: specific email + password → always log in as Super Admin (no role selector on login).
+    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
+    const isSuperAdminLogin = email.toLowerCase() === superAdminEmail;
+
+    let user = null;
+    if (isSuperAdminLogin) {
+      user = await prisma.user.findUnique({
+        where: { email },
+        include: { student: true, recruiter: true, admin: true },
+      });
+      if (user && user.role !== 'SUPER_ADMIN') {
+        // Email matches Super Admin email but user has different role
+        return res.status(403).json({ error: 'Invalid credentials for Super Admin' });
+      }
+      if (!user) {
+        // Super Admin email but user doesn't exist
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      // User exists and has SUPER_ADMIN role, verify password
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      // Password valid, authenticate as Super Admin
+      if (user.status === 'BLOCKED') {
+        return res.status(403).json({ error: 'Account is blocked' });
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+      return res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          emailVerified: user.emailVerified,
+        },
+        accessToken,
+        refreshToken,
+      });
+    }
+
+    // Normal login
+    user = await prisma.user.findUnique({
       where: { email },
       include: {
         student: true,
@@ -249,14 +304,13 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check password
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Verify role if specified (case-insensitive comparison)
-    if (role && user.role.toUpperCase() !== role.toUpperCase()) {
+    // Skip role check for Super Admin (they can login with any role selector)
+    if (role && user.role.toUpperCase() !== role.toUpperCase() && user.role.toUpperCase() !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'Invalid role for this account' });
     }
 
@@ -270,6 +324,37 @@ router.post('/login', [
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+
+    // Notify Super Admins when a PENDING admin tries to enter (login) — for Admit/Reject workflow
+    if (user.role === 'ADMIN' && user.status === 'PENDING') {
+      try {
+        const superAdmins = await prisma.user.findMany({
+          where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
+          select: { id: true },
+        });
+        const adminName = user.displayName || user.email;
+        const loginAt = new Date().toLocaleString();
+        for (const sa of superAdmins) {
+          await createNotification({
+            userId: sa.id,
+            title: `Admin requesting access: ${adminName}`,
+            body: `${adminName} (${user.email}) tried to log in at ${loginAt}. Admit or Reject in Notifications.`,
+            data: {
+              type: 'admin_login',
+              adminUserId: user.id,
+              adminEmail: user.email,
+              adminName,
+              loggedInAt: new Date().toISOString(),
+            },
+          });
+        }
+        if (superAdmins.length > 0) {
+          logger.info(`Admin login (PENDING) notifications sent to ${superAdmins.length} Super Admin(s) for ${user.email}`);
+        }
+      } catch (notifErr) {
+        logger.error('Failed to notify Super Admins of admin login:', notifErr);
+      }
+    }
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id);
@@ -486,6 +571,141 @@ router.put('/profile', authenticate, [
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/**
+ * PUT /auth/company-details
+ * Update company details for recruiters
+ */
+router.put('/company-details', authenticate, requireRole(['RECRUITER']), [
+  body('companyName').optional().isString().trim().isLength({ min: 1, max: 200 }),
+  body('website').optional().custom((value) => {
+    if (!value || value.trim() === '') return true;
+    // Basic URL validation - allow http://, https://, or URLs without protocol
+    try {
+      new URL(value.startsWith('http') ? value : `https://${value}`);
+      return true;
+    } catch {
+      throw new Error('Website must be a valid URL');
+    }
+  }),
+  body('address').optional().isString().trim().isLength({ max: 500 }),
+  body('registrationNumber').optional().isString().trim().isLength({ max: 100 }),
+  body('phone').optional().isString().trim().isLength({ max: 20 }),
+  body('email').optional().isEmail().normalizeEmail(),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { companyName, website, address, registrationNumber, phone, email } = req.body;
+    const userId = req.userId;
+
+    // Get recruiter with company
+    const recruiter = await prisma.recruiter.findUnique({
+      where: { userId },
+      include: { company: true },
+    });
+
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter profile not found' });
+    }
+
+    let companyId = recruiter.companyId;
+    let updatedCompany = null;
+
+    // Update or create company
+    if (companyName) {
+      if (companyId && recruiter.company) {
+        // Update existing company
+        const companyUpdateData = {};
+        if (website !== undefined) companyUpdateData.website = website?.trim() || null;
+        if (address !== undefined) companyUpdateData.location = address?.trim() || null;
+        
+        // Store additional info in description as JSON
+        const additionalInfo = {};
+        if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+        if (phone) additionalInfo.phone = phone.trim();
+        if (email) additionalInfo.email = email.trim();
+        
+        if (Object.keys(additionalInfo).length > 0) {
+          companyUpdateData.description = JSON.stringify(additionalInfo);
+        }
+
+        if (Object.keys(companyUpdateData).length > 0) {
+          updatedCompany = await prisma.company.update({
+            where: { id: companyId },
+            data: companyUpdateData,
+          });
+        } else {
+          updatedCompany = recruiter.company;
+        }
+      } else {
+        // Create new company or find existing by name
+        const existingCompany = await prisma.company.findFirst({
+          where: { name: companyName.trim() },
+        });
+
+        if (existingCompany) {
+          companyId = existingCompany.id;
+          // Update existing company
+          const companyUpdateData = {};
+          if (website !== undefined) companyUpdateData.website = website?.trim() || null;
+          if (address !== undefined) companyUpdateData.location = address?.trim() || null;
+          
+          const additionalInfo = {};
+          if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+          if (phone) additionalInfo.phone = phone.trim();
+          if (email) additionalInfo.email = email.trim();
+          
+          if (Object.keys(additionalInfo).length > 0) {
+            companyUpdateData.description = JSON.stringify(additionalInfo);
+          }
+
+          if (Object.keys(companyUpdateData).length > 0) {
+            updatedCompany = await prisma.company.update({
+              where: { id: companyId },
+              data: companyUpdateData,
+            });
+          } else {
+            updatedCompany = existingCompany;
+          }
+        } else {
+          // Create new company
+          const additionalInfo = {};
+          if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
+          if (phone) additionalInfo.phone = phone.trim();
+          if (email) additionalInfo.email = email.trim();
+
+          updatedCompany = await prisma.company.create({
+            data: {
+              name: companyName.trim(),
+              website: website?.trim() || null,
+              location: address?.trim() || null,
+              description: Object.keys(additionalInfo).length > 0 ? JSON.stringify(additionalInfo) : null,
+            },
+          });
+          companyId = updatedCompany.id;
+        }
+
+        // Link recruiter to company
+        await prisma.recruiter.update({
+          where: { userId },
+          data: { companyId },
+        });
+      }
+    }
+
+    res.json({
+      company: updatedCompany || recruiter.company,
+      message: 'Company details updated successfully',
+    });
+  } catch (error) {
+    console.error('Update company details error:', error);
+    res.status(500).json({ error: 'Failed to update company details' });
   }
 });
 

@@ -519,7 +519,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       setOtp('');
                       setVerificationToken('');
                       setOtpCountdown(0);
-                      // Backend expects uppercase role for login too
+                      // Backend expects uppercase role. Use Admin; Super Admin is via env credentials only.
                       const u = await login(email, password, role.toUpperCase());
                       uid = u?.user?.id || u?.id; // JWT returns id, not uid
                       console.log('LoginModal - Login successful, User ID:', uid);

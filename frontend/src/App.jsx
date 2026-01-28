@@ -20,6 +20,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
+import SuperAdminDashboard from './pages/dashboard/SuperAdminDashboard'
 import InterviewSessionPage from './pages/InterviewSessionPage'
 import InterviewSessionToken from './pages/InterviewSessionToken'
 import InterviewerDashboard from './pages/interview/InterviewerDashboard'
@@ -210,6 +211,15 @@ function AppContent() {
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
+        {/* Super Admin routes - SUPER_ADMIN only */}
+        <Route element={<ProtectedRoute allowRoles={['super_admin']} />}>
+          <Route path="/super-admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
+          <Route path="/super-admin/assessment/:interviewId/:roundName" element={<Assessment />} />
+          <Route path="/super-admin/job/:jobId" element={<SuperAdminDashboard />} />
+          <Route path="/super-admin/jobs/:jobId/applications" element={<SuperAdminDashboard />} />
+          <Route path="/super-admin" element={<SuperAdminDashboard />} />
         </Route>
         
         {/* Admin-only routes - Only ADMIN can access */}

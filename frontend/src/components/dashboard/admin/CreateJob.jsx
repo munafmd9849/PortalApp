@@ -387,6 +387,7 @@ export default function CreateJob({ onCreated }) {
     };
   }, []);
 
+
   // Form state
   const [form, setForm] = useState({
     company: '',

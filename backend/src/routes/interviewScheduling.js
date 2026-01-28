@@ -17,17 +17,24 @@ import {
   startRound,
   endRound,
   endSession,
+  freezeInterviewSession,
+  unfreezeInterviewSession,
 } from '../controllers/interviewScheduling.js';
 
 const router = express.Router();
 
-// Admin routes (require authentication and ADMIN role)
-router.get('/session/:jobId', authenticate, requireRole('ADMIN'), getOrCreateSession);
-router.post('/session', authenticate, requireRole('ADMIN'), getOrCreateSession);
-router.post('/session/:sessionId/rounds', authenticate, requireRole('ADMIN'), configureRounds);
-router.post('/session/:sessionId/invite-interviewers', authenticate, requireRole('ADMIN'), inviteInterviewers);
+// Admin + Super Admin + Recruiter routes (require authentication and ADMIN, SUPER_ADMIN, or RECRUITER role)
+const adminOrSuperAdminOrRecruiter = ['ADMIN', 'SUPER_ADMIN', 'RECRUITER'];
+router.get('/session/:jobId', authenticate, requireRole(adminOrSuperAdminOrRecruiter), getOrCreateSession);
+router.post('/session', authenticate, requireRole(adminOrSuperAdminOrRecruiter), getOrCreateSession);
+router.post('/session/:sessionId/rounds', authenticate, requireRole(adminOrSuperAdminOrRecruiter), configureRounds);
+router.post('/session/:sessionId/invite-interviewers', authenticate, requireRole(adminOrSuperAdminOrRecruiter), inviteInterviewers);
+
+// Super Admin only: freeze/unfreeze interview session
+router.patch('/session/:sessionId/freeze', authenticate, requireRole('SUPER_ADMIN'), freezeInterviewSession);
+router.patch('/session/:sessionId/unfreeze', authenticate, requireRole('SUPER_ADMIN'), unfreezeInterviewSession);
 
 // Direct route for frontend compatibility (GET /api/interview-sessions/:jobId)
-router.get('/:jobId', authenticate, requireRole('ADMIN'), getOrCreateSession);
+router.get('/:jobId', authenticate, requireRole(adminOrSuperAdminOrRecruiter), getOrCreateSession);
 
 export default router;
