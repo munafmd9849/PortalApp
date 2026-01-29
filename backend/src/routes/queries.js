@@ -25,7 +25,7 @@ const handleValidation = (req, res, next) => {
 
 router.post(
   '/',
-  requireRole(['STUDENT']),
+  requireRole(['STUDENT', 'RECRUITER']),
   uploadProofDocument, // Handle optional proof document upload (multer middleware)
   body('subject').trim().notEmpty().withMessage('Subject is required'),
   body('message').custom((value, { req }) => {
@@ -65,7 +65,7 @@ router.post(
   createStudentQuery
 );
 
-router.get('/', requireRole(['STUDENT']), getStudentQueries);
+router.get('/', requireRole(['STUDENT', 'RECRUITER']), getStudentQueries);
 
 router.get('/admin', requireRole(['ADMIN', 'SUPER_ADMIN']), getAllQueries);
 

@@ -2,11 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { deleteJob, subscribeJobs, postJob, updateJob } from '../../../services/jobs';
 import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin, Edit } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 
 export default function ManageJobs() {
   const { user, role } = useAuth();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   
   // MANDATORY: Role-based access control - Block STUDENT users immediately
   useEffect(() => {
@@ -1010,7 +1012,7 @@ export default function ManageJobs() {
                               e.preventDefault();
                               e.stopPropagation();
                               // Navigate to job detail page - AdminJobDetail handles editing
-                              navigate(`/admin/job/${job.id}`);
+                              navigate(`${base}/job/${job.id}`);
                             }}
                             className="p-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors shadow-sm"
                             title="View/Edit Job (Click Edit button on job detail page)"

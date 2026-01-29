@@ -1,20 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FaQuestionCircle, FaFilePdf, FaUpload, FaEdit, FaSave, FaTimes,
-  FaBuilding, FaEnvelope, FaPhone, FaMapMarkerAlt, FaFileAlt, FaTicketAlt
+  FaQuestionCircle, FaFilePdf, FaUpload,
+  FaFileAlt
 } from 'react-icons/fa';
 import api from '../../../services/api';
 
 const HelpSupport = () => {
-  const [companyDetails, setCompanyDetails] = useState({
-    companyName: '',
-    registrationNumber: '',
-    email: '',
-    phone: '',
-    address: '',
-    website: ''
-  });
-  const [editingDetails, setEditingDetails] = useState(false);
   const [mouDocuments, setMouDocuments] = useState([]);
   const [uploadingMou, setUploadingMou] = useState(false);
   const [faqs, setFaqs] = useState([
@@ -45,36 +36,10 @@ const HelpSupport = () => {
     }
   ]);
   const [expandedFaq, setExpandedFaq] = useState(null);
-  const [ticketForm, setTicketForm] = useState({
-    subject: '',
-    category: '',
-    description: ''
-  });
-  const [showTicketForm, setShowTicketForm] = useState(false);
-  const [submittingTicket, setSubmittingTicket] = useState(false);
 
   useEffect(() => {
-    loadCompanyDetails();
     loadMouDocuments();
   }, []);
-
-  const loadCompanyDetails = async () => {
-    try {
-      // TODO: Replace with actual API call
-      // const data = await api.getCompanyDetails();
-      
-      setCompanyDetails({
-        companyName: '',
-        registrationNumber: '',
-        email: '',
-        phone: '',
-        address: '',
-        website: ''
-      });
-    } catch (error) {
-      console.error('Error loading company details:', error);
-    }
-  };
 
   const loadMouDocuments = async () => {
     try {
@@ -84,17 +49,6 @@ const HelpSupport = () => {
       setMouDocuments([]);
     } catch (error) {
       console.error('Error loading MOU documents:', error);
-    }
-  };
-
-  const handleSaveDetails = async () => {
-    try {
-      // TODO: Replace with actual API call
-      // await api.updateCompanyDetails(companyDetails);
-      alert('Saving company details is not available yet.');
-    } catch (error) {
-      console.error('Error saving company details:', error);
-      alert('Failed to update company details. Please try again.');
     }
   };
 
@@ -123,167 +77,9 @@ const HelpSupport = () => {
     }
   };
 
-  const handleSubmitTicket = async (e) => {
-    e.preventDefault();
-    
-    if (!ticketForm.subject || !ticketForm.category || !ticketForm.description) {
-      alert('Please fill in all fields');
-      return;
-    }
-
-    try {
-      setSubmittingTicket(true);
-      
-      // TODO: Replace with actual API call
-      // await api.raiseSupportTicket(ticketForm);
-      
-      alert('Support ticket raised successfully! Ticket ID: #' + Date.now());
-      setTicketForm({ subject: '', category: '', description: '' });
-      setShowTicketForm(false);
-    } catch (error) {
-      console.error('Error submitting ticket:', error);
-      alert('Failed to raise support ticket. Please try again.');
-    } finally {
-      setSubmittingTicket(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
-      {/* Company Registration Details */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <FaBuilding className="text-blue-600" />
-            Company Registration Details
-          </h2>
-          {!editingDetails ? (
-            <button
-              onClick={() => setEditingDetails(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <FaEdit className="w-4 h-4" />
-              Edit
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveDetails}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <FaSave className="w-4 h-4" />
-                Save
-              </button>
-              <button
-                onClick={() => {
-                  setEditingDetails(false);
-                  loadCompanyDetails(); // Reload original data
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <FaTimes className="w-4 h-4" />
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
-            {editingDetails ? (
-              <input
-                type="text"
-                value={companyDetails.companyName}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, companyName: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.companyName}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Registration Number</label>
-            {editingDetails ? (
-              <input
-                type="text"
-                value={companyDetails.registrationNumber}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, registrationNumber: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.registrationNumber}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <FaEnvelope className="w-4 h-4" />
-              Email
-            </label>
-            {editingDetails ? (
-              <input
-                type="email"
-                value={companyDetails.email}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, email: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.email}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <FaPhone className="w-4 h-4" />
-              Phone
-            </label>
-            {editingDetails ? (
-              <input
-                type="tel"
-                value={companyDetails.phone}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, phone: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.phone}</p>
-            )}
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <FaMapMarkerAlt className="w-4 h-4" />
-              Address
-            </label>
-            {editingDetails ? (
-              <textarea
-                value={companyDetails.address}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, address: e.target.value })}
-                rows={3}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.address}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
-            {editingDetails ? (
-              <input
-                type="url"
-                value={companyDetails.website}
-                onChange={(e) => setCompanyDetails({ ...companyDetails, website: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <p className="text-gray-900">{companyDetails.website}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* MOU Documents */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
@@ -371,87 +167,6 @@ const HelpSupport = () => {
         </div>
       </div>
 
-      {/* Raise Ticket */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <FaTicketAlt className="text-orange-600" />
-            Support Tickets
-          </h2>
-          <button
-            onClick={() => setShowTicketForm(!showTicketForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-          >
-            <FaTicketAlt className="w-4 h-4" />
-            Raise Ticket
-          </button>
-        </div>
-
-        {showTicketForm && (
-          <form onSubmit={handleSubmitTicket} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                <input
-                  type="text"
-                  value={ticketForm.subject}
-                  onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                <select
-                  value={ticketForm.category}
-                  onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  <option value="technical">Technical Issue</option>
-                  <option value="billing">Billing</option>
-                  <option value="job-posting">Job Posting</option>
-                  <option value="account">Account</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={ticketForm.description}
-                  onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
-                  rows={5}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={submittingTicket}
-                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
-                >
-                  {submittingTicket ? 'Submitting...' : 'Submit Ticket'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTicketForm(false);
-                    setTicketForm({ subject: '', category: '', description: '' });
-                  }}
-                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-      </div>
     </div>
   );
 };

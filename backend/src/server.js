@@ -4,11 +4,23 @@
  * Replaces Firebase Functions/backend
  */
 
+// CRITICAL: Load environment variables FIRST before any imports that use them
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend root directory (parent of src/)
+dotenv.config({ path: join(__dirname, '../.env') });
+
+// Now import modules that depend on environment variables
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import http from 'http';
 
 import { initSocket } from './config/socket.js';
@@ -35,16 +47,8 @@ import placementRoutes from './routes/placement.js';
 import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
 import adminJobsRoutes from './routes/adminJobs.js';
+import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// Get the directory of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env file from the backend root directory (parent of src/)
-dotenv.config({ path: join(__dirname, '../.env') });
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -251,6 +255,7 @@ app.use('/api/placement', placementRoutes);
 app.use('/api/recruiter', recruiterScreeningRoutes); // Token-based recruiter screening (no login)
 app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
+app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code

@@ -33,9 +33,9 @@ const JobInfoDisplay = ({
 
   // Helper function to format salary
   const formatSalary = (salary, jobType, stipend) => {
-    // Handle internship with stipend
-    if (jobType === 'Internship' && stipend && stipend.trim() !== '' && stipend !== 'As per industry standards') {
-      return `₹${stipend}`;
+    if (jobType === 'Internship' && stipend && String(stipend).trim() !== '' && stipend !== 'As per industry standards') {
+      const s = String(stipend).replace(/\$/g, '₹');
+      return s.startsWith('₹') ? s : `₹${s}`;
     }
     
     // If salary is "As per industry standards", return as-is
@@ -47,11 +47,11 @@ const JobInfoDisplay = ({
       if (typeof salary === 'number') {
         return `₹${(salary / 100000).toFixed(1)} LPA`;
       }
-      // Check if it's already formatted or contains "As per industry standards"
-      if (salary.includes('As per industry standards')) {
+      if (String(salary).includes('As per industry standards')) {
         return 'As per industry standards';
       }
-      return `₹${salary}`;
+      const s = String(salary).replace(/\$/g, '₹');
+      return s.startsWith('₹') ? s : `₹${s}`;
     }
     
     // Default for empty/null salary

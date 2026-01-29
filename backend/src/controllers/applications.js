@@ -38,7 +38,7 @@ function normalizeInterviewStatus(value) {
 }
 
 function getRejectedIn({ screeningStatus, interviewStatus }) {
-  if (screeningStatus === 'RESUME_REJECTED') return 'Screening';
+  if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'SCREENING_REJECTED') return 'Screening';
   if (screeningStatus === 'TEST_REJECTED') return 'Test';
 
   if (interviewStatus && interviewStatus.startsWith('REJECTED_IN_ROUND_')) {
@@ -59,7 +59,7 @@ function getFinalStatus({ status, screeningStatus, interviewStatus }) {
   if (normalizedInterview && normalizedInterview.startsWith('REJECTED_IN_ROUND_')) return 'REJECTED';
 
   // Pre-interview rejection states
-  if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'TEST_REJECTED') return 'REJECTED';
+  if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'SCREENING_REJECTED' || screeningStatus === 'TEST_REJECTED') return 'REJECTED';
 
   // Fallback to legacy Application.status
   const normalized = status ? String(status).toUpperCase() : null;
@@ -108,7 +108,7 @@ function computeApplicationTrackingFields({
     }
   } else {
     // ONGOING
-    if (screening === 'RESUME_SELECTED') {
+    if (screening === 'RESUME_SELECTED' || screening === 'SCREENING_SELECTED') {
       currentStage = 'Screening Qualified';
     } else if (screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE') {
       // Candidate has cleared screening + test and is eligible for interview
@@ -137,7 +137,7 @@ function computeApplicationTrackingFields({
   let lastRoundReachedOut = 0;
   if (finalStatus === 'SELECTED' || (finalStatus === 'REJECTED' && interview && interview.startsWith('REJECTED_IN_ROUND_'))) {
     lastRoundReachedOut = dbLastRoundReached || 0;
-  } else if (hasInterviewSession && hasInterviewStarted && (screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE')) {
+  } else if (hasInterviewSession && hasInterviewStarted && (screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE' || screening === 'SCREENING_SELECTED')) {
     lastRoundReachedOut = Math.max(1, dbLastRoundReached + 1);
   }
 
@@ -259,8 +259,8 @@ export async function getJobScreeningSummary(req, res) {
     const summary = {
       total: applications.length,
       applied: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,
-      resumeSelected: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED').length,
-      resumeRejected: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED').length,
+      resumeSelected: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED' || a.screeningStatus === 'SCREENING_SELECTED').length,
+      resumeRejected: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED' || a.screeningStatus === 'SCREENING_REJECTED').length,
       testSelected: applications.filter(a => a.screeningStatus === 'TEST_SELECTED' || a.screeningStatus === 'INTERVIEW_ELIGIBLE').length,
       testRejected: applications.filter(a => a.screeningStatus === 'TEST_REJECTED').length
     };
@@ -268,8 +268,8 @@ export async function getJobScreeningSummary(req, res) {
     // Group applications by screening status
     const byStatus = {
       APPLIED: applications.filter(a => !a.screeningStatus || a.screeningStatus === 'APPLIED'),
-      RESUME_SELECTED: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED'),
-      RESUME_REJECTED: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED'),
+      RESUME_SELECTED: applications.filter(a => a.screeningStatus === 'RESUME_SELECTED' || a.screeningStatus === 'SCREENING_SELECTED'),
+      RESUME_REJECTED: applications.filter(a => a.screeningStatus === 'RESUME_REJECTED' || a.screeningStatus === 'SCREENING_REJECTED'),
       TEST_SELECTED: applications.filter(a => a.screeningStatus === 'TEST_SELECTED' || a.screeningStatus === 'INTERVIEW_ELIGIBLE'),
       TEST_REJECTED: applications.filter(a => a.screeningStatus === 'TEST_REJECTED')
     };
@@ -399,9 +399,9 @@ export async function getStudentApplications(req, res) {
       // Keep existing fields for UI compatibility, but align wording + add canonical fields
       const screeningStatusText = (() => {
         const s = normalizeScreeningStatus(screeningStatus);
-        if (s === 'RESUME_REJECTED') return 'Rejected in Screening';
+        if (s === 'RESUME_REJECTED' || s === 'SCREENING_REJECTED') return 'Rejected in Screening';
         if (s === 'TEST_REJECTED') return 'Rejected in Test';
-        if (s === 'RESUME_SELECTED') return 'Screening Qualified';
+        if (s === 'RESUME_SELECTED' || s === 'SCREENING_SELECTED') return 'Screening Qualified';
         if (s === 'TEST_SELECTED' || s === 'INTERVIEW_ELIGIBLE') return 'Qualified for Interview';
         return 'Applied';
       })();
@@ -535,13 +535,13 @@ export async function getStudentInterviewHistory(req, res) {
       let screeningStatusText = null;
       const screeningStatus = app.screeningStatus || 'APPLIED';
       
-      if (screeningStatus === 'RESUME_REJECTED') {
+      if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'SCREENING_REJECTED') {
         screeningStatusText = 'Rejected in Resume Screening';
       } else if (screeningStatus === 'TEST_REJECTED') {
         screeningStatusText = 'Rejected in Screening Test';
-      } else       if (screeningStatus === 'TEST_SELECTED' || screeningStatus === 'INTERVIEW_ELIGIBLE') {
+      } else if (screeningStatus === 'TEST_SELECTED' || screeningStatus === 'INTERVIEW_ELIGIBLE') {
         screeningStatusText = 'Qualified for Interview';
-      } else if (screeningStatus === 'RESUME_SELECTED') {
+      } else if (screeningStatus === 'RESUME_SELECTED' || screeningStatus === 'SCREENING_SELECTED') {
         screeningStatusText = 'Resume Selected';
       } else {
         screeningStatusText = 'Applied (Screening Pending)';
@@ -712,6 +712,8 @@ export async function getAdminJobApplications(req, res) {
     const lastRoundFilter = req.query.lastRoundReached !== undefined && req.query.lastRoundReached !== ''
       ? parseInt(String(req.query.lastRoundReached), 10)
       : null;
+    const schoolFilter = (req.query.school || '').trim();
+    const batchFilter = (req.query.batch || '').trim();
 
     const sortBy = (req.query.sortBy || 'appliedAt').trim();
     const order = ((req.query.order || 'desc').trim().toLowerCase() === 'asc') ? 'asc' : 'desc';
@@ -790,7 +792,7 @@ export async function getAdminJobApplications(req, res) {
       if (statusUpper === 'APPLIED') {
         filterConditions.push({ screeningStatus: 'APPLIED' });
       } else if (statusUpper === 'SHORTLISTED') {
-        filterConditions.push({ screeningStatus: 'RESUME_SELECTED' });
+        filterConditions.push({ screeningStatus: { in: ['RESUME_SELECTED', 'SCREENING_SELECTED'] } });
       } else if (statusUpper === 'INTERVIEW_SCHEDULED') {
         filterConditions.push({
           AND: [
@@ -816,7 +818,7 @@ export async function getAdminJobApplications(req, res) {
         filterConditions.push({
           OR: [
             { status: 'REJECTED' },
-            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
             { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
           ],
         });
@@ -979,7 +981,7 @@ export async function getAdminJobApplications(req, res) {
         filterConditions.push({
           OR: [
             { status: 'REJECTED' },
-            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
             { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
           ],
         });
@@ -990,7 +992,7 @@ export async function getAdminJobApplications(req, res) {
               { interviewStatus: 'SELECTED' },
               { status: 'SELECTED' },
               { status: 'REJECTED' },
-              { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+              { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
               { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
             ],
           },
@@ -1006,7 +1008,7 @@ export async function getAdminJobApplications(req, res) {
       if (normalizedStage === 'applied') {
         filterConditions.push({ screeningStatus: 'APPLIED' });
       } else if (normalizedStage === 'screening qualified') {
-        filterConditions.push({ screeningStatus: 'RESUME_SELECTED' });
+        filterConditions.push({ screeningStatus: { in: ['RESUME_SELECTED', 'SCREENING_SELECTED'] } });
       } else if (normalizedStage === 'qualified for interview' || normalizedStage === 'test qualified') {
         const stageCondition = { screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] } };
         if (hasInterviewSession) {
@@ -1049,7 +1051,7 @@ export async function getAdminJobApplications(req, res) {
         filterConditions.push({
           OR: [
             { status: 'REJECTED' },
-            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
             { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
           ],
         });
@@ -1082,6 +1084,8 @@ export async function getAdminJobApplications(req, res) {
               city: true,
               stateRegion: true,
               school: true,
+              batch: true,
+              center: true,
               education: {
                 select: {
                   degree: true,
@@ -1129,6 +1133,9 @@ export async function getAdminJobApplications(req, res) {
           name: app.student?.fullName || 'Unknown',
           email: app.student?.email || '',
           enrollmentId: app.student?.enrollmentId || null,
+          school: app.student?.school || null,
+          batch: app.student?.batch || null,
+          center: app.student?.center || null,
           profileLink,
         },
         currentStage: tracking.currentStage,
@@ -1174,7 +1181,7 @@ export async function getAdminJobApplications(req, res) {
           jobId,
           OR: [
             { status: 'REJECTED' },
-            { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
             { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
           ],
         },
@@ -1182,13 +1189,13 @@ export async function getAdminJobApplications(req, res) {
       prisma.application.count({
         where: {
           jobId,
-          screeningStatus: 'RESUME_SELECTED',
+          screeningStatus: { in: ['RESUME_SELECTED', 'SCREENING_SELECTED'] },
           NOT: {
             OR: [
               { status: 'REJECTED' },
               { status: 'SELECTED' },
               { interviewStatus: 'SELECTED' },
-              { screeningStatus: { in: ['RESUME_REJECTED', 'TEST_REJECTED'] } },
+              { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
               { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
             ],
           },

@@ -19,8 +19,8 @@ router.get('/directory', requireRole(['ADMIN', 'SUPER_ADMIN']), recruiterControl
 // Get recruiter jobs by email (admin only)
 router.get('/:email/jobs', requireRole(['ADMIN', 'SUPER_ADMIN']), recruiterController.getRecruiterJobs);
 
-// Block/unblock recruiter (admin only)
-router.patch('/:recruiterId/block', requireRole(['ADMIN', 'SUPER_ADMIN']), recruiterController.blockUnblockRecruiter);
+// Block/unblock recruiter (Super Admin only)
+router.patch('/:recruiterId/block', requireRole(['SUPER_ADMIN']), recruiterController.blockUnblockRecruiter);
 
 export default router;
 

@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { Loader, ArrowLeft, Building2, Briefcase, Calendar, SquarePen, Save, X, Plus, PlayCircle, Users, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
+import ThankYouPopup from '../components/common/ThankYouPopup';
 
 const InterviewSessionPage = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const { user, role } = useAuth();
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -18,6 +21,7 @@ const InterviewSessionPage = () => {
   const [showCreateRound, setShowCreateRound] = useState(false);
   const [newRoundName, setNewRoundName] = useState('');
   const [newRoundCriteria, setNewRoundCriteria] = useState('');
+  const [showThankYouPopup, setShowThankYouPopup] = useState(false);
   const containerRef = useRef(null);
 
   // Load the dotlottie script
@@ -38,12 +42,13 @@ const InterviewSessionPage = () => {
     document.head.appendChild(script);
   }, []);
 
-  // Check authentication
+  // Check authentication (admin or super_admin)
   useEffect(() => {
-    if (!user || role?.toLowerCase() !== 'admin') {
-      navigate('/admin', { replace: true });
+    const r = (role || '').toLowerCase();
+    if (!user || (r !== 'admin' && r !== 'super_admin')) {
+      navigate(base || '/admin', { replace: true });
     }
-  }, [user, role, navigate]);
+  }, [user, role, navigate, base]);
 
   // Load interview session data
   useEffect(() => {
@@ -225,10 +230,14 @@ const InterviewSessionPage = () => {
 
     try {
       const data = await api.endInterviewSession(interviewId);
-      alert(`Session ended successfully!\n\nSummary:\n- Total: ${data.summary.totalCandidates}\n- Done: ${data.summary.doneCandidates}\n- Selected: ${data.summary.selectedCandidates}\n- On Hold: ${data.summary.onHoldCandidates}\n- Rejected: ${data.summary.rejectedCandidates}`);
       
-      // Reload interview data to show completed status
-      window.location.reload();
+      // Show thank you popup
+      setShowThankYouPopup(true);
+      
+      // Reload interview data to show completed status after popup closes
+      setTimeout(() => {
+        window.location.reload();
+      }, 6000); // Reload after popup animation completes
     } catch (error) {
       console.error('Error ending session:', error);
       alert(`Failed to end session: ${error.message}`);
@@ -344,7 +353,7 @@ const InterviewSessionPage = () => {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Interview Session Not Found</h2>
           {error ? <p className="text-gray-600">{error}</p> : null}
           <button
-            onClick={() => navigate('/admin?tab=scheduleInterview')}
+            onClick={() => navigate(`${base}?tab=interviewScheduling`)}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mt-4"
           >
             Back to Schedule Interview
@@ -399,7 +408,7 @@ const InterviewSessionPage = () => {
                 </button>
               )}
               <button
-                onClick={() => navigate('/admin?tab=scheduleInterview')}
+                onClick={() => navigate(`${base}?tab=interviewScheduling`)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -678,6 +687,12 @@ const InterviewSessionPage = () => {
           </fieldset>
         </div>
       </div>
+
+      {/* Thank You Popup */}
+      <ThankYouPopup 
+        isOpen={showThankYouPopup} 
+        onClose={() => setShowThankYouPopup(false)} 
+      />
     </div>
   );
 };

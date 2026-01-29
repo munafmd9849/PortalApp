@@ -51,14 +51,41 @@ async function autoCorrectSessionStatus(session, job) {
     return session;
   }
 
+  // FROZEN sessions are never auto-corrected (Super Admin freeze)
+  if (session.status === 'FROZEN') {
+    return session;
+  }
+
   const now = new Date();
   const driveDate = new Date(job.driveDate);
   driveDate.setHours(23, 59, 59, 999); // End of drive date
 
-  // If drive date has passed and session is not COMPLETED, mark as INCOMPLETE
+  // If drive date has passed, only mark INCOMPLETE if no round has been started yet.
+  // If at least one round is ACTIVE or ENDED, allow the session to continue (or revert INCOMPLETE to ONGOING) so interviewers can end the current round (e.g. interview started Jan 28, ending round Jan 29).
   if (now > driveDate) {
+    const rounds = session.rounds ?? await prisma.interviewRound.findMany({
+      where: { sessionId: session.id },
+      select: { status: true },
+    });
+    const hasStartedRounds = rounds.some(r => r.status === 'ACTIVE' || r.status === 'ENDED');
+    if (hasStartedRounds) {
+      // Session has already started - do not mark INCOMPLETE; if it was wrongly marked INCOMPLETE earlier, set back to ONGOING so end-round can proceed
+      if (session.status === 'INCOMPLETE') {
+        const updatedSession = await prisma.interviewSession.update({
+          where: { id: session.id },
+          data: { status: 'ONGOING' },
+          include: {
+            rounds: { orderBy: { roundNumber: 'asc' } },
+            interviewerInvites: { orderBy: { createdAt: 'desc' } },
+          },
+        });
+        return { ...updatedSession, job: session.job || job };
+      }
+      return session;
+    }
+
     if (session.status !== 'INCOMPLETE') {
-      // Update session to INCOMPLETE
+      // Update session to INCOMPLETE (drive date passed and no round started yet)
       const updatedSession = await prisma.interviewSession.update({
         where: { id: session.id },
         data: {
@@ -187,6 +214,10 @@ export const getOrCreateSession = async (req, res) => {
       return res.status(401).json({ error: 'User ID not found in request' });
     }
 
+    // Get user role for permission check
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     // Check if job exists and get driveDate
     const job = await prisma.job.findUnique({
       where: { id: jobId },
@@ -194,10 +225,16 @@ export const getOrCreateSession = async (req, res) => {
         id: true,
         jobTitle: true,
         companyId: true,
+        recruiterId: true,
         driveDate: true, // CRITICAL: Get driveDate for validation
         company: {
           select: {
             name: true
+          }
+        },
+        recruiter: {
+          select: {
+            userId: true
           }
         },
         description: true
@@ -206,6 +243,13 @@ export const getOrCreateSession = async (req, res) => {
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!job.recruiter || job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to access this job\'s interview session' });
+      }
     }
 
     // CRITICAL: Interview session cannot start before driveDate
@@ -430,14 +474,30 @@ export const configureRounds = async (req, res) => {
       return sendNotFound(res, 'Interview session');
     }
 
-    // Get job to check drive date
+    // Get job to check drive date and ownership
+    const userId = req.userId || req.user?.id;
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     const job = await prisma.job.findUnique({
       where: { id: session.jobId },
-      select: { driveDate: true },
+      select: { 
+        driveDate: true,
+        recruiter: {
+          select: { userId: true }
+        }
+      },
     });
 
     if (!job) {
       return sendNotFound(res, 'Job');
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!job.recruiter || job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to configure rounds for this job' });
+      }
     }
 
     // CRITICAL: Auto-correct session status before validation
@@ -450,6 +510,10 @@ export const configureRounds = async (req, res) => {
 
     if (session.status === 'INCOMPLETE') {
       return sendError(res, 'Cannot configure rounds for incomplete session', 'This interview session is incomplete (drive date passed). Rounds cannot be modified.', 409);
+    }
+
+    if (session.status === 'FROZEN') {
+      return sendError(res, 'Cannot configure rounds for frozen session', 'A Super Admin has frozen this interview session. Rounds cannot be modified.', 409);
     }
 
     if (session.status === 'ONGOING') {
@@ -525,17 +589,33 @@ export const inviteInterviewers = async (req, res) => {
     }
 
     // Get session
+    const userId = req.userId || req.user?.id;
+    const userRole = req.user?.role || req.userRole;
+    const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
+
     const session = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: {
         job: {
-          include: { company: true },
+          include: { 
+            company: true,
+            recruiter: {
+              select: { userId: true }
+            }
+          },
         },
       },
     });
 
     if (!session) {
       return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    // Permission check: Recruiters can only access their own jobs
+    if (isRecruiter) {
+      if (!session.job.recruiter || session.job.recruiter.userId !== userId) {
+        return res.status(403).json({ error: 'Not authorized to invite interviewers for this job' });
+      }
     }
 
     // FRONTEND_URL is validated at startup, so it's guaranteed to exist
@@ -686,18 +766,13 @@ export const getSession = async (req, res) => {
       });
     }
 
-    // Get session first to check if it's completed
+    // Get session first to check status
     const sessionCheck = await prisma.interviewSession.findUnique({
       where: { id: sessionId },
       select: { status: true },
     });
 
-    if (sessionCheck?.status === 'COMPLETED') {
-      return res.status(403).json({ 
-        error: 'Session completed',
-        details: 'This interview session has been completed. The access link is no longer valid.' 
-      });
-    }
+    const isCompletedOrIncomplete = sessionCheck?.status === 'COMPLETED' || sessionCheck?.status === 'INCOMPLETE';
 
     // Check if token is valid in database
     const invite = await prisma.interviewerInvite.findFirst({
@@ -708,31 +783,26 @@ export const getSession = async (req, res) => {
       },
     });
 
-    // Log for debugging (remove in production)
     if (process.env.NODE_ENV === 'development') {
       console.log('Database lookup:', {
         tokenFound: !!invite,
         sessionId,
         email: decoded.email,
-        inviteId: invite?.id,
-        inviteExpiresAt: invite?.expiresAt,
-        inviteUsed: invite?.used
+        inviteUsed: invite?.used,
+        isCompletedOrIncomplete,
       });
     }
 
     if (!invite) {
-      // Try to find invite without email match (for debugging)
       const inviteByToken = await prisma.interviewerInvite.findFirst({
         where: { token },
       });
-      
       if (inviteByToken) {
         return res.status(403).json({ 
           error: 'Token email mismatch',
           details: `Token email (${decoded.email}) does not match invite email (${inviteByToken.email})` 
         });
       }
-      
       return res.status(403).json({ 
         error: 'Token not found in database',
         details: 'This token may not have been properly saved. Please contact the administrator.' 
@@ -746,7 +816,8 @@ export const getSession = async (req, res) => {
       });
     }
 
-    if (invite.used) {
+    // For NOT_STARTED / ONGOING / FROZEN: reject used tokens. For COMPLETED/INCOMPLETE: allow used (so recruiter can view + download).
+    if (!isCompletedOrIncomplete && invite.used) {
       return res.status(403).json({ 
         error: 'Token has already been used',
         details: `Token was used on ${invite.usedAt ? new Date(invite.usedAt).toLocaleString() : 'unknown date'}. The session may have been completed.` 
@@ -1049,7 +1120,8 @@ export const getRoundCandidates = async (req, res) => {
           remarks: evaluation.remarks,
           createdAt: evaluation.createdAt,
         } : null,
-        previousRoundRemarks: previousEvaluation?.remarks || null, // Issue #4
+        previousRoundRemarks: previousEvaluation?.remarks || null,
+        previousRoundStatus: previousEvaluation?.status || null, // So next round interviewer sees prev status + remarks
       };
     });
 
@@ -1111,6 +1183,13 @@ export const evaluateCandidate = async (req, res) => {
     // Check round status
     if (round.status !== 'ACTIVE') {
       return res.status(409).json({ error: 'Round is not active. Cannot evaluate candidates.' });
+    }
+
+    if (round.session?.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'A Super Admin has frozen this interview session. Evaluations are paused.',
+      });
     }
 
     // Validate token
@@ -1251,6 +1330,13 @@ export const startRound = async (req, res) => {
       return res.status(409).json({
         error: 'Session already completed',
         message: 'Cannot start rounds for a completed interview session.',
+      });
+    }
+
+    if (correctedSession.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'Cannot start rounds. A Super Admin has frozen this interview session.',
       });
     }
 
@@ -1448,7 +1534,16 @@ export const endRound = async (req, res) => {
       });
     }
 
-    if (correctedSession.status === 'INCOMPLETE') {
+    if (correctedSession.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'Cannot end rounds. A Super Admin has frozen this interview session.',
+      });
+    }
+
+    // If session was marked INCOMPLETE (drive date passed) but the current round is ACTIVE,
+    // allow ending this round so evaluations are saved and application statuses updated (e.g. interview started Jan 28, ending round Jan 29).
+    if (correctedSession.status === 'INCOMPLETE' && round.status !== 'ACTIVE') {
       return res.status(409).json({
         error: 'Interview drive date has passed',
         message: 'Cannot continue rounds. The interview drive date has passed and the session is incomplete.',
@@ -1523,6 +1618,16 @@ export const endRound = async (req, res) => {
       return res.status(409).json({
         error: `Cannot end round. ${unevaluated.length} candidate(s) not yet evaluated.`,
         unevaluatedCount: unevaluated.length,
+      });
+    }
+
+    // CRITICAL: Check if any students are on hold - cannot end round with on-hold students
+    const onHoldEvaluations = evaluations.filter(e => e.status === 'ON_HOLD');
+    if (onHoldEvaluations.length > 0) {
+      return res.status(409).json({
+        error: 'Cannot end round with on-hold students',
+        message: 'You cannot end the round when a student is on hold, either accept or reject',
+        onHoldCount: onHoldEvaluations.length,
       });
     }
 
@@ -1612,33 +1717,16 @@ export const endRound = async (req, res) => {
       const maxRoundNumber = allRounds[0].roundNumber;
 
       if (round.roundNumber === maxRoundNumber) {
-        // This was the last round - end session
-        // Check drive date one more time before marking as COMPLETED
-        const jobCheck = await tx.job.findUnique({
-          where: { id: round.session.jobId },
-          select: { driveDate: true },
-        });
-        
-        const nowCheck = new Date();
-        const driveDateCheck = jobCheck?.driveDate ? new Date(jobCheck.driveDate) : null;
-        driveDateCheck?.setHours(23, 59, 59, 999);
-        
-        // Only mark as COMPLETED if drive date hasn't passed
-        // If drive date passed, it should have been caught by auto-correction earlier
-        const finalStatus = (driveDateCheck && nowCheck > driveDateCheck) ? 'INCOMPLETE' : 'COMPLETED';
-        
+        // This was the last round - end session. All rounds completed successfully,
+        // so mark session as COMPLETED regardless of drive date (recruiter can still
+        // download spreadsheet and optionally "End Interview" from dashboard if shown).
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: {
-            status: finalStatus,
+            status: 'COMPLETED',
             completedAt: new Date(),
           },
         });
-        
-        // If marked as INCOMPLETE, update application statuses
-        if (finalStatus === 'INCOMPLETE') {
-          await updateApplicationsForIncompleteSession(round.session.jobId);
-        }
 
         // Invalidate all interviewer invites (mark as used) - Issue #1
         await tx.interviewerInvite.updateMany({
@@ -1754,6 +1842,13 @@ export const endSession = async (req, res) => {
       return res.status(409).json({ error: 'Session is already completed' });
     }
 
+    if (session.status === 'FROZEN') {
+      return res.status(409).json({
+        error: 'Interview session is frozen',
+        message: 'A Super Admin has frozen this session. It cannot be ended until unfrozen.',
+      });
+    }
+
     // Check if any round is still active
     const activeRound = session.rounds.find(r => r.status === 'ACTIVE');
     if (activeRound) {
@@ -1777,5 +1872,250 @@ export const endSession = async (req, res) => {
   } catch (error) {
     console.error('Error ending interview session:', error);
     res.status(500).json({ error: 'Failed to end interview session', details: error.message });
+  }
+};
+
+/**
+ * Escape a CSV field (quote if contains comma, newline, or double-quote)
+ */
+function csvEscape(s) {
+  if (s == null) return '';
+  const t = String(s).trim();
+  if (/[,\n"]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+  return t;
+}
+
+/**
+ * Export interview session data as CSV (spreadsheet) for recruiters after last round.
+ * GET /api/interview/session/:sessionId/export?token=...
+ * Token may be used (invite.used) when session is COMPLETED or INCOMPLETE.
+ */
+export const exportSessionSpreadsheet = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    let token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    if (token && token.includes('%')) {
+      try { token = decodeURIComponent(token); } catch (e) { /* keep original */ }
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: 'Token required' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      if (decoded.type !== 'interviewer' || decoded.sessionId !== sessionId) {
+        return res.status(403).json({ error: 'Invalid token' });
+      }
+    } catch (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        job: { include: { company: true } },
+        rounds: { orderBy: { roundNumber: 'asc' } },
+      },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status !== 'COMPLETED' && session.status !== 'INCOMPLETE') {
+      return res.status(400).json({
+        error: 'Export only available after session is completed',
+        details: 'Spreadsheet download is available only after the last round has been ended.',
+      });
+    }
+
+    const invite = await prisma.interviewerInvite.findFirst({
+      where: { token, sessionId, email: decoded.email },
+    });
+
+    if (!invite || invite.expiresAt < new Date()) {
+      return res.status(403).json({ error: 'Token expired or invalid' });
+    }
+
+    const roundIds = session.rounds.map((r) => r.id);
+
+    const evaluations = await prisma.roundEvaluation.findMany({
+      where: { roundId: { in: roundIds } },
+      include: {
+        round: true,
+        application: {
+          include: {
+            student: {
+              include: {
+                user: { select: { email: true, displayName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const appMap = new Map();
+    for (const e of evaluations) {
+      const app = e.application;
+      if (!app || !app.student) continue;
+      const aid = app.id;
+      if (!appMap.has(aid)) {
+        appMap.set(aid, {
+          application: app,
+          student: app.student,
+          byRound: new Map(),
+        });
+      }
+      appMap.get(aid).byRound.set(e.roundId, { status: e.status, remarks: e.remarks });
+    }
+
+    const roundHeaders = [];
+    for (const r of session.rounds) {
+      roundHeaders.push(`${r.name} Status`, `${r.name} Remarks`);
+    }
+
+    const headers = [
+      'Student Name',
+      'Email',
+      'Enrollment ID',
+      'Batch',
+      'Center',
+      'School',
+      ...roundHeaders,
+      'Final Status',
+      'Last Round Reached',
+    ];
+
+    const entries = Array.from(appMap.values()).sort((a, b) => {
+      const na = (a.student.user?.displayName || a.student.fullName || '').toLowerCase();
+      const nb = (b.student.user?.displayName || b.student.fullName || '').toLowerCase();
+      return na.localeCompare(nb);
+    });
+    const rows = [];
+    for (const { application, student, byRound } of entries) {
+      const u = student.user || {};
+      const cells = [
+        csvEscape(u.displayName || student.fullName || ''),
+        csvEscape(u.email || student.email || ''),
+        csvEscape(student.enrollmentId || ''),
+        csvEscape(student.batch || ''),
+        csvEscape(student.center || ''),
+        csvEscape(student.school || ''),
+      ];
+      for (const r of session.rounds) {
+        const ev = byRound.get(r.id);
+        cells.push(csvEscape(ev?.status || ''));
+        cells.push(csvEscape(ev?.remarks || ''));
+      }
+      cells.push(csvEscape(application.interviewStatus || ''));
+      cells.push(csvEscape(application.lastRoundReached != null ? String(application.lastRoundReached) : ''));
+      rows.push(cells.join(','));
+    }
+
+    const BOM = '\uFEFF';
+    const csv = BOM + headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
+
+    const jobTitle = (session.job?.jobTitle || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `interview-session-${jobTitle}-${date}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting interview session spreadsheet:', error);
+    res.status(500).json({ error: 'Failed to export spreadsheet', details: error.message });
+  }
+};
+
+/**
+ * Freeze interview session (Super Admin only)
+ * PATCH /api/admin/interview-scheduling/session/:sessionId/freeze
+ */
+export const freezeInterviewSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: { job: { select: { jobTitle: true } } },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status === 'COMPLETED' || session.status === 'INCOMPLETE') {
+      return res.status(409).json({
+        error: 'Cannot freeze session',
+        message: 'Only NOT_STARTED or ONGOING sessions can be frozen.',
+      });
+    }
+
+    if (session.status === 'FROZEN') {
+      return res.status(409).json({ error: 'Session is already frozen' });
+    }
+
+    await prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { status: 'FROZEN' },
+    });
+
+    logger.info(`Super Admin froze interview session ${sessionId} (job: ${session.job?.jobTitle})`);
+
+    res.json({
+      message: 'Interview session frozen successfully',
+      sessionId,
+      status: 'FROZEN',
+    });
+  } catch (error) {
+    console.error('Error freezing interview session:', error);
+    res.status(500).json({ error: 'Failed to freeze interview session', details: error.message });
+  }
+};
+
+/**
+ * Unfreeze interview session (Super Admin only)
+ * PATCH /api/admin/interview-scheduling/session/:sessionId/unfreeze
+ */
+export const unfreezeInterviewSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: { job: { select: { jobTitle: true } } },
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (session.status !== 'FROZEN') {
+      return res.status(409).json({
+        error: 'Session is not frozen',
+        message: 'Only frozen sessions can be unfrozen.',
+      });
+    }
+
+    const newStatus = session.startedAt ? 'ONGOING' : 'NOT_STARTED';
+    await prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { status: newStatus },
+    });
+
+    logger.info(`Super Admin unfroze interview session ${sessionId} (job: ${session.job?.jobTitle})`);
+
+    res.json({
+      message: 'Interview session unfrozen successfully',
+      sessionId,
+      status: newStatus,
+    });
+  } catch (error) {
+    console.error('Error unfreezing interview session:', error);
+    res.status(500).json({ error: 'Failed to unfreeze interview session', details: error.message });
   }
 };

@@ -108,10 +108,12 @@ export default function AdminDashboard() {
   // userRole is already declared above (line 68), reuse it here
   const userRoleUpper = userRole.toUpperCase();
   const isAdmin = userRoleUpper === 'ADMIN';
+  const isSuperAdmin = userRoleUpper === 'SUPER_ADMIN';
   const isRecruiter = userRoleUpper === 'RECRUITER';
   const isStudent = userRoleUpper === 'STUDENT';
   const canCreateJobs = isAdmin || isRecruiter;
   const isAdminOnly = isAdmin;
+  const isSuperAdminOnly = isSuperAdmin;
 
   // Base tabs available to all authorized users
   const allTabs = [
@@ -125,7 +127,7 @@ export default function AdminDashboard() {
     // { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList }, // Removed from sidebar - page still exists
     { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN'] }, // ADMIN only
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN'] }, // ADMIN only
-    { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
     { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
     { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
   ];
@@ -265,8 +267,8 @@ export default function AdminDashboard() {
         }
         return <RecruiterDirectory />;
       case 'adminPanel':
-        if (!isAdminOnly) {
-          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access admin panel.</div>;
+        if (!isSuperAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only SUPER_ADMIN users can access admin panel.</div>;
         }
         return <AdminPanel />;
       case 'notifications':

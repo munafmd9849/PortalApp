@@ -5,12 +5,15 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '../../../services/api';
-import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
+import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, LockOpen, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../../utils/toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function InterviewScheduling() {
   const navigate = useNavigate();
+  const { user, role } = useAuth();
+  const isSuperAdmin = (role || user?.role || '').toLowerCase() === 'super_admin';
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -36,6 +39,7 @@ export default function InterviewScheduling() {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [freezeLoading, setFreezeLoading] = useState(false);
 
   // Check if drive date has been reached (date-only comparison, ignoring time)
   const isDriveDateReached = (job) => {
@@ -76,11 +80,23 @@ export default function InterviewScheduling() {
     try {
       setLoading(true);
       
-      // Use centralized API client
-      const data = await api.getJobs({ isPosted: true, status: 'POSTED' });
+      // For recruiters, only load their own posted and approved jobs
+      // Recruiters can start interview sessions for their jobs on the drive date
+      let jobsList = [];
+      if ((role || user?.role || '').toLowerCase() === 'recruiter') {
+        const me = await api.getCurrentUser();
+        const recruiterId = me?.user?.recruiter?.id;
+        if (recruiterId) {
+          // Only show jobs that are posted and approved (status: POSTED)
+          const data = await api.getJobs({ recruiterId, isPosted: true, status: 'POSTED', limit: 1000 });
+          jobsList = data.jobs || (Array.isArray(data) ? data : []);
+        }
+      } else {
+        // Admin/Super Admin: get all posted jobs
+        const data = await api.getJobs({ isPosted: true, status: 'POSTED' });
+        jobsList = data.jobs || (Array.isArray(data) ? data : []);
+      }
       
-      // Handle both response formats: { jobs: [...] } or direct array
-      const jobsList = data.jobs || (Array.isArray(data) ? data : []);
       setJobs(jobsList);
       
       if (jobsList.length === 0) {
@@ -301,6 +317,34 @@ export default function InterviewScheduling() {
       // Error handling is done by centralized API client
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleFreeze = async () => {
+    if (!session?.id || !isSuperAdmin) return;
+    try {
+      setFreezeLoading(true);
+      await api.freezeInterviewSession(session.id);
+      showSuccess('Interview session frozen');
+      if (selectedJob) await handleSelectJob(selectedJob);
+    } catch (e) {
+      showError(e.message || 'Failed to freeze session');
+    } finally {
+      setFreezeLoading(false);
+    }
+  };
+
+  const handleUnfreeze = async () => {
+    if (!session?.id || !isSuperAdmin) return;
+    try {
+      setFreezeLoading(true);
+      await api.unfreezeInterviewSession(session.id);
+      showSuccess('Interview session unfrozen');
+      if (selectedJob) await handleSelectJob(selectedJob);
+    } catch (e) {
+      showError(e.message || 'Failed to unfreeze session');
+    } finally {
+      setFreezeLoading(false);
     }
   };
 
@@ -529,9 +573,9 @@ export default function InterviewScheduling() {
                       <div className="flex items-center gap-2 ml-4">
                         {!hasCompletedSession && (
                           <>
-                            {/* Enable button only if: (date is today) OR (session already selected) */}
-                            {/* Disable if: (date is past) OR (date is future) */}
-                            {((dateStatus === 'today') || isSelected) ? (
+                            {/* Enable button if: (date is today or past) OR (session already selected) */}
+                            {/* Allow starting on drive date or after (not before) */}
+                            {((dateStatus === 'today' || dateStatus === 'past' || driveDateReached) || isSelected) ? (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -560,9 +604,9 @@ export default function InterviewScheduling() {
                               <button
                                 disabled
                                 className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
-                                title={dateStatus === 'past' 
-                                  ? `Cannot start session: Interview date (${driveDate ? driveDate.toLocaleDateString('en-GB') : 'Date'}) has already passed`
-                                  : `Session can only be started on ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
+                                title={dateStatus === 'future'
+                                  ? `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`
+                                  : `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
                               >
                                 <Clock className="w-4 h-4" />
                                 <span>
@@ -628,13 +672,37 @@ export default function InterviewScheduling() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={handleCloseModal}
-                className="p-2 hover:bg-white/80 rounded-lg transition-colors"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-slate-600" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isSuperAdmin && session && (session.status === 'ONGOING' || session.status === 'NOT_STARTED') && (
+                  <button
+                    onClick={handleFreeze}
+                    disabled={freezeLoading}
+                    className="px-3 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                    title="Freeze interview (Super Admin only)"
+                  >
+                    {freezeLoading ? <Loader className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                    Freeze
+                  </button>
+                )}
+                {isSuperAdmin && session && session.status === 'FROZEN' && (
+                  <button
+                    onClick={handleUnfreeze}
+                    disabled={freezeLoading}
+                    className="px-3 py-2 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                    title="Unfreeze interview (Super Admin only)"
+                  >
+                    {freezeLoading ? <Loader className="w-4 h-4 animate-spin" /> : <LockOpen className="w-4 h-4" />}
+                    Unfreeze
+                  </button>
+                )}
+                <button
+                  onClick={handleCloseModal}
+                  className="p-2 hover:bg-white/80 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-slate-600" />
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -657,6 +725,7 @@ export default function InterviewScheduling() {
                               <Clock className={`w-4 h-4 ${
                                 session.status === 'NOT_STARTED' ? 'text-gray-500' :
                                 session.status === 'ONGOING' ? 'text-blue-500' :
+                                session.status === 'FROZEN' ? 'text-amber-500' :
                                 'text-green-500'
                               }`} />
                               <p className="text-xs font-medium text-slate-600">Status</p>
@@ -664,12 +733,14 @@ export default function InterviewScheduling() {
                             <p className={`text-base font-bold ${
                               session.status === 'NOT_STARTED' ? 'text-gray-700' :
                               session.status === 'ONGOING' ? 'text-blue-700' :
+                              session.status === 'FROZEN' ? 'text-amber-700' :
                               session.status === 'COMPLETED' ? 'text-green-700' :
                               session.status === 'INCOMPLETE' ? 'text-red-700' :
                               'text-gray-700'
                             }`}>
                               {session.status === 'NOT_STARTED' && 'Not Started'}
                               {session.status === 'ONGOING' && 'Ongoing'}
+                              {session.status === 'FROZEN' && 'Frozen'}
                               {session.status === 'COMPLETED' && 'Completed'}
                               {session.status === 'INCOMPLETE' && 'Incomplete'}
                               {!session.status && 'Unknown'}
@@ -702,7 +773,19 @@ export default function InterviewScheduling() {
                     </div>
                   </div>
                   
-                  {session.status === 'ONGOING' || session.status === 'COMPLETED' || session.status === 'INCOMPLETE' ? (
+                  {session.status === 'FROZEN' ? (
+                    <div className="border-2 rounded-xl p-4 bg-amber-50 border-amber-300">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-amber-100">
+                          <Lock className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900 mb-1">Session frozen</p>
+                          <p className="text-sm text-amber-800">A Super Admin has frozen this interview. Rounds and evaluations cannot be modified until unfrozen.</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : session.status === 'ONGOING' || session.status === 'COMPLETED' || session.status === 'INCOMPLETE' ? (
                     <div className={`border-2 rounded-xl p-4 ${
                       session.status === 'COMPLETED' 
                         ? 'bg-green-50 border-green-300' 

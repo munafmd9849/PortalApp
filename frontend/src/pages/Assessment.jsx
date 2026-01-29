@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { 
@@ -35,6 +35,8 @@ const STATUS_OPTIONS = [
 const Assessment = () => {
   const { interviewId, roundName } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const { user, role } = useAuth();
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState([]);
@@ -64,12 +66,13 @@ const Assessment = () => {
     return { total, interviewed, pending, selected, rejected, onHold };
   }, [candidates]);
 
-  // Check authentication
+  // Check authentication (admin or super_admin)
   useEffect(() => {
-    if (!user || role?.toLowerCase() !== 'admin') {
-      navigate('/admin', { replace: true });
+    const r = (role || '').toLowerCase();
+    if (!user || (r !== 'admin' && r !== 'super_admin')) {
+      navigate(base || '/admin', { replace: true });
     }
-  }, [user, role, navigate]);
+  }, [user, role, navigate, base]);
 
   // Load candidates and activities
   useEffect(() => {

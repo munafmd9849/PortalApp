@@ -17,7 +17,11 @@ export class AdminDashboardService {
       stats: {
         totalJobsPosted: 0,
         activeRecruiters: 0,
+        totalStudents: 0,
         activeStudents: 0,
+        blockedStudents: 0,
+        pendingStudents: 0,
+        rejectedStudents: 0,
         pendingQueries: 0,
         totalApplications: 0,
         placedStudents: 0

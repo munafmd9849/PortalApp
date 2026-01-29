@@ -349,7 +349,7 @@ const JobDescription = ({ job, isOpen, onClose }) => {
     if (typeof salary === "number") {
       return `₹${(salary / 100000).toFixed(1)} LPA`;
     }
-    return salary;
+    return String(salary).replace(/\$/g, '₹');
   };
 
   const formatDriveDate = (driveDate) => {
@@ -523,22 +523,31 @@ const JobDescription = ({ job, isOpen, onClose }) => {
                     <FaBuilding className="text-green-500" />
                     <span className="text-sm">Work Mode</span>
                   </div>
-                  <p className="font-medium">{displayJob.workMode || "Onsite"}</p>
+                  <p className="font-medium">{displayJob.workMode || displayJob.work_mode || "—"}</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center gap-2 text-gray-600 mb-1">
                     <FaMapMarkerAlt className="text-red-500" />
                     <span className="text-sm">Location</span>
                   </div>
-                  <p className="font-medium">{displayJob.location || "Bangalore"}</p>
+                  <p className="font-medium">{displayJob.companyLocation || displayJob.company?.location || displayJob.location || "—"}</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center gap-2 text-gray-600 mb-1">
                     <FaMoneyBillWave className="text-purple-500" />
                     <span className="text-sm">CTC</span>
                   </div>
-                  <p className="font-medium">{formatSalary(displayJob.salary || displayJob.stipend)}</p>
+                  <p className="font-medium">{formatSalary(displayJob.salary || displayJob.ctc || displayJob.stipend)}</p>
                 </div>
+                {(displayJob.gapAllowed || displayJob.gapYears) && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-gray-600 mb-1">
+                      <FaClock className="text-amber-500" />
+                      <span className="text-sm">Year Gap</span>
+                    </div>
+                    <p className="font-medium">{[displayJob.gapAllowed, displayJob.gapYears].filter(Boolean).join(' ')}</p>
+                  </div>
+                )}
               </div>
 
               {/* Countdown Timer */}

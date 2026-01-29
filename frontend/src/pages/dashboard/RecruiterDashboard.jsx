@@ -11,6 +11,9 @@ import CompanyHistory from '../../components/dashboard/recruiter/CompanyHistory'
 import HelpSupport from '../../components/dashboard/recruiter/HelpSupport';
 import Recommendations from '../../components/dashboard/recruiter/Recommendations';
 import RecruiterProfile from '../../components/dashboard/recruiter/RecruiterProfile';
+import RecruiterQuery from '../../components/dashboard/recruiter/RecruiterQuery';
+import InterviewScheduling from '../../components/dashboard/admin/InterviewScheduling';
+import RecruiterApplicantHistory from '../../components/dashboard/recruiter/RecruiterApplicantHistory';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../services/api';
 
@@ -67,9 +70,12 @@ const RecruiterDashboard = () => {
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },
     { id: 'jobPostings', label: 'Job Postings', icon: FiBriefcase },
     { id: 'recommendations', label: 'Recommendations', icon: FiUsers },
+    { id: 'interviewScheduling', label: 'Interview Session', icon: FiCalendar },
+    { id: 'applicantHistory', label: 'Applicant History', icon: FiUsers },
     { id: 'calendar', label: 'Calendar', icon: FiCalendar },
-    { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
+    { id: 'analytics', label: 'HR Analytics', icon: FiBarChart2 },
     { id: 'history', label: 'Company History', icon: FiBriefcase },
+    { id: 'raiseQuery', label: 'Raise Query', icon: FiMessageSquare },
     { id: 'help', label: 'Help & Support', icon: FiMessageSquare },
     { id: 'profile', label: 'Profile', icon: FiSettings },
   ];
@@ -157,12 +163,18 @@ const RecruiterDashboard = () => {
         return <JobPostings/>;
       case 'recommendations':
         return <Recommendations />;
+      case 'interviewScheduling':
+        return <InterviewScheduling />;
+      case 'applicantHistory':
+        return <RecruiterApplicantHistory />;
       case 'calendar':
         return <RecruiterCalendar />;
       case 'analytics':
         return <RecruiterAnalytics />;
       case 'history':
         return <CompanyHistory />;
+      case 'raiseQuery':
+        return <RecruiterQuery />;
       case 'help':
         return <HelpSupport />;
       case 'profile':
