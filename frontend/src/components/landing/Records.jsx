@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const STUDENT_RECORDS = [
   [
@@ -116,7 +116,13 @@ export default function PlacementRecords({ onLoginOpen }) {
   const [currentRow, setCurrentRow] = useState(0);
   const [showBatchDropdown, setShowBatchDropdown] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
+  const [mobileIndex, setMobileIndex] = useState(0);
+  const [isSectionInView, setIsSectionInView] = useState(false);
   const cardsToShow = 4;
+  const sectionRef = useRef(null);
+  const mobileScrollRef = useRef(null);
+
+  const mobileCards = useMemo(() => STUDENT_RECORDS.flat(), []);
 
   useEffect(() => {
     if (!isRotating) return;
@@ -125,6 +131,37 @@ export default function PlacementRecords({ onLoginOpen }) {
     }, 4000);
     return () => clearInterval(interval);
   }, [isRotating]);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setIsSectionInView(Boolean(entry?.isIntersecting)),
+      { threshold: 0.15 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isRotating) return;
+    if (!isSectionInView) return;
+    if (!mobileCards.length) return;
+    const id = window.setInterval(() => {
+      setMobileIndex((prev) => (prev + 1) % mobileCards.length);
+    }, 3500);
+    return () => window.clearInterval(id);
+  }, [isRotating, isSectionInView, mobileCards.length]);
+
+  useEffect(() => {
+    const container = mobileScrollRef.current;
+    if (!isSectionInView) return;
+    if (!container) return;
+    const el = container.children?.[mobileIndex];
+    if (!el) return;
+    const targetLeft = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
+    container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+  }, [mobileIndex, isSectionInView]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -143,8 +180,8 @@ export default function PlacementRecords({ onLoginOpen }) {
 
   return (
     <>
-      <section className="py-15 overflow-hidden relative">
-        <div className="max-w-7xl mx-auto px-6">
+      <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
             <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight">
               Hear How They Cracked It
@@ -196,8 +233,9 @@ export default function PlacementRecords({ onLoginOpen }) {
           </div>
 
           <div className="relative">
+            {/* Laptop and up: 4-card grid (original) */}
             <div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center"
+              className="hidden lg:grid grid-cols-4 gap-6 lg:gap-8 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full"
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
             >
@@ -209,8 +247,7 @@ export default function PlacementRecords({ onLoginOpen }) {
                 />
               ))}
             </div>
-
-            <div className="flex justify-center mt-8 gap-2">
+            <div className="hidden lg:flex justify-center mt-8 gap-2">
               {STUDENT_RECORDS.map((_, index) => (
                 <button
                   key={index}
@@ -221,6 +258,24 @@ export default function PlacementRecords({ onLoginOpen }) {
                       : 'bg-gray-300 hover:bg-gray-400'
                   }`}
                 />
+              ))}
+            </div>
+
+            {/* Mobile only: horizontal snap carousel (below lg) */}
+            <div
+              ref={mobileScrollRef}
+              className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+              onPointerEnter={() => setIsRotating(false)}
+              onPointerLeave={() => setIsRotating(true)}
+            >
+              {mobileCards.map((student, idx) => (
+                <div
+                  key={`${student.name}-${idx}`}
+                  className="snap-center shrink-0 w-[84%] sm:w-[62%] max-w-[280px] mx-auto"
+                >
+                  <StudentCard student={student} index={idx % 6} />
+                </div>
               ))}
             </div>
           </div>

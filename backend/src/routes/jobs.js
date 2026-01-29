@@ -26,6 +26,9 @@ router.post('/', authenticate, requireRole(['RECRUITER', 'ADMIN']), validateJob,
 // Update job (recruiter who owns it, or admin)
 router.put('/:jobId', authenticate, requireRole(['RECRUITER', 'ADMIN']), jobController.updateJob);
 
+// Update recruiter note for a job (post-drive note, visible in Company History)
+router.patch('/:jobId/recruiter-note', authenticate, requireRole(['RECRUITER']), jobController.updateJobRecruiterNote);
+
 // Post job (admin only - triggers distribution)
 router.post('/:jobId/post', authenticate, requireRole(['ADMIN']), jobController.postJob);
 

@@ -6,6 +6,7 @@
 import prisma from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../config/email.js';
+import { sendDriveThankYouEmail } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess, sendError, sendValidationError, sendNotFound, sendUnauthorized, sendForbidden, sendServerError } from '../utils/response.js';
 
@@ -1763,14 +1764,19 @@ export const endRound = async (req, res) => {
       select: { status: true },
     });
 
-    const message = updatedSession?.status === 'COMPLETED' 
+    const sessionCompleted = updatedSession?.status === 'COMPLETED';
+    if (sessionCompleted) {
+      setImmediate(() => sendDriveThankYouEmailsForSession(round.sessionId).catch(() => {}));
+    }
+
+    const message = sessionCompleted
       ? 'Round ended successfully! Interview session completed.'
       : 'Round ended successfully';
 
     res.json({
       message,
       round: result,
-      sessionCompleted: updatedSession?.status === 'COMPLETED',
+      sessionCompleted,
     });
   } catch (error) {
     console.error('Error ending round:', error);
@@ -1781,6 +1787,94 @@ export const endRound = async (req, res) => {
     });
   }
 };
+
+/**
+ * Send thank-you emails to admin and recruiter when a placement drive (interview session) ends.
+ * Asks them to add a note via link (admin: Applicants section, recruiter: Company History).
+ */
+async function sendDriveThankYouEmailsForSession(sessionId) {
+  const frontendUrl = process.env.FRONTEND_URL || '';
+  if (!frontendUrl) {
+    logger.warn('FRONTEND_URL not set; skipping drive thank-you emails');
+    return;
+  }
+
+  try {
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        job: {
+          include: {
+            recruiter: { include: { user: { select: { email: true, displayName: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!session || !session.job) return;
+
+    const job = session.job;
+    const jobId = job.id;
+    const jobTitle = job.jobTitle || job.title || 'Placement Drive';
+    const companyName = job.companyName || job.company?.name || 'Company';
+
+    // Admin: createdBy is User id (admin who created the session)
+    let adminEmail = null;
+    let adminName = null;
+    if (session.createdBy) {
+      const adminUser = await prisma.user.findUnique({
+        where: { id: session.createdBy },
+        select: { email: true, displayName: true },
+      });
+      if (adminUser) {
+        adminEmail = adminUser.email;
+        adminName = adminUser.displayName || 'Admin';
+      }
+    }
+
+    // If no admin user found, get all ADMIN users to send thank-you
+    if (!adminEmail) {
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN', status: 'ACTIVE' },
+        select: { email: true, displayName: true },
+      });
+      if (adminUsers.length > 0) {
+        adminEmail = adminUsers[0].email;
+        adminName = adminUsers[0].displayName || 'Admin';
+      }
+    }
+
+    const addNoteUrlAdmin = `${frontendUrl}/admin?tab=jobApplications&addNote=${jobId}`;
+    const addNoteUrlRecruiter = `${frontendUrl}/recruiter?tab=history&addNote=${jobId}`;
+
+    if (adminEmail) {
+      await sendDriveThankYouEmail({
+        to: adminEmail,
+        recipientName: adminName,
+        jobTitle,
+        companyName,
+        addNoteUrl: addNoteUrlAdmin,
+      });
+      logger.info(`Drive thank-you email sent to admin ${adminEmail} for session ${sessionId}`);
+    }
+
+    const recruiterEmail = job.recruiter?.user?.email;
+    const recruiterName = job.recruiter?.user?.displayName || 'Recruiter';
+    if (recruiterEmail) {
+      await sendDriveThankYouEmail({
+        to: recruiterEmail,
+        recipientName: recruiterName,
+        jobTitle,
+        companyName,
+        addNoteUrl: addNoteUrlRecruiter,
+      });
+      logger.info(`Drive thank-you email sent to recruiter ${recruiterEmail} for session ${sessionId}`);
+    }
+  } catch (err) {
+    logger.error(`Failed to send drive thank-you emails for session ${sessionId}:`, err);
+    // Do not throw - email failure should not fail the request
+  }
+}
 
 /**
  * End interview session (Interviewer only)
@@ -1857,6 +1951,8 @@ export const endSession = async (req, res) => {
         completedAt: new Date(),
       },
     });
+
+    setImmediate(() => sendDriveThankYouEmailsForSession(sessionId).catch(() => {}));
 
     res.json({
       message: 'Interview session ended successfully',

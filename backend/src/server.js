@@ -35,6 +35,7 @@ import placementRoutes from './routes/placement.js';
 import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
 import adminJobsRoutes from './routes/adminJobs.js';
+import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
 import { fileURLToPath } from 'url';
@@ -252,6 +253,7 @@ app.use('/api/placement', placementRoutes);
 app.use('/api/recruiter', recruiterScreeningRoutes); // Token-based recruiter screening (no login)
 app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
+app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
 
 // Google Calendar OAuth callback for popup flow

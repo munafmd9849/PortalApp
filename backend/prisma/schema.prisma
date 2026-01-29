@@ -355,9 +355,24 @@ model Recruiter {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company? @relation(fields: [companyId], references: [id])
   jobs    Job[]
+  mouDocuments RecruiterMouDocument[]
 
   @@index([userId])
   @@map("recruiters")
+}
+
+model RecruiterMouDocument {
+  id          String   @id @default(uuid())
+  recruiterId String
+  fileUrl     String   // Cloudinary URL
+  publicId    String?  // Cloudinary public_id for deletion
+  fileName    String?  // original filename
+  createdAt   DateTime @default(now())
+
+  recruiter Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([recruiterId])
+  @@map("recruiter_mou_documents")
 }
 
 // ============================================================================
@@ -417,6 +432,10 @@ model Job {
   
   // Email trigger flag
   applicationDeadlineMailSent Boolean @default(false) // Flag to prevent duplicate deadline emails
+
+  // Post-drive notes (after interview session ends)
+  adminNote    String? // Note from admin about the placement drive (visible in Applicants section)
+  recruiterNote String? // Note from recruiter about the drive (visible in Company History / Job Track)
 
   // Pre-Interview Requirements
   requiresScreening Boolean @default(false) // Resume screening required before interview
@@ -750,6 +769,28 @@ model AdminRequest {
 }
 
 // RequestStatus: "PENDING", "APPROVED", "REJECTED"
+
+// ============================================================================
+// ANNOUNCEMENTS (Admin → Students)
+// ============================================================================
+
+model Announcement {
+  id            String   @id @default(uuid())
+  title         String
+  description   String   @db.Text
+  link          String?  // Optional URL (e.g. form, opportunity, guideline)
+  imageUrl      String?  // Cloudinary URL if admin uploads photo
+  imagePublicId String?  // Cloudinary public_id for deletion
+  // Targeting: JSON arrays e.g. ["SOT","SOM"] or ["ALL"] - which school/batch/center get the email
+  targetSchools String?  // JSON array of school names, or ["ALL"]
+  targetBatches String?  // JSON array of batch e.g. ["25-29"], or ["ALL"]
+  targetCenters String?  // JSON array of center e.g. ["BANGALORE"], or ["ALL"]
+  createdBy     String   // User ID of admin
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("announcements")
+}
 
 // ============================================================================
 // ADMIN MODEL (Additional admin-specific data)

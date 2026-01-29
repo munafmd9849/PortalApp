@@ -7,6 +7,9 @@ export default {
   ],
   theme: {
     extend: {
+      screens: {
+        desk: '1200px',
+      },
       width: {
         '30': '4rem',   // 64px - reduced from 120px to match previous appearance
         '35': '5rem',   // 80px

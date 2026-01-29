@@ -203,3 +203,67 @@ export async function blockUnblockRecruiter(req, res) {
     res.status(500).json({ error: 'Failed to update recruiter status' });
   }
 }
+
+/**
+ * List MOU documents for the authenticated recruiter
+ * GET /api/recruiters/mou
+ */
+export async function listMouDocuments(req, res) {
+  try {
+    const userId = req.userId;
+    const recruiter = await prisma.recruiter.findFirst({
+      where: { userId },
+    });
+    if (!recruiter) {
+      return res.status(403).json({ error: 'Recruiter profile not found' });
+    }
+    const docs = await prisma.recruiterMouDocument.findMany({
+      where: { recruiterId: recruiter.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, fileUrl: true, fileName: true, createdAt: true },
+    });
+    res.json({ documents: docs });
+  } catch (error) {
+    console.error('List MOU documents error:', error);
+    res.status(500).json({ error: 'Failed to load MOU documents' });
+  }
+}
+
+/**
+ * Upload MOU document (PDF to Cloudinary, store in DB)
+ * POST /api/recruiters/mou - multipart with field 'mou'
+ */
+export async function uploadMouDocument(req, res) {
+  try {
+    const userId = req.userId;
+    const recruiter = await prisma.recruiter.findFirst({
+      where: { userId },
+    });
+    if (!recruiter) {
+      return res.status(403).json({ error: 'Recruiter profile not found' });
+    }
+    if (!req.file?.url) {
+      return res.status(400).json({ error: 'No file uploaded. Please select a PDF file.' });
+    }
+    const doc = await prisma.recruiterMouDocument.create({
+      data: {
+        recruiterId: recruiter.id,
+        fileUrl: req.file.url,
+        publicId: req.file.public_id || null,
+        fileName: req.file.originalname || 'MOU.pdf',
+      },
+    });
+    res.status(201).json({
+      success: true,
+      document: {
+        id: doc.id,
+        fileUrl: doc.fileUrl,
+        fileName: doc.fileName,
+        createdAt: doc.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error('Upload MOU document error:', error);
+    res.status(500).json({ error: 'Failed to save MOU document' });
+  }
+}
