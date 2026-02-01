@@ -43,12 +43,11 @@ const HelpSupport = () => {
 
   const loadMouDocuments = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const documents = await api.getMouDocuments();
-      
-      setMouDocuments([]);
+      const result = await api.getMouDocuments();
+      setMouDocuments(result?.documents ?? []);
     } catch (error) {
       console.error('Error loading MOU documents:', error);
+      setMouDocuments([]);
     }
   };
 
@@ -63,17 +62,18 @@ const HelpSupport = () => {
 
     try {
       setUploadingMou(true);
-      
-      // TODO: Replace with actual API call
-      // const formData = new FormData();
-      // formData.append('mou', file);
-      // const result = await api.uploadMouDocument(formData);
-      alert('MOU upload is not available yet.');
+      const formData = new FormData();
+      formData.append('mou', file);
+      const result = await api.uploadMouDocument(formData);
+      if (result?.document) {
+        setMouDocuments((prev) => [result.document, ...prev]);
+      }
     } catch (error) {
       console.error('Error uploading MOU:', error);
-      alert('Failed to upload MOU document. Please try again.');
+      alert(error?.message || 'Failed to upload MOU document. Please try again.');
     } finally {
       setUploadingMou(false);
+      event.target.value = '';
     }
   };
 
@@ -109,15 +109,15 @@ const HelpSupport = () => {
                 <div className="flex items-center gap-3">
                   <FaFilePdf className="text-red-600 text-2xl" />
                   <div>
-                    <p className="font-medium text-gray-900">{doc.name}</p>
+                    <p className="font-medium text-gray-900">{doc.fileName || 'MOU.pdf'}</p>
                     <p className="text-sm text-gray-500">
-                      Uploaded on {new Date(doc.uploadDate).toLocaleDateString()}
+                      Uploaded on {new Date(doc.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <a
-                    href={doc.url}
+                    href={doc.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -125,8 +125,8 @@ const HelpSupport = () => {
                     Preview
                   </a>
                   <a
-                    href={doc.url}
-                    download
+                    href={doc.fileUrl}
+                    download={doc.fileName || 'MOU.pdf'}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
                   >
                     Download

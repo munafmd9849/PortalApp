@@ -47,14 +47,14 @@ const stats = [
 
 const PlacementStats = () => {
   return (
-    <section className="relative py-8 px-4 flex flex-col items-center overflow-hidden">
+    <section className="relative py-8 sm:py-12 px-4 flex flex-col items-center overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-[#f5e5ca]"></div>
 
       {/* Content */}
       <div className="relative z-10 max-w-6xl w-full">
         {/* Heading with sparkle effect */}
-        <h2 className="text-4xl font-bold mb-8 text-gray-900 text-center">
+        <h2 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 text-gray-900 text-center">
           Heard the WHY —{" "}
           <span
             className="relative px-1 bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat
@@ -118,28 +118,38 @@ const PlacementStats = () => {
           </span>
         </h2>
 
-        {/* Stats Grid with separators */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 placement-stats-grid bg-[#FFDE83]/80 rounded-t-xl">
-          {stats.slice(0, 4).map((stat, index) => (
-            <div key={index} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
-              <div className="text-5xl font-extrabold text-black mt-4">
-                {stat.value}
+        {/* Laptop and up (lg: 1024px+): original 2 rows of 4 — desktop only */}
+        <div className="hidden lg:block">
+          <div className="placement-stats-grid bg-[#FFDE83]/80 rounded-t-xl">
+            {stats.slice(0, 4).map((stat, index) => (
+              <div key={index} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
+                <div className="text-5xl font-extrabold text-black mt-4">{stat.value}</div>
+                <div className="text-sm text-gray-600 mt-1">{stat.icon}{stat.label}</div>
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                {stat.icon}{stat.label}
+            ))}
+          </div>
+          <div className="placement-stats-grid bg-[#FFDE83]/80 rounded-b-xl">
+            {stats.slice(4, 8).map((stat, index) => (
+              <div key={index + 4} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
+                <div className="text-5xl font-extrabold text-black mt-4">{stat.value}</div>
+                <div className="text-sm text-gray-600 mt-1">{stat.icon}{stat.label}</div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-        
-        {/* Second row with 4 stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 placement-stats-grid bg-[#FFDE83]/80 rounded-b-xl">
-          {stats.slice(4, 8).map((stat, index) => (
-            <div key={index + 4} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
-              <div className="text-5xl font-extrabold text-black mt-4">
-                {stat.value}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
+
+        {/* Mobile / small viewport only: horizontal snap carousel */}
+        <div
+          className="lg:hidden -mx-4 px-4 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory mt-6"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {stats.map((stat, idx) => (
+            <div
+              key={`${stat.label}-${idx}`}
+              className="snap-center shrink-0 w-[84%] sm:w-[62%] max-w-[260px] rounded-2xl bg-[#FFDE83]/80 border border-amber-200/80 py-5 px-4 text-center shadow-sm"
+            >
+              <div className="text-4xl font-extrabold text-black">{stat.value}</div>
+              <div className="text-sm text-gray-600 mt-2 flex items-center justify-center gap-1 flex-wrap">
                 {stat.icon}{stat.label}
               </div>
             </div>
@@ -166,7 +176,7 @@ const PlacementStats = () => {
           .placement-stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            row-gap: 0px; /* Further reduced gap between rows */
+            row-gap: 0px;
           }
           .stat-card {
             position: relative;

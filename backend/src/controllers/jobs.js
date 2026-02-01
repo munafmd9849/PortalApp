@@ -1621,3 +1621,89 @@ export async function autoArchiveExpiredJobs(req, res) {
     });
   }
 }
+
+/**
+ * Update admin note for a job (post-drive note, visible in Applicants section)
+ * PATCH /api/admin/jobs/:jobId/note - ADMIN only
+ */
+export async function updateJobAdminNote(req, res) {
+  try {
+    const { jobId } = req.params;
+    const { note } = req.body ?? {};
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { adminNote: note != null ? String(note) : null },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Admin note saved',
+    });
+  } catch (error) {
+    logger.error('Update job admin note error:', error);
+    return res.status(500).json({
+      error: 'Failed to save admin note',
+      message: error.message,
+    });
+  }
+}
+
+/**
+ * Update recruiter note for a job (post-drive note, visible in Company History)
+ * PATCH /api/jobs/:jobId/recruiter-note - RECRUITER only, must own the job
+ */
+export async function updateJobRecruiterNote(req, res) {
+  try {
+    const { jobId } = req.params;
+    const { note } = req.body ?? {};
+    const userId = req.user?.id;
+
+    const recruiter = await prisma.recruiter.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!recruiter) {
+      return res.status(403).json({ error: 'Only recruiters can update recruiter note' });
+    }
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, recruiterId: true },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.recruiterId !== recruiter.id) {
+      return res.status(403).json({ error: 'You can only add a note to jobs you posted' });
+    }
+
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { recruiterNote: note != null ? String(note) : null },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Recruiter note saved',
+    });
+  } catch (error) {
+    logger.error('Update job recruiter note error:', error);
+    return res.status(500).json({
+      error: 'Failed to save recruiter note',
+      message: error.message,
+    });
+  }
+}

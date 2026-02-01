@@ -83,3 +83,26 @@ Once the schema is synced, you can:
    ```bash
    npm run db:setup
    ```
+
+## Adding the Announcements Table (or other new models)
+
+If you get errors when running `npx prisma migrate dev --name add_announcements` (e.g. **shadow database** error P1003, or "could not create database"), use **`db push`** instead—it does not use migrations or a shadow database:
+
+```bash
+cd backend
+npx prisma db push
+```
+
+Then regenerate the client:
+
+```bash
+npx prisma generate
+```
+
+**Why migrate dev can fail:**
+- **Shadow database**: `migrate dev` creates a temporary DB to validate migrations; hosted Postgres (e.g. Render, Neon) often does not allow creating extra databases, so it fails.
+- **No migrations folder**: If you have never run migrations, there is no baseline; `db push` syncs the schema directly.
+
+**When to use which:**
+- Use **`npx prisma db push`** to add the `announcements` table (and any other new schema) without dealing with migration history or shadow DB.
+- Use **`npx prisma migrate deploy`** in production only if you already have migration files and a migration history.
