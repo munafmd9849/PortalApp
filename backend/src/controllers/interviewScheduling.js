@@ -197,7 +197,7 @@ export const getOrCreateSession = async (req, res) => {
     const userRole = req.user?.role || req.userRole;
     const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
 
-    // Check if job exists and get driveDate
+    // Check if job exists and get driveDate + interviewRounds (from job creation)
     const job = await prisma.job.findUnique({
       where: { id: jobId },
       select: {
@@ -206,6 +206,8 @@ export const getOrCreateSession = async (req, res) => {
         companyId: true,
         recruiterId: true,
         driveDate: true, // CRITICAL: Get driveDate for validation
+        description: true,
+        interviewRounds: true, // Rounds defined at job creation — used for session/rounds
         company: {
           select: {
             name: true
@@ -216,7 +218,6 @@ export const getOrCreateSession = async (req, res) => {
             userId: true
           }
         },
-        description: true
       }
     });
 
@@ -276,6 +277,38 @@ export const getOrCreateSession = async (req, res) => {
             },
           },
         });
+        // If job had interview rounds defined at creation, create InterviewRound records so they show on interviewer + session management
+        let jobRounds = [];
+        if (job.interviewRounds) {
+          try {
+            const parsed = JSON.parse(job.interviewRounds);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              jobRounds = parsed.map((r, i) => ({
+                roundNumber: i + 1,
+                name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
+              }));
+            }
+          } catch (e) {
+            // ignore invalid JSON
+          }
+        }
+        if (jobRounds.length > 0) {
+          await prisma.interviewRound.createMany({
+            data: jobRounds.map((r) => ({
+              sessionId: session.id,
+              roundNumber: r.roundNumber,
+              name: r.name,
+              status: 'LOCKED',
+            })),
+          });
+          session = await prisma.interviewSession.findUnique({
+            where: { id: session.id },
+            include: {
+              rounds: { orderBy: { roundNumber: 'asc' } },
+              interviewerInvites: { orderBy: { createdAt: 'desc' } },
+            },
+          });
+        }
       } catch (createError) {
         // If create fails (e.g., unique constraint), try to fetch existing session
         if (createError.code === 'P2002') {
@@ -325,50 +358,56 @@ export const getOrCreateSession = async (req, res) => {
       where: { jobId },
     });
 
-    // Auto-populate rounds from job description if no rounds exist (Issue #7)
+    // Auto-populate rounds: prefer job.interviewRounds (from job creation), else parse from description (Issue #7)
     let suggestedRounds = [];
-    if (session.rounds.length === 0 && job.description) {
-      // Try to extract round information from job description
-      // Look for patterns like "Round 1:", "Round 2:", "Technical Round", "HR Round", etc.
-      const roundPatterns = [
-        /round\s*(\d+)[:\.]\s*([^\n]+)/gi,
-        /(technical|hr|aptitude|coding|group discussion|final)[\s-]*round/gi,
-      ];
-      
-      const description = job.description.toLowerCase();
-      const foundRounds = new Set();
-      
-      // Extract explicit round mentions
-      let match;
-      const explicitRounds = [];
-      while ((match = roundPatterns[0].exec(job.description)) !== null) {
-        const roundNum = parseInt(match[1]);
-        const roundName = match[2].trim();
-        if (roundNum && roundName && !foundRounds.has(roundNum)) {
-          explicitRounds.push({ roundNumber: roundNum, name: roundName });
-          foundRounds.add(roundNum);
+    if (session.rounds.length === 0) {
+      // First: use rounds defined at job creation
+      if (job.interviewRounds) {
+        try {
+          const parsed = JSON.parse(job.interviewRounds);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            suggestedRounds = parsed.map((r, i) => ({
+              roundNumber: i + 1,
+              name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
+            }));
+          }
+        } catch (e) {
+          // fall through to description parsing
         }
       }
-      
-      // If no explicit rounds found, try common patterns
-      if (explicitRounds.length === 0) {
-        const commonRounds = [
-          { name: 'Aptitude Test', keywords: ['aptitude', 'test', 'screening'] },
-          { name: 'Technical Round 1', keywords: ['technical', 'coding', 'programming'] },
-          { name: 'Technical Round 2', keywords: ['technical', 'advanced'] },
-          { name: 'HR Round', keywords: ['hr', 'human resources', 'final'] },
+      // Fallback: extract from job description
+      if (suggestedRounds.length === 0 && job.description) {
+        const roundPatterns = [
+          /round\s*(\d+)[:\.]\s*([^\n]+)/gi,
+          /(technical|hr|aptitude|coding|group discussion|final)[\s-]*round/gi,
         ];
-        
-        commonRounds.forEach((round, idx) => {
-          if (round.keywords.some(kw => description.includes(kw))) {
-            suggestedRounds.push({
-              roundNumber: idx + 1,
-              name: round.name,
-            });
+        const description = job.description.toLowerCase();
+        const foundRounds = new Set();
+        let match;
+        const explicitRounds = [];
+        while ((match = roundPatterns[0].exec(job.description)) !== null) {
+          const roundNum = parseInt(match[1]);
+          const roundName = match[2].trim();
+          if (roundNum && roundName && !foundRounds.has(roundNum)) {
+            explicitRounds.push({ roundNumber: roundNum, name: roundName });
+            foundRounds.add(roundNum);
           }
-        });
-      } else {
-        suggestedRounds = explicitRounds.sort((a, b) => a.roundNumber - b.roundNumber);
+        }
+        if (explicitRounds.length === 0) {
+          const commonRounds = [
+            { name: 'Aptitude Test', keywords: ['aptitude', 'test', 'screening'] },
+            { name: 'Technical Round 1', keywords: ['technical', 'coding', 'programming'] },
+            { name: 'Technical Round 2', keywords: ['technical', 'advanced'] },
+            { name: 'HR Round', keywords: ['hr', 'human resources', 'final'] },
+          ];
+          commonRounds.forEach((round, idx) => {
+            if (round.keywords.some(kw => description.includes(kw))) {
+              suggestedRounds.push({ roundNumber: idx + 1, name: round.name });
+            }
+          });
+        } else {
+          suggestedRounds = explicitRounds.sort((a, b) => a.roundNumber - b.roundNumber);
+        }
       }
     }
 

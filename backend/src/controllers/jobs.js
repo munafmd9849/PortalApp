@@ -602,6 +602,10 @@ export async function createJob(req, res) {
       gapAllowed: mappedData.gapAllowed || null,
       gapYears: mappedData.gapYears || null,
       backlogs: mappedData.backlogs || null,
+      // Interview rounds from job creation (stored for session/rounds sync)
+      ...(jobData.interviewRounds && Array.isArray(jobData.interviewRounds) && jobData.interviewRounds.length > 0
+        ? { interviewRounds: JSON.stringify(jobData.interviewRounds) }
+        : {}),
       // Pre-Interview Requirements
       requiresScreening: mappedData.requiresScreening === true || mappedData.requiresScreening === 'true',
       requiresTest: mappedData.requiresTest === true || mappedData.requiresTest === 'true',
@@ -1015,6 +1019,7 @@ export async function updateJob(req, res) {
         finalUpdateData.requirements = existingRequirements 
           ? (requirementsText ? `${existingRequirements}\n\n${requirementsText}` : existingRequirements)
           : requirementsText;
+        finalUpdateData.interviewRounds = JSON.stringify(interviewRoundsArray);
       }
     }
     
