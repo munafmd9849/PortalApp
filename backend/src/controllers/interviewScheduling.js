@@ -1886,28 +1886,63 @@ async function sendDriveThankYouEmailsForSession(sessionId) {
     const addNoteUrlAdmin = `${frontendUrl}/admin?tab=jobApplications&addNote=${jobId}`;
     const addNoteUrlRecruiter = `${frontendUrl}/recruiter?tab=history&addNote=${jobId}`;
 
+    // Send email to admin(s)
     if (adminEmail) {
-      await sendDriveThankYouEmail({
-        to: adminEmail,
-        recipientName: adminName,
-        jobTitle,
-        companyName,
-        addNoteUrl: addNoteUrlAdmin,
-      });
-      logger.info(`Drive thank-you email sent to admin ${adminEmail} for session ${sessionId}`);
+      try {
+        await sendDriveThankYouEmail({
+          to: adminEmail,
+          recipientName: adminName,
+          jobTitle,
+          companyName,
+          addNoteUrl: addNoteUrlAdmin,
+        });
+        logger.info(`Drive thank-you email sent to admin ${adminEmail} for session ${sessionId}`);
+      } catch (emailError) {
+        logger.error(`Failed to send thank-you email to admin ${adminEmail} for session ${sessionId}:`, emailError);
+      }
+    } else {
+      logger.warn(`No admin email found for session ${sessionId}, skipping admin thank-you email`);
     }
 
-    const recruiterEmail = job.recruiter?.user?.email;
-    const recruiterName = job.recruiter?.user?.displayName || 'Recruiter';
+    // Send email to recruiter - try multiple ways to find recruiter
+    let recruiterEmail = null;
+    let recruiterName = 'Recruiter';
+    
+    // First, try from the loaded relationship
+    if (job.recruiter?.user?.email) {
+      recruiterEmail = job.recruiter.user.email;
+      recruiterName = job.recruiter.user.displayName || 'Recruiter';
+    } else if (job.recruiterId) {
+      // If recruiter relationship not loaded but recruiterId exists, fetch it
+      try {
+        const recruiter = await prisma.recruiter.findUnique({
+          where: { id: job.recruiterId },
+          include: { user: { select: { email: true, displayName: true } } },
+        });
+        if (recruiter?.user?.email) {
+          recruiterEmail = recruiter.user.email;
+          recruiterName = recruiter.user.displayName || 'Recruiter';
+        }
+      } catch (fetchError) {
+        logger.error(`Failed to fetch recruiter for job ${jobId}:`, fetchError);
+      }
+    }
+
     if (recruiterEmail) {
-      await sendDriveThankYouEmail({
-        to: recruiterEmail,
-        recipientName: recruiterName,
-        jobTitle,
-        companyName,
-        addNoteUrl: addNoteUrlRecruiter,
-      });
-      logger.info(`Drive thank-you email sent to recruiter ${recruiterEmail} for session ${sessionId}`);
+      try {
+        await sendDriveThankYouEmail({
+          to: recruiterEmail,
+          recipientName: recruiterName,
+          jobTitle,
+          companyName,
+          addNoteUrl: addNoteUrlRecruiter,
+        });
+        logger.info(`Drive thank-you email sent to recruiter ${recruiterEmail} for session ${sessionId}`);
+      } catch (emailError) {
+        logger.error(`Failed to send thank-you email to recruiter ${recruiterEmail} for session ${sessionId}:`, emailError);
+      }
+    } else {
+      logger.warn(`No recruiter email found for job ${jobId} (session ${sessionId}), skipping recruiter thank-you email`);
     }
   } catch (err) {
     logger.error(`Failed to send drive thank-you emails for session ${sessionId}:`, err);
