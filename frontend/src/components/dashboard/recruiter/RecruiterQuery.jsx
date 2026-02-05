@@ -45,9 +45,9 @@ const RecruiterQuery = () => {
   const loadQueries = async () => {
     try {
       setLoadingQueries(true);
-      // Use the same query API but with recruiter role
       const response = await api.get('/queries');
-      setPastQueries(response.queries || response || []);
+      const list = Array.isArray(response?.data) ? response.data : response?.queries || [];
+      setPastQueries(list);
     } catch (error) {
       console.error('Error loading queries:', error);
       setPastQueries([]);
@@ -289,7 +289,7 @@ const RecruiterQuery = () => {
                             <h3 className="font-medium text-gray-800">{query.subject}</h3>
                             <p className="text-sm text-gray-500">
                               Submitted on {new Date(query.createdAt || query.date).toLocaleDateString()}
-                              {query.responseDate && ` • Responded on ${new Date(query.responseDate).toLocaleDateString()}`}
+                              {(query.respondedAt || query.responseDate) && ` • Responded on ${new Date(query.respondedAt || query.responseDate).toLocaleDateString()}`}
                             </p>
                           </div>
                         </div>
@@ -327,13 +327,13 @@ const RecruiterQuery = () => {
                             <p className="text-gray-800 whitespace-pre-wrap">{query.message}</p>
                           </div>
                           
-                          {query.adminResponse && (
+                          {(query.response || query.adminResponse) && (
                             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                               <h4 className="text-sm font-medium text-blue-800 mb-2">Admin Response</h4>
-                              <p className="text-blue-700 whitespace-pre-wrap">{query.adminResponse}</p>
-                              {query.responseDate && (
+                              <p className="text-blue-700 whitespace-pre-wrap">{query.response || query.adminResponse}</p>
+                              {(query.respondedAt || query.responseDate) && (
                                 <p className="text-xs text-blue-600 mt-2">
-                                  Responded on {new Date(query.responseDate).toLocaleDateString()}
+                                  Responded on {new Date(query.respondedAt || query.responseDate).toLocaleDateString()}
                                 </p>
                               )}
                             </div>

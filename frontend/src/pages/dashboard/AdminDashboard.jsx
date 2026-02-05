@@ -14,8 +14,9 @@ import AdminProfile from '../../components/dashboard/admin/AdminProfile';
 import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
 import AdminJobApplications from '../../components/dashboard/admin/AdminJobApplications';
 import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
+import AdminAnnouncements from '../../components/dashboard/admin/AdminAnnouncements';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
-import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar } from 'lucide-react';
+import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import RequireRole from '../../components/RequireRole';
@@ -127,6 +128,7 @@ export default function AdminDashboard() {
     // { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList }, // Removed from sidebar - page still exists
     { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN'] }, // ADMIN only
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN'] }, // ADMIN only
     { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
     { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
     { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
@@ -266,6 +268,11 @@ export default function AdminDashboard() {
           return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can access recruiter directory.</div>;
         }
         return <RecruiterDirectory />;
+      case 'announcements':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can send announcements.</div>;
+        }
+        return <AdminAnnouncements />;
       case 'adminPanel':
         if (!isSuperAdminOnly) {
           return <div className="text-red-600 font-semibold">Access denied: Only SUPER_ADMIN users can access admin panel.</div>;

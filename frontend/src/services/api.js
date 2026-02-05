@@ -650,6 +650,41 @@ export const api = {
     method: 'POST',
   }),
 
+  // Announcements (Admin)
+  getAnnouncements: (params = {}) => {
+    const query = toQueryString(params);
+    return apiRequest(`/announcements${query ? `?${query}` : ''}`);
+  },
+  createAnnouncement: (formData) => {
+    const token = getAuthToken();
+    if (!token) return Promise.reject(new Error('Not authenticated'));
+    return fetch(`${API_BASE_URL}/announcements`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+      return data;
+    });
+  },
+
+  // Recruiter MOU (stored in Cloudinary)
+  getMouDocuments: () => apiRequest('/recruiters/mou'),
+  uploadMouDocument: (formData) => {
+    const token = getAuthToken();
+    if (!token) return Promise.reject(new Error('Not authenticated'));
+    return fetch(`${API_BASE_URL}/recruiters/mou`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    });
+  },
+
   // Applications
   getAllApplications: (filters = {}) => {
     const query = toQueryString(filters);

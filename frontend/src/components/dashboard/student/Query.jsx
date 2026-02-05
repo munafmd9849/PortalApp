@@ -619,8 +619,8 @@ const StudentQuerySystem = () => {
                           <div>
                             <h3 className="font-medium text-gray-800">{query.subject}</h3>
                             <p className="text-sm text-gray-500">
-                              Submitted on {new Date(query.date).toLocaleDateString()}
-                              {query.responseDate && ` • Responds on ${new Date(query.responseDate).toLocaleDateString()}`}
+                              Submitted on {new Date(query.date || query.createdAt).toLocaleDateString()}
+                              {(query.responseDate || query.respondedAt) && ` • Responded on ${new Date(query.responseDate || query.respondedAt).toLocaleDateString()}`}
                             </p>
                           </div>
                         </div>
@@ -649,7 +649,7 @@ const StudentQuerySystem = () => {
                             </div>
                             <div>
                               <h4 className="text-sm font-medium text-gray-500 mb-1">Date Submitted</h4>
-                              <p>{new Date(query.date).toLocaleDateString()}</p>
+                              <p>{new Date(query.date || query.createdAt).toLocaleDateString()}</p>
                             </div>
                           </div>
                           
@@ -701,11 +701,11 @@ const StudentQuerySystem = () => {
                             </div>
                           )}
                           
-                          {query.adminResponse && (
+                          {(query.adminResponse || query.response) && (
                             <div className="pt-4 border-t border-gray-200">
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Admin Response</h4>
                               <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                                <p className="text-blue-800">{query.adminResponse}</p>
+                                <p className="text-blue-800">{query.adminResponse || query.response}</p>
                               </div>
                             </div>
                           )}

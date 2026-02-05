@@ -352,6 +352,95 @@ export const uploadProofDocument = async (req, res, next) => {
 };
 
 /**
+ * Announcement image upload (single image for admin announcements)
+ * Allowed: jpg, png, webp. Max 3MB. Folder: announcements
+ */
+export const createAnnouncementImageUpload = () => {
+  const storage = multer.memoryStorage();
+  return multer({
+    storage,
+    limits: { fileSize: 3 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (allowed.includes(file.mimetype)) cb(null, true);
+      else cb(new Error('Only JPG, PNG, and WebP images are allowed'), false);
+    },
+  });
+};
+
+export const uploadAnnouncementImage = async (req, res, next) => {
+  const upload = createAnnouncementImageUpload().single('image');
+  upload(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Image must be under 3MB' });
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    if (!req.file) return next();
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ error: 'Cloudinary is not configured. Remove the image or configure Cloudinary.' });
+    }
+    try {
+      const result = await uploadToCloudinary(req.file.buffer, {
+        folder: 'announcements',
+        resource_type: 'image',
+      });
+      req.file.url = result.url;
+      req.file.secure_url = result.url;
+      req.file.public_id = result.public_id;
+      next();
+    } catch (e) {
+      return res.status(500).json({ error: 'Cloudinary upload failed' });
+    }
+  });
+};
+
+/**
+ * MOU (Memorandum of Understanding) PDF upload for recruiters
+ * Allowed: PDF. Max 10MB. Folder: recruiters/mou
+ */
+export const createMouUpload = () => {
+  const storage = multer.memoryStorage();
+  return multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'application/pdf') cb(null, true);
+      else cb(new Error('Only PDF files are allowed for MOU'), false);
+    },
+  });
+};
+
+export const uploadMouDocument = async (req, res, next) => {
+  const upload = createMouUpload().single('mou');
+  upload(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'MOU file must be under 10MB' });
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    if (!req.file) return next();
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ error: 'Cloudinary is not configured. Configure Cloudinary for MOU uploads.' });
+    }
+    try {
+      const result = await uploadToCloudinary(req.file.buffer, {
+        folder: 'recruiters/mou',
+        resource_type: 'raw',
+      });
+      req.file.url = result.url;
+      req.file.secure_url = result.url;
+      req.file.public_id = result.public_id;
+      next();
+    } catch (e) {
+      return res.status(500).json({ error: 'Cloudinary upload failed' });
+    }
+  });
+};
+
+/**
  * Single file upload middleware (for resume)
  * Uses userId for folder structure (students/{userId}/resumes)
  */

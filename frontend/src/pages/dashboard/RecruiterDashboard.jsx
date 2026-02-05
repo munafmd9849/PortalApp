@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FiHome, FiBriefcase, FiUsers, FiCalendar, FiMessageSquare, FiBarChart2, FiSettings, FiLogOut } from 'react-icons/fi';
 import { SquarePen } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import PWIOILOGO from '../../assets/images/brand_logo.webp';
 import Dashboard from '../recruiter/dashboard';
 import JobPostings from '../recruiter/JobPostings';
@@ -9,22 +9,32 @@ import RecruiterCalendar from '../../components/dashboard/recruiter/RecruiterCal
 import RecruiterAnalytics from '../../components/dashboard/recruiter/RecruiterAnalytics';
 import CompanyHistory from '../../components/dashboard/recruiter/CompanyHistory';
 import HelpSupport from '../../components/dashboard/recruiter/HelpSupport';
-import Recommendations from '../../components/dashboard/recruiter/Recommendations';
 import RecruiterProfile from '../../components/dashboard/recruiter/RecruiterProfile';
 import RecruiterQuery from '../../components/dashboard/recruiter/RecruiterQuery';
 import InterviewScheduling from '../../components/dashboard/admin/InterviewScheduling';
-import RecruiterApplicantHistory from '../../components/dashboard/recruiter/RecruiterApplicantHistory';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../services/api';
 
 const RecruiterDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const addNoteFromUrl = searchParams.get('addNote');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'dashboard');
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, role, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (tabFromUrl && ['dashboard', 'jobPostings', 'interviewScheduling', 'calendar', 'analytics', 'history', 'raiseQuery', 'help', 'profile'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+    if (addNoteFromUrl && !tabFromUrl) {
+      setActiveTab('history');
+    }
+  }, [tabFromUrl, addNoteFromUrl]);
   const [recruiterProfile, setRecruiterProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,9 +79,7 @@ const RecruiterDashboard = () => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: FiHome, path: '/recruiter/dashboard' },
     { id: 'jobPostings', label: 'Job Postings', icon: FiBriefcase },
-    { id: 'recommendations', label: 'Recommendations', icon: FiUsers },
     { id: 'interviewScheduling', label: 'Interview Session', icon: FiCalendar },
-    { id: 'applicantHistory', label: 'Applicant History', icon: FiUsers },
     { id: 'calendar', label: 'Calendar', icon: FiCalendar },
     { id: 'analytics', label: 'HR Analytics', icon: FiBarChart2 },
     { id: 'history', label: 'Company History', icon: FiBriefcase },
@@ -161,12 +169,8 @@ const RecruiterDashboard = () => {
         return <Dashboard />;
       case 'jobPostings':
         return <JobPostings/>;
-      case 'recommendations':
-        return <Recommendations />;
       case 'interviewScheduling':
         return <InterviewScheduling />;
-      case 'applicantHistory':
-        return <RecruiterApplicantHistory />;
       case 'calendar':
         return <RecruiterCalendar />;
       case 'analytics':

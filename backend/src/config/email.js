@@ -67,9 +67,10 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
  * @param {string} options.subject - Subject
  * @param {string} options.html - HTML body
  * @param {string} options.text - Plain text body
+ * @param {Array} options.attachments - Optional [{ filename, href } or { filename, content }]
  * @returns {Promise<Object>} Email result
  */
-export async function sendEmail({ to, subject, html, text, cc, bcc }) {
+export async function sendEmail({ to, subject, html, text, cc, bcc, attachments }) {
   try {
     // Validate email configuration
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -78,7 +79,7 @@ export async function sendEmail({ to, subject, html, text, cc, bcc }) {
 
     console.log(`Sending email to: ${to} via ${process.env.EMAIL_HOST}`);
     
-    const result = await transporter.sendMail({
+    const mailOptions = {
       from: process.env.EMAIL_FROM || 'PWIOI Portal <noreply@pwioi.com>',
       to: Array.isArray(to) ? to.join(', ') : to,
       subject,
@@ -86,7 +87,12 @@ export async function sendEmail({ to, subject, html, text, cc, bcc }) {
       text,
       cc,
       bcc,
-    });
+    };
+    if (attachments && attachments.length > 0) {
+      mailOptions.attachments = attachments;
+    }
+    
+    const result = await transporter.sendMail(mailOptions);
 
     console.log(`Email sent successfully. MessageId: ${result.messageId}`);
     
