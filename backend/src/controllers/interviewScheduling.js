@@ -1829,7 +1829,11 @@ export const endRound = async (req, res) => {
 
 /**
  * Send thank-you emails to admin and recruiter when a placement drive (interview session) ends.
- * Asks them to add a note via link (admin: Applicants section, recruiter: Company History).
+ * Both receive the same style of email with a link to add a note:
+ * - Admin: link goes to Admin Applicants (jobApplications) for this job.
+ * - Recruiter: link goes to Recruiter Company History for this job. The recruiter is the job
+ *   owner (job.recruiterId) — the same recruiter who posted the job and is associated with
+ *   the interview session. Their note is saved to job.recruiterNote and shown in Company History.
  */
 async function sendDriveThankYouEmailsForSession(sessionId) {
   const frontendUrl = process.env.FRONTEND_URL || '';

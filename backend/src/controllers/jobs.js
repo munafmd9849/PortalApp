@@ -1674,7 +1674,9 @@ export async function updateJobAdminNote(req, res) {
 }
 
 /**
- * Update recruiter note for a job (post-drive note, visible in Company History)
+ * Update recruiter note for a job (post–placement-drive note, visible in Company History).
+ * Called when a recruiter adds/edits a note after an interview session for this job has ended.
+ * Correctly maps to the job and the recruiter who owns it (job.recruiterId).
  * PATCH /api/jobs/:jobId/recruiter-note - RECRUITER only, must own the job
  */
 export async function updateJobRecruiterNote(req, res) {

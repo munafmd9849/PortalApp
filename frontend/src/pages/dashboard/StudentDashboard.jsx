@@ -1775,19 +1775,21 @@ export default function StudentDashboard() {
     { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'text-blue-600' },
   ];
 
+  // Social links (LinkedIn, YouTube, Instagram) visible for all schools when student has added them.
+  // Coding platforms (LeetCode, Codeforces, GFG, HackerRank, GitHub) only for SOT.
   const visibleSkillsCredentials = React.useMemo(() => {
-    if (school === 'SOH') {
-      // School of HealthCare: YouTube, Instagram, and LinkedIn
+    if (school === 'SOT') {
+      // Tech students: social (LinkedIn, YouTube) + coding platforms (GitHub, LeetCode, etc.) — no Instagram
+      return skillsCredentials.filter((skill) => ['linkedin', 'youtube', 'github', 'leetcode', 'codeforces', 'gfg', 'hackerrank'].includes(skill.id));
+    } else if (school === 'SOH') {
+      // School of Healthcare: LinkedIn, YouTube, Instagram
       return skillsCredentials.filter((skill) => ['youtube', 'instagram', 'linkedin'].includes(skill.id));
     } else if (school === 'SOM') {
-      // School of Management: Only Instagram and YouTube
-      return skillsCredentials.filter((skill) => ['instagram', 'youtube'].includes(skill.id));
-    } else if (school === 'SOT') {
-      // School of Technology: All skills except Instagram
-      return skillsCredentials.filter((skill) => skill.id !== 'instagram');
+      // School of Management: LinkedIn, Instagram, YouTube (LinkedIn allowed for all schools)
+      return skillsCredentials.filter((skill) => ['linkedin', 'instagram', 'youtube'].includes(skill.id));
     } else {
-      // Default: Show all skills (for when school is not yet selected)
-      return skillsCredentials;
+      // Other schools / not set: only social links (LinkedIn, YouTube, Instagram) — no coding platforms
+      return skillsCredentials.filter((skill) => ['linkedin', 'youtube', 'instagram'].includes(skill.id));
     }
   }, [school]);
 
@@ -4252,7 +4254,7 @@ export default function StudentDashboard() {
                   <nav className="space-y-1">
                     {visibleSkillsCredentials.map((skill) => {
                       const Icon = skill.icon;
-                      const profileUrl = skill.id === 'leetcode' ? leetcode
+                      const raw = skill.id === 'leetcode' ? leetcode
                         : skill.id === 'codeforces' ? codeforces
                         : skill.id === 'gfg' ? gfg
                         : skill.id === 'hackerrank' ? hackerrank
@@ -4261,7 +4263,7 @@ export default function StudentDashboard() {
                         : skill.id === 'youtube' ? youtubeUrl
                         : skill.id === 'linkedin' ? linkedin
                         : '';
-                      
+                      const profileUrl = (raw && typeof raw === 'string') ? raw.trim() : '';
                       if (!profileUrl) return null;
                       
                       return (
