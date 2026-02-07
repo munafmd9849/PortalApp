@@ -82,10 +82,10 @@ const InterviewerRoundEvaluation = () => {
       setEvaluations(evalMap);
 
       // Round can only end when every candidate is SELECTED or REJECTED (no PENDING, no ON_HOLD)
-      const allDecided = list.every(
+      const allDecided = list.length > 0 && list.every(
         (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED'].includes(c.evaluation.status)
       );
-      setCanEndRound(allDecided && list.length > 0);
+      setCanEndRound(allDecided);
 
       setLoading(false);
     } catch (err) {
@@ -317,6 +317,15 @@ const InterviewerRoundEvaluation = () => {
       {/* Main Content */}
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="max-w-full mx-auto">
+          {/* Banner: on-hold candidates must be changed to Selected or Rejected before ending round */}
+          {candidates.some((c) => c.evaluation?.status === 'ON_HOLD') && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+              <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <p className="text-sm font-medium text-amber-800">
+                You have candidate(s) marked <strong>On hold</strong>. Change each to <strong>Selected</strong> or <strong>Rejected</strong> and click <strong>Update</strong> so you can end the round.
+              </p>
+            </div>
+          )}
           {/* Candidates Table */}
           {candidates.length === 0 ? (
             <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-12 text-center">
@@ -341,8 +350,8 @@ const InterviewerRoundEvaluation = () => {
                   <tbody className="divide-y divide-gray-200">
                     {candidates.map((candidate) => {
                       const evaluation = evaluations[candidate.applicationId] || { status: '', remarks: '' };
-                      // Only lock (disable changing) when saved status is SELECTED or REJECTED; allow re-editing when ON_HOLD
-                      const isLocked = candidate.evaluation && ['SELECTED', 'REJECTED'].includes(candidate.evaluation.status);
+                      // Recruiter can change status (Select / Reject / On hold) and remarks until they click "End Round"
+                      const isLocked = false;
                       const isSaving = saving[candidate.applicationId];
 
                       return (
@@ -485,32 +494,25 @@ const InterviewerRoundEvaluation = () => {
                             )}
                           </td>
 
-                          {/* Action Column */}
+                          {/* Action Column - always allow Save/Update until round is ended */}
                           <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {!isLocked ? (
-                              <button
-                                onClick={() => handleSaveEvaluation(candidate.applicationId)}
-                                disabled={isSaving || !evaluation.status}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <Loader className="w-4 h-4 animate-spin" />
-                                    <span className="hidden sm:inline">Saving...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Save className="w-4 h-4" />
-                                    <span className="hidden sm:inline">{candidate.evaluation?.status ? 'Update' : 'Save'}</span>
-                                  </>
-                                )}
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-2 justify-center">
-                                {getStatusIcon(candidate.evaluation.status)}
-                                <span className="text-xs text-gray-600">Saved</span>
-                              </div>
-                            )}
+                            <button
+                              onClick={() => handleSaveEvaluation(candidate.applicationId)}
+                              disabled={isSaving || !evaluation.status}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
+                            >
+                              {isSaving ? (
+                                <>
+                                  <Loader className="w-4 h-4 animate-spin" />
+                                  <span className="hidden sm:inline">Saving...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  <span className="hidden sm:inline">{candidate.evaluation?.status ? 'Update' : 'Save'}</span>
+                                </>
+                              )}
+                            </button>
                           </td>
                         </tr>
                       );
