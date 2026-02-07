@@ -602,6 +602,10 @@ export async function createJob(req, res) {
       gapAllowed: mappedData.gapAllowed || null,
       gapYears: mappedData.gapYears || null,
       backlogs: mappedData.backlogs || null,
+      // Interview rounds from job creation (stored for session/rounds sync)
+      ...(jobData.interviewRounds && Array.isArray(jobData.interviewRounds) && jobData.interviewRounds.length > 0
+        ? { interviewRounds: JSON.stringify(jobData.interviewRounds) }
+        : {}),
       // Pre-Interview Requirements
       requiresScreening: mappedData.requiresScreening === true || mappedData.requiresScreening === 'true',
       requiresTest: mappedData.requiresTest === true || mappedData.requiresTest === 'true',
@@ -1005,6 +1009,7 @@ export async function updateJob(req, res) {
         finalUpdateData.requirements = existingRequirements 
           ? (requirementsText ? `${existingRequirements}\n\n${requirementsText}` : existingRequirements)
           : requirementsText;
+        finalUpdateData.interviewRounds = JSON.stringify(interviewRoundsArray);
       }
     }
     
@@ -1659,7 +1664,9 @@ export async function updateJobAdminNote(req, res) {
 }
 
 /**
- * Update recruiter note for a job (post-drive note, visible in Company History)
+ * Update recruiter note for a job (post–placement-drive note, visible in Company History).
+ * Called when a recruiter adds/edits a note after an interview session for this job has ended.
+ * Correctly maps to the job and the recruiter who owns it (job.recruiterId).
  * PATCH /api/jobs/:jobId/recruiter-note - RECRUITER only, must own the job
  */
 export async function updateJobRecruiterNote(req, res) {

@@ -27,14 +27,18 @@ const RecruiterDashboard = () => {
   const location = useLocation();
   const { logout, user, role, loading: authLoading } = useAuth();
 
+  // When landing with addNote=jobId (e.g. from thank-you email), open Company History and keep URL in sync
   useEffect(() => {
     if (tabFromUrl && ['dashboard', 'jobPostings', 'interviewScheduling', 'calendar', 'analytics', 'history', 'raiseQuery', 'help', 'profile'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
-    if (addNoteFromUrl && !tabFromUrl) {
+    if (addNoteFromUrl) {
       setActiveTab('history');
+      if (!tabFromUrl || tabFromUrl !== 'history') {
+        navigate(`/recruiter?tab=history&addNote=${addNoteFromUrl}`, { replace: true });
+      }
     }
-  }, [tabFromUrl, addNoteFromUrl]);
+  }, [tabFromUrl, addNoteFromUrl, navigate]);
   const [recruiterProfile, setRecruiterProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
