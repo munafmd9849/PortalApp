@@ -47,6 +47,7 @@ const InterviewerDashboard = () => {
   const [session, setSession] = useState(null);
   const [activeRound, setActiveRound] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -128,6 +129,25 @@ const InterviewerDashboard = () => {
       alert(e?.message || 'Failed to download spreadsheet. Please try again.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const allRoundsEnded = session?.rounds?.length > 0 && session.rounds.every((r) => r.status === 'ENDED');
+  const showEndInterview =
+    (session?.status === 'ONGOING' || session?.status === 'INCOMPLETE') && allRoundsEnded;
+
+  const handleEndInterview = async () => {
+    if (!sessionId || !token || endingSession || !showEndInterview) return;
+    if (!window.confirm('End this interview session? You can still download the spreadsheet afterward.')) return;
+    setEndingSession(true);
+    try {
+      await api.endInterviewSessionByToken(sessionId, token);
+      await loadSession();
+    } catch (e) {
+      console.error('End session failed:', e);
+      alert(e?.message || 'Failed to end interview session. Please try again.');
+    } finally {
+      setEndingSession(false);
     }
   };
 
@@ -250,6 +270,20 @@ const InterviewerDashboard = () => {
                 <span className="font-semibold text-gray-800">{session.job.jobTitle}</span>
               </div>
               {getStatusBadge(session.status)}
+              {showEndInterview && (
+                <button
+                  onClick={handleEndInterview}
+                  disabled={endingSession}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-semibold shadow-md hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {endingSession ? (
+                    <Loader className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5" />
+                  )}
+                  End Interview
+                </button>
+              )}
               {(session.status === 'COMPLETED' || session.status === 'INCOMPLETE') && (
                 <button
                   onClick={handleDownloadSpreadsheet}

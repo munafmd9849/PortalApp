@@ -391,9 +391,15 @@ const InterviewerRoundEvaluation = () => {
                                     )}
                                   </div>
                                 )}
-                                {candidate.previousRoundRemarks && (
+                                {(candidate.previousRoundStatus || candidate.previousRoundRemarks) && (
                                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
-                                    <span className="font-semibold">Prev Round:</span> {candidate.previousRoundRemarks}
+                                    <span className="font-semibold">Prev Round:</span>
+                                    {candidate.previousRoundStatus && (
+                                      <span className="ml-1 font-medium">{candidate.previousRoundStatus}</span>
+                                    )}
+                                    {candidate.previousRoundRemarks && (
+                                      <span className={candidate.previousRoundStatus ? ' ml-1' : ''}> – {candidate.previousRoundRemarks}</span>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -434,7 +440,7 @@ const InterviewerRoundEvaluation = () => {
                             </div>
                           </td>
 
-                          {/* Remarks Column */}
+                          {/* Remarks Column - always editable so on-hold can be updated to accept/reject with remarks */}
                           <td className="px-4 py-4">
                             <textarea
                               value={evaluation.remarks}

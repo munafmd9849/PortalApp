@@ -833,6 +833,11 @@ export const api = {
     method: 'POST',
     silent: true,
   }),
+  /** End interview session (token-based). Use when all rounds are ended and session is ONGOING/INCOMPLETE. */
+  endInterviewSessionByToken: (sessionId, token) => apiRequest(`/interview/session/${sessionId}/end?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    silent: true,
+  }),
 
   /**
    * Download interview session as CSV spreadsheet (after last round).

@@ -4,11 +4,23 @@
  * Replaces Firebase Functions/backend
  */
 
+// CRITICAL: Load environment variables FIRST before any imports that use them
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend root directory (parent of src/)
+dotenv.config({ path: join(__dirname, '../.env') });
+
+// Now import modules that depend on environment variables
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import http from 'http';
 
 import { initSocket } from './config/socket.js';
@@ -38,15 +50,6 @@ import adminJobsRoutes from './routes/adminJobs.js';
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// Get the directory of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env file from the backend root directory (parent of src/)
-dotenv.config({ path: join(__dirname, '../.env') });
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -314,25 +317,73 @@ const PORT = process.env.PORT || 3000; // Default to 3000 as per project context
 
 async function start() {
   let dbConnected = false;
+  let dbQuotaExceeded = false;
   
-  try {
-    // Try to connect to database
-    await prisma.$connect();
-    await prisma.$queryRaw`SELECT 1`;
-    dbConnected = true;
-    console.log('✅ Database connection successful');
-  } catch (dbErr) {
-    // Check if it's a quota error - allow server to start but warn
-    if (dbErr.message && dbErr.message.includes('quota')) {
-      dbQuotaExceeded = true; // Set global flag for scheduler
-      console.warn('⚠️  WARNING: Database quota exceeded. Server will start but database queries will fail.');
-      console.warn('   Some features may not work until quota resets. The server will continue running.');
-      dbConnected = false;
-    } else {
-      // For other connection errors, fail fast
-      console.error('❌ CRITICAL: Failed to connect to database. Server will not start.');
-      console.error(dbErr?.message || dbErr);
-      process.exit(1);
+  // Retry logic for Render free tier databases (they spin down after inactivity)
+  const maxRetries = 3;
+  const retryDelay = 5000; // 5 seconds between retries
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`🔄 Retrying database connection (attempt ${attempt}/${maxRetries})...`);
+      } else {
+        console.log('🔄 Connecting to database...');
+      }
+      
+      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
+      dbConnected = true;
+      console.log('✅ Database connection successful');
+      break;
+    } catch (dbErr) {
+      const errorCode = dbErr?.code || '';
+      const errorMessage = dbErr?.message || String(dbErr);
+      
+      // Check if it's a quota error - allow server to start but warn
+      if (errorMessage.includes('quota')) {
+        dbQuotaExceeded = true;
+        console.warn('⚠️  WARNING: Database quota exceeded. Server will start but database queries will fail.');
+        console.warn('   Some features may not work until quota resets. The server will continue running.');
+        dbConnected = false;
+        break;
+      }
+      
+      // For connection errors (P1001, P1017), retry (database might be sleeping)
+      if (errorCode === 'P1001' || errorCode === 'P1017' || errorCode === 'P2024' || 
+          errorMessage.includes("Can't reach database") || 
+          errorMessage.includes('connection pool') ||
+          errorMessage.includes('Timed out')) {
+        if (attempt < maxRetries) {
+          console.warn(`⚠️  Database connection failed (attempt ${attempt}/${maxRetries}):`);
+          console.warn(`   ${errorMessage.substring(0, 100)}...`);
+          console.warn(`   💡 Render free tier databases spin down after ~90s inactivity`);
+          console.warn(`   💡 Database may need 30-60 seconds to wake up`);
+          console.warn(`   ⏳ Retrying in ${retryDelay / 1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        } else {
+          // Final attempt failed
+          console.error('\n❌ CRITICAL: Failed to connect to database after all retries.');
+          console.error(`   Error: ${errorMessage}`);
+          console.error(`   Code: ${errorCode}`);
+          console.error('\n💡 Troubleshooting steps:');
+          console.error('   1. Check Render dashboard - database may be paused/stopped');
+          console.error('   2. Render free tier databases spin down after ~90s inactivity');
+          console.error('   3. Database needs 30-60 seconds to wake up (first query triggers wake-up)');
+          console.error('   4. Verify DATABASE_URL in .env file is correct');
+          console.error('   5. Try accessing database from Render dashboard to wake it up');
+          console.error('   6. Check network connectivity');
+          console.error('   7. If using free tier, consider upgrading or using a different database');
+          process.exit(1);
+        }
+      } else {
+        // For other errors, fail fast
+        console.error('❌ CRITICAL: Failed to connect to database. Server will not start.');
+        console.error(`   Error: ${errorMessage}`);
+        console.error(`   Code: ${errorCode}`);
+        process.exit(1);
+      }
     }
   }
 

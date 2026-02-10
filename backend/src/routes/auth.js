@@ -238,13 +238,24 @@ router.post('/login', [
     const role = (selectedRole || roleFromBody) ? (selectedRole || roleFromBody).toUpperCase() : undefined;
 
     // Super Admin: specific email + password → always log in as Super Admin (no role selector on login).
-    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
-    const isSuperAdminLogin = email.toLowerCase() === superAdminEmail;
+    // Note: express-validator's normalizeEmail() removes dots from Gmail addresses
+    // So we need to normalize the super admin email for comparison
+    const superAdminEmailRaw = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
+    // Normalize the super admin email the same way express-validator does (remove dots for Gmail)
+    const superAdminEmailNormalized = superAdminEmailRaw.replace(/\.(?=.*@gmail\.com)/g, '');
+    const isSuperAdminLogin = email.toLowerCase() === superAdminEmailNormalized || email.toLowerCase() === superAdminEmailRaw;
 
     let user = null;
     if (isSuperAdminLogin) {
-      user = await prisma.user.findUnique({
-        where: { email },
+      // Try both normalized and original email formats for database lookup
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: email },
+            { email: superAdminEmailRaw },
+            { email: superAdminEmailNormalized }
+          ]
+        },
         include: { student: true, recruiter: true, admin: true },
       });
       if (user && user.role !== 'SUPER_ADMIN') {
