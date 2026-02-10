@@ -117,12 +117,189 @@ const Banner = () => {
               src={BannerImage1}
               alt=""
             />
+            {/* Facts + arrows around India map (desktop) */}
             <div ref={factsRef} className="absolute w-full h-full">
               <div className="relative w-full h-full">
-                <p className="absolute right-[5%] top-[12%] text-sm font-semibold text-gray-600">70% Students lack Industry relevant Skills</p>
-                <p className="absolute right-[2%] top-[21%] w-1/2 text-sm font-semibold text-gray-600">40% Students forced to choose the wrong career path</p>
-                <p className="absolute right-[4%] bottom-[15%] w-1/2 text-sm font-semibold text-gray-600">29% population in 20's but lack industry exposure</p>
-                <p className="absolute right-[12%] -bottom-[0%] w-1/2 text-sm font-semibold text-gray-600">55% Students unprepared for real interview and hiring processes</p>
+                {/* 70% fact (top-right) */}
+                <div className="absolute right-[5%] top-[12%] flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <span className="shrink-0 inline-flex items-center rounded-full border border-gray-300 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+                    70%
+                  </span>
+                  <span>Students lack industry‑relevant skills</span>
+                </div>
+                {/* Arrow to 70% */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute right-[18%] -top-[22%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="2"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="3 6"
+                    transform="rotate(273, 400, 400)"
+                  >
+                    <path
+                      d="M350.5 350.5Q410.5 384.5 449.5 449.5 "
+                      markerEnd="url(#mapArrow70)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="mapArrow70"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
+
+                {/* 40% fact (upper‑middle right) */}
+                <div className="absolute right-[2%] top-[21%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-700">
+                  <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-gray-300 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+                    40%
+                  </span>
+                  <span>Students choose the wrong career path</span>
+                </div>
+                {/* Arrow to 40% */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute right-[25%] -top-[30%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="2"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="3 6"
+                    transform="rotate(284, 400, 400)"
+                  >
+                    <path
+                      d="M350.5 350.5Q410.5 384.5 449.5 449.5 "
+                      markerEnd="url(#mapArrow40)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="mapArrow40"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
+
+                {/* 29% fact (mid‑right) */}
+                <div className="absolute right-[2%] bottom-[12%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-700">
+                  <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-gray-300 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+                    29%
+                  </span>
+                  <span>Young population lacks industry exposure</span>
+                </div>
+                {/* Arrow to 29% */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute right-[17%] top-[16%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="2"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="3 6"
+                    transform="rotate(351, 400, 400)"
+                  >
+                    <path
+                      d="M350.5 350.5Q447.5 370.5 449.5 449.5 "
+                      markerEnd="url(#mapArrow29)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="mapArrow29"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
+
+                {/* Extra arrow near bottom‑right area */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute right-[30%] top:[56%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="2"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="3 6"
+                    transform="rotate(330, 400, 400)"
+                  >
+                    <path
+                      d="M350.5 350.5Q362.5 419.5 449.5 449.5 "
+                      markerEnd="url(#mapArrowExtra)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="mapArrowExtra"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
+
+                {/* 55% fact (bottom‑right) */}
+                <div className="absolute right-[3%] -bottom-[7%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-700">
+                  <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-gray-300 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+                    55%
+                  </span>
+                  <span>Students are unprepared for real interview and hiring processes</span>
+                </div>
               </div>
             </div>
           </div>
@@ -138,21 +315,124 @@ const Banner = () => {
             </div>
           </div>
           <div ref={solutionsRef} className="space-y-2">
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-600">With two-simple solutions:</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-600">
+              With two-simple solutions:
+            </h2>
             <div className="flex lg:flex-row flex-col justify-between items-center gap-4 sm:gap-2 px-2">
+              {/* Industry‑Relevant Skills card with arrow */}
               <div className="relative rounded-md px-4 sm:px-10 py-1.5 shadow-md bg-white/80 hover:shadow-lg transition-all duration-300">
-                <h3 className="text-sm text-gray-600 text-center sm:text-base lg:text-lg font-bold">Industry-Relevant <br /> <span className="text-xl text-black italic"> SKILLS</span></h3>
+                <h3 className="text-sm text-gray-600 text-center sm:text-base lg:text-lg font-bold">
+                  Industry-Relevant <br />{" "}
+                  <span className="text-xl text-black italic"> SKILLS</span>
+                </h3>
+                {/* Arrow pointing to this card */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute w-[90%] -top-[34%] -left-[21%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="7"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    transform="matrix(0.9455185755993168,0.32556815445715664,-0.32556815445715664,0.9455185755993168,147.0198315431359,-108.43469202258939)"
+                  >
+                    <path
+                      d="M347.5 347.5Q359.5 445.5 452.5 452.5 "
+                      markerEnd="url(#solutionsArrowSkills)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="solutionsArrowSkills"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
               </div>
+
+              {/* Passion‑Aligned Opportunities card with arrow */}
               <div className="relative rounded-md px-3 sm:px-10 py-1.5 shadow-md bg-white/90 hover:shadow-lg transition-all duration-300">
-                <h3 className="text-sm text-center sm:text-base lg:text-lg font-bold text-gray-600">Passion-Aligned <br /><span className="text-xl text-black italic"> OPPORTUNITIES</span></h3>
+                <h3 className="text-sm text-center sm:text-base lg:text-lg font-bold text-gray-600">
+                  Passion-Aligned <br />
+                  <span className="text-xl text-black italic"> OPPORTUNITIES</span>
+                </h3>
+                {/* Arrow pointing to this card */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute w-[90%] -top-[35%] -right-[22%]"
+                  viewBox="0 0 800 800"
+                >
+                  <g
+                    strokeWidth="7"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    transform="matrix(0.32556815445715676,0.9455185755993167,-0.9455185755993167,0.32556815445715676,658.980168456864,-108.43469202258939)"
+                  >
+                    <path
+                      d="M347.5 347.5Q446.5 365.5 452.5 452.5 "
+                      markerEnd="url(#solutionsArrowOpps)"
+                    ></path>
+                  </g>
+                  <defs>
+                    <marker
+                      id="solutionsArrowOpps"
+                      markerWidth="5"
+                      markerHeight="5"
+                      refX="2.5"
+                      refY="2.5"
+                      viewBox="0 0 5 5"
+                      orient="auto"
+                    >
+                      <polygon
+                        points="0,5 1.6666666666666667,2.5 0,0 5,2.5"
+                        fill="currentColor"
+                      ></polygon>
+                    </marker>
+                  </defs>
+                </svg>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row justify-around mt-2 sm:mt-4 lg:mt-6 text-center gap-4 sm:gap-0">
               <div className="flex items-center justify-center">
-                <ScribbledText text="We Shape Brilliance" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.2} delay={2} stagger={0.1} className="font-bold text-base sm:text-md font-caveat italic cursive" />
+                <ScribbledText
+                  text="We Shape Brilliance"
+                  color="#1f2937"
+                  lineColor="#3b82f6"
+                  lineHeight="0.15rem"
+                  lineOffset="0px"
+                  duration={0.2}
+                  delay={2}
+                  stagger={0.1}
+                  className="font-bold text-base sm:text-md font-caveat italic cursive"
+                />
               </div>
               <div className="flex items-center justify-center">
-                <ScribbledText text="You Spot it" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.5} delay={2} stagger={0.15} className="font-bold text-base sm:text-md font-caveat italic" />
+                <ScribbledText
+                  text="You Spot it"
+                  color="#1f2937"
+                  lineColor="#3b82f6"
+                  lineHeight="0.15rem"
+                  lineOffset="0px"
+                  duration={0.5}
+                  delay={2}
+                  stagger={0.15}
+                  className="font-bold text-base sm:text-md font-caveat italic"
+                />
               </div>
             </div>
           </div>
