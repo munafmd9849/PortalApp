@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ProfileCard from './ProfileCard.jsx';
+import './Records.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const STUDENT_RECORDS = [
   [
@@ -57,6 +62,8 @@ export default function PlacementRecords({ onLoginOpen }) {
   const [isSectionInView, setIsSectionInView] = useState(false);
   const cardsToShow = 5;
   const sectionRef = useRef(null);
+  const headingCrackRef = useRef(null);
+  const crackWordRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
   const mobileCards = useMemo(() => STUDENT_RECORDS.flat(), []);
@@ -78,6 +85,46 @@ export default function PlacementRecords({ onLoginOpen }) {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  }, []);
+
+  // GSAP ScrollTrigger: crack open the word "Cracked" on scroll into view, join again on scroll up
+  useEffect(() => {
+    const headingEl = headingCrackRef.current;
+    const wordEl = crackWordRef.current;
+    const sectionEl = sectionRef.current;
+    if (!headingEl || !wordEl || !sectionEl) return;
+
+    const letters = wordEl.querySelectorAll('.crack-letter');
+    if (letters.length < 7) return;
+
+    const theyEl = headingEl.querySelector('.crack-they');
+    const itEl = headingEl.querySelector('.crack-it');
+    if (!theyEl || !itEl) return;
+
+    const lettersLeft = [letters[0], letters[1], letters[2]];
+    const lettersRight = [letters[3], letters[4], letters[5], letters[6]];
+
+    gsap.set(letters, { x: 0, rotation: 0 });
+    gsap.set(theyEl, { x: 0, y: 0 });
+    gsap.set(itEl, { x: 0, y: 0, rotation: 0 });
+
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: sectionEl,
+        start: 'top 82%',
+        end: 'top 28%',
+        scrub: 1.2,
+      },
+    });
+
+    tl.to(lettersLeft, { x: -12, rotation: -8, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(lettersRight, { x: 12, rotation: 8, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(theyEl, { x: -6, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(itEl, { y: 6, rotation: -12, duration: 1, ease: 'power2.out' }, 0);
+
+    return () => {
+      ScrollTrigger.getAll().forEach((t) => t.trigger === sectionEl && t.kill());
+    };
   }, []);
 
   useEffect(() => {
@@ -120,18 +167,27 @@ export default function PlacementRecords({ onLoginOpen }) {
       <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight">
-              Hear How They{" "}
-              <span className="font-cracked-slash relative px-1 bg-gradient-to-t from-[#FBBF24] to-[#FBBF24] bg-no-repeat [background-size:100%_22%] [background-position:0_92%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:0_100%]">
-                Cracked It
-              </span>
+            <h2
+              ref={headingCrackRef}
+              className="text-4xl font-bold text-blue-900 mb-4 tracking-tight crack-heading"
+            >
+              Hear How <span className="crack-they">They</span>{' '}
+              <span className="crack-word" ref={crackWordRef}>
+                <span className="crack-letter">C</span>
+                <span className="crack-letter">r</span>
+                <span className="crack-letter">a</span>
+                <span className="crack-letter">c</span>
+                <span className="crack-letter">k</span>
+                <span className="crack-letter">e</span>
+                <span className="crack-letter">d</span>
+              </span>{' '}
+              <span className="crack-it">It</span>
             </h2>
-            <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">
+            <p className="text-xl text-gray-600 font-normal">
               Success stories from our placed students
             </p>
 
-            {/* Show All button - commented out */}
-            {/* <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
+            <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
               <button
                 onClick={() => setShowBatchDropdown(!showBatchDropdown)}
                 className="bg-white text-blue-900 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-100 font-medium py-2 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
@@ -170,7 +226,7 @@ export default function PlacementRecords({ onLoginOpen }) {
                   ))}
                 </div>
               )}
-            </div> */}
+            </div>
           </div>
 
           <div className="relative">
