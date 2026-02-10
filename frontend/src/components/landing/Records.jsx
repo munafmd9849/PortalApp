@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ProfileCard from './ProfileCard.jsx';
+import './Records.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const STUDENT_RECORDS = [
   [
@@ -57,6 +62,8 @@ export default function PlacementRecords({ onLoginOpen }) {
   const [isSectionInView, setIsSectionInView] = useState(false);
   const cardsToShow = 5;
   const sectionRef = useRef(null);
+  const headingCrackRef = useRef(null);
+  const crackWordRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
   const mobileCards = useMemo(() => STUDENT_RECORDS.flat(), []);
@@ -78,6 +85,46 @@ export default function PlacementRecords({ onLoginOpen }) {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  }, []);
+
+  // GSAP ScrollTrigger: crack open the word "Cracked" on scroll into view, join again on scroll up
+  useEffect(() => {
+    const headingEl = headingCrackRef.current;
+    const wordEl = crackWordRef.current;
+    const sectionEl = sectionRef.current;
+    if (!headingEl || !wordEl || !sectionEl) return;
+
+    const letters = wordEl.querySelectorAll('.crack-letter');
+    if (letters.length < 7) return;
+
+    const theyEl = headingEl.querySelector('.crack-they');
+    const itEl = headingEl.querySelector('.crack-it');
+    if (!theyEl || !itEl) return;
+
+    const lettersLeft = [letters[0], letters[1], letters[2]];
+    const lettersRight = [letters[3], letters[4], letters[5], letters[6]];
+
+    gsap.set(letters, { x: 0, rotation: 0 });
+    gsap.set(theyEl, { x: 0, y: 0 });
+    gsap.set(itEl, { x: 0, y: 0, rotation: 0 });
+
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: sectionEl,
+        start: 'top 82%',
+        end: 'top 28%',
+        scrub: 1.2,
+      },
+    });
+
+    tl.to(lettersLeft, { x: -12, rotation: -8, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(lettersRight, { x: 12, rotation: 8, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(theyEl, { x: -6, duration: 1, ease: 'power2.out' }, 0);
+    tl.to(itEl, { y: 6, rotation: -12, duration: 1, ease: 'power2.out' }, 0);
+
+    return () => {
+      ScrollTrigger.getAll().forEach((t) => t.trigger === sectionEl && t.kill());
+    };
   }, []);
 
   useEffect(() => {
@@ -120,8 +167,21 @@ export default function PlacementRecords({ onLoginOpen }) {
       <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight">
-              Hear How They Cracked It
+            <h2
+              ref={headingCrackRef}
+              className="text-4xl font-bold text-blue-900 mb-4 tracking-tight crack-heading"
+            >
+              Hear How <span className="crack-they">They</span>{' '}
+              <span className="crack-word" ref={crackWordRef}>
+                <span className="crack-letter">C</span>
+                <span className="crack-letter">r</span>
+                <span className="crack-letter">a</span>
+                <span className="crack-letter">c</span>
+                <span className="crack-letter">k</span>
+                <span className="crack-letter">e</span>
+                <span className="crack-letter">d</span>
+              </span>{' '}
+              <span className="crack-it">It</span>
             </h2>
             <p className="text-xl text-gray-600 font-normal">
               Success stories from our placed students
