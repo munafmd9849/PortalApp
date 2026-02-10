@@ -183,14 +183,18 @@ export default function PlacementRecords({ onLoginOpen }) {
       <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight">
-              Hear How They Cracked It
+            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight">
+              Hear How They{" "}
+              <span className="font-cracked-slash relative px-1 bg-gradient-to-t from-[#FBBF24] to-[#FBBF24] bg-no-repeat [background-size:100%_22%] [background-position:0_92%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:0_100%]">
+                Cracked It
+              </span>
             </h2>
-            <p className="text-xl text-gray-600 font-normal">
+            <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">
               Success stories from our placed students
             </p>
 
-            <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
+            {/* Show All button - commented out */}
+            {/* <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
               <button
                 onClick={() => setShowBatchDropdown(!showBatchDropdown)}
                 className="bg-white text-blue-900 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-100 font-medium py-2 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
@@ -229,7 +233,7 @@ export default function PlacementRecords({ onLoginOpen }) {
                   ))}
                 </div>
               )}
-            </div>
+            </div> */}
           </div>
 
           <div className="relative">

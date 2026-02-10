@@ -1,6 +1,7 @@
 import React from "react";
-import { FaMoneyBillWave, FaCalendarAlt, FaChartLine, FaHandshake, FaUserTie, FaLightbulb, FaMoneyCheckAlt } from "react-icons/fa";
+import { FaMoneyBillWave, FaCalendarAlt, FaChartLine, FaHandshake, FaUserTie, FaMoneyCheckAlt } from "react-icons/fa";
 import { MdAttachMoney } from "react-icons/md";
+import GlareHover from "./GlareHover";
 
 const stats = [
   {
@@ -118,46 +119,75 @@ const PlacementStats = () => {
           </span>
         </h2>
 
-        {/* Laptop and up (lg: 1024px+): original 2 rows of 4 — desktop only */}
-        <div className="hidden lg:block">
-          <div className="placement-stats-grid bg-[#FFDE83]/80 rounded-t-xl">
-            {stats.slice(0, 4).map((stat, index) => (
-              <div key={index} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
-                <div className="text-5xl font-extrabold text-black mt-4">{stat.value}</div>
-                <div className="text-sm text-gray-600 mt-1">{stat.icon}{stat.label}</div>
+        {/* Laptop and up: hover cards with separation */}
+        <div className="hidden lg:grid mt-8 grid-cols-4 gap-8">
+          {stats.map((stat, index) => (
+            <GlareHover
+              key={index}
+              width="100%"
+              height="100%"
+              background="#FFDE83CC"
+              borderRadius="16px"
+              borderColor="#FBBF24"
+              glareColor="#ffffff"
+              glareOpacity={0.45}
+              glareAngle={-30}
+              glareSize={280}
+              transitionDuration={800}
+              playOnce={false}
+              className="shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+              style={{ borderWidth: 1 }}
+            >
+              <div className="w-full py-7 px-6 text-center flex flex-col items-center">
+                <div className="text-2xl sm:text-3xl font-extrabold text-black mt-1">{stat.value}</div>
+                <div className="text-sm text-gray-600 mt-2 flex items-center justify-center gap-1 flex-wrap">
+                  {stat.icon}
+                  {stat.label}
+                </div>
               </div>
-            ))}
-          </div>
-          <div className="placement-stats-grid bg-[#FFDE83]/80 rounded-b-xl">
-            {stats.slice(4, 8).map((stat, index) => (
-              <div key={index + 4} className="stat-card rounded-xl py-4 text-center flex flex-col items-center">
-                <div className="text-5xl font-extrabold text-black mt-4">{stat.value}</div>
-                <div className="text-sm text-gray-600 mt-1">{stat.icon}{stat.label}</div>
-              </div>
-            ))}
-          </div>
+            </GlareHover>
+          ))}
         </div>
 
-        {/* Mobile / small viewport only: horizontal snap carousel */}
+        {/* Mobile: horizontal snap carousel with hover cards */}
         <div
-          className="lg:hidden -mx-4 px-4 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory mt-6"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="lg:hidden -mx-4 px-4 flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory mt-6"
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
           {stats.map((stat, idx) => (
             <div
               key={`${stat.label}-${idx}`}
-              className="snap-center shrink-0 w-[84%] sm:w-[62%] max-w-[260px] rounded-2xl bg-[#FFDE83]/80 border border-amber-200/80 py-5 px-4 text-center shadow-sm"
+              className="snap-center shrink-0 w-[84%] sm:w-[62%] max-w-[260px]"
             >
-              <div className="text-4xl font-extrabold text-black">{stat.value}</div>
-              <div className="text-sm text-gray-600 mt-2 flex items-center justify-center gap-1 flex-wrap">
-                {stat.icon}{stat.label}
-              </div>
+              <GlareHover
+                width="100%"
+                height="100%"
+                background="#FFDE83CC"
+                borderRadius="16px"
+                borderColor="#FBBF24"
+                glareColor="#ffffff"
+                glareOpacity={0.4}
+                glareAngle={-30}
+                glareSize={280}
+                transitionDuration={800}
+                playOnce={false}
+                className="shadow-sm"
+                style={{ borderWidth: 1 }}
+              >
+                <div className="py-7 px-6 text-center">
+                  <div className="text-2xl font-extrabold text-black">{stat.value}</div>
+                  <div className="text-sm text-gray-600 mt-2 flex items-center justify-center gap-1 flex-wrap">
+                    {stat.icon}
+                    {stat.label}
+                  </div>
+                </div>
+              </GlareHover>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Sparkle Animation & Separator Styles */}
+      {/* Sparkle Animation */}
       <style>{`
         @keyframes sparkle {
           0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(-10deg); }
@@ -168,38 +198,6 @@ const PlacementStats = () => {
         .animate-sparkle {
           animation: sparkle 2.5s infinite;
           pointer-events: none;
-        }
-        .placement-stats-grid {
-          position: relative;
-        }
-        @media (min-width: 1024px) {
-          .placement-stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            row-gap: 0px;
-          }
-          .stat-card {
-            position: relative;
-            min-height: 140px;
-          }
-          /* Vertical separator line - hide on 4th, 8th card */
-          .stat-card:nth-child(1)::after,
-          .stat-card:nth-child(2)::after,
-          .stat-card:nth-child(3)::after,
-          .stat-card:nth-child(5)::after,
-          .stat-card:nth-child(6)::after,
-          .stat-card:nth-child(7)::after {
-            content: "";
-            position: absolute;
-            top: 20%;
-            right: 0px;
-            width: 2px;
-            height: 60%;
-            background: #a77029;
-            border-radius: 999px;
-            opacity: 0.7;
-            z-index: 1;
-          }
         }
       `}</style>
     </section>

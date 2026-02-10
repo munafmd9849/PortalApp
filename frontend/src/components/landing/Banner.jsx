@@ -108,8 +108,8 @@ const Banner = () => {
       className="relative w-full min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-6 sm:pb-12 pt-24 sm:pt-28 lg:pt-12 overflow-x-hidden"
     >
       {/* Laptop and up: original layout (Map + overlay facts) */}
-      <div className="hidden lg:grid max-w-6xl mx-auto grid-cols-1 lg:grid-cols-2 gap-6 items-center w-full">
-        <div className="w-full h-full order-1">
+      <div className="hidden lg:grid max-w-7xl mx-auto grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-center w-full">
+        <div className="w-full h-full order-1 pr-2 xl:pr-6">
           <div ref={mapRef} className="relative pt-10 lg:pt-0 mb-4 w-full h-full">
             <img
               className="absolute -left-[6%] w-[75%] lg:w-[85%]"
@@ -119,15 +119,71 @@ const Banner = () => {
             />
             <div ref={factsRef} className="absolute w-full h-full">
               <div className="relative w-full h-full">
-                <p className="absolute right-[5%] top-[12%] text-sm font-semibold text-gray-600">70% Students lack Industry relevant Skills</p>
-                <p className="absolute right-[2%] top-[21%] w-1/2 text-sm font-semibold text-gray-600">40% Students forced to choose the wrong career path</p>
-                <p className="absolute right-[4%] bottom-[15%] w-1/2 text-sm font-semibold text-gray-600">29% population in 20's but lack industry exposure</p>
-                <p className="absolute right-[12%] -bottom-[0%] w-1/2 text-sm font-semibold text-gray-600">55% Students unprepared for real interview and hiring processes</p>
+                <div className="absolute right-[5%] top-[12%] flex items-center gap-2 text-sm font-semibold text-gray-600">
+                  <span className="shrink-0 font-bold">70%</span>
+                  <span>Students lack industry‑relevant skills</span>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[18%] -top-[22%]" viewBox="0 0 800 800">
+                  <g strokeWidth="2" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" transform="rotate(273, 400, 400)">
+                    <path d="M350.5 350.5Q410.5 384.5 449.5 449.5 " markerEnd="url(#BannerArrow1)" />
+                  </g>
+                  <defs>
+                    <marker id="BannerArrow1" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                      <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <div className="absolute right-[2%] top-[21%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                  <span className="mt-0.5 shrink-0 font-bold">40%</span>
+                  <span>Students choose the wrong career path</span>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[25%] -top-[30%]" viewBox="0 0 800 800">
+                  <g strokeWidth="2" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" transform="rotate(284, 400, 400)">
+                    <path d="M350.5 350.5Q410.5 384.5 449.5 449.5 " markerEnd="url(#BannerArrow2)" />
+                  </g>
+                  <defs>
+                    <marker id="BannerArrow2" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                      <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <div className="absolute right-[2%] bottom-[12%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                  <span className="mt-0.5 shrink-0 font-bold">29%</span>
+                  <span>Young population lacks industry exposure</span>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[17%] top-[16%]" viewBox="0 0 800 800">
+                  <g strokeWidth="2" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" transform="rotate(351, 400, 400)">
+                    <path d="M350.5 350.5Q447.5 370.5 449.5 449.5 " markerEnd="url(#BannerArrow3)" />
+                  </g>
+                  <defs>
+                    <marker id="BannerArrow3" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                      <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[30%] top-[56%]" viewBox="0 0 800 800">
+                  <g strokeWidth="2" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" transform="rotate(330, 400, 400)">
+                    <path d="M350.5 350.5Q362.5 419.5 449.5 449.5 " markerEnd="url(#BannerArrow4)" />
+                  </g>
+                  <defs>
+                    <marker id="BannerArrow4" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                      <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <div className="absolute right-[3%] -bottom-[7%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-600">
+                  <span className="mt-0.5 shrink-0 font-bold">55%</span>
+                  <span>Students are unprepared for real interview and hiring processes</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="space-y-6 sm:space-y-8 md:space-y-10 lg:space-y-[25%] order-2 mt-8 w-full h-full">
+        <div className="space-y-6 sm:space-y-8 md:space-y-10 lg:space-y-[25%] order-2 mt-8 w-full h-full pl-2 xl:pl-6">
           <div ref={missionRef} className="text-center lg:text-left relative">
             <h1 className="text-3xl md:text-4xl lg:text-[2.6rem] font-bold text-gray-900 leading-tight">
               On a mission to change the
@@ -141,10 +197,34 @@ const Banner = () => {
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-600">With two-simple solutions:</h2>
             <div className="flex lg:flex-row flex-col justify-between items-center gap-4 sm:gap-2 px-2">
               <div className="relative rounded-md px-4 sm:px-10 py-1.5 shadow-md bg-white/80 hover:shadow-lg transition-all duration-300">
-                <h3 className="text-sm text-gray-600 text-center sm:text-base lg:text-lg font-bold">Industry-Relevant <br /> <span className="text-xl text-black italic"> SKILLS</span></h3>
+                <div>
+                  <h3 className="text-sm text-gray-600 text-center sm:text-base lg:text-lg font-bold">Industry-Relevant <br /> <span className="text-xl text-black italic"> SKILLS</span></h3>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="absolute w-[90%] -top-[34%] -left-[21%]" viewBox="0 0 800 800">
+                    <g strokeWidth="7" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" transform="matrix(0.946,0.326,-0.326,0.946,147,-108)">
+                      <path d="M347.5 347.5Q359.5 445.5 452.5 452.5 " markerEnd="url(#BannerArrow5)" />
+                    </g>
+                    <defs>
+                      <marker id="BannerArrow5" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                        <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                      </marker>
+                    </defs>
+                  </svg>
+                </div>
               </div>
               <div className="relative rounded-md px-3 sm:px-10 py-1.5 shadow-md bg-white/90 hover:shadow-lg transition-all duration-300">
-                <h3 className="text-sm text-center sm:text-base lg:text-lg font-bold text-gray-600">Passion-Aligned <br /><span className="text-xl text-black italic"> OPPORTUNITIES</span></h3>
+                <div>
+                  <h3 className="text-sm text-center sm:text-base lg:text-lg font-bold text-gray-600">Passion-Aligned <br /><span className="text-xl text-black italic"> OPPORTUNITIES</span></h3>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="absolute w-[90%] -top-[35%] -right-[22%]" viewBox="0 0 800 800">
+                    <g strokeWidth="7" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" transform="matrix(0.326,0.946,-0.946,0.326,659,-108)">
+                      <path d="M347.5 347.5Q446.5 365.5 452.5 452.5 " markerEnd="url(#BannerArrow6)" />
+                    </g>
+                    <defs>
+                      <marker id="BannerArrow6" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" viewBox="0 0 5 5" orient="auto">
+                        <polygon points="0,5 1.67,2.5 0,0 5,2.5" fill="hsl(0,0%,0%)" />
+                      </marker>
+                    </defs>
+                  </svg>
+                </div>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row justify-around mt-2 sm:mt-4 lg:mt-6 text-center gap-4 sm:gap-0">
@@ -186,7 +266,7 @@ const Banner = () => {
                   {factTimeline.map((f) => (
                     <div key={f.pct} className="flex items-start gap-3">
                       <div className="relative w-12 shrink-0 flex justify-center">
-                        <span className="relative inline-flex h-6 items-center justify-center rounded-full border border-gray-300 bg-blue-50 px-2.5 text-[11px] font-bold text-blue-900">
+                        <span className="text-sm font-bold text-gray-700">
                           {f.pct}
                         </span>
                       </div>

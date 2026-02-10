@@ -12,7 +12,7 @@ const PWIOIFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam }) => {
   };
 
   return (
-    <footer className="text-white py-5 relative overflow-hidden mt-10" style={{ background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #2a2a5a 100%)' }}>
+    <footer className="text-white py-5 relative overflow-hidden mt-0" style={{ background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #2a2a5a 100%)' }}>
       <div className="px-[10%] grid grid-cols-1 lg:grid-cols-3 gap-10">
 
         {/* Brand Section */}
@@ -90,9 +90,9 @@ const PWIOIFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam }) => {
               href="https://maps.google.com?q=PW+IOI+Bangalore+Campus"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex group items-center gap-3 text-gray-300 transition-all duration-300 hover:text-white"
+              className="flex group items-center gap-3 text-gray-400 transition-all duration-300 hover:text-white"
             >
-              <svg className="w-6 h-6 text-gray-300 group-hover:text-red-500 duration-200" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-400 group-hover:text-red-500 duration-200" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
               </svg>
               <span className='leading-5'>
