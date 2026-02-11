@@ -187,8 +187,7 @@ export default function PlacementRecords({ onLoginOpen }) {
               Success stories from our placed students
             </p>
 
-            {/* Show All button - commented out */}
-            {/* <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
+            <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
               <button
                 onClick={() => setShowBatchDropdown(!showBatchDropdown)}
                 className="bg-white text-blue-900 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-100 font-medium py-2 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
@@ -227,7 +226,7 @@ export default function PlacementRecords({ onLoginOpen }) {
                   ))}
                 </div>
               )}
-            </div> */}
+            </div>
           </div>
 
           <div className="relative">
@@ -240,7 +239,7 @@ export default function PlacementRecords({ onLoginOpen }) {
               {currentCards.map((student, index) => (
                 <div
                   key={`${currentRow}-${index}`}
-                  className="w-full max-w-[155px] xl:max-w-[165px]"
+                  className="w-full max-w-[230px] xl:max-w-[250px]"
                   style={{
                     animationDelay: `${index * 80}ms`,
                     animation: 'slideInUp 0.6s ease-out forwards'

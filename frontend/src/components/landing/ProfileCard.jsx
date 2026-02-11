@@ -406,6 +406,11 @@ const ProfileCardComponent = ({
             </div>
             {/* Hover/tap overlay: testimonial & batch lower-left, icons bottom-right */}
             <div className="pc-overlay" onClick={(e) => e.stopPropagation()}>
+              {status && (
+                <div className="pc-package-pill">
+                  {status}
+                </div>
+              )}
               {testimonial && (
                 <p className="pc-overlay-quote font-caveat">
                   {testimonial}
