@@ -5,11 +5,14 @@
  */
 
 import prisma from '../config/database.js';
+import jwt from 'jsonwebtoken';
 import { createNotification } from './notifications.js';
 import { getIO } from '../config/socket.js';
 import { sendApplicationNotification, sendApplicationStatusUpdateNotification } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess } from '../utils/response.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 /**
  * ==============================
@@ -1783,5 +1786,32 @@ export async function updateApplicationStatus(req, res) {
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });
+  }
+}
+
+/**
+ * Get a short-lived URL to view resume inline (opens in new tab without Bearer)
+ * GET /api/applications/:applicationId/resume-view-url
+ * Auth: ADMIN or RECRUITER
+ */
+export async function getResumeViewUrl(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true }
+    });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    const token = jwt.sign(
+      { type: 'application', applicationId: application.id },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    res.json({ url: `/api/resume/view?t=${token}` });
+  } catch (error) {
+    console.error('Get resume view URL error:', error);
+    res.status(500).json({ error: 'Failed to get resume view URL' });
   }
 }

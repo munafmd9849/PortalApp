@@ -6,10 +6,13 @@
 
 import prisma from '../config/database.js';
 import { Prisma } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import { uploadToS3, deleteFromS3 } from '../config/s3.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
   if (profilePhotoValue === undefined) {
@@ -385,7 +388,7 @@ export async function updateStudentProfile(req, res) {
       const studentData = {
         userId: targetUserId,
         email: cleanData.email || user.email,
-        fullName: cleanData.fullName || user.email, // Use email as fallback for name
+        fullName: (cleanData.fullName && cleanData.fullName.trim()) || '', // Name from user, not email
         phone: cleanData.phone || null,
         enrollmentId: cleanData.enrollmentId || null,
         school: cleanData.school || null,
@@ -1581,6 +1584,40 @@ export async function deleteResume(req, res) {
       error: 'Failed to delete resume',
       message: error.message || 'An unexpected error occurred while deleting the resume'
     });
+  }
+}
+
+/**
+ * Get short-lived URL to view own resume inline (opens in new tab)
+ * GET /api/students/resume/:resumeId/view-url
+ * Auth: STUDENT only; resume must belong to student.
+ */
+export async function getStudentResumeViewUrl(req, res) {
+  try {
+    const userId = req.userId;
+    const { resumeId } = req.params;
+    if (!resumeId) {
+      return res.status(400).json({ error: 'Resume ID is required' });
+    }
+    const resumeFile = await prisma.studentResumeFile.findFirst({
+      where: {
+        id: resumeId,
+        userId
+      },
+      select: { id: true }
+    });
+    if (!resumeFile) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+    const token = jwt.sign(
+      { type: 'student_resume', resumeId, userId },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    res.json({ url: `/api/resume/view?t=${token}` });
+  } catch (error) {
+    console.error('Get student resume view URL error:', error);
+    res.status(500).json({ error: 'Failed to get resume view URL' });
   }
 }
 

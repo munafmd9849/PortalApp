@@ -25,6 +25,7 @@ router.put('/profile', studentController.updateStudentProfile);
 
 // Enforce mandatory profile completion for student routes
 // Allow access to /profile even when incomplete
+// Use same derived logic as auth: complete if DB flag is true OR all required fields are filled
 router.use(async (req, res, next) => {
   try {
     const role = req.user?.role;
@@ -37,13 +38,28 @@ router.use(async (req, res, next) => {
       return next();
     }
 
-    const student = await prisma.student.findUnique({
+    const student = req.user?.student ?? await prisma.student.findUnique({
       where: { userId: req.userId },
     });
 
-    // If field doesn't exist yet in schema/client, this will just be undefined,
-    // so we defensively treat "undefined" as incomplete for now.
-    if (!student || !student.profileCompleted) {
+    if (!student) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE' });
+    }
+
+    const isComplete =
+      student.profileCompleted === true ||
+      (() => {
+        const email = (req.user?.email || '').trim();
+        const fullName = (student.fullName || '').trim();
+        const phone = (student.phone || '').trim();
+        const enrollmentId = (student.enrollmentId || '').trim();
+        const school = (student.school || '').trim();
+        const center = (student.center || '').trim();
+        const batch = (student.batch || '').trim();
+        return !!(email && fullName && phone && enrollmentId && school && center && batch);
+      })();
+
+    if (!isComplete) {
       return res.status(403).json({ error: 'PROFILE_INCOMPLETE' });
     }
 
@@ -122,6 +138,13 @@ router.post('/resume',
 router.get('/resumes', 
   requireRole(['STUDENT']),
   studentController.getResumes
+);
+
+// Get short-lived URL to view resume inline (for new tab)
+// GET /api/students/resume/:resumeId/view-url
+router.get('/resume/:resumeId/view-url',
+  requireRole(['STUDENT']),
+  studentController.getStudentResumeViewUrl
 );
 
 // Set default resume

@@ -596,6 +596,7 @@ export const api = {
   },
   getResumes: () => apiRequest('/students/resumes'),
   getResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`),
+  getStudentResumeViewUrl: (resumeId) => apiRequest(`/students/resume/${resumeId}/view-url`),
   setDefaultResume: (resumeId) => apiRequest(`/students/resume/${resumeId}/default`, {
     method: 'PATCH',
   }),
@@ -701,6 +702,7 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify({ status, interviewDate }),
   }),
+  getApplicationResumeViewUrl: (applicationId) => apiRequest(`/applications/${applicationId}/resume-view-url`),
 
   // Notifications
   getNotifications: (params = {}) => {

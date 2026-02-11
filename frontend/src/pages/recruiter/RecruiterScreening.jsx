@@ -12,6 +12,7 @@ import {
   Eye, ExternalLink, Calendar, Sparkles, Shield, Award, TrendingUp
 } from 'lucide-react';
 import api from '../../services/api';
+import { API_BASE_URL } from '../../config/api';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import CustomDropdown from '../../components/common/CustomDropdown';
 
@@ -437,9 +438,10 @@ const RecruiterScreening = () => {
                             <button
                               onClick={() => {
                                 try {
-                                  const pdfWindow = window.open(student.resumeUrl, '_blank');
+                                  const viewUrl = `${API_BASE_URL}/recruiter/screening/resume/${app.id}?token=${encodeURIComponent(token)}&jobId=${encodeURIComponent(jobId)}`;
+                                  const pdfWindow = window.open(viewUrl, '_blank');
                                   if (!pdfWindow) {
-                                    window.location.href = student.resumeUrl;
+                                    window.location.href = viewUrl;
                                   } else {
                                     pdfWindow.focus();
                                   }

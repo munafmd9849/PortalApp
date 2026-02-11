@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
+import { API_BASE_URL } from '../../config/api';
 import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon, ChevronDown } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import ThankYouPopup from '../../components/common/ThankYouPopup';
@@ -468,7 +469,18 @@ const InterviewerRoundEvaluation = () => {
                           <td className="px-4 py-4 text-center whitespace-nowrap">
                             {candidate.student.resumeUrl ? (
                               <button
-                                onClick={() => {
+                                onClick={async () => {
+                                  try {
+                                    const result = await api.getApplicationResumeViewUrl(candidate.applicationId);
+                                    const path = result?.url || result?.data?.url;
+                                    if (path) {
+                                      const base = API_BASE_URL.replace(/\/api\/?$/, '');
+                                      const viewUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+                                      const w = window.open(viewUrl, '_blank');
+                                      if (w) w.focus();
+                                      return;
+                                    }
+                                  } catch (_) { /* fallback */ }
                                   const pdfWindow = window.open(candidate.student.resumeUrl, '_blank');
                                   if (pdfWindow) pdfWindow.focus();
                                 }}

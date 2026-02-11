@@ -31,4 +31,7 @@ router.post('/jobs/:jobId', requireRole(['STUDENT']), applicationController.appl
 // Update application status (admin/recruiter)
 router.patch('/:applicationId/status', requireRole(['ADMIN', 'RECRUITER']), applicationController.updateApplicationStatus);
 
+// Get short-lived URL to view resume inline (for new tab; no Bearer in tab)
+router.get('/:applicationId/resume-view-url', requireRole(['ADMIN', 'RECRUITER']), applicationController.getResumeViewUrl);
+
 export default router;

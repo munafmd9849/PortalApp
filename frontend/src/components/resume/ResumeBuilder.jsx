@@ -18,6 +18,7 @@ import {
   generateProjectContent
 } from '../../services/students';
 import api from '../../services/api';
+import { API_BASE_URL } from '../../config/api';
 import ResumeTemplate1 from './ResumeTemplate1';
 import ResumeTemplate2 from './ResumeTemplate2';
 import ResumeTemplate3 from './ResumeTemplate3';
@@ -614,6 +615,21 @@ const ResumeBuilder = () => {
       setTimeout(() => setError(''), 4000);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleViewResume = async (resume) => {
+    try {
+      const result = await api.getStudentResumeViewUrl(resume.id);
+      const path = result?.url ?? result?.data?.url;
+      if (path) {
+        const base = API_BASE_URL.replace(/\/api\/?$/, '');
+        const viewUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+        window.open(viewUrl, '_blank');
+      }
+    } catch (_) {
+      setError('Could not open resume. Try downloading instead.');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -2069,13 +2085,23 @@ const ResumeBuilder = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <a
-                          href={resume.fileUrl || resume.url}
-                          download
+                        <button
+                          type="button"
+                          onClick={() => handleViewResume(resume)}
                           className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all cursor-pointer text-sm font-medium"
                         >
                           <Eye size={16} />
                           View
+                        </button>
+                        <a
+                          href={resume.fileUrl || resume.url}
+                          download={resume.fileName || resume.title || 'resume.pdf'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all cursor-pointer text-sm font-medium"
+                        >
+                          <Download size={16} />
+                          Download
                         </a>
                         <button
                           onClick={() => handleDeleteResume(resume.id)}
@@ -2323,13 +2349,23 @@ const ResumeBuilder = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4">
-                          <a
-                            href={resume.fileUrl || resume.url}
-                            download
+                          <button
+                            type="button"
+                            onClick={() => handleViewResume(resume)}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg"
                           >
                             <Eye size={18} />
                             View
+                          </button>
+                          <a
+                            href={resume.fileUrl || resume.url}
+                            download={resume.fileName || resume.title || 'resume.pdf'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-all font-medium shadow-md hover:shadow-lg"
+                          >
+                            <Download size={18} />
+                            Download
                           </a>
                           <button
                             onClick={async () => {

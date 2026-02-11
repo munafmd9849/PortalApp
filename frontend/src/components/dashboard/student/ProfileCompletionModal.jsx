@@ -29,8 +29,12 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
       try {
         const profile = await api.getStudentProfile();
         if (cancelled || !profile) return;
-        setFullName(profile.fullName || '');
-        setEmail(profile.email || user.email || '');
+        const emailVal = profile.email || user.email || '';
+        setEmail(emailVal);
+        // Don't prefill name with email — if fullName is missing or is the email, leave name empty
+        const nameVal = (profile.fullName || '').trim();
+        const isEmailAsName = !nameVal || nameVal === emailVal || nameVal.includes('@');
+        setFullName(isEmailAsName ? '' : nameVal);
         setPhone(profile.phone || '');
         setEnrollmentId(profile.enrollmentId || '');
         setSchool(profile.school || '');
@@ -313,15 +317,6 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
           </button>
         </div>
 
-        {/* Disabled close icon (visible but not interactive) */}
-        <button
-          type="button"
-          className="absolute top-3 right-3 inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 text-gray-400 cursor-not-allowed"
-          aria-label="Close (disabled until profile completed)"
-          disabled
-        >
-          ×
-        </button>
       </div>
     </div>
   );
