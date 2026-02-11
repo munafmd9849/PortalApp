@@ -13,11 +13,11 @@ const HiringBet = ({ userSelection = 'SOT' }) => {
       case 'SOT': // Software Development
         return ["framework", "tool", "API", "library", "language", "tech-stack", "AI Assistant", "ML Model"];
       case 'SOM': // Software Management
-        return ["case study", "algorithm", "metric", "AI Assistant", "ML Model"];
+        return ["case study", "algorithm", "metric"];
       case 'SOH': // Software Healthcare
-        return ["EMR", "procedure", "diagnosis", "treatment", "AI Assistant", "ML Model"];
+        return ["EMR", "procedure", "diagnosis", "treatment"];
       default:
-        return ["framework", "tool", "API", "languages", "AI Assistant", "ML Model"];
+        return ["framework", "tool", "API", "languages"];
     }
   };
 
