@@ -174,6 +174,35 @@ const DashboardHome = ({
     return studentCgpaNum >= requiredCgpa;
   };
 
+  // Check if student's Year of Passing (derived from batch) meets job YOP requirement
+  const meetsYopRequirement = (job) => {
+    const jobYop = job?.yop;
+    const studentBatch = formattedStudentData?.batch;
+
+    if (!jobYop || !studentBatch) {
+      return true;
+    }
+
+    const jobYopInt = parseInt(String(jobYop).trim(), 10);
+    if (Number.isNaN(jobYopInt)) {
+      return true;
+    }
+
+    const parts = String(studentBatch)
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const endPart = parts.length > 1 ? parts[1] : parts[0];
+    const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+    if (Number.isNaN(endNum)) {
+      return true;
+    }
+
+    const studentYop = endNum < 100 ? 2000 + endNum : endNum;
+    return studentYop <= jobYopInt;
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'applied': return 'text-blue-600 bg-blue-100';
@@ -230,6 +259,7 @@ const DashboardHome = ({
           onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
           meetsCgpaRequirement={meetsCgpaRequirement}
           isDeadlinePassed={isDeadlinePassed}
+          meetsYopRequirement={meetsYopRequirement}
         />
       )}
 

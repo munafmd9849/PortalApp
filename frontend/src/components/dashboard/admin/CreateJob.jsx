@@ -698,7 +698,7 @@ export default function CreateJob({ onCreated }) {
     
     // Conditional requirement based on job type
     const comp = form.jobType === 'Internship'
-      ? form.stipend?.trim() && form.duration?.trim()
+      ? form.stipend?.trim() && form.duration?.trim() // For internships, stipend is required (free text) along with duration
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
     
     // Validation checks (format/error checks)
@@ -784,12 +784,8 @@ export default function CreateJob({ onCreated }) {
   };
 
   const onStipendChange = (value) => {
-    if (value === '' || isValidNumeric(value)) {
-      update({ stipend: value });
-      setStipendError('');
-    } else {
-      setStipendError('Please enter the amount');
-    }
+    update({ stipend: value });
+    setStipendError('');
   };
 
   const onDurationChange = (value) => {
@@ -803,12 +799,8 @@ export default function CreateJob({ onCreated }) {
   };
 
   const onSalaryChange = (value) => {
-    if (value === '' || isValidNumeric(value.replace(/[,]/g, ''))) {
-      update({ salary: value });
-      setSalaryError('');
-    } else {
-      setSalaryError('Please enter the amount');
-    }
+    update({ salary: value });
+    setSalaryError('');
   };
 
   const onCompanyLocationChange = (value) => {
@@ -1973,10 +1965,11 @@ export default function CreateJob({ onCreated }) {
                         Stipend <span className="text-red-500">*</span>
                       </label>
                       <input 
+                        type="text"
                         className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                           stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                         }`} 
-                        placeholder="₹ per month (e.g. 15000)" 
+                        placeholder="e.g. ₹15000 per month, As per performance, As per industry standards" 
                         value={form.stipend} 
                         onChange={(e) => onStipendChange(e.target.value)} 
                       />
@@ -2005,10 +1998,11 @@ export default function CreateJob({ onCreated }) {
                       Salary (CTC) <span className="text-red-500">*</span>
                     </label>
                     <input 
+                      type="text"
                       className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                         salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                       }`} 
-                      placeholder="₹ per annum (e.g. 12,00,000)" 
+                      placeholder="e.g. 12 LPA, 10–15 LPA, As per industry standards" 
                       value={form.salary} 
                       onChange={(e) => onSalaryChange(e.target.value)} 
                     />
@@ -2095,10 +2089,11 @@ export default function CreateJob({ onCreated }) {
 
                 {/* Company SPOC Subsection */}
                 <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <Users size={18} className="text-indigo-600" />
                     <h4 className="text-md font-semibold text-gray-900">Company SPOC</h4>
                   </div>
+                  <p className="text-sm text-gray-500 mb-4">Single Point of Contact for this job—the person candidates or the placement team can reach for queries (e.g. HR, recruiter, or hiring manager).</p>
                   {(Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }]).map((spoc, idx) => (
                     <div key={idx} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
@@ -2383,17 +2378,27 @@ export default function CreateJob({ onCreated }) {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Calendar size={16} className="text-gray-500" />
+                      <FaCalendarAlt className="w-4 h-4 text-amber-600" />
                       Year of Passing <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.yop?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 2025 or 25" 
-                      value={form.yop} 
-                      onChange={(e) => onYopChange(e.target.value)} 
-                    />
+                    <div className="relative">
+                      <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-500 w-5 h-5 pointer-events-none z-10" />
+                      <DatePicker
+                        selected={form.yop?.trim() ? (() => {
+                          const y = parseInt(form.yop, 10);
+                          return isNaN(y) ? null : new Date(y < 100 ? 2000 + y : y, 0, 1);
+                        })() : null}
+                        onChange={(date) => update({ yop: date ? String(date.getFullYear()) : '' })}
+                        showYearPicker
+                        dateFormat="yyyy"
+                        placeholderText="Select year"
+                        yearItemNumber={12}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                        wrapperClassName="w-full"
+                        minDate={new Date(2020, 0, 1)}
+                        maxDate={new Date(2035, 11, 31)}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -2401,7 +2406,7 @@ export default function CreateJob({ onCreated }) {
                       Minimum CGPA/Percentage <span className="text-red-500">*</span>
                     </label>
                     <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                      className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                         minCgpaError ? 'border-red-500 bg-red-50' : form.minCgpa?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                       }`} 
                       placeholder="e.g. 7.0 or 70%" 

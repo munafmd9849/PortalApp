@@ -1349,7 +1349,43 @@ export async function applyToJob(req, res) {
       });
     }
 
-    // Get student with full details including CGPA and backlogs
+    // -----------------------------------------------------------------------
+    // Year of Passing (YOP) eligibility check
+    // Job.yop is the upper limit; student's year of passing is derived from batch.
+    // Example rule: job.yop = 2027 → students with YOP <= 2027 can apply.
+    // -----------------------------------------------------------------------
+    if (job.yop) {
+      const jobYopStr = String(job.yop).trim();
+      const jobYopInt = parseInt(jobYopStr, 10);
+
+      if (!Number.isNaN(jobYopInt)) {
+        // Derive student's year of passing from batch (e.g. "23-27" → 2027)
+        const batch = studentProfile?.batch || null;
+        let studentYop = null;
+
+        if (batch) {
+          const parts = batch.split('-').map((p) => p.trim()).filter(Boolean);
+          const endPart = parts.length > 1 ? parts[1] : parts[0];
+          const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+          if (!Number.isNaN(endNum)) {
+            // If stored as 2‑digit year (e.g. 27), assume 2000s
+            studentYop = endNum < 100 ? 2000 + endNum : endNum;
+          }
+        }
+
+        if (studentYop !== null && studentYop > jobYopInt) {
+          return res.status(400).json({
+            error: 'YOP requirement not met',
+            message: `This job is open for students passing out in ${jobYopInt} or earlier.`,
+            requirement: jobYopInt,
+            yourYearOfPassing: studentYop,
+          });
+        }
+      }
+    }
+
+    // Get student with full details including CGPA, backlogs and batch (for YOP logic)
     const studentProfile = await prisma.student.findUnique({
       where: { id: student.id },
       select: {
@@ -1358,6 +1394,7 @@ export async function applyToJob(req, res) {
         email: true,
         cgpa: true,
         backlogs: true,
+        batch: true, // e.g. "23-27"
       },
     });
 

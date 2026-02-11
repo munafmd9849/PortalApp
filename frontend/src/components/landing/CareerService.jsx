@@ -205,10 +205,10 @@ export default function AdminSlider() {
           <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] tracking-tight leading-tight">
             Office of{" "}
             <span
-              className="relative px-1 bg-gradient-to-t from-[var(--pl-accent-orange)] to-[var(--pl-accent-orange)] bg-no-repeat
-              [background-size:100%_22%] [background-position:0_92%]
+              className="relative px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat
+              [background-size:100%_25%] [background-position:0_100%]
               transition-all duration-300 ease-in-out
-              hover:[background-size:100%_100%] hover:[background-position:0_100%]"
+              hover:[background-size:100%_100%] hover:[background-position:100%_100%]"
             >
               Career Services
             </span>

@@ -437,34 +437,34 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
               {mode === 'register' && 'Sign up'}
               {mode === 'forgot' && 'Reset password'}
             </h2>
-            <div className="flex justify-center gap-2 mb-6">
-              {['Student', 'Recruiter', 'Admin'].map(opt => (
-                <button
-                  key={opt}
-                  className={`px-3 py-1 rounded-lg font-semibold text-sm uppercase border transition-all duration-300 transform hover:rotate-1 backdrop-blur-md cursor-pointer
-                    ${role === opt ? 'bg-black/85 text-white scale-105 shadow-lg border-black/90 hover:bg-black/90' : 'bg-black/60 text-white border-black/70 hover:scale-105 hover:shadow-md hover:bg-black/70'}`}
-                  onClick={() => {
-                    setRole(opt);
-                    setAnimKey(opt); // Trigger form animation
-                    
-                    // Reset OTP flow when switching roles (especially important during registration)
-                    // OTP is role-specific, so switching roles should start fresh
-                    if (mode === 'register') {
-                      setOtpStep('email');
-                      setOtpSent(false);
-                      setOtp('');
-                      setOtpDigits(['', '', '', '', '', '']);
-                      setOtpStatus(null);
-                      setOtpExpiresAt(null);
-                      setTimeRemaining(null);
-                      setVerificationToken('');
-                      setError(''); // Clear any errors
-                    }
-                  }}
-                >
-                  {opt}
-                </button>
-              ))}
+            {/* Role selector: pill container matching modal theme (golden/cream) */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex p-1 rounded-full bg-amber-100/90 border border-amber-200/70 shadow-inner">
+                {['Student', 'Recruiter', 'Admin'].map(opt => (
+                  <button
+                    key={opt}
+                    className={`px-4 py-2 rounded-full font-semibold text-sm uppercase border-0 transition-all duration-300 cursor-pointer min-w-[5rem]
+                      ${role === opt ? 'bg-black text-white shadow-md' : 'bg-transparent text-black hover:bg-amber-200/70'}`}
+                    onClick={() => {
+                      setRole(opt);
+                      setAnimKey(opt); // Trigger form animation
+                      if (mode === 'register') {
+                        setOtpStep('email');
+                        setOtpSent(false);
+                        setOtp('');
+                        setOtpDigits(['', '', '', '', '', '']);
+                        setOtpStatus(null);
+                        setOtpExpiresAt(null);
+                        setTimeRemaining(null);
+                        setVerificationToken('');
+                        setError('');
+                      }
+                    }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
             </div>
             <div
               key={animKey}

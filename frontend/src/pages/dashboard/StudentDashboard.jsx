@@ -1077,6 +1077,38 @@ export default function StudentDashboard() {
     return studentCgpa >= requiredCgpa;
   };
 
+  // Check if student's derived Year of Passing (from batch) meets job YOP requirement
+  // Rule: job.yop = Y → students with YOP <= Y can apply.
+  const meetsYopRequirement = (job) => {
+    const jobYop = job?.yop;
+    if (!jobYop || !batch) {
+      // No YOP restriction or student has no batch set → allow
+      return true;
+    }
+
+    const jobYopInt = parseInt(String(jobYop).trim(), 10);
+    if (Number.isNaN(jobYopInt)) {
+      // If job YOP is not a valid number, don't block
+      return true;
+    }
+
+    // Derive student's year of passing from batch string, e.g. "23-27" → 2027
+    const parts = String(batch)
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const endPart = parts.length > 1 ? parts[1] : parts[0];
+    const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+    if (Number.isNaN(endNum)) {
+      // If batch format is unexpected, don't block
+      return true;
+    }
+
+    const studentYop = endNum < 100 ? 2000 + endNum : endNum;
+    return studentYop <= jobYopInt;
+  };
+
   // Job Description navigation handler
   const handleKnowMore = (job) => {
     navigate(`/job/${job.id}`);
@@ -2213,6 +2245,7 @@ export default function StudentDashboard() {
                       const isApplying = applying[job.id];
                       const cgpaNotMet = !meetsCgpaRequirement(job);
                       const deadlinePassed = isDeadlinePassed(job);
+                      const yopNotEligible = !meetsYopRequirement(job);
                       
                       return (
                         <div
@@ -2249,7 +2282,7 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2260,14 +2293,17 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
                                 className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -2291,6 +2327,11 @@ export default function StudentDashboard() {
                                   <>
                                     <XCircle className="h-5 w-5" />
                                     Deadline Passed
+                                  </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    YOP Not Eligible
                                   </>
                                 ) : (
                                   <>
@@ -2335,7 +2376,7 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2346,14 +2387,17 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
                                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -2372,6 +2416,11 @@ export default function StudentDashboard() {
                                   <>
                                     <XCircle className="h-5 w-5" />
                                     CGPA Not Met
+                                  </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    YOP Not Eligible
                                   </>
                                 ) : (
                                   <>

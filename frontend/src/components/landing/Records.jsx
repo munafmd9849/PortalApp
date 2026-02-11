@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import ProfileCard from './ProfileCard.jsx';
-import './Records.css';
+import { IconBrandLinkedin, IconMail } from '@tabler/icons-react';
+import TiltedCard from './TiltedCard';
 
 const STUDENT_RECORDS = [
   [
@@ -49,6 +49,154 @@ const TESTIMONIALS = [
   `Mock interviews, resume tips, and constant encouragement — I had it all. Grateful to have cracked it with such a strong team behind me.`,
   `Every doubt I had was met with patience and guidance. This experience didn't just get me a job; it gave me confidence for life.`,
 ];
+
+function studentEmailHref(student) {
+  const name = String(student?.name || '').toLowerCase().trim().replace(/\s+/g, '.');
+  const company = String(student?.company || '').toLowerCase().trim().replace(/\s+/g, '');
+  if (!name || !company) return 'mailto:placements@example.com';
+  return `mailto:${name}@${company}.com`;
+}
+
+// Desktop student card, cloned from frontend copy Records for matching top/hover content
+const StudentCardDesktop = ({ student, index }) => {
+  const height = '340px';
+
+  return (
+    <div
+      className="relative w-full"
+      style={{
+        animationDelay: `${index * 100}ms`,
+        animation: 'slideInUp 0.6s ease-out forwards',
+      }}
+    >
+      <TiltedCard
+        imageSrc={student.profileImg}
+        altText={`${student.name} - ${student.company}`}
+        captionText={`${student.name} • ${student.company}`}
+        containerHeight={height}
+        containerWidth="100%"
+        imageHeight={height}
+        imageWidth="100%"
+        rotateAmplitude={7}
+        scaleOnHover={1.04}
+        showMobileWarning={false}
+        showTooltip={true}
+        displayOverlayContent={true}
+        imageRadiusClassName="rounded-[10px]"
+        overlayContent={
+          <div className="h-full w-full rounded-[10px] overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            {/* Hover actions (top) */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto">
+              <a
+                href={student.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+                aria-label={`Open ${student.name} LinkedIn`}
+                title="LinkedIn"
+              >
+                <IconBrandLinkedin size={16} />
+              </a>
+              <a
+                href={studentEmailHref(student)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+                aria-label={`Email ${student.name}`}
+                title="Email"
+              >
+                <IconMail size={16} />
+              </a>
+            </div>
+            <div className="absolute left-4 right-4 bottom-4">
+              <div className="text-white font-semibold text-lg leading-tight">
+                {student.name}
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-white/90 text-sm font-semibold truncate">
+                    {student.company}
+                  </div>
+                  <div className="text-white/70 text-xs truncate">{student.role}</div>
+                </div>
+                <div className="shrink-0 rounded-xl bg-white/15 border border-white/25 px-2.5 py-1 text-xs font-bold text-white backdrop-blur">
+                  {student.package}
+                </div>
+              </div>
+              <div className="mt-2 text-[11px] text-white/70">Batch {student.batch}</div>
+            </div>
+          </div>
+        }
+      />
+    </div>
+  );
+};
+
+// Mobile/tablet flat card (no 3D tilt), cloned from frontend copy
+const StudentCardMobile = ({ student, index }) => {
+  const height = 'clamp(340px, 78vw, 520px)';
+
+  return (
+    <div
+      className="relative w-full"
+      style={{
+        animationDelay: `${index * 90}ms`,
+        animation: 'slideInUp 0.55s ease-out forwards',
+      }}
+    >
+      <div
+        className="relative w-full overflow-hidden rounded-[10px] border border-[var(--pl-border)] shadow-sm"
+        style={{ height }}
+      >
+        <img
+          src={student.profileImg}
+          alt={`${student.name} - ${student.company}`}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+
+        {/* Actions: always visible on mobile */}
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <a
+            href={student.linkedin}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition active:scale-[0.98]"
+            aria-label={`Open ${student.name} LinkedIn`}
+            title="LinkedIn"
+          >
+            <IconBrandLinkedin size={18} />
+          </a>
+          <a
+            href={studentEmailHref(student)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition active:scale-[0.98]"
+            aria-label={`Email ${student.name}`}
+            title="Email"
+          >
+            <IconMail size={18} />
+          </a>
+        </div>
+
+        <div className="absolute left-4 right-4 bottom-4">
+          <div className="text-white font-semibold text-xl leading-tight">{student.name}</div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-white/90 text-sm font-semibold truncate">
+                {student.company}
+              </div>
+              <div className="text-white/70 text-xs truncate">{student.role}</div>
+            </div>
+            <div className="shrink-0 rounded-xl bg-white/15 border border-white/25 px-2.5 py-1 text-xs font-bold text-white backdrop-blur">
+              {student.package}
+            </div>
+          </div>
+          <div className="mt-2 text-[11px] text-white/70">Batch {student.batch}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function PlacementRecords({ onLoginOpen }) {
   const [currentRow, setCurrentRow] = useState(0);
@@ -117,23 +265,39 @@ export default function PlacementRecords({ onLoginOpen }) {
     return row.slice(0, cardsToShow);
   }, [currentRow]);
 
+  // Primary (first) card and its testimonial for middle column
+  const primaryCard = currentCards[0];
+  const primaryTestimonialIndex = useMemo(
+    () => (currentRow * cardsToShow) % TESTIMONIALS.length,
+    [currentRow]
+  );
+  const primaryTestimonial = TESTIMONIALS[primaryTestimonialIndex];
+
   return (
     <>
-      <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <section
+        ref={sectionRef}
+        className="py-12 sm:py-16 overflow-hidden relative"
+      >
+        <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight">
+            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight">
               Hear How They{" "}
-              <span className="font-crack-display">
-                Cracked it
+              <span
+                className="relative px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat
+                [background-size:100%_25%] [background-position:0_100%]
+                transition-all duration-300 ease-in-out
+                hover:[background-size:100%_100%] hover:[background-position:100%_100%]"
+              >
+                Cracked It
               </span>
             </h2>
             <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">
               Success stories from our placed students
             </p>
 
-            {/* Show All button - commented out */}
-            {/* <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
+            {/* Show All button */}
+            <div className="lg:absolute lg:top-1/4 lg:right-0 dropdown-container mt-5 lg:mt-0">
               <button
                 onClick={() => setShowBatchDropdown(!showBatchDropdown)}
                 className="bg-white text-blue-900 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-100 font-medium py-2 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
@@ -172,69 +336,92 @@ export default function PlacementRecords({ onLoginOpen }) {
                   ))}
                 </div>
               )}
-            </div> */}
+            </div>
           </div>
 
           <div className="relative">
-            {/* Laptop and up: 5-card grid using ProfileCard */}
+            {/* Desktop: horizontal connector line between left card and testimonial */}
             <div
-              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full"
+              className="hidden lg:block absolute left-[27%] w-[6%] top-1/2 -translate-y-1/2 h-1 pointer-events-none z-10"
+              style={{
+                background: 'linear-gradient(to right, rgba(30, 58, 95, 0.4), rgba(25, 55, 95, 0.85), rgba(30, 58, 95, 0.4))',
+              }}
+              aria-hidden
+            />
+            {/* Desktop: middle column shows testimonial of the first (left) card */}
+            {primaryCard && primaryTestimonial && (
+              <div
+                className="hidden lg:flex absolute top-[10%] left-[46%] -translate-x-1/2 min-w-[260px] max-w-[320px] w-[20vw] min-h-[260px] p-6 rounded-xl bg-white shadow-xl border border-slate-900/[0.05] flex-col gap-3 z-[15]"
+              >
+                <p className="m-0 text-[0.9rem] leading-relaxed text-gray-600">
+                  {primaryTestimonial}
+                </p>
+                <div className="flex flex-col gap-0.5 text-sm text-gray-500">
+                  <span className="font-semibold text-gray-900">{primaryCard.name}</span>
+                  <span className="text-[0.78rem]">
+                    {primaryCard.company} • {primaryCard.role}
+                  </span>
+                </div>
+              </div>
+            )}
+            {/* Laptop and up: 5-card layout (absolute positions) */}
+            <div
+              className="hidden lg:block relative min-h-[280px] w-full max-w-7xl mx-auto transition-all duration-1000 ease-in-out"
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
             >
               {currentCards.map((student, index) => (
                 <div
                   key={`${currentRow}-${index}`}
-                  className="w-full max-w-[155px] xl:max-w-[165px]"
+                  className={`absolute top-0 min-w-[260px] max-w-[320px] w-[20vw] ${
+                    index === 0
+                      ? 'left-[2%] z-[5]'
+                      : index === 1
+                        ? 'right-[10%] z-[4]'
+                        : index === 2
+                          ? 'right-[6%] z-[3]'
+                          : index === 3
+                            ? 'right-[2%] z-[2]'
+                            : 'right-[-2%] z-[1]'
+                  }`}
                   style={{
                     animationDelay: `${index * 80}ms`,
-                    animation: 'slideInUp 0.6s ease-out forwards'
+                    animation: 'slideInUp 0.6s ease-out forwards',
                   }}
                 >
-                  <ProfileCard
-                    name={student.name}
-                    title={`${student.company} • ${student.role}`}
-                    batch={student.batch}
-                    handle={String(student.name || '')
-                      .toLowerCase()
-                      .replace(/\s+/g, '')}
-                    status={student.package}
-                    contactText="View Profile"
-                    avatarUrl={student.profileImg}
-                    showUserInfo={false}
-                    enableTilt={true}
-                    enableMobileTilt={false}
-                    showBehindGlow
-                    behindGlowColor="rgba(148,163,184,0.4)"
-                    customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
-                    testimonial={TESTIMONIALS[(currentRow * cardsToShow + index) % TESTIMONIALS.length]}
-                    linkedinUrl={student.linkedin}
-                    emailHref={`mailto:${String(student.name || '')
-                      .toLowerCase()
-                      .trim()
-                      .replace(/\s+/g, '.')}@${String(student.company || '')
-                      .toLowerCase()
-                      .trim()
-                      .replace(/\s+/g, '')}.com`}
-                  />
+                  <StudentCardDesktop student={student} index={index} />
                 </div>
               ))}
             </div>
-            <div className="hidden lg:flex justify-center mt-8 gap-2">
-              {STUDENT_RECORDS.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentRow(index)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    currentRow === index
-                      ? 'bg-[#1565C0] scale-125'
-                      : 'bg-gray-300 hover:bg-gray-400'
-                  }`}
-                />
-              ))}
+            {/* Desktop controls: previous / next arrows for left card row */}
+            <div className="hidden lg:flex justify-center mt-8 gap-4">
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentRow((prev) =>
+                    (prev - 1 + STUDENT_RECORDS.length) % STUDENT_RECORDS.length
+                  )
+                }
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 shadow-sm transition"
+                aria-label="Previous stories"
+              >
+                <span className="text-lg">&larr;</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentRow((prev) =>
+                    (prev + 1) % STUDENT_RECORDS.length
+                  )
+                }
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 shadow-sm transition"
+                aria-label="Next stories"
+              >
+                <span className="text-lg">&rarr;</span>
+              </button>
             </div>
 
-            {/* Mobile only: ProfileCard carousel — 1 full card + 1/4 of next */}
+            {/* Mobile only: StudentCardMobile carousel — 1 full card + 1/4 of next */}
             <div
               ref={mobileScrollRef}
               className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
@@ -249,24 +436,7 @@ export default function PlacementRecords({ onLoginOpen }) {
                   style={{ width: '80%', minWidth: '80%' }}
                 >
                   <div className="w-full max-w-[240px]">
-                    <ProfileCard
-                      name={student.name}
-                      title={`${student.company} • ${student.role}`}
-                      batch={student.batch}
-                      handle={String(student.name || '').toLowerCase().replace(/\s+/g, '')}
-                      status={student.package}
-                      contactText="View Profile"
-                      avatarUrl={student.profileImg}
-                      showUserInfo={false}
-                      enableTilt={false}
-                      enableMobileTilt={false}
-                      showBehindGlow
-                      behindGlowColor="rgba(148,163,184,0.4)"
-                      customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
-                      testimonial={TESTIMONIALS[idx % TESTIMONIALS.length]}
-                      linkedinUrl={student.linkedin}
-                      emailHref={`mailto:${String(student.name || '').toLowerCase().trim().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().trim().replace(/\s+/g, '')}.com`}
-                    />
+                    <StudentCardMobile student={student} index={idx} />
                   </div>
                 </div>
               ))}

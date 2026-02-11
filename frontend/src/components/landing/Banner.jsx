@@ -120,7 +120,7 @@ const Banner = () => {
             {/* Facts + arrows around India map (desktop) */}
             <div ref={factsRef} className="absolute w-full h-full">
               <div className="relative w-full h-full">
-                <div className="absolute right-[5%] top-[12%] flex items-center gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[6%] top-[16%] flex items-center gap-2 text-sm font-semibold text-gray-600">
                   <span className="shrink-0 font-bold">70%</span>
                   <span>Students lack industry‑relevant skills</span>
                 </div>
@@ -135,7 +135,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[2%] top-[21%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[4%] top-[25%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">40%</span>
                   <span>Students choose the wrong career path</span>
                 </div>
@@ -150,7 +150,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[2%] bottom-[12%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[2%] bottom-[6%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">29%</span>
                   <span>Young population lacks industry exposure</span>
                 </div>
@@ -176,7 +176,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[3%] -bottom-[7%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[3%] -bottom-[12%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">55%</span>
                   <span>Students are unprepared for real interview and hiring processes</span>
                 </div>
