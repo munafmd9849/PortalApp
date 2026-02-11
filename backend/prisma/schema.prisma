@@ -103,6 +103,8 @@ model Student {
   email        String   @unique
   phone        String
   enrollmentId String?  @unique // Optional during registration, user provides it later
+  /// Indicates whether student has completed mandatory profile fields at least once
+  profileCompleted Boolean @default(false) @map("profile_completed")
   cgpa         Decimal?
   backlogs     String? // Number of backlogs (e.g., "0", "1", "2", "3+")
 

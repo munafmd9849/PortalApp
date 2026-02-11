@@ -177,6 +177,16 @@ export default function AdminSlider() {
     container.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
   }, [mobileIndex, mobileInView]);
 
+  const pageCount = useMemo(() => {
+    if (!members.length) return 0;
+    return Math.ceil(members.length / cardsToShow);
+  }, [members.length, cardsToShow]);
+
+  const activePage = useMemo(() => {
+    if (!pageCount) return 0;
+    return Math.floor(currentIndex / cardsToShow) % pageCount;
+  }, [currentIndex, cardsToShow, pageCount]);
+
   const visibleMembers = useMemo(() => {
     if (!members.length) return [];
     const out = [];
@@ -234,6 +244,31 @@ export default function AdminSlider() {
             </div>
           ))}
         </div>
+
+        {/* Carousel dots / pager */}
+        {pageCount > 1 && (
+          <div className="mt-6 flex justify-center gap-2">
+            {Array.from({ length: pageCount }).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  const targetIndex = (idx * cardsToShow) % members.length;
+                  setCurrentIndex(targetIndex);
+                  setMobileIndex(targetIndex);
+                  setIsPaused(true);
+                  setMobilePaused(true);
+                }}
+                className={`h-2.5 w-2.5 rounded-full transition-all duration-200 ${
+                  idx === activePage
+                    ? "bg-[var(--pl-primary)] scale-110"
+                    : "bg-gray-300 hover:bg-gray-400"
+                }`}
+                aria-label={`Go to team slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

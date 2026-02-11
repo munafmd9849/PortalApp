@@ -583,6 +583,48 @@ export async function updateStudentProfile(req, res) {
       return res.json(existingStudent);
     }
 
+    // Determine if this update should mark profile as completed
+    const isFirstTimeCompletion = existingStudent && existingStudent.profileCompleted === false;
+
+    if (isFirstTimeCompletion) {
+      const merged = {
+        ...existingStudent,
+        ...cleanData,
+      };
+
+      const fieldErrors = {};
+
+      const phoneValue = merged.phone || '';
+      if (!phoneValue.trim()) {
+        fieldErrors.phone = 'Phone is required';
+      } else if (!/^\d{7,15}$/.test(phoneValue.trim())) {
+        fieldErrors.phone = 'Phone must be numeric';
+      }
+
+      if (!merged.enrollmentId || String(merged.enrollmentId).trim() === '') {
+        fieldErrors.enrollmentId = 'Enrollment ID is required';
+      }
+      if (!merged.school || String(merged.school).trim() === '') {
+        fieldErrors.school = 'School is required';
+      }
+      if (!merged.center || String(merged.center).trim() === '') {
+        fieldErrors.center = 'Center is required';
+      }
+      if (!merged.batch || String(merged.batch).trim() === '') {
+        fieldErrors.batch = 'Batch is required';
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        return res.status(400).json({
+          error: 'PROFILE_INCOMPLETE',
+          fieldErrors,
+        });
+      }
+
+      // Mark profile as completed on first successful completion
+      cleanData.profileCompleted = true;
+    }
+
     // Update student profile
     const student = await prisma.student.update({
       where: { userId: targetUserId },

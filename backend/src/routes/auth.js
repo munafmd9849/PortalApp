@@ -380,6 +380,11 @@ router.post('/login', [
       },
     });
 
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? Boolean(user.student?.profileCompleted)
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -387,6 +392,7 @@ router.post('/login', [
         role: user.role,
         status: user.status,
         emailVerified: user.emailVerified,
+        profileCompleted,
       },
       accessToken,
       refreshToken,
@@ -475,6 +481,11 @@ router.get('/me', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? Boolean(user.student?.profileCompleted)
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -488,6 +499,7 @@ router.get('/me', authenticate, async (req, res) => {
         recruiter: user.recruiter,
         admin: user.admin,
       },
+      profileCompleted,
     });
   } catch (error) {
     console.error('Get user error:', error);

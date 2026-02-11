@@ -15,6 +15,7 @@ import RecruitersSection from './components/landing/founder'
 import Records from './components/landing/Records'
 import NotificationModal from './components/Notification'
 import DevTeam from './components/landing/DevTeam'
+import LoginModal from './components/landing/LoginModal'
 import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
@@ -44,16 +45,23 @@ function LandingPage() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(() => sessionStorage.getItem(LANDING_PRELOADER_KEY) === '1');
   const [timelineAutoplay, setTimelineAutoplay] = useState(false)
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [loginRole, setLoginRole] = useState('Student');
 
   const triggerTimelineAnimation = () => {
     setTimelineAutoplay(true);
     setTimeout(() => setTimelineAutoplay(false), 3500);
   };
 
-  // Navigate to full-page login/signup (no modal on landing)
-  const openLoginPage = (type = 'Student') => {
+  // Open login/signup as modal on landing page
+  const openLoginModal = (type = 'Student') => {
     triggerTimelineAnimation();
-    navigate('/login', { state: { role: type } });
+    setLoginRole(type);
+    setIsLoginOpen(true);
+  };
+
+  const handleCloseLoginModal = () => {
+    setIsLoginOpen(false);
   };
 
   const scrollToContact = () => {
@@ -96,7 +104,14 @@ function LandingPage() {
         <main className='w-full min-h-screen'>
           <NotificationModal />
 
-          <Header onLoginOpen={openLoginPage} onScrollToContact={scrollToContact} />
+          {/* Global login modal mounted on landing page */}
+          <LoginModal
+            isOpen={isLoginOpen}
+            onClose={handleCloseLoginModal}
+            defaultRole={loginRole}
+          />
+
+          <Header onLoginOpen={openLoginModal} onScrollToContact={scrollToContact} />
 
           {/* Banner - Odd component #F2F0EA */}
           <div className='bg-gradient-to-b from-gray-50 to-[#FFEECE]'>
@@ -120,7 +135,7 @@ function LandingPage() {
 
           {/* Records - Even component #A8D5E3 */}
           <div className='bg-[#FFEECE]'>
-            <Records onLoginOpen={openLoginPage} />
+            <Records onLoginOpen={openLoginModal} />
           </div>
 
           {/* PlacementTimeline - #A8D5E3 background */}
@@ -144,7 +159,7 @@ function LandingPage() {
           {/* Footer - Odd component #F2F0EA */}
           <div>
             <PWIOIFooter 
-              onLoginOpen={openLoginPage} 
+              onLoginOpen={openLoginModal} 
               onContactTeam={handleContactTeam}
               onMeetDevTeam={handleMeetDevTeam}
               onPlacementPolicy={handlePlacementPolicy}

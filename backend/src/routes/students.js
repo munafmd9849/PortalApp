@@ -10,6 +10,7 @@ import * as studentController from '../controllers/students.js';
 import * as resumeController from '../controllers/resume.js';
 import * as publicProfileController from '../controllers/publicProfile.js';
 import { uploadProfileImage, uploadResume } from '../middleware/upload.js';
+import prisma from '../config/database.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -21,6 +22,37 @@ router.get('/profile', studentController.getStudentProfile);
 
 // Update own profile
 router.put('/profile', studentController.updateStudentProfile);
+
+// Enforce mandatory profile completion for student routes
+// Allow access to /profile even when incomplete
+router.use(async (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'STUDENT') {
+      return next();
+    }
+
+    // Allow profile GET/PUT without completion
+    if (req.path === '/profile') {
+      return next();
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { userId: req.userId },
+    });
+
+    // If field doesn't exist yet in schema/client, this will just be undefined,
+    // so we defensively treat "undefined" as incomplete for now.
+    if (!student || !student.profileCompleted) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE' });
+    }
+
+    return next();
+  } catch (error) {
+    console.error('Profile completion guard error:', error);
+    return res.status(500).json({ error: 'Failed to verify profile completion' });
+  }
+});
 
 // Get skills
 router.get('/skills', studentController.getStudentSkills);

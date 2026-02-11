@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
+import ProfileCompletionModal from '../../components/dashboard/student/ProfileCompletionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -113,7 +114,9 @@ const normalizeProfileSnapshot = (profile = {}) => ({
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+  const { logout, user, profileCompleted } = useAuth();
+  const [showProfileCompletionModal, setShowProfileCompletionModal] = useState(false);
+
   // Data caching to avoid reloading on tab switches
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(null);
@@ -126,7 +129,6 @@ export default function StudentDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
-  const { logout, user } = useAuth();
   
   // PERSISTENT CACHE: Use localStorage to cache data across page navigation
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
@@ -228,6 +230,20 @@ export default function StudentDashboard() {
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
+
+  // Show mandatory profile completion modal when needed
+  useEffect(() => {
+    if (user?.role === 'STUDENT' && profileCompleted === false) {
+      setShowProfileCompletionModal(true);
+      document.body.style.overflow = 'hidden';
+    } else {
+      setShowProfileCompletionModal(false);
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [user?.role, profileCompleted]);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
@@ -1201,6 +1217,35 @@ export default function StudentDashboard() {
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+
+  // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleProfileUpdated = async (event) => {
+      const updatedUserId = event?.detail?.userId;
+      if (updatedUserId && updatedUserId !== user.id) return;
+
+      try {
+        // Clear any cached profile/jobs so we get fresh data
+        clearCache();
+
+        // Force reload profile so local state (fullName/phone/enrollmentId/school/center/batch) is updated
+        loadingProfileRef.current = false;
+        await loadProfile(true);
+
+        // Force reload jobs with the new targeting fields
+        dataLoadingRef.current.jobs = false;
+        await loadJobsData(true);
+      } catch (err) {
+        // Non-fatal: just log for debugging
+        console.error('Error reloading profile after profileUpdated event', err);
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdated);
+    return () => window.removeEventListener('profileUpdated', handleProfileUpdated);
+  }, [user?.id, loadProfile, loadJobsData]);
   
   // OPTIMIZED: Interview history is now loaded on mount with applications (no need to reload on tab switch)
   // Track last active tab for other potential use cases
@@ -4204,16 +4249,11 @@ export default function StudentDashboard() {
 
   return (
     <>
-      <DashboardLayout studentProfile={dataLoaded ? {
-        fullName,
-        headline: Headline || null,
-        enrollmentId,
-        cgpa,
-        profilePhoto: profilePhoto,
-        school,
-        center,
-        batch,
-      } : null}>
+      <ProfileCompletionModal
+        isOpen={showProfileCompletionModal}
+        onSaved={() => setShowProfileCompletionModal(false)}
+      />
+      <DashboardLayout>
         <div className="flex min-h-screen relative">
           <aside
             className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"

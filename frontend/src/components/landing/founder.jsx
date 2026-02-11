@@ -9,7 +9,6 @@ import { FaLinkedin } from "react-icons/fa";
 import R1 from "../../assets/images/Rec1.png";
 import R2 from "../../assets/images/Rec2.png";
 import R3 from "../../assets/images/Rec3.png";
-import Stepper, { Step } from "./Stepper";
 
 // ----------------- Animated Testimonials -----------------
 const AnimatedTestimonials = ({ testimonials, autoplay = false }) => {
@@ -194,10 +193,10 @@ export default function TestimonialSection() {
     setIsSubmitting(true);
     setSubmitStatus({ type: null, message: '' });
 
-      try {
-        // Import contact service dynamically to avoid issues
-        const { submitContactForm } = await import('../../services/contact.js');
-      
+    try {
+      // Import contact service dynamically to avoid issues
+      const { submitContactForm } = await import('../../services/contact.js');
+
       const result = await submitContactForm({
         name: formData.name,
         company: formData.company,
@@ -210,8 +209,8 @@ export default function TestimonialSection() {
           type: 'success', 
           message: result.message || 'Thank you for your message! We will get back to you soon.' 
         });
-    setFormData({ name: "", company: "", email: "", message: "" });
-        
+        setFormData({ name: "", company: "", email: "", message: "" });
+
         // Clear success message after 5 seconds
         setTimeout(() => {
           setSubmitStatus({ type: null, message: '' });
@@ -228,19 +227,6 @@ export default function TestimonialSection() {
     }
   };
 
-  const phoneOk = /^\d{10,15}$/.test(String(formData.company || "").trim());
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.email || "").trim());
-  const submitNow = async () => {
-    if (!formData.name?.trim() || !phoneOk || !emailOk || !formData.message?.trim()) return;
-    await handleSubmit();
-  };
-  const canProceed =
-    (currentStep === 1 && String(formData.name || "").trim().length >= 2) ||
-    (currentStep === 2 && phoneOk) ||
-    (currentStep === 3 && emailOk) ||
-    (currentStep === 4 && String(formData.message || "").trim().length >= 10) ||
-    currentStep >= 5;
-
   return (
     <div id="founders-section" className="container mx-auto px-4 lg:px-8 py-12 flex flex-col lg:flex-row gap-8">
       {/* TESTIMONIALS */}
@@ -248,99 +234,75 @@ export default function TestimonialSection() {
         <AnimatedTestimonials testimonials={testimonials} autoplay={true} />
       </div>
 
-      {/* CONTACT FORM - Stepper */}
+      {/* CONTACT FORM (simple, previous style) */}
       <div id="contact-form" className="w-full lg:w-1/3">
-        <div className="sticky top-24 rounded-3xl bg-[#FFF7E6] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.06)]">
-          <h2 className="text-2xl font-bold mb-2 text-gray-900 tracking-tight">
+        <div className="sticky top-[10%] bg-gray-100 p-6 rounded-xl shadow-md">
+          <h2 className="text-2xl font-semibold mb-4 text-gray-700">
             Let's Collaborate and Build
           </h2>
-          <p className="text-sm text-gray-600 mb-5">
-            Share your hiring needs. We'll get back within 24–48 hours.
-          </p>
-          <Stepper
-            initialStep={1}
-            onStepChange={(step) => setCurrentStep(step)}
-            onFinalStepCompleted={submitNow}
-            backButtonText="Previous"
-            nextButtonText="Next"
-            finalButtonText="Let's Talk"
-            disableStepIndicators={true}
-            nextButtonProps={{ disabled: isSubmitting || !canProceed }}
-          >
-            <Step>
-              <h3 className="text-lg font-semibold text-gray-900">Company's Name</h3>
-              <p className="text-sm text-gray-600">Tell us who we're talking to.</p>
-              <input
-                type="text"
-                name="name"
-                placeholder="Company's Name (min. 2 characters)"
-                className="mt-4 w-full rounded-xl border border-[#F0E0B8] bg-[#FFF7E6] px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 focus:border-[#E0B767]"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                minLength={2}
-              />
-            </Step>
-            <Step>
-              <h3 className="text-lg font-semibold text-gray-900">Contact Number</h3>
-              <p className="text-sm text-gray-600">So we can reach you quickly.</p>
-              <input
-                type="tel"
-                name="company"
-                inputMode="tel"
-                pattern="^[0-9]{10,15}$"
-                placeholder="Contact Number (min. 10 digits)"
-                className="mt-4 w-full rounded-xl border border-[#F0E0B8] bg-[#FFF7E6] px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 focus:border-[#E0B767]"
-                value={formData.company}
-                onChange={handleChange}
-                required
-                minLength={10}
-              />
-            </Step>
-            <Step>
-              <h3 className="text-lg font-semibold text-gray-900">Email Address</h3>
-              <p className="text-sm text-gray-600">We'll share next steps here.</p>
-              <input
-                type="email"
-                name="email"
-                placeholder="Email Address"
-                className="mt-4 w-full rounded-xl border border-[#F0E0B8] bg-[#FFF7E6] px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 focus:border-[#E0B767]"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
-            </Step>
-            <Step>
-              <h3 className="text-lg font-semibold text-gray-900">Your recruitment needs</h3>
-              <p className="text-sm text-gray-600">Roles + headcount</p>
-              <textarea
-                name="message"
-                placeholder="Your recruitment needs (min. 10 characters)"
-                rows={4}
-                className="mt-4 w-full rounded-xl border border-[#F0E0B8] bg-[#FFF7E6] px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 focus:border-[#E0B767] resize-none"
-                value={formData.message}
-                onChange={handleChange}
-                required
-                minLength={10}
-              />
-            </Step>
-            <Step>
-              <h3 className="text-lg font-semibold text-gray-900">Almost done</h3>
-              <p className="text-sm text-gray-600">
-                Click <span className="font-semibold">Let's Talk</span> to send. We'll respond in 24–48 hours.
-              </p>
-            </Step>
-          </Stepper>
+          <form onSubmit={handleSubmit}>
+            <input
+              type="text"
+              name="name"
+              placeholder="Company's Name (min. 2 characters)"
+              className="w-full p-3 border border-gray-400 rounded-md mb-3 focus:border-indigo-500"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              minLength={2}
+            />
+            <input
+              type="tel"
+              name="company"
+              placeholder="Contact Number (min. 10 digits)"
+              className="w-full p-3 border border-gray-400 rounded-md mb-3 focus:border-indigo-500"
+              value={formData.company}
+              onChange={handleChange}
+              required
+              minLength={10}
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address"
+              className="w-full p-3 border border-gray-400 rounded-md mb-3 focus:border-indigo-500"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+            <textarea
+              name="message"
+              placeholder="Your recruitment needs (min. 10 characters)"
+              rows={4}
+              className="w-full p-3 border border-gray-400 rounded-md mb-4 focus:border-indigo-500"
+              value={formData.message}
+              onChange={handleChange}
+              required
+              minLength={10}
+            ></textarea>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full bg-blue-900 text-white py-3 rounded-md transition-colors ${
+                isSubmitting 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:bg-indigo-600'
+              }`}
+            >
+              {isSubmitting ? 'Submitting...' : "Let's Talk"}
+            </button>
 
-          {submitStatus.type && (
-            <div className={`mt-3 p-3 rounded-md text-sm ${
-              submitStatus.type === 'success'
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'bg-red-100 text-red-700 border border-red-300'
-            }`}>
-              {submitStatus.message}
-            </div>
-          )}
+            {/* Status Messages */}
+            {submitStatus.type && (
+              <div className={`mt-3 p-3 rounded-md text-sm ${
+                submitStatus.type === 'success'
+                  ? 'bg-green-100 text-green-700 border border-green-300'
+                  : 'bg-red-100 text-red-700 border border-red-300'
+              }`}>
+                {submitStatus.message}
+              </div>
+            )}
+          </form>
         </div>
       </div>
     </div>
