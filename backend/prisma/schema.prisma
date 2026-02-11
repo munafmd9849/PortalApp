@@ -437,6 +437,9 @@ model Job {
   adminNote    String? // Note from admin about the placement drive (visible in Applicants section)
   recruiterNote String? // Note from recruiter about the drive (visible in Company History / Job Track)
 
+  // Interview rounds defined at job creation (JSON: [{ title, detail }]) — used for session/rounds
+  interviewRounds String? // JSON array of { title, detail } from Create Job form
+
   // Pre-Interview Requirements
   requiresScreening Boolean @default(false) // Resume screening required before interview
   requiresTest      Boolean @default(false) // QA/Test required before interview

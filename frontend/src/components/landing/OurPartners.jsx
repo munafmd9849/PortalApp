@@ -143,7 +143,7 @@ const OurPartners = () => {
   }, []);
 
   return (
-    <section className="pt-15 pb-10 overflow-hidden relative">
+    <section className="mt-0 pt-12 pb-10 overflow-hidden relative">
       {/* Section Heading */}
       <div className="text-center mb-16">
         <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">

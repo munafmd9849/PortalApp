@@ -4,7 +4,7 @@ import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaU
 import { MdBlock } from 'react-icons/md';
 import { Loader, Download, Upload, SquarePen, User, LinkIcon } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { getAllStudents, updateStudentProfile, updateEducationalBackground } from '../../../services/students';
+import { getAllStudents, updateStudentProfile, updateEducationalBackground, getStudentProfile, getEducationalBackground, getStudentSkills } from '../../../services/students';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -12,6 +12,9 @@ import CustomDropdown from '../../common/CustomDropdown';
 import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 import StudentDetailsModal from '../../common/StudentDetailsModal';
 import BlockModal from '../../common/BlockModal';
+import DashboardHome from '../../dashboard/student/DashboardHome';
+import { getTargetedJobsForStudent } from '../../../services/jobs';
+import { getStudentApplications } from '../../../services/applications';
 // TODO: Replace Firebase operations with API calls
 
 const STATUS_OPTIONS = [
@@ -487,6 +490,8 @@ export default function StudentDirectory() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [operationLoading, setOperationLoading] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [dashboardData, setDashboardData] = useState({ loading: true, error: null, jobs: [], applications: [], skills: [] });
   const studentsPerPage = 10;
   const [retryCount, setRetryCount] = useState(0);
   const [lastErrorTime, setLastErrorTime] = useState(null);
@@ -880,6 +885,36 @@ export default function StudentDirectory() {
   const handleViewDetails = (student) => {
     setSelectedStudent(student);
     setDetailsModalOpen(true);
+  };
+
+  const handleViewProfile = async (student) => {
+    setSelectedStudent(student);
+    setShowProfile(true);
+    
+    // Load dashboard data for the student
+    try {
+      setDashboardData({ loading: true, error: null, jobs: [], applications: [], skills: [] });
+      
+      const [profile, education, skills, jobs, applications] = await Promise.all([
+        getStudentProfile(student.id),
+        getEducationalBackground(student.id),
+        getStudentSkills(student.id),
+        getTargetedJobsForStudent(student.id),
+        getStudentApplications(student.id)
+      ]);
+
+      setDashboardData({
+        loading: false,
+        error: null,
+        jobs: jobs || [],
+        applications: applications || [],
+        skills: skills || [],
+        education: education || [],
+      });
+    } catch (error) {
+      console.error('Error loading student data:', error);
+      setDashboardData({ loading: false, error: 'Failed to load student data', jobs: [], applications: [], skills: [] });
+    }
   };
 
   const handleViewPublicProfile = (student) => {
@@ -1451,12 +1486,11 @@ export default function StudentDirectory() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center gap-2">
-                          {/* View Public Profile Button */}
+                          {/* View Profile Button */}
                           <button
-                            onClick={() => handleViewPublicProfile(student)}
+                            onClick={() => handleViewProfile(student)}
                             className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                            title={student.publicProfileId || student.user?.publicProfileId ? "View Public Profile" : "No Public Profile Available"}
-                            disabled={!student.publicProfileId && !student.user?.publicProfileId}
+                            title="View Student Profile"
                           >
                             <ImEye className="w-4 h-4" />
                           </button>
@@ -1572,6 +1606,152 @@ export default function StudentDirectory() {
         onConfirm={handleBlockConfirm}
       />
 
+      {/* Student Profile Sidebar */}
+      {showProfile && selectedStudent && (
+        <StudentDashboardPanel
+          isOpen={showProfile}
+          onClose={() => {
+            setShowProfile(false);
+            setSelectedStudent(null);
+          }}
+          student={selectedStudent}
+          dashboardData={dashboardData}
+        />
+      )}
+
     </div>
   );
 }
+
+// Student Dashboard Panel Component - Similar to Assessment.jsx
+const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
+  const [currentStudent, setCurrentStudent] = useState(student);
+
+  React.useEffect(() => {
+    setCurrentStudent(student);
+  }, [student]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  React.useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !student) return null;
+
+  const handleApplyToJob = () => {
+    console.log('Job application disabled in admin view');
+  };
+
+  const hasApplied = () => false;
+
+  const profileImageSrc = currentStudent?.profilePhoto || currentStudent?.user?.profilePhoto;
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 bg-black transition-opacity duration-300 z-[9998] ${
+          isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ 
+          backdropFilter: isOpen ? 'blur(4px)' : 'none',
+          WebkitBackdropFilter: isOpen ? 'blur(4px)' : 'none'
+        }}
+        onClick={onClose}
+      />
+
+      <div
+        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
+          <div className="w-full px-2 py-1">
+            <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400">
+              <div className="flex justify-between items-center h-23 gap-2 relative">
+                <div className="flex items-center flex-1">
+                  <div className="flex-shrink-0 relative">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden w-20 h-20">
+                      {profileImageSrc ? (
+                        <img src={profileImageSrc} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="text-white w-10 h-10" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="ml-4 space-y-1.5">
+                    <h2 className="text-2xl font-bold text-black">
+                      {currentStudent?.fullName || currentStudent?.user?.displayName || 'Student Name'}
+                    </h2>
+                    <p className="text-sm text-gray-600">{currentStudent?.user?.email || currentStudent?.email}</p>
+                    <p className="text-sm text-gray-600">Batch: {currentStudent?.batch || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <button
+                    onClick={onClose}
+                    className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white transition-colors flex-shrink-0"
+                  >
+                    <FaTimes size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div className="h-[calc(100%-5rem)] overflow-y-auto">
+          <div className="p-4 lg:p-6">
+            {dashboardData.loading ? (
+              <div className="flex items-center justify-center h-full min-h-[400px]">
+                <Loader className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+              </div>
+            ) : dashboardData.error ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-600">{dashboardData.error}</p>
+              </div>
+            ) : (
+              <DashboardHome
+                studentData={{
+                  ...currentStudent,
+                  ...student,
+                  id: student.id
+                }}
+                jobs={dashboardData.jobs}
+                applications={dashboardData.applications}
+                skillsEntries={dashboardData.skills}
+                loadingJobs={false}
+                loadingApplications={false}
+                loadingSkills={false}
+                handleApplyToJob={handleApplyToJob}
+                hasApplied={hasApplied}
+                applying={{}}
+                hideApplicationTracker={true}
+                hideJobPostings={true}
+                hideFooter={true}
+                isAdminView={true}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};

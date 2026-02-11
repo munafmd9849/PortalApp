@@ -61,10 +61,32 @@ async function autoCorrectSessionStatus(session, job) {
   const driveDate = new Date(job.driveDate);
   driveDate.setHours(23, 59, 59, 999); // End of drive date
 
-  // If drive date has passed and session is not COMPLETED, mark as INCOMPLETE
+  // If drive date has passed, only mark INCOMPLETE if no round has been started yet.
+  // If at least one round is ACTIVE or ENDED, allow the session to continue (or revert INCOMPLETE to ONGOING) so interviewers can end the current round (e.g. interview started Jan 28, ending round Jan 29).
   if (now > driveDate) {
+    const rounds = session.rounds ?? await prisma.interviewRound.findMany({
+      where: { sessionId: session.id },
+      select: { status: true },
+    });
+    const hasStartedRounds = rounds.some(r => r.status === 'ACTIVE' || r.status === 'ENDED');
+    if (hasStartedRounds) {
+      // Session has already started - do not mark INCOMPLETE; if it was wrongly marked INCOMPLETE earlier, set back to ONGOING so end-round can proceed
+      if (session.status === 'INCOMPLETE') {
+        const updatedSession = await prisma.interviewSession.update({
+          where: { id: session.id },
+          data: { status: 'ONGOING' },
+          include: {
+            rounds: { orderBy: { roundNumber: 'asc' } },
+            interviewerInvites: { orderBy: { createdAt: 'desc' } },
+          },
+        });
+        return { ...updatedSession, job: session.job || job };
+      }
+      return session;
+    }
+
     if (session.status !== 'INCOMPLETE') {
-      // Update session to INCOMPLETE
+      // Update session to INCOMPLETE (drive date passed and no round started yet)
       const updatedSession = await prisma.interviewSession.update({
         where: { id: session.id },
         data: {
@@ -197,7 +219,7 @@ export const getOrCreateSession = async (req, res) => {
     const userRole = req.user?.role || req.userRole;
     const isRecruiter = userRole === 'RECRUITER' || userRole === 'recruiter';
 
-    // Check if job exists and get driveDate
+    // Check if job exists and get driveDate + interviewRounds (from job creation)
     const job = await prisma.job.findUnique({
       where: { id: jobId },
       select: {
@@ -206,6 +228,8 @@ export const getOrCreateSession = async (req, res) => {
         companyId: true,
         recruiterId: true,
         driveDate: true, // CRITICAL: Get driveDate for validation
+        description: true,
+        interviewRounds: true, // Rounds defined at job creation — used for session/rounds
         company: {
           select: {
             name: true
@@ -216,7 +240,6 @@ export const getOrCreateSession = async (req, res) => {
             userId: true
           }
         },
-        description: true
       }
     });
 
@@ -276,6 +299,38 @@ export const getOrCreateSession = async (req, res) => {
             },
           },
         });
+        // If job had interview rounds defined at creation, create InterviewRound records so they show on interviewer + session management
+        let jobRounds = [];
+        if (job.interviewRounds) {
+          try {
+            const parsed = JSON.parse(job.interviewRounds);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              jobRounds = parsed.map((r, i) => ({
+                roundNumber: i + 1,
+                name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
+              }));
+            }
+          } catch (e) {
+            // ignore invalid JSON
+          }
+        }
+        if (jobRounds.length > 0) {
+          await prisma.interviewRound.createMany({
+            data: jobRounds.map((r) => ({
+              sessionId: session.id,
+              roundNumber: r.roundNumber,
+              name: r.name,
+              status: 'LOCKED',
+            })),
+          });
+          session = await prisma.interviewSession.findUnique({
+            where: { id: session.id },
+            include: {
+              rounds: { orderBy: { roundNumber: 'asc' } },
+              interviewerInvites: { orderBy: { createdAt: 'desc' } },
+            },
+          });
+        }
       } catch (createError) {
         // If create fails (e.g., unique constraint), try to fetch existing session
         if (createError.code === 'P2002') {
@@ -325,50 +380,56 @@ export const getOrCreateSession = async (req, res) => {
       where: { jobId },
     });
 
-    // Auto-populate rounds from job description if no rounds exist (Issue #7)
+    // Auto-populate rounds: prefer job.interviewRounds (from job creation), else parse from description (Issue #7)
     let suggestedRounds = [];
-    if (session.rounds.length === 0 && job.description) {
-      // Try to extract round information from job description
-      // Look for patterns like "Round 1:", "Round 2:", "Technical Round", "HR Round", etc.
-      const roundPatterns = [
-        /round\s*(\d+)[:\.]\s*([^\n]+)/gi,
-        /(technical|hr|aptitude|coding|group discussion|final)[\s-]*round/gi,
-      ];
-      
-      const description = job.description.toLowerCase();
-      const foundRounds = new Set();
-      
-      // Extract explicit round mentions
-      let match;
-      const explicitRounds = [];
-      while ((match = roundPatterns[0].exec(job.description)) !== null) {
-        const roundNum = parseInt(match[1]);
-        const roundName = match[2].trim();
-        if (roundNum && roundName && !foundRounds.has(roundNum)) {
-          explicitRounds.push({ roundNumber: roundNum, name: roundName });
-          foundRounds.add(roundNum);
+    if (session.rounds.length === 0) {
+      // First: use rounds defined at job creation
+      if (job.interviewRounds) {
+        try {
+          const parsed = JSON.parse(job.interviewRounds);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            suggestedRounds = parsed.map((r, i) => ({
+              roundNumber: i + 1,
+              name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
+            }));
+          }
+        } catch (e) {
+          // fall through to description parsing
         }
       }
-      
-      // If no explicit rounds found, try common patterns
-      if (explicitRounds.length === 0) {
-        const commonRounds = [
-          { name: 'Aptitude Test', keywords: ['aptitude', 'test', 'screening'] },
-          { name: 'Technical Round 1', keywords: ['technical', 'coding', 'programming'] },
-          { name: 'Technical Round 2', keywords: ['technical', 'advanced'] },
-          { name: 'HR Round', keywords: ['hr', 'human resources', 'final'] },
+      // Fallback: extract from job description
+      if (suggestedRounds.length === 0 && job.description) {
+        const roundPatterns = [
+          /round\s*(\d+)[:\.]\s*([^\n]+)/gi,
+          /(technical|hr|aptitude|coding|group discussion|final)[\s-]*round/gi,
         ];
-        
-        commonRounds.forEach((round, idx) => {
-          if (round.keywords.some(kw => description.includes(kw))) {
-            suggestedRounds.push({
-              roundNumber: idx + 1,
-              name: round.name,
-            });
+        const description = job.description.toLowerCase();
+        const foundRounds = new Set();
+        let match;
+        const explicitRounds = [];
+        while ((match = roundPatterns[0].exec(job.description)) !== null) {
+          const roundNum = parseInt(match[1]);
+          const roundName = match[2].trim();
+          if (roundNum && roundName && !foundRounds.has(roundNum)) {
+            explicitRounds.push({ roundNumber: roundNum, name: roundName });
+            foundRounds.add(roundNum);
           }
-        });
-      } else {
-        suggestedRounds = explicitRounds.sort((a, b) => a.roundNumber - b.roundNumber);
+        }
+        if (explicitRounds.length === 0) {
+          const commonRounds = [
+            { name: 'Aptitude Test', keywords: ['aptitude', 'test', 'screening'] },
+            { name: 'Technical Round 1', keywords: ['technical', 'coding', 'programming'] },
+            { name: 'Technical Round 2', keywords: ['technical', 'advanced'] },
+            { name: 'HR Round', keywords: ['hr', 'human resources', 'final'] },
+          ];
+          commonRounds.forEach((round, idx) => {
+            if (round.keywords.some(kw => description.includes(kw))) {
+              suggestedRounds.push({ roundNumber: idx + 1, name: round.name });
+            }
+          });
+        } else {
+          suggestedRounds = explicitRounds.sort((a, b) => a.roundNumber - b.roundNumber);
+        }
       }
     }
 
@@ -1100,7 +1161,8 @@ export const getRoundCandidates = async (req, res) => {
           remarks: evaluation.remarks,
           createdAt: evaluation.createdAt,
         } : null,
-        previousRoundRemarks: previousEvaluation?.remarks || null, // Issue #4
+        previousRoundRemarks: previousEvaluation?.remarks || null,
+        previousRoundStatus: previousEvaluation?.status || null, // So next round interviewer sees prev status + remarks
       };
     });
 
@@ -1520,7 +1582,9 @@ export const endRound = async (req, res) => {
       });
     }
 
-    if (correctedSession.status === 'INCOMPLETE') {
+    // If session was marked INCOMPLETE (drive date passed) but the current round is ACTIVE,
+    // allow ending this round so evaluations are saved and application statuses updated (e.g. interview started Jan 28, ending round Jan 29).
+    if (correctedSession.status === 'INCOMPLETE' && round.status !== 'ACTIVE') {
       return res.status(409).json({
         error: 'Interview drive date has passed',
         message: 'Cannot continue rounds. The interview drive date has passed and the session is incomplete.',
@@ -1694,33 +1758,16 @@ export const endRound = async (req, res) => {
       const maxRoundNumber = allRounds[0].roundNumber;
 
       if (round.roundNumber === maxRoundNumber) {
-        // This was the last round - end session
-        // Check drive date one more time before marking as COMPLETED
-        const jobCheck = await tx.job.findUnique({
-          where: { id: round.session.jobId },
-          select: { driveDate: true },
-        });
-        
-        const nowCheck = new Date();
-        const driveDateCheck = jobCheck?.driveDate ? new Date(jobCheck.driveDate) : null;
-        driveDateCheck?.setHours(23, 59, 59, 999);
-        
-        // Only mark as COMPLETED if drive date hasn't passed
-        // If drive date passed, it should have been caught by auto-correction earlier
-        const finalStatus = (driveDateCheck && nowCheck > driveDateCheck) ? 'INCOMPLETE' : 'COMPLETED';
-        
+        // This was the last round - end session. All rounds completed successfully,
+        // so mark session as COMPLETED regardless of drive date (recruiter can still
+        // download spreadsheet and optionally "End Interview" from dashboard if shown).
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: {
-            status: finalStatus,
+            status: 'COMPLETED',
             completedAt: new Date(),
           },
         });
-        
-        // If marked as INCOMPLETE, update application statuses
-        if (finalStatus === 'INCOMPLETE') {
-          await updateApplicationsForIncompleteSession(round.session.jobId);
-        }
 
         // Invalidate all interviewer invites (mark as used) - Issue #1
         await tx.interviewerInvite.updateMany({
@@ -1791,7 +1838,11 @@ export const endRound = async (req, res) => {
 
 /**
  * Send thank-you emails to admin and recruiter when a placement drive (interview session) ends.
- * Asks them to add a note via link (admin: Applicants section, recruiter: Company History).
+ * Both receive the same style of email with a link to add a note:
+ * - Admin: link goes to Admin Applicants (jobApplications) for this job.
+ * - Recruiter: link goes to Recruiter Company History for this job. The recruiter is the job
+ *   owner (job.recruiterId) — the same recruiter who posted the job and is associated with
+ *   the interview session. Their note is saved to job.recruiterNote and shown in Company History.
  */
 async function sendDriveThankYouEmailsForSession(sessionId) {
   const frontendUrl = process.env.FRONTEND_URL || '';
@@ -1848,28 +1899,63 @@ async function sendDriveThankYouEmailsForSession(sessionId) {
     const addNoteUrlAdmin = `${frontendUrl}/admin?tab=jobApplications&addNote=${jobId}`;
     const addNoteUrlRecruiter = `${frontendUrl}/recruiter?tab=history&addNote=${jobId}`;
 
+    // Send email to admin(s)
     if (adminEmail) {
-      await sendDriveThankYouEmail({
-        to: adminEmail,
-        recipientName: adminName,
-        jobTitle,
-        companyName,
-        addNoteUrl: addNoteUrlAdmin,
-      });
-      logger.info(`Drive thank-you email sent to admin ${adminEmail} for session ${sessionId}`);
+      try {
+        await sendDriveThankYouEmail({
+          to: adminEmail,
+          recipientName: adminName,
+          jobTitle,
+          companyName,
+          addNoteUrl: addNoteUrlAdmin,
+        });
+        logger.info(`Drive thank-you email sent to admin ${adminEmail} for session ${sessionId}`);
+      } catch (emailError) {
+        logger.error(`Failed to send thank-you email to admin ${adminEmail} for session ${sessionId}:`, emailError);
+      }
+    } else {
+      logger.warn(`No admin email found for session ${sessionId}, skipping admin thank-you email`);
     }
 
-    const recruiterEmail = job.recruiter?.user?.email;
-    const recruiterName = job.recruiter?.user?.displayName || 'Recruiter';
+    // Send email to recruiter - try multiple ways to find recruiter
+    let recruiterEmail = null;
+    let recruiterName = 'Recruiter';
+    
+    // First, try from the loaded relationship
+    if (job.recruiter?.user?.email) {
+      recruiterEmail = job.recruiter.user.email;
+      recruiterName = job.recruiter.user.displayName || 'Recruiter';
+    } else if (job.recruiterId) {
+      // If recruiter relationship not loaded but recruiterId exists, fetch it
+      try {
+        const recruiter = await prisma.recruiter.findUnique({
+          where: { id: job.recruiterId },
+          include: { user: { select: { email: true, displayName: true } } },
+        });
+        if (recruiter?.user?.email) {
+          recruiterEmail = recruiter.user.email;
+          recruiterName = recruiter.user.displayName || 'Recruiter';
+        }
+      } catch (fetchError) {
+        logger.error(`Failed to fetch recruiter for job ${jobId}:`, fetchError);
+      }
+    }
+
     if (recruiterEmail) {
-      await sendDriveThankYouEmail({
-        to: recruiterEmail,
-        recipientName: recruiterName,
-        jobTitle,
-        companyName,
-        addNoteUrl: addNoteUrlRecruiter,
-      });
-      logger.info(`Drive thank-you email sent to recruiter ${recruiterEmail} for session ${sessionId}`);
+      try {
+        await sendDriveThankYouEmail({
+          to: recruiterEmail,
+          recipientName: recruiterName,
+          jobTitle,
+          companyName,
+          addNoteUrl: addNoteUrlRecruiter,
+        });
+        logger.info(`Drive thank-you email sent to recruiter ${recruiterEmail} for session ${sessionId}`);
+      } catch (emailError) {
+        logger.error(`Failed to send thank-you email to recruiter ${recruiterEmail} for session ${sessionId}:`, emailError);
+      }
+    } else {
+      logger.warn(`No recruiter email found for job ${jobId} (session ${sessionId}), skipping recruiter thank-you email`);
     }
   } catch (err) {
     logger.error(`Failed to send drive thank-you emails for session ${sessionId}:`, err);

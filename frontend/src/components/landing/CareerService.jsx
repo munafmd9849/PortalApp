@@ -1,260 +1,240 @@
-import React, { useState, useEffect, useRef } from "react";
-import { IconChevronLeft, IconChevronRight, IconBrandLinkedin, IconMail } from "@tabler/icons-react";
-import CS1 from '../../assets/images/CS4.png';
-import CS2 from '../../assets/images/CS2.webp';
-import CS3 from '../../assets/images/CS3.webp';
-import CS4 from '../../assets/images/CS1.webp';
-import CS5 from '../../assets/images/CS5.png';
-import CS6 from '../../assets/images/CS6.png';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { IconBrandLinkedin, IconMail } from "@tabler/icons-react";
+import TiltedCard from "./TiltedCard";
 
-// Spotlight Card Component focused on image
-const SpotlightCard = ({ children, className = "" }) => {
-  const divRef = useRef(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
+import CS1 from "../../assets/images/CS4.png";
+import CS2 from "../../assets/images/CS2.webp";
+import CS3 from "../../assets/images/CS3.webp";
+import CS4 from "../../assets/images/CS1.webp";
+import CS5 from "../../assets/images/CS5.png";
+import CS6 from "../../assets/images/CS6.png";
 
-  const handleMouseMove = (e) => {
-    if (!divRef.current) return;
-    const rect = divRef.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
-  const handleMouseEnter = () => {
-    setOpacity(0.7);
-  };
-
-  const handleMouseLeave = () => {
-    setOpacity(0);
-  };
+const TeamCard = ({ member, cardWidth, variant = "desktop" }) => {
+  const isMobile = variant === "mobile";
+  const height = isMobile ? "clamp(340px, 78vw, 520px)" : "clamp(240px, 52vw, 340px)";
+  const radius = isMobile ? "rounded-[10px]" : "rounded-[18px]";
+  const rotate = isMobile ? 4 : 7;
+  const scale = isMobile ? 1.02 : 1.04;
 
   return (
     <div
-      ref={divRef}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={`relative overflow-hidden ${className}`}
+      className="relative w-full"
+      style={cardWidth ? { width: `${cardWidth}px` } : undefined}
     >
-      {/* Spotlight effect overlay on the image */}
-      <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-400 ease-in-out z-10"
-        style={{
-          opacity,
-          background: `radial-gradient(circle 150px at ${position.x}px ${position.y}px, rgba(255,255,255,0.5), rgba(255,255,255,0.1) 40%, transparent 70%)`,
-        }}
-      />
-      {children}
-    </div>
-  );
-};
-
-// Admin Card Component with Image Spotlight and Social Links
-const AdminCard = ({ admin, cardWidth }) => {
-  const [showSocials, setShowSocials] = useState(false);
-
-  return (
-    <div className="flex-shrink-0" style={{ width: `${cardWidth}px`, marginRight: '8px', marginLeft: '8px' }}>
-      <div 
-        className="bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-400 hover:shadow-xl hover:scale-[1.02] group"
-        onMouseEnter={() => setShowSocials(true)}
-        onMouseLeave={() => setShowSocials(false)}
-      >
-        <SpotlightCard className="relative">
-          <img
-            src={admin.image}
-            alt={admin.name}
-            className="w-full h-56 object-cover transition-all duration-300"
-          />
-          {/* Social Links */}
-          <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-4 transition-all duration-300 z-20 ${
-            showSocials ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-          }`}>
-            <a
-              href={admin.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2.5 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl"
-            >
-              <IconBrandLinkedin size={18} />
-            </a>
-            <a
-              href={`mailto:${admin.email}`}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2.5 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl"
-            >
-              <IconMail size={18} />
-            </a>
+      <TiltedCard
+        imageSrc={member.image}
+        altText={`${member.name} - ${member.position}`}
+        captionText={`${member.name} • ${member.position}`}
+        containerHeight={height}
+        containerWidth="100%"
+        imageHeight={height}
+        imageWidth="100%"
+        rotateAmplitude={rotate}
+        scaleOnHover={scale}
+        showMobileWarning={false}
+        showTooltip={true}
+        displayOverlayContent={true}
+        imageRadiusClassName={radius}
+        overlayContent={
+          <div className={`h-full w-full ${radius} overflow-hidden relative`}>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            {/* Hover actions (top) */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 opacity-100 pointer-events-auto lg:opacity-0 lg:pointer-events-none transition-opacity duration-200 lg:group-hover:opacity-100 lg:group-hover:pointer-events-auto">
+              <a
+                href={member.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+                aria-label={`Open ${member.name} LinkedIn`}
+                title="LinkedIn"
+              >
+                <IconBrandLinkedin size={16} />
+              </a>
+              <a
+                href={`mailto:${member.email}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+                aria-label={`Email ${member.name}`}
+                title="Email"
+              >
+                <IconMail size={16} />
+              </a>
+            </div>
+            <div className="absolute left-4 right-4 bottom-4">
+              <div className="text-white font-semibold text-lg leading-tight">
+                {member.name}
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-white/90 text-sm font-semibold truncate">
+                    Office of Career Services
+                  </div>
+                  <div className="text-white/70 text-xs truncate">
+                    {member.position}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </SpotlightCard>
-        {/* Name and Position */}
-        <div className="p-5 text-center">
-          <h3 className="text-lg font-bold text-gray-800 mb-1">{admin.name}</h3>
-          <p className="text-gray-600 text-sm">{admin.position}</p>
-        </div>
-      </div>
+        }
+      />
     </div>
   );
 };
 
 export default function AdminSlider() {
-  const admins = [
-    { 
-      name: "Syed Zabi Ulla", 
+  const members = [
+    {
+      name: "Syed Zabi Ulla",
       image: CS1,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://www.linkedin.com/in/syedzaabii/",
-      email: "kaiful@example.com"
+      email: "kaiful@example.com",
     },
-    { 
-      name: "Dr. Sapna ", 
+    {
+      name: "Dr. Sapna",
       image: CS2,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://www.linkedin.com/in/saurabhmoharikar/",
-      email: "saurabh@example.com"
+      email: "saurabh@example.com",
     },
-    { 
-      name: "Mr. Vikas", 
+    {
+      name: "Mr. Vikas",
       image: CS3,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://linkedin.com/in/vikas",
-      email: "vikas@example.com"
+      email: "vikas@example.com",
     },
-    { 
-      name: "Mr. Janishar Ali", 
+    {
+      name: "Mr. Janishar Ali",
       image: CS4,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://linkedin.com/in/arjun",
-      email: "arjun@example.com"
+      email: "arjun@example.com",
     },
-    { 
-      name: "Mr.Saurabh", 
+    {
+      name: "Mr. Saurabh",
       image: CS5,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://linkedin.com/in/priya",
-      email: "priya@example.com"
+      email: "priya@example.com",
     },
-    { 
-      name: "X", 
+    {
+      name: "X",
       image: CS6,
-      position: "Position",
+      position: "Career Services",
       linkedin: "https://linkedin.com/in/rahul",
-      email: "rahul@example.com"
+      email: "rahul@example.com",
     },
   ];
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [cardsPerPage, setCardsPerPage] = useState(4);
-  const cardGap = 16;
-  // Calculate card width based on 80% viewport width minus gaps
-  const cardWidth = containerWidth > 0 ? (containerWidth - (cardsPerPage - 1) * cardGap) / cardsPerPage : 260;
-  const maxIndex = admins.length - cardsPerPage;
+  const [isPaused, setIsPaused] = useState(false);
+  const cardsToShow = 4;
+  const sectionRef = useRef(null);
+  const mobileScrollRef = useRef(null);
+  const [mobileIndex, setMobileIndex] = useState(0);
+  const [mobilePaused, setMobilePaused] = useState(false);
+  const [mobileInView, setMobileInView] = useState(false);
 
-  // Update container width and cardsPerPage on mount and resize
   useEffect(() => {
-    const updateDimensions = () => {
-      const viewportWidth = window.innerWidth;
-      setContainerWidth(viewportWidth * 0.8); // 80% of viewport width
-      if (viewportWidth < 768) {
-        setCardsPerPage(2);
-      } else {
-        setCardsPerPage(4);
-      }
-    };
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    if (isPaused) return;
+    const timer = window.setInterval(() => {
+      // rotate by 4 (like student section shows a fresh set)
+      setCurrentIndex((prev) => (prev + cardsToShow) % members.length);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [isPaused, members.length]);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setMobileInView(Boolean(entry?.isIntersecting)),
+      { threshold: 0.2 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
   }, []);
 
+  // Mobile/tablet auto-advance carousel (1-by-1)
   useEffect(() => {
-    const timer = setInterval(() => {
-      nextSlide();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [currentIndex, maxIndex]);
+    if (!mobileInView) return;
+    if (mobilePaused) return;
+    if (!members.length) return;
+    const id = window.setInterval(() => {
+      setMobileIndex((p) => (p + 1) % members.length);
+    }, 3400);
+    return () => window.clearInterval(id);
+  }, [mobileInView, mobilePaused, members.length]);
 
-  const nextSlide = () => {
-    setCurrentIndex(prev => {
-      if (prev >= maxIndex) {
-        return 0;
-      }
-      return prev + 1;
-    });
-  };
+  useEffect(() => {
+    if (!mobileInView) return;
+    const container = mobileScrollRef.current;
+    if (!container) return;
+    const el = container.children?.[mobileIndex];
+    if (!el) return;
+    const targetLeft = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
+    container.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
+  }, [mobileIndex, mobileInView]);
 
-  const prevSlide = () => {
-    setCurrentIndex(prev => {
-      if (prev <= 0) {
-        return maxIndex;
-      }
-      return prev - 1;
-    });
-  };
-
-  const goToSlide = (index) => {
-    setCurrentIndex(Math.min(index, maxIndex));
-  };
+  const visibleMembers = useMemo(() => {
+    if (!members.length) return [];
+    const out = [];
+    for (let i = 0; i < cardsToShow; i += 1) {
+      out.push(members[(currentIndex + i) % members.length]);
+    }
+    return out;
+  }, [currentIndex, members]);
 
   return (
-    <div 
-      className="w-full min-h-screen flex flex-col justify-center items-center"
-      style={{ backgroundColor: '#FFEEC3' }}
-    >
-      <div className="w-full max-w-6xl mx-auto px-6 py-12">
-        <div className="text-center mb-12 pt-8">
-          <p className="text-3xl font-semibold text-black mb-3 tracking-wide">THE TEAM</p>
-          <h2 className="text-5xl font-bold text-blue-900">
-            Office of Career Services
+    <section ref={sectionRef} className="relative w-full bg-[var(--pl-bg)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_60%_at_50%_0%,color-mix(in_oklab,var(--pl-primary)_16%,transparent),transparent_60%)]" />
+      <div className="w-full max-w-7xl mx-auto px-6 py-16 relative">
+        <div className="text-center mb-12">
+          <p className="text-sm font-semibold tracking-widest text-[var(--pl-text-muted)]">THE TEAM</p>
+          <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] tracking-tight leading-tight">
+            Office of{" "}
+            <span
+              className="relative px-1 bg-gradient-to-t from-[var(--pl-accent-orange)] to-[var(--pl-accent-orange)] bg-no-repeat
+              [background-size:100%_22%] [background-position:0_92%]
+              transition-all duration-300 ease-in-out
+              hover:[background-size:100%_100%] hover:[background-position:0_100%]"
+            >
+              Career Services
+            </span>
           </h2>
         </div>
-        <div className="relative">
-          <div
-            className="overflow-hidden rounded-2xl"
-            style={{ width: `${containerWidth + 12}px`, margin: '0 auto' }}
-          >
-            {/* Cards Container*/}
-            <div
-              className="flex transition-transform duration-700 ease-in-out"
-              style={{
-                transform: `translateX(-${currentIndex * (cardWidth + cardGap)}px)`,
-                width: `${admins.length * cardWidth + (admins.length - 1) * cardGap}px`
-              }}
-            >
-              {admins.map((admin, index) => (
-                <AdminCard key={index} admin={admin} cardWidth={cardWidth} />
-              ))}
-            </div>
-          </div>
-          {/* Buttons */}
-          <button
-            onClick={prevSlide}
-            className="absolute top-1/2 -translate-y-1/3 -translate-x-1/2 bg-white/90 hover:bg-white text-amber-800 rounded-full p-3 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl border border-amber-200"
-            style={{ left: `${containerWidth * 0.075}px` }}
-          >
-            <IconChevronLeft size={18} />
-          </button>
-          <button
-            onClick={nextSlide}
-            className="absolute top-1/2 -translate-y-1/3 translate-x-1/2 bg-white/90 hover:bg-white text-amber-800 rounded-full p-3 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl border border-amber-200"
-            style={{ right: `${containerWidth * 0.07}px` }}
-          >
-            <IconChevronRight size={18} />
-          </button>
-          {/* Dot Indicators */}
-          <div className="flex justify-center mt-8 space-x-2">
-            {Array.from({ length: maxIndex + 1 }).map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  currentIndex === index
-                    ? 'bg-amber-600 scale-125'
-                    : 'bg-amber-300 hover:bg-amber-500 hover:scale-110'
-                }`}
-              />
+
+        {/* Desktop: 4-card grid (unchanged) */}
+        <div
+          className="relative hidden desk:block"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+        >
+          <div className="grid grid-cols-4 gap-12 transition-all duration-700 ease-in-out w-full">
+            {visibleMembers.map((m) => (
+              <TeamCard key={m.name} member={m} variant="desktop" />
             ))}
           </div>
         </div>
+
+        {/* Mobile/Tablet: horizontal snap carousel (center + peek next) */}
+        <div
+          ref={mobileScrollRef}
+          className="desk:hidden -mx-6 px-6 flex gap-5 overflow-x-auto pb-3 snap-x snap-mandatory scroll-px-6 scrollbar-hide"
+          style={{ WebkitOverflowScrolling: "touch" }}
+          onPointerDown={() => setMobilePaused(true)}
+          onPointerUp={() => setMobilePaused(false)}
+          onTouchStart={() => setMobilePaused(true)}
+          onTouchEnd={() => setMobilePaused(false)}
+        >
+          {members.map((m, idx) => (
+            <div key={`${m.name}-${idx}`} className="snap-center shrink-0 w-[84%] sm:w-[62%]">
+              <TeamCard member={m} variant="mobile" />
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
