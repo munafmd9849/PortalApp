@@ -2,7 +2,6 @@ import React, { useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import LoginModal from "../components/landing/LoginModal";
-import ClickSpark from "../components/landing/ClickSpark";
 
 export default function AuthPage({ defaultMode = "login" }) {
   const navigate = useNavigate();
@@ -26,17 +25,14 @@ export default function AuthPage({ defaultMode = "login" }) {
   }, [params, defaultMode]);
 
   return (
-    <ClickSpark sparkColor="#ffffff" sparkSize={10} sparkRadius={18} sparkCount={10} duration={420}>
-      <div className="min-h-screen w-full bg-[#FFF7E6]">
-        <LoginModal
-          isOpen={true}
-          asPage={true}
-          defaultRole={role}
-          defaultMode={mode}
-          onClose={() => navigate("/", { replace: true })}
-        />
-      </div>
-    </ClickSpark>
+    <div className="min-h-screen w-full bg-[#FFF7E6]">
+      <LoginModal
+        isOpen={true}
+        asPage={true}
+        defaultRole={role}
+        defaultMode={mode}
+        onClose={() => navigate("/", { replace: true })}
+      />
+    </div>
   );
 }
-
