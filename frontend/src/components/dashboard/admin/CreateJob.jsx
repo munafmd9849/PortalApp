@@ -220,6 +220,7 @@ export default function CreateJob({ onCreated }) {
           applicationDeadlineText: applicationDeadline ? toDDMMYYYY(applicationDeadline.toISOString()) : '',
           applicationDeadlineISO: applicationDeadline ? applicationDeadline.toISOString() : '',
           driveVenues: Array.isArray(jobData.driveVenues) ? jobData.driveVenues : [],
+          reportingTime: jobData.reportingTime || '',
           qualification: jobData.qualification || '',
           specialization: jobData.specialization || '',
           yop: jobData.yop || '',
@@ -246,6 +247,7 @@ export default function CreateJob({ onCreated }) {
           applicationDeadlineText: updates.applicationDeadlineText,
           applicationDeadlineISO: updates.applicationDeadlineISO,
           driveVenues: updates.driveVenues,
+          reportingTime: updates.reportingTime,
         });
 
         setForm(updates);
@@ -304,6 +306,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: draft.applicationDeadlineText || '',
         applicationDeadlineISO: draft.applicationDeadlineISO || '',
         driveVenues: Array.isArray(draft.driveVenues) ? draft.driveVenues : [],
+        reportingTime: draft.reportingTime || '',
         qualification: draft.qualification || '',
         specialization: draft.specialization || '',
         yop: draft.yop || '',
@@ -329,6 +332,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: updates.applicationDeadlineText,
         applicationDeadlineISO: updates.applicationDeadlineISO,
         driveVenues: updates.driveVenues,
+        reportingTime: updates.reportingTime,
       });
 
       // Update form
@@ -409,6 +413,7 @@ export default function CreateJob({ onCreated }) {
     applicationDeadlineText: '',
     applicationDeadlineISO: '',
     driveVenues: [],
+    reportingTime: '',
     qualification: '',
     specialization: '',
     yop: '',
@@ -435,6 +440,7 @@ export default function CreateJob({ onCreated }) {
     applicationDeadlineText: '',
     applicationDeadlineISO: '',
     driveVenues: [],
+    reportingTime: '',
   });
 
   // Handle JD file upload (PDF/DOC parsing)
@@ -1111,6 +1117,7 @@ export default function CreateJob({ onCreated }) {
       driveDate: form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null,
       applicationDeadline: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText) || null,
       driveVenues: (Array.isArray(form.driveVenues) && form.driveVenues.length > 0) ? form.driveVenues : (Array.isArray(driveDraft.driveVenues) ? driveDraft.driveVenues : []),
+      reportingTime: (form.reportingTime || driveDraft.reportingTime || '').trim() || null,
       // Pre-Interview Requirements
       requiresScreening: form.requiresScreening || false,
       requiresTest: form.requiresTest || false,
@@ -1152,6 +1159,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: form.applicationDeadlineText || driveDraft.applicationDeadlineText || '',
         applicationDeadlineISO: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || '',
         driveVenues: form.driveVenues.length > 0 ? form.driveVenues : driveDraft.driveVenues,
+        reportingTime: form.reportingTime || driveDraft.reportingTime || '',
       };
       await saveJobDraft(payload);
       // Reload drafts list after saving
@@ -1192,6 +1200,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: '',
         applicationDeadlineISO: '',
         driveVenues: [],
+        reportingTime: '',
         qualification: '',
         specialization: '',
         yop: '',
@@ -1217,6 +1226,7 @@ export default function CreateJob({ onCreated }) {
         driveDateText: '',
         driveDateISO: '',
         driveVenues: [],
+        reportingTime: '',
       });
 
       setCollapsedSections(new Set());
@@ -2274,13 +2284,15 @@ export default function CreateJob({ onCreated }) {
                   </div>
                 </div>
 
-                {/* Drive Venue Multi-Select Dropdown */}
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <MapPin size={16} className="text-green-600" />
-                    Drive Venue <span className="text-red-500">*</span>
-                  </label>
-                  <div ref={venueDropdownRef} className="relative">
+                {/* Drive Venue & Reporting Time - side by side */}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Drive Venue Multi-Select Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <MapPin size={16} className="text-green-600" />
+                      Drive Venue <span className="text-red-500">*</span>
+                    </label>
+                    <div ref={venueDropdownRef} className="relative">
                       <button
                         type="button"
                         className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
@@ -2321,6 +2333,27 @@ export default function CreateJob({ onCreated }) {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Reporting Time */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Clock size={16} className="text-green-600" />
+                      Reporting Time
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 9:00 AM"
+                      value={form.reportingTime || driveDraft.reportingTime || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        update({ reportingTime: val });
+                        setDriveDraft((d) => ({ ...d, reportingTime: val }));
+                      }}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Time candidates should report on the drive date</p>
+                  </div>
                 </div>
               </>
             )}

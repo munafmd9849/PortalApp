@@ -281,15 +281,14 @@ export default function PlacementRecords({ onLoginOpen }) {
       >
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight">
+            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight flex flex-wrap items-center justify-center gap-x-2">
               Hear How They{" "}
-              <span
-                className="relative px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat
-                [background-size:100%_25%] [background-position:0_100%]
-                transition-all duration-300 ease-in-out
-                hover:[background-size:100%_100%] hover:[background-position:100%_100%]"
-              >
-                Cracked It
+              <span className="inline-block h-[0.95em] w-[4em] sm:w-[5em] overflow-hidden align-middle -ml-1.5">
+                <img
+                  src="/Untitled_Artwork_4.gif"
+                  alt="Cracked It"
+                  className="w-full h-full object-contain object-center"
+                />
               </span>
             </h2>
             <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">

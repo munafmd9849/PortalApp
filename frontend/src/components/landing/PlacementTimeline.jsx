@@ -211,6 +211,7 @@ export default function TimelineWithSidebar() {
   const ref = useRef(null);
   const containerRef = useRef(null);
   const [height, setHeight] = useState(0);
+  const stepTopsRef = useRef([0, 0, 0, 0, 0, 0, 0]);
 
   useEffect(() => {
     if (ref.current) {
@@ -218,6 +219,38 @@ export default function TimelineWithSidebar() {
       setHeight(rect.height);
     }
   }, [ref]);
+
+  // Measure exact center Y of each step label (the "Step N" div) so node holds beside it
+  const stepLabelRefs = useRef([]);
+  const measureStepTops = () => {
+    const container = ref.current;
+    const labels = stepLabelRefs.current;
+    if (!container || !labels || labels.length < 7) return;
+    const containerRect = container.getBoundingClientRect();
+    const tops = [];
+    for (let i = 0; i < 7; i++) {
+      const el = labels[i];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const centerY = rect.top - containerRect.top + rect.height / 2;
+        tops.push(centerY);
+      } else {
+        tops.push(0);
+      }
+    }
+    stepTopsRef.current = tops;
+  };
+
+  useEffect(() => {
+    const t = setTimeout(measureStepTops, 300);
+    const t2 = setTimeout(measureStepTops, 800);
+    window.addEventListener("resize", measureStepTops);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+      window.removeEventListener("resize", measureStepTops);
+    };
+  }, [height]);
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -227,8 +260,40 @@ export default function TimelineWithSidebar() {
   const heightTransform = useTransform(scrollYProgress, [0, 1], [0, height]);
   const opacityTransform = useTransform(scrollYProgress, [0, 0.1], [0, 1]);
 
+  // Node: move to each step, PAUSE there, then move to next (so it visibly stops at every step)
+  // 15 segments: move→pause at Step1, move→pause at Step2, ... move to end
+  const nodeTopTransform = useTransform(scrollYProgress, (v) => {
+    const positions = stepTopsRef.current;
+    if (!height || positions.every((p) => p === 0)) return v * height;
+    const step = 1 / 15; // each segment = 1/15 of scroll
+    const keyframes = [0, step, 2 * step, 3 * step, 4 * step, 5 * step, 6 * step, 7 * step, 8 * step, 9 * step, 10 * step, 11 * step, 12 * step, 13 * step, 14 * step, 1];
+    const values = [
+      0,
+      positions[0] ?? 0,
+      positions[0] ?? 0, // pause at Step 1
+      positions[1] ?? 0,
+      positions[1] ?? 0, // pause at Step 2
+      positions[2] ?? 0,
+      positions[2] ?? 0, // pause at Step 3
+      positions[3] ?? 0,
+      positions[3] ?? 0, // pause at Step 4
+      positions[4] ?? 0,
+      positions[4] ?? 0, // pause at Step 5
+      positions[5] ?? 0,
+      positions[5] ?? 0, // pause at Step 6
+      positions[6] ?? 0,
+      positions[6] ?? 0, // pause at Step 7
+      height,
+    ];
+    let i = 0;
+    while (i < keyframes.length - 1 && v >= keyframes[i + 1]) i++;
+    const segment = keyframes[i + 1] - keyframes[i];
+    const t = segment > 0 ? (v - keyframes[i]) / segment : 1;
+    return values[i] + t * (values[i + 1] - values[i]);
+  });
+
   return (
-    <div className="relative w-full overflow-clip bg-[#FFEEC3]">
+    <div className="relative w-full overflow-x-hidden bg-[#FFEEC3]">
       <div className="flex">
         {/* Timeline Section  */}
         <div className="relative w-full lg:w-[70%] font-inter md:px-10" ref={containerRef}>
@@ -259,35 +324,39 @@ export default function TimelineWithSidebar() {
                   <div className="w-full flex justify-center text-gray-500">{item.content}</div>
                 </motion.div>
               ) : (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 60 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.3 }}
-                  transition={{ duration: 0.7, ease: "easeOut" }}
                   className={`flex justify-start ${index === 0 ? "pt-4 md:pt-6" : "pt-10 md:pt-30"} md:gap-10`}
                   style={{ position: 'relative' }}
                 >
-                  <div className="sticky flex flex-col md:flex-row z-40 items-center top-40 self-start max-w-xs lg:max-w-sm md:w-full">
-                    <div className="h-10 absolute left-3 md:left-3 w-10 rounded-full bg-white  flex items-center justify-center">
-                      <div className="h-4 w-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 border-neutral-300 p-2" />
-                    </div>
-                    <h3 className="hidden md:block text-xl md:pl-20 md:text-5xl font-bold text-neutral-500 ">
+                  {/* Step label: sticky; ref for exact node alignment */}
+                  <div
+                    ref={(el) => { if (el) stepLabelRefs.current[index] = el; }}
+                    className="sticky flex flex-col md:flex-row z-40 items-center top-24 md:top-28 self-start max-w-xs lg:max-w-sm md:w-full shrink-0 pl-20 md:pl-20"
+                  >
+                    <h3 className="hidden md:block text-xl md:text-5xl font-bold text-neutral-500">
                       {item.title}
                     </h3>
                   </div>
 
-                  <div className="relative pl-20 pr-4 md:pl-4 w-full">
+                  {/* Content: scrolls normally */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 60 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.7, ease: "easeOut" }}
+                    className="relative pl-0 pr-4 md:pl-4 w-full min-w-0"
+                  >
                     <h3 className="md:hidden block text-2xl mb-4 text-left font-bold text-neutral-500">
                       {item.title}
                     </h3>
                     {item.content}
-                  </div>
-                </motion.div>
+                  </motion.div>
+                </div>
               )
             )}
 
-            {/* timeline animation */}
+            {/* Progress line: scroll-driven fill */}
             <div
               style={{ height: `${height}px` }}
               className="absolute left-8 md:left-8 top-0 overflow-hidden w-[2px] bg-[linear-gradient(to_bottom,var(--tw-gradient-stops))] from-blue-800 via-white to-transparent [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
@@ -300,6 +369,18 @@ export default function TimelineWithSidebar() {
                 className="absolute inset-x-0 top-0 w-[2px] bg-gradient-to-t from-blue-800 via-white to-transparent from-[0%] via-[10%] rounded-full"
               />
             </div>
+
+            {/* Single dot: stops at each step (discrete positions) */}
+            <motion.div
+              className="absolute left-8 md:left-8 w-10 h-10 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
+              style={{
+                top: nodeTopTransform,
+              }}
+            >
+              <div className="w-full h-full rounded-full bg-white shadow-sm flex items-center justify-center">
+                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 border border-neutral-200" />
+              </div>
+            </motion.div>
           </div>
         </div>
 

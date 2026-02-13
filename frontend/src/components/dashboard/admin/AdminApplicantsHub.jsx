@@ -251,20 +251,6 @@ export default function AdminApplicantsHub() {
                 </div>
               </div>
 
-              <ul className="space-y-1 mb-4 max-h-24 overflow-y-auto">
-                {companyJobs.slice(0, 4).map((job) => {
-                  const title = job?.jobTitle || job?.title || 'Job';
-                  return (
-                    <li key={job?.id || job?.jobId} className="text-sm text-slate-600 truncate pl-0">
-                      • {title}
-                    </li>
-                  );
-                })}
-                {companyJobs.length > 4 && (
-                  <li className="text-xs text-slate-500">+{companyJobs.length - 4} more</li>
-                )}
-              </ul>
-
               <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-slate-400" />

@@ -78,16 +78,15 @@ const DashboardHome = ({
   const displayApplications = Array.isArray(applications) ? applications : [];
   const displayJobs = Array.isArray(jobs) ? jobs : [];
 
-  // Convert studentData props to expected format and calculate stats
+  // Use parent's stats (StudentDashboard sends displayStats with funnel enforced: offers <= interviewed <= shortlisted <= applied)
+  const stats =
+    studentData?.stats && typeof studentData.stats.applied === 'number'
+      ? studentData.stats
+      : { applied: 0, shortlisted: 0, interviewed: 0, offers: 0 };
   const formattedStudentData = studentData ? {
     id: user?.id,
     ...studentData,
-    stats: {
-      applied: displayApplications.length,
-      shortlisted: displayApplications.filter(app => app.status === 'shortlisted').length,
-      interviewed: displayApplications.filter(app => app.status === 'interviewed').length,
-      offers: displayApplications.filter(app => app.status === 'selected' || app.status === 'offered').length
-    }
+    stats,
   } : null;
 
 

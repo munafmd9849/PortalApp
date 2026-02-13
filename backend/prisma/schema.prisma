@@ -414,6 +414,7 @@ model Job {
   workMode        String? // 'Remote', 'Hybrid', 'On-site', etc.
   experienceLevel String?
   driveVenues     String // Array of venue strings (stored as JSON string)
+  reportingTime   String? // e.g. "9:00 AM" - when candidates should report on drive date
   
   // Eligibility Requirements
   qualification   String? // Required qualification (e.g., "B.Tech", "M.Tech")

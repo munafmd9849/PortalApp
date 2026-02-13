@@ -594,6 +594,7 @@ export async function createJob(req, res) {
       jobType: mappedData.jobType || null,
       workMode: mappedData.workMode || null,
       experienceLevel: mappedData.experienceLevel || null,
+      reportingTime: (mappedData.reportingTime && String(mappedData.reportingTime).trim() !== '') ? String(mappedData.reportingTime).trim() : null,
       // Eligibility Requirements
       qualification: mappedData.qualification || null,
       specialization: mappedData.specialization || null,
@@ -870,7 +871,7 @@ export async function updateJob(req, res) {
       'companyId', 'recruiterId', 'companyName', 'recruiterEmail', 'recruiterName', 'recruiterEmails',
       'salary', 'ctc', 'salaryRange',
       'location', 'companyLocation', 'driveDate', 'applicationDeadline',
-      'jobType', 'workMode', 'experienceLevel', 'driveVenues',
+      'jobType', 'workMode', 'experienceLevel', 'driveVenues', 'reportingTime',
       'qualification', 'specialization', 'yop', 'minCgpa', 'gapAllowed', 'gapYears', 'backlogs',
       'spocs', 'status', 'isActive', 'isPosted', 'applicationDeadlineMailSent',
       'requiresScreening', 'requiresTest',

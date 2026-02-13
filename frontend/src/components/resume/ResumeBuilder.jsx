@@ -66,6 +66,61 @@ import ResumeAnalyzer from './ResumeAnalyzer';
 import CustomDropdown from '../common/CustomDropdown';
 import ErrorBoundary from '../common/ErrorBoundary';
 
+/** Build plain-text resume from student data for ATS analysis (no PDF extraction needed) */
+function buildResumeTextForAnalysis(student) {
+  if (!student) return '';
+  const lines = [];
+  lines.push(student.fullName || student.name || '');
+  if (student.email) lines.push(student.email);
+  if (student.phone) lines.push(student.phone);
+  if (student.linkedin) lines.push(student.linkedin);
+  if (student.githubUrl) lines.push(student.githubUrl);
+  if (student.summary) lines.push('\nSummary\n' + student.summary);
+  const education = student.education || [];
+  if (education.length > 0) {
+    lines.push('\nEducation');
+    education.forEach(edu => {
+      lines.push(`${edu.degree || ''} | ${edu.institution || ''}`);
+      if (edu.startYear || edu.endYear) lines.push(`${edu.startYear || ''} - ${edu.endYear || ''}`);
+      if (edu.cgpa) lines.push(`CGPA: ${typeof edu.cgpa === 'number' ? edu.cgpa.toFixed(1) : edu.cgpa}`);
+    });
+  }
+  const experiences = student.experiences || [];
+  if (experiences.length > 0) {
+    lines.push('\nExperience');
+    experiences.forEach(exp => {
+      lines.push(`${exp.title || ''} | ${exp.company || ''}`);
+      if (exp.start || exp.end) lines.push(`${exp.start || ''} - ${exp.end || 'Present'}`);
+      if (exp.description) lines.push(exp.description);
+    });
+  }
+  const skills = student.skills || [];
+  if (skills.length > 0) {
+    lines.push('\nSkills');
+    const names = skills.map(s => (typeof s === 'string' ? s : s.skillName || '')).filter(Boolean);
+    lines.push(names.join(', '));
+  }
+  const projects = student.projects || [];
+  if (projects.length > 0) {
+    lines.push('\nProjects');
+    projects.forEach(p => {
+      lines.push(p.title || '');
+      if (p.technologies) {
+        const tech = typeof p.technologies === 'string' ? p.technologies : (Array.isArray(p.technologies) ? p.technologies.join(', ') : '');
+        if (tech) lines.push('Technologies: ' + tech);
+      }
+      if (p.ai_summary) lines.push(p.ai_summary);
+      else if (p.description) lines.push(p.description);
+    });
+  }
+  const achievements = student.achievements || [];
+  if (achievements.length > 0) {
+    lines.push('\nAchievements');
+    achievements.forEach(a => lines.push(typeof a === 'string' ? a : (a.title || '')));
+  }
+  return lines.join('\n').trim();
+}
+
 const ResumeBuilder = () => {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
@@ -682,6 +737,7 @@ const ResumeBuilder = () => {
   };
 
   // Generate PDF and auto-upload to resume manager
+  // Uses html2pdf so the generated PDF looks exactly like the preview (same layout, colors, spacing)
   const handleGeneratePDFAndSave = async () => {
     if (!user?.id) return;
     try {
@@ -694,33 +750,27 @@ const ResumeBuilder = () => {
         throw new Error('Not authenticated. Please login again.');
       }
 
-      // Generate PDF using html2pdf.js
       const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById('resume-preview');
-      
-      if (!element) {
+      const previewWrapper = document.getElementById('resume-preview');
+      if (!previewWrapper) {
         throw new Error('Resume preview element not found. Please go to Preview section first.');
       }
+      // Use the inner template element so PDF captures full-width lines without scale wrapper
+      const element = previewWrapper.querySelector('.resume-template-1') || previewWrapper.querySelector('[class*="resume-template"]') || previewWrapper;
 
       const opt = {
         margin: 0.5,
         filename: `Resume_${student?.fullName || user.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
+        html2canvas: {
+          scale: 2,
           useCORS: true,
           logging: false,
-          letterRendering: true
+          letterRendering: true,
         },
-        jsPDF: { 
-          unit: 'in', 
-          format: 'letter', 
-          orientation: 'portrait' 
-        }
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
       };
 
-      // Generate PDF blob using html2pdf.js
-      // html2pdf.js returns a promise, so we need to use .then() or wrap it properly
       const pdfBlob = await new Promise((resolve, reject) => {
         html2pdf()
           .set(opt)
@@ -863,29 +913,26 @@ const ResumeBuilder = () => {
         // Fall through to frontend fallback
       }
 
-      // Frontend fallback using html2pdf.js
+      // Frontend fallback using html2pdf so the downloaded PDF matches the preview
       try {
         const html2pdf = (await import('html2pdf.js')).default;
-        const element = document.getElementById('resume-preview');
-        
-        if (!element) {
-          throw new Error('Resume preview element not found');
-        }
+        const previewWrapper = document.getElementById('resume-preview');
+        if (!previewWrapper) throw new Error('Resume preview element not found');
+        const element = previewWrapper.querySelector('.resume-template-1') || previewWrapper.querySelector('[class*="resume-template"]') || previewWrapper;
 
         const opt = {
           margin: 0.5,
-          filename: `RESUME_${user.id}.pdf`,
+          filename: `Resume_${student?.fullName || user.id}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
         };
-
         await html2pdf().set(opt).from(element).save();
         setSuccess('Resume exported successfully!');
         setTimeout(() => setSuccess(''), 3000);
       } catch (frontendError) {
         console.error('Frontend PDF export error:', frontendError);
-        throw new Error('Failed to export PDF. Please ensure html2pdf.js is installed.');
+        throw new Error('Failed to export PDF. Please try again.');
       }
     } catch (err) {
       console.error('Export error:', err);
@@ -1392,7 +1439,7 @@ const ResumeBuilder = () => {
                     <div>
                       <h4 className="font-semibold">{edu.degree} - {edu.institution}</h4>
                       <p className="text-sm text-gray-600">
-                        {edu.startYear} - {edu.endYear || 'Present'} {edu.cgpa && `• CGPA: ${edu.cgpa}`}
+                        {edu.startYear} - {edu.endYear || 'Present'} {edu.cgpa && `• CGPA: ${!Number.isNaN(parseFloat(String(edu.cgpa))) ? parseFloat(String(edu.cgpa)).toFixed(1) : edu.cgpa}`}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -2000,7 +2047,7 @@ const ResumeBuilder = () => {
                     ) : (
                       <>
                         <Download size={18} />
-                        <span>Export as PDF</span>
+                        <span>Download as PDF</span>
                       </>
                     )}
                   </button>
@@ -2027,7 +2074,7 @@ const ResumeBuilder = () => {
                       <li>AI-generated project content is automatically included in your resume</li>
                       <li>Update any section and see changes in real-time preview</li>
                       <li>Choose from multiple templates to find the best fit for your industry</li>
-                      <li>Export as PDF when ready to apply for jobs</li>
+                      <li>Download as PDF when ready to apply for jobs</li>
                     </ul>
                   </div>
                 </div>
@@ -2272,7 +2319,8 @@ const ResumeBuilder = () => {
                 uploadedAt: null
               }} 
               resumes={resumes}
-              userId={user?.id} 
+              userId={user?.id}
+              builderResumeText={buildResumeTextForAnalysis(student)}
             />
           </div>
         </div>

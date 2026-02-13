@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import EmailVerificationModal from '../auth/EmailVerificationModal';
 import api from '../../services/api';
+import { showError } from '../../utils/toast';
 
 function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
   const { login, registerWithEmail, resetPassword, loginWithGoogle, user, emailVerified } = useAuth();
@@ -18,7 +19,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Toggle confirm password visibility
   const [isPasswordFocused, setIsPasswordFocused] = useState(false); // Track password field focus
   const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false); // Track confirm password field focus
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''); // kept for setError('') clears; display is via toast only
   const [busy, setBusy] = useState(false);
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
@@ -57,7 +58,6 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setError('');
       setBusy(false);
       setShowPassword(false);
       setShowConfirmPassword(false);
@@ -474,33 +474,6 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                 animationFillMode: 'both'
               }}
             >
-              {error && (
-                <div className="mb-4 p-4 rounded-xl flex items-start space-x-3 bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-red-500 shadow-sm">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <AlertCircle className="text-red-600" size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium leading-relaxed text-red-800">
-                      {error}
-                    </p>
-                    {error.includes('user-not-found') && (
-                      <p className="text-xs text-red-600 mt-2">
-                        This email address is not registered. Please create an account first.
-                      </p>
-                    )}
-                    {error.includes('wrong-password') && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Please check your password and try again.
-                      </p>
-                    )}
-                    {error.includes('invalid-email') && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Please enter a valid email address.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
               {mode !== 'forgot' && (
                 <form className="flex flex-col gap-4" onSubmit={async (e)=>{
                   e.preventDefault();
@@ -534,7 +507,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         // Step 1: Send OTP
                         try {
                           if (!email) {
-                            setError('Please enter your email address');
+                            showError('Please enter your email address');
                             setBusy(false);
                             return;
                           }
@@ -577,7 +550,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                             response: otpError.response
                           });
                           const errorMsg = otpError.message || 'Failed to send OTP. Please check your backend server and try again.';
-                          setError(errorMsg);
+                          showError(errorMsg);
                           setBusy(false);
                           return;
                         }
@@ -587,7 +560,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         if (!otpValue || otpValue.length !== 6) {
                           // Hide status card and show error
                           setHideOtpStatusCard(true);
-                          setError('Please enter a 6-digit OTP');
+                          showError('Please enter a 6-digit OTP');
                           // Auto-clear error after 30 seconds (handled by useEffect)
                           setBusy(false);
                           return;
@@ -602,14 +575,14 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         } catch (verifyError) {
                           // Hide status card and show error
                           setHideOtpStatusCard(true);
-                          setError(verifyError.message || 'Invalid OTP');
+                          showError(verifyError.message || 'Invalid OTP');
                           setBusy(false);
                           return;
                         }
                       } else if (otpStep === 'password') {
                         // Step 3: Complete registration with verification token
                         if (!password || password.length < 6) {
-                          setError('Password must be at least 6 characters');
+                          showError('Password must be at least 6 characters');
                           setBusy(false);
                           return;
                         }
@@ -680,7 +653,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       }
                     }
                     
-                    setError(errorMessage);
+                    showError(errorMessage);
                   } finally { setBusy(false); }
               }}>
                 {/* Email input - hide during OTP step */}
@@ -838,7 +811,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                             otpInputRefs.current[0].focus();
                           }
                         } catch (err) {
-                          setError(err.message || 'Failed to resend OTP');
+                          showError(err.message || 'Failed to resend OTP');
                         } finally {
                           setBusy(false);
                         }
@@ -914,7 +887,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                           // Close modal on success - AuthRedirect will handle navigation
                           onClose();
                         } catch (err) {
-                          setError(err.message || 'Google sign-in failed. Please try again.');
+                          showError(err.message || 'Google sign-in failed. Please try again.');
                         } finally {
                           setBusy(false);
                         }
@@ -938,7 +911,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                 <form className="flex flex-col gap-4" onSubmit={async (e)=>{
                   e.preventDefault();
                   if (!email) {
-                    setError('Please enter your email address');
+                    showError('Please enter your email address');
                     return;
                   }
                   setError('');
@@ -967,11 +940,11 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       }, 100);
                     } else {
                       // Backend returned error
-                      setError(response?.message || 'Failed to send reset code. Please try again.');
+                      showError(response?.message || 'Failed to send reset code. Please try again.');
                     }
                   } catch (err) {
                     console.error('LoginModal - Reset password error:', err);
-                    setError(err?.message || 'Failed to send reset code. Please try again.');
+                    showError(err?.message || 'Failed to send reset code. Please try again.');
                   } finally { 
                     setBusy(false);
                   }
@@ -1108,7 +1081,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         } else {
                           // Hide status card and show error if resend fails
                           setHideResetOtpStatusCard(true);
-                          setError(response?.message || 'Failed to resend code. Please try again.');
+                          showError(response?.message || 'Failed to resend code. Please try again.');
                         }
                         if (resetOtpInputRefs.current[0]) {
                           resetOtpInputRefs.current[0].focus();
@@ -1116,7 +1089,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       } catch (err) {
                         // Hide status card and show error if resend fails
                         setHideResetOtpStatusCard(true);
-                        setError(err?.message || 'Failed to resend code');
+                        showError(err?.message || 'Failed to resend code');
                       } finally {
                         setBusy(false);
                       }
@@ -1133,7 +1106,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       if (!otpValue || otpValue.length !== 6) {
                         // Hide status card and show error
                         setHideResetOtpStatusCard(true);
-                        setError('Please enter the 6-digit code');
+                        showError('Please enter the 6-digit code');
                         // Auto-clear error after 30 seconds (handled by useEffect)
                         return;
                       }
@@ -1148,7 +1121,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                       } catch (err) {
                         // Hide status card and show error
                         setHideResetOtpStatusCard(true);
-                        setError(err?.message || 'Invalid or expired code');
+                        showError(err?.message || 'Invalid or expired code');
                         setResetOtpDigits(['', '', '', '', '', '']);
                         if (resetOtpInputRefs.current[0]) {
                           resetOtpInputRefs.current[0].focus();
@@ -1170,19 +1143,19 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                 <form className="flex flex-col gap-4" onSubmit={async (e)=>{
                   e.preventDefault();
                   if (!password) {
-                    setError('Please enter a new password');
+                    showError('Please enter a new password');
                     return;
                   }
                   if (password.length < 6) {
-                    setError('Password must be at least 6 characters long');
+                    showError('Password must be at least 6 characters long');
                     return;
                   }
                   if (password !== confirmPassword) {
-                    setError('Passwords do not match');
+                    showError('Passwords do not match');
                     return;
                   }
                   if (!resetToken) {
-                    setError('Invalid reset token. Please start over.');
+                    showError('Invalid reset token. Please start over.');
                     return;
                   }
                   setError('');
@@ -1200,7 +1173,7 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                     setPassword('');
                     setConfirmPassword('');
                   } catch (err) {
-                    setError(err?.message || 'Failed to update password');
+                    showError(err?.message || 'Failed to update password');
                   } finally {
                     setBusy(false);
                   }

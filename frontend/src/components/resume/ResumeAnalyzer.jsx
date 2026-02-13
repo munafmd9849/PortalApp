@@ -22,7 +22,7 @@ import { formatFileSize } from '../../utils/resumeUtils';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onResumeSelect }) {
+export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onResumeSelect, builderResumeText }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -173,11 +173,13 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
 
   // Real analysis function using Gemini API
   const analyzeResume = async () => {
-    // Determine which resume to analyze
     const resumeToAnalyze = selectedResume || resumeInfo;
-    
-    if (!resumeToAnalyze?.fileUrl && !resumeToAnalyze?.resumeUrl) {
-      // If multiple resumes exist, show selector
+    const hasUploadedResume = !!(resumeToAnalyze?.fileUrl || resumeToAnalyze?.resumeUrl);
+    const hasBuilderContent = !!(builderResumeText && String(builderResumeText).trim().length > 0);
+    // Use builder text only when there is no uploaded resume to analyze (so each uploaded resume gets its own analysis)
+    const useBuilderText = hasBuilderContent && !hasUploadedResume;
+
+    if (!useBuilderText && !hasUploadedResume) {
       if (resumes && resumes.length > 1) {
         setShowResumeSelector(true);
         return;
@@ -186,18 +188,34 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
       return;
     }
 
-    const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
-    const resumeId = resumeToAnalyze.id || resumeToAnalyze.resumeId;
+    const resumeId = resumeToAnalyze?.id || resumeToAnalyze?.resumeId;
 
     setLoading(true);
     setError(null);
-    
+
+    let resumeText;
+    let usedFallbackBuilder = false;
     try {
-      // Step 1: Extract text from PDF
-      const resumeText = await extractTextFromPDFUrl(resumeUrl);
-      
+      if (useBuilderText) {
+        resumeText = String(builderResumeText).trim();
+      } else {
+        const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
+        try {
+          resumeText = await extractTextFromPDFUrl(resumeUrl);
+        } catch (pdfErr) {
+          if (hasBuilderContent) {
+            resumeText = String(builderResumeText).trim();
+            usedFallbackBuilder = true;
+          } else {
+            throw pdfErr;
+          }
+        }
+      }
+
       if (!resumeText || resumeText.trim().length === 0) {
-        throw new Error('Could not extract text from PDF. The PDF might be image-based or corrupted.');
+        throw new Error(useBuilderText
+          ? 'Your resume in the Builder has no content yet. Add details in Build Resume, then try again.'
+          : 'Could not extract text from PDF. The PDF might be image-based or corrupted.');
       }
 
       // Step 2: Call backend API for ATS analysis
@@ -206,7 +224,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         throw new Error('Authentication required. Please log in again.');
       }
 
-      console.log('📊 [ATS Analysis] Calling backend API with resume text length:', resumeText.length);
+      console.log('📊 [ATS Analysis] Source:', useBuilderText ? 'Builder content' : (usedFallbackBuilder ? 'Builder (PDF had no text)' : 'Uploaded PDF'), 'text length:', resumeText.length);
 
       // Add timeout to prevent hanging
       const controller = new AbortController();
@@ -262,8 +280,9 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         clarityIssues: data.analysis.clarityIssues || [],
         overallFeedback: data.analysis.overallFeedback || '',
         isAI: data.isAI !== false, // Default to true, false only if explicitly set
+        analyzedFromBuilderFallback: usedFallbackBuilder,
       };
-      
+
       setAnalysis(transformedAnalysis);
     } catch (err) {
       console.error('❌ Resume analysis error:', err);
@@ -285,7 +304,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
       } else if (errorMessage.includes('Network error')) {
         errorMessage = 'Network Error: Cannot connect to the server. Please check your internet connection and try again.';
       } else if (errorMessage.includes('image-based') || errorMessage.includes('No text could be extracted')) {
-        errorMessage = 'Text Extraction Failed: The PDF appears to be image-based (scanned). Please use a PDF with selectable text, or try converting your scanned PDF to text using OCR tools.';
+        errorMessage = 'Text Extraction Failed: This PDF has no selectable text (e.g. it’s a scanned image or an old export). Resumes created in our Resume Builder are now exported as text-based PDFs—try downloading your resume again from the Builder (Download as PDF), then upload that file here. For other PDFs, use one with selectable text or convert scans with an OCR tool.';
       } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
         errorMessage = 'PDF Not Found: The resume file may have been removed or the URL is invalid. Please upload your resume again.';
       } else if (errorMessage.includes('Access denied') || errorMessage.includes('403')) {
@@ -327,8 +346,9 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     }
   };
 
-  // Check if we have any resumes
-  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0);
+  // Check if we have any resumes or builder text to analyze
+  const hasBuilderText = builderResumeText && String(builderResumeText).trim().length > 0;
+  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0) || hasBuilderText;
   const currentResume = selectedResume || (resumes && resumes.length > 0 ? resumes[0] : null) || resumeInfo;
 
   if (!hasAnyResume) {
@@ -423,9 +443,11 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         <BarChart3 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Analyze</h3>
         <p className="text-gray-500 mb-2">
-          {resumes && resumes.length > 1 
+          {resumes && resumes.length > 1
             ? `You have ${resumes.length} resumes. Select one to analyze for ATS compatibility.`
-            : 'Click the button below to analyze your resume for ATS compatibility.'}
+            : hasBuilderText
+              ? 'Analyze your current resume from the Builder (no PDF upload needed).'
+              : 'Click the button below to analyze your resume for ATS compatibility.'}
         </p>
         {resumes && resumes.length > 1 && currentResume && (
           <p className="text-sm text-gray-400 mb-4">
@@ -444,11 +466,11 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
           )}
           <button
             onClick={analyzeResume}
-            disabled={!currentResume}
+            disabled={!currentResume && !hasBuilderText}
             className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <BarChart3 className="h-5 w-5 mr-2" />
-            {selectedResume ? 'Analyze Selected Resume' : 'Analyze Resume'}
+            {selectedResume ? 'Analyze Selected Resume' : hasBuilderText ? 'Analyze Current Resume' : 'Analyze Resume'}
           </button>
         </div>
       </div>
