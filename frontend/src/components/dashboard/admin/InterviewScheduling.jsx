@@ -20,6 +20,8 @@ export default function InterviewScheduling() {
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(false);
   const [completedSessions, setCompletedSessions] = useState(new Set()); // Track completed sessions
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PER_PAGE = 10;
 
   // Interviewer setup
   const [interviewerEmail, setInterviewerEmail] = useState('');
@@ -436,8 +438,16 @@ export default function InterviewScheduling() {
           <div className="text-center py-12">
             <p className="text-slate-500">No posted jobs available for interview scheduling</p>
           </div>
-        ) : (
-          jobs.map((job) => {
+        ) : (() => {
+          const totalJobs = jobs.length;
+          const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+          const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+          const start = (currentPage - 1) * JOBS_PER_PAGE;
+          const paginatedJobs = jobs.slice(start, start + JOBS_PER_PAGE);
+          
+          return (
+            <>
+              {paginatedJobs.map((job) => {
             const isSelected = selectedJob?.id === job.id;
             const hasCompletedSession = completedSessions.has(job.id);
             
@@ -646,8 +656,40 @@ export default function InterviewScheduling() {
                 </div>
               </div>
             );
-          })
-        )}
+          })}
+
+              {/* Pagination */}
+              {totalJobs > JOBS_PER_PAGE && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 px-4">
+                  <p className="text-sm text-gray-600">
+                    Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-3 py-2 text-sm text-gray-700">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Session Management Modal */}

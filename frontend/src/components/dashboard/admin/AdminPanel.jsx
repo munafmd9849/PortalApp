@@ -25,6 +25,7 @@ import {
 } from 'react-icons/fa';
 import { getAdminPanelData, exportReportCSV, downloadDataCSV, subscribeToAdminPanelData } from '../../../services/adminPanelService';
 import api from '../../../services/api';
+import { useAuth } from '../../../hooks/useAuth';
 // TODO: Replace Firebase operations with API calls
 
 // Register Chart.js components
@@ -174,6 +175,10 @@ const CustomDropdown = ({
 };
 
 const AdminPanel = () => {
+  const { user, role } = useAuth();
+  const userRole = (role || user?.role || '').toUpperCase();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  
   const [filters, setFilters] = useState({
     campus: [],
     school: [],
@@ -499,66 +504,84 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Filters Section */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <FaFilter className="text-blue-600 text-xl" />
-            <h2 className="text-xl font-semibold text-slate-800">Filters & Controls</h2>
-            {loading && (
-              <div className="flex items-center gap-2 text-blue-600">
-                <FaSync className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Loading...</span>
+        {/* Filters Section - Only visible to SuperAdmin */}
+        {isSuperAdmin && (
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <FaFilter className="text-blue-600 text-xl" />
+              <h2 className="text-xl font-semibold text-slate-800">Filters & Controls</h2>
+              {loading && (
+                <div className="flex items-center gap-2 text-blue-600">
+                  <FaSync className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <CustomDropdown
+                label="Campus"
+                options={filterOptions.campuses}
+                selectedValues={filters.campus}
+                onSelectionChange={(values) => handleFilterChange('campus', values)}
+                multiple={true}
+                placeholder="Select Center"
+              />
+              
+              <CustomDropdown
+                label="School"
+                options={filterOptions.schools}
+                selectedValues={filters.school}
+                onSelectionChange={(values) => handleFilterChange('school', values)}
+                multiple={true}
+                placeholder="Select schools"
+              />
+              
+              <CustomDropdown
+                label="Batch"
+                options={filterOptions.batches}
+                selectedValues={filters.batch}
+                onSelectionChange={(values) => handleFilterChange('batch', values)}
+                multiple={true}
+                placeholder="Select batches"
+              />
+              
+              <CustomDropdown
+                label="Admin"
+                options={filterOptions.admins}
+                selectedValues={filters.admin}
+                onSelectionChange={(values) => handleFilterChange('admin', values)}
+                multiple={true}
+                placeholder="Select admins"
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={resetFilters}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Info message for regular admins */}
+        {!isSuperAdmin && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <FaFilter className="w-5 h-5 text-blue-500" />
               </div>
-            )}
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  <strong>Viewing your data:</strong> You are viewing data for your assigned center/school only.
+                </p>
+              </div>
+            </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <CustomDropdown
-              label="Campus"
-              options={filterOptions.campuses}
-              selectedValues={filters.campus}
-              onSelectionChange={(values) => handleFilterChange('campus', values)}
-              multiple={true}
-              placeholder="Select Center"
-            />
-            
-            <CustomDropdown
-              label="School"
-              options={filterOptions.schools}
-              selectedValues={filters.school}
-              onSelectionChange={(values) => handleFilterChange('school', values)}
-              multiple={true}
-              placeholder="Select schools"
-            />
-            
-            <CustomDropdown
-              label="Batch"
-              options={filterOptions.batches}
-              selectedValues={filters.batch}
-              onSelectionChange={(values) => handleFilterChange('batch', values)}
-              multiple={true}
-              placeholder="Select batches"
-            />
-            
-            <CustomDropdown
-              label="Admin"
-              options={filterOptions.admins}
-              selectedValues={filters.admin}
-              onSelectionChange={(values) => handleFilterChange('admin', values)}
-              multiple={true}
-              placeholder="Select admins"
-            />
-          </div>
-          
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={resetFilters}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
-            >
-              Reset Filters
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Enhanced Statistics Cards - Ultra Glassmorphic Style */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">

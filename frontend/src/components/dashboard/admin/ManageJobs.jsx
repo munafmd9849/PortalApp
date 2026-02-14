@@ -61,6 +61,13 @@ export default function ManageJobs() {
   const [selectedBatches, setSelectedBatches] = useState({});
   const [selectedCenters, setSelectedCenters] = useState({});
   const [activeFilter, setActiveFilter] = useState('in_review'); // Default to in_review to show jobs pending approval
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PER_PAGE = 10;
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setJobsPage(1);
+  }, [activeFilter]);
 
   // Filter options state
   const [schoolOptions, setSchoolOptions] = useState([]);
@@ -815,7 +822,17 @@ export default function ManageJobs() {
             </div>
           )}
 
-          {getSortedJobs().map((job, index) => {
+          {(() => {
+            const allJobs = getSortedJobs();
+            const totalJobs = allJobs.length;
+            const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+            const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+            const start = (currentPage - 1) * JOBS_PER_PAGE;
+            const paginatedJobs = allJobs.slice(start, start + JOBS_PER_PAGE);
+            
+            return (
+              <>
+                {paginatedJobs.map((job, index) => {
             const jobStatus = isJobPosted(job) ? getJobStatus(job) : null;
 
             return (
@@ -1118,6 +1135,47 @@ export default function ManageJobs() {
               </div>
             );
           })}
+
+                {/* Pagination */}
+                {(() => {
+                  const allJobs = getSortedJobs();
+                  const totalJobs = allJobs.length;
+                  const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+                  const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+                  const start = (currentPage - 1) * JOBS_PER_PAGE;
+                  
+                  return totalJobs > JOBS_PER_PAGE ? (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 px-4">
+                      <p className="text-sm text-gray-600">
+                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 py-2 text-sm text-gray-700">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </>
+            );
+          })()}
         </div>
       </div>
 

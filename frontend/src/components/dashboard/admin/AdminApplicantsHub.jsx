@@ -56,6 +56,8 @@ export default function AdminApplicantsHub() {
     search: '',
     status: '',
   });
+  const [companiesPage, setCompaniesPage] = useState(1);
+  const COMPANIES_PER_PAGE = 10;
 
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   useEffect(() => {
@@ -106,6 +108,11 @@ export default function AdminApplicantsHub() {
   };
 
   const companies = useMemo(() => groupJobsByCompany(jobs), [jobs]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCompaniesPage(1);
+  }, [debouncedSearch, filters.status]);
 
   // When landing with addNote=jobId (from thank-you email), open company modal and start editing note
   useEffect(() => {
@@ -231,9 +238,17 @@ export default function AdminApplicantsHub() {
             {hasActiveFilters ? 'Try adjusting your search or filters.' : 'No companies with posted jobs at the moment.'}
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-0">
-          {companies.map(({ companyName, jobs: companyJobs, totalApplicants }) => (
+      ) : (() => {
+        const totalCompanies = companies.length;
+        const totalPages = Math.max(1, Math.ceil(totalCompanies / COMPANIES_PER_PAGE));
+        const currentPage = Math.min(Math.max(1, companiesPage), totalPages);
+        const start = (currentPage - 1) * COMPANIES_PER_PAGE;
+        const paginatedCompanies = companies.slice(start, start + COMPANIES_PER_PAGE);
+        
+        return (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-0">
+              {paginatedCompanies.map(({ companyName, jobs: companyJobs, totalApplicants }) => (
             <div
               key={companyName}
               onClick={() => setSelectedCompany({ companyName, jobs: companyJobs, totalApplicants })}
@@ -264,8 +279,40 @@ export default function AdminApplicantsHub() {
               </div>
             </div>
           ))}
-        </div>
-      )}
+            </div>
+
+            {/* Pagination */}
+            {totalCompanies > COMPANIES_PER_PAGE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+                <p className="text-sm text-gray-600">
+                  Showing {start + 1}–{Math.min(start + COMPANIES_PER_PAGE, totalCompanies)} of {totalCompanies} companies
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompaniesPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-2 text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCompaniesPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Company jobs modal */}
       {selectedCompany && (
