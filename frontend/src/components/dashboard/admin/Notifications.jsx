@@ -557,7 +557,7 @@ const Notifications = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 overflow-x-hidden">
       <div className="max-w-7xl mx-auto">
         
         {/* RESTRUCTURED HEADER - Title, Search & Mark All Read in One Row */}
@@ -678,8 +678,8 @@ const Notifications = () => {
 
         {/* Notifications List */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+          <div className="p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">
               {activeFilter === 'all' ? 'All' : 
                activeFilter === 'unread' ? 'Unread Notifications' : 
                filters.find(f => f.id === activeFilter)?.name}

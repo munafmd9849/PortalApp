@@ -639,7 +639,7 @@ export default function JobPostingsManager() {
   const totalPages = Math.ceil(pagination.totalItems / pagination.itemsPerPage);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Custom Calendar Styles */}
       <style>{`
         .react-datepicker {
@@ -725,15 +725,15 @@ export default function JobPostingsManager() {
       `}</style>
       {/* Header and Analytics */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Job Moderation</h2>
-            <p className="text-gray-600 text-lg">Review, approve, and manage job postings from recruiters</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">Job Moderation</h2>
+            <p className="text-gray-600 text-sm sm:text-lg">Review, approve, and manage job postings from recruiters</p>
           </div>
           
           <button
             onClick={handleAutoArchive}
-            className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+            className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md touch-manipulation w-full sm:w-auto"
           >
             <FaArchive className="w-4 h-4" />
             Auto Archive Expired
@@ -741,7 +741,7 @@ export default function JobPostingsManager() {
         </div>
 
         {/* Analytics Cards - More User Friendly */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <FaFileAlt className="w-5 h-5 text-blue-600 flex-shrink-0" />
@@ -788,7 +788,7 @@ export default function JobPostingsManager() {
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
         <div className="flex items-center gap-2 mb-4">
           <FaFilter className="w-5 h-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>

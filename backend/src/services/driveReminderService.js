@@ -38,15 +38,24 @@ function getRecruiterEmails(job) {
 
 /** Get admin emails (active ADMIN and SUPER_ADMIN users) */
 async function getAdminEmails() {
-  const users = await prisma.user.findMany({
-    where: {
-      role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      status: 'ACTIVE',
-      email: { not: null }
-    },
-    select: { email: true }
-  });
-  return users.map((u) => u.email).filter(Boolean);
+  try {
+    const emailFilter = { not: null };
+    // Debug log to catch unexpected values
+    logger.debug('[Drive Reminder] getAdminEmails - emailFilter:', emailFilter);
+
+    const users = await prisma.user.findMany({
+      where: {
+        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        status: 'ACTIVE',
+        email: emailFilter
+      },
+      select: { email: true }
+    });
+    return users.map((u) => u.email).filter(Boolean);
+  } catch (err) {
+    logger.error('[Drive Reminder] getAdminEmails failed:', err);
+    return [];
+  }
 }
 
 /**

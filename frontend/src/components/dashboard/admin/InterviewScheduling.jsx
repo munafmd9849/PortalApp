@@ -421,11 +421,11 @@ export default function InterviewScheduling() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Interview Scheduling</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Interview Scheduling</h2>
           <p className="text-sm text-slate-600 mt-1">
             Configure interview sessions, rounds, and invite interviewers
           </p>
@@ -478,7 +478,7 @@ export default function InterviewScheduling() {
             return (
               <div 
                 key={job.id} 
-                className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${
+                className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-2 sm:mx-4 ${
                   isSelected 
                     ? 'bg-blue-50 border-blue-300' 
                     : hasCompletedSession
@@ -486,11 +486,11 @@ export default function InterviewScheduling() {
                     : 'bg-green-50'
                 }`}
               >
-                <div className="p-4">
-                  {/* First Row: Company, Interview Date, School, Batch, Center */}
-                  <div className="flex items-center justify-between gap-4">
+                <div className="p-3 sm:p-4">
+                  {/* First Row: stack on mobile */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
                     {/* Company */}
-                    <div className="flex-4 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2 -mt-2">
                         <Building2 className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Company</span>
@@ -507,13 +507,13 @@ export default function InterviewScheduling() {
                           </span>
                         )}
                       </div>
-                      <div className="font-semibold text-slate-900 text-xl truncate ml-[5%]">
+                      <div className="font-semibold text-slate-900 text-lg sm:text-xl truncate md:ml-[5%]">
                         {job.company?.name || job.companyName || job.company || 'N/A'}
                       </div>
                     </div>
 
                     {/* Interview Date */}
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
                         <Calendar className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Interview</span>
@@ -570,17 +570,17 @@ export default function InterviewScheduling() {
                     </div>
                   </div>
 
-                  {/* Second Row: Role and Actions */}
+                  {/* Second Row: Role and Actions - stack on mobile */}
                   <div className="mt-2 pt-2 border-t border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Briefcase className="w-4 h-4 text-slate-500" />
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Briefcase className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         <span className="text-sm font-medium text-slate-600">Role:</span>
                         <span className="font-semibold text-slate-900 truncate">{job.jobTitle || 'N/A'}</span>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex flex-wrap items-center gap-2 md:ml-4">
                         {!hasCompletedSession && (
                           <>
                             {/* Enable button if: (date is today or past) OR (session already selected) */}
@@ -592,7 +592,7 @@ export default function InterviewScheduling() {
                                   e.stopPropagation();
                                   handleSelectJob(job);
                                 }}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center w-full sm:w-auto sm:min-w-[180px] touch-manipulation ${
                                   isSelected
                                     ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
                                     : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
@@ -613,7 +613,7 @@ export default function InterviewScheduling() {
                             ) : (
                               <button
                                 disabled
-                                className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm"
+                                className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto sm:min-w-[180px] bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm touch-manipulation"
                                 title={dateStatus === 'future'
                                   ? `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`
                                   : `Session can only be started on or after ${driveDate ? driveDate.toLocaleDateString('en-GB') : 'the interview date'}`}
@@ -632,7 +632,7 @@ export default function InterviewScheduling() {
                         )}
                         
                         {hasCompletedSession && (
-                          <div className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center min-w-[180px] bg-gray-100 text-gray-700">
+                          <div className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto sm:min-w-[180px] bg-gray-100 text-gray-700">
                             <CheckCircle className="w-4 h-4" />
                             <span>Session Completed/Incomplete</span>
                           </div>
@@ -748,7 +748,7 @@ export default function InterviewScheduling() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6 relative">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 relative">
               {loadingSession ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader className="h-8 w-8 animate-spin text-blue-600 mr-3" />
@@ -757,11 +757,11 @@ export default function InterviewScheduling() {
               ) : session ? (
                 <div className="space-y-6">
                   {/* Session Info Header - Redesigned */}
-                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-5 border border-blue-100">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-slate-800 mb-3">Session Overview</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-4 sm:p-5 border border-blue-100">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-3">Session Overview</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
                             <div className="flex items-center gap-2 mb-1">
                               <Clock className={`w-4 h-4 ${

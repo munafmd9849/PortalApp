@@ -124,7 +124,7 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 md:bg-white md:backdrop-blur-0 md:items-start md:pt-8"
       aria-modal="true"
       role="dialog"
     >
@@ -145,7 +145,7 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
           </p>
         </div>
 
-        {/* Form */}
+        {/* Form / Content */}
         <div className="px-6 sm:px-8 pb-6 pt-4 space-y-5 max-h-[65vh] overflow-y-auto">
           {/* Personal info */}
           <div className="space-y-3 rounded-xl bg-white/80 border border-gray-100 p-4 shadow-sm">
@@ -301,7 +301,7 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer (sticky on mobile) */}
         <div className="px-6 sm:px-8 pb-5 pt-2 flex justify-end border-t border-gray-100 bg-white/80">
           <button
             type="button"

@@ -254,19 +254,19 @@ export default function StudentDashboard() {
     setProfileSectionsOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Show mandatory profile completion modal when needed
-  useEffect(() => {
-    if (user?.role === 'STUDENT' && profileCompleted === false) {
-      setShowProfileCompletionModal(true);
-      document.body.style.overflow = 'hidden';
-    } else {
-      setShowProfileCompletionModal(false);
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [user?.role, profileCompleted]);
+// Show mandatory profile completion modal when needed
+useEffect(() => {
+  if (user?.role === 'STUDENT' && profileCompleted === false) {
+    setShowProfileCompletionModal(true);
+    document.body.style.overflow = 'hidden';
+  } else {
+    setShowProfileCompletionModal(false);
+    document.body.style.overflow = '';
+  }
+  return () => {
+    document.body.style.overflow = '';
+  };
+}, [user?.role, profileCompleted]);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,

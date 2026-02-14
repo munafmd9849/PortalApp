@@ -760,11 +760,11 @@ export default function ManageJobs() {
   const postedCount = allManageJobs.filter(job => isJobPosted(job)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Header with Statistics */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Manage & Post Jobs</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Manage & Post Jobs</h2>
           <p className="text-sm text-slate-600 mt-1">
             Select target schools and batches, then post jobs to students
           </p>
@@ -772,11 +772,11 @@ export default function ManageJobs() {
       </div>
 
       {/* Filter Buttons - Show both IN_REVIEW and POSTED sections */}
-      <div className="flex justify-center mb-6">
-        <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex gap-2">
+      <div className="flex justify-center mb-4 sm:mb-6">
+        <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex flex-wrap justify-center gap-2">
           <button
             onClick={() => setActiveFilter('in_review')}
-            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'in_review'
+            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'in_review'
               ? 'bg-blue-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
@@ -785,7 +785,7 @@ export default function ManageJobs() {
           </button>
           <button
             onClick={() => setActiveFilter('posted')}
-            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'posted'
+            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'posted'
               ? 'bg-green-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
@@ -836,13 +836,13 @@ export default function ManageJobs() {
             const jobStatus = isJobPosted(job) ? getJobStatus(job) : null;
 
             return (
-              <div key={job.id} className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${isJobPosted(job) ? 'bg-green-50' : 'bg-blue-50'
+              <div key={job.id} className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-2 sm:mx-4 ${isJobPosted(job) ? 'bg-green-50' : 'bg-blue-50'
                 }`}>
-                <div className="p-4">
-                  {/* First Row: Company, Interview Date, School, Batch, Center, Actions */}
-                  <div className="flex items-center justify-between gap-4">
+                <div className="p-3 sm:p-4">
+                  {/* First Row: Company, Interview Date, School, Batch, Center - stack on mobile */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
                     {/* Company - STATUS BADGE BACK HERE */}
-                    <div className="flex-4 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2 -mt-2">
                         <Building2 className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Company</span>
@@ -854,13 +854,13 @@ export default function ManageJobs() {
                           </span>
                         )}
                       </div>
-                      <div className="font-semibold text-slate-900 text-xl truncate ml-[5%]">
+                      <div className="font-semibold text-slate-900 text-lg sm:text-xl truncate md:ml-[5%]">
                         {job.company?.name || job.companyName || job.company || 'N/A'}
                       </div>
                     </div>
 
-                    {/* Interview Date - fixed width */}
-                    <div className="w-28 shrink-0">
+                    {/* Interview Date - full width on mobile */}
+                    <div className="w-full md:w-28 shrink-0">
                       <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
                         <span className="text-sm font-medium text-slate-600">Interview</span>
                       </div>
@@ -873,10 +873,10 @@ export default function ManageJobs() {
                       </div>
                     </div>
 
-                    {/* Dropdowns group: School, Batch, Center - reduced gap between them */}
-                    <div className="flex items-stretch gap-1 shrink-0">
-                    {/* School - fixed width */}
-                    <div className="w-40 shrink-0 min-w-[10rem]">
+                    {/* Dropdowns group: School, Batch, Center - stack on mobile */}
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-1 md:shrink-0">
+                    {/* School - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <GraduationCap className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">School</span>
@@ -919,8 +919,8 @@ export default function ManageJobs() {
                         )}
                       </div>
                     </div>
-                    {/* Batch - fixed width */}
-                    <div className="w-40 shrink-0 min-w-[10rem]">
+                    {/* Batch - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <Users className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Batch</span>
@@ -964,8 +964,8 @@ export default function ManageJobs() {
                       </div>
                     </div>
 
-                    {/* Center - fixed width */}
-                    <div className="w-40 shrink-0 min-w-[10rem]">
+                    {/* Center - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <MapPin className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Center</span>
@@ -1011,22 +1011,22 @@ export default function ManageJobs() {
                     </div>
                   </div>
 
-                  {/* Second Row: Role and Actions - STATUS BADGE REMOVED FROM HERE */}
+                  {/* Second Row: Role and Actions - stack on mobile */}
                   <div className="mt-2 pt-2 border-t border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Briefcase className="w-4 h-4 text-slate-500" />
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Briefcase className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         <span className="text-sm font-medium text-slate-600">Role:</span>
                         <span className="font-semibold text-slate-900 truncate">{job.jobTitle || 'N/A'}</span>
                       </div>
 
                       {/* Post, Share and Delete Actions */}
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex flex-wrap items-center gap-2 md:ml-4">
                         {/* Post Action */}
                         <button
                           onClick={() => handlePostJob(job.id)}
                           disabled={!canPostJob(job) || postingJobs.has(job.id)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[120px] ${isJobPosted(job)
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center w-full sm:w-auto sm:min-w-[120px] touch-manipulation ${isJobPosted(job)
                             ? 'bg-green-500 text-white cursor-not-allowed'
                             : postingJobs.has(job.id)
                               ? 'bg-blue-100 text-blue-500 cursor-not-allowed'

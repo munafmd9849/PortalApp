@@ -33,8 +33,8 @@ router.use(async (req, res, next) => {
       return next();
     }
 
-    // Allow profile GET/PUT without completion
-    if (req.path === '/profile') {
+    // Allow profile GET/PUT and skills endpoint without completion
+    if (req.path === '/profile' || req.path === '/skills') {
       return next();
     }
 

@@ -1528,7 +1528,7 @@ export default function CreateJob({ onCreated }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Custom Calendar Styles */}
       <style>{`
         .react-datepicker {
@@ -1573,16 +1573,16 @@ export default function CreateJob({ onCreated }) {
       `}</style>
 
       {/* Header - ALWAYS VISIBLE */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-6">
-        <div className="flex items-start gap-4">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-shrink-0">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
               <Briefcase className="w-6 h-6 text-white" />
             </div>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                 {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
               </h2>
               <div className="flex items-center gap-3">
