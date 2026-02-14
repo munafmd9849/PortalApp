@@ -177,6 +177,16 @@ export default function AdminSlider() {
     container.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
   }, [mobileIndex, mobileInView]);
 
+  const pageCount = useMemo(() => {
+    if (!members.length) return 0;
+    return Math.ceil(members.length / cardsToShow);
+  }, [members.length, cardsToShow]);
+
+  const activePage = useMemo(() => {
+    if (!pageCount) return 0;
+    return Math.floor(currentIndex / cardsToShow) % pageCount;
+  }, [currentIndex, cardsToShow, pageCount]);
+
   const visibleMembers = useMemo(() => {
     if (!members.length) return [];
     const out = [];
@@ -195,10 +205,10 @@ export default function AdminSlider() {
           <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] tracking-tight leading-tight">
             Office of{" "}
             <span
-              className="relative px-1 bg-gradient-to-t from-[var(--pl-accent-orange)] to-[var(--pl-accent-orange)] bg-no-repeat
-              [background-size:100%_22%] [background-position:0_92%]
+              className="relative px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat
+              [background-size:100%_25%] [background-position:0_100%]
               transition-all duration-300 ease-in-out
-              hover:[background-size:100%_100%] hover:[background-position:0_100%]"
+              hover:[background-size:100%_100%] hover:[background-position:100%_100%]"
             >
               Career Services
             </span>
@@ -234,6 +244,31 @@ export default function AdminSlider() {
             </div>
           ))}
         </div>
+
+        {/* Carousel dots / pager */}
+        {pageCount > 1 && (
+          <div className="mt-6 flex justify-center gap-2">
+            {Array.from({ length: pageCount }).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  const targetIndex = (idx * cardsToShow) % members.length;
+                  setCurrentIndex(targetIndex);
+                  setMobileIndex(targetIndex);
+                  setIsPaused(true);
+                  setMobilePaused(true);
+                }}
+                className={`h-2.5 w-2.5 rounded-full transition-all duration-200 ${
+                  idx === activePage
+                    ? "bg-[var(--pl-primary)] scale-110"
+                    : "bg-gray-300 hover:bg-gray-400"
+                }`}
+                aria-label={`Go to team slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

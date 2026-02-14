@@ -31,7 +31,7 @@ const devs = [
   },
   {
     name: "Esha",
-    linkedin: "https://linkedin.com/in/roshan",
+    linkedin: "https://www.linkedin.com/in/esha-bajaj/",
     img: dev4,
   },
   // Three additional empty circles

@@ -50,6 +50,7 @@ import adminJobsRoutes from './routes/adminJobs.js';
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
+import resumeViewRoutes from './routes/resumeView.js';
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -254,6 +255,7 @@ app.use('/api/calendar', calendarRoutes); // New unified calendar routes
 app.use('/api/endorsements', endorsementRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/recruiter', recruiterScreeningRoutes); // Token-based recruiter screening (no login)
+app.use('/api/resume', resumeViewRoutes); // Resume view by token (inline, for new tab)
 app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
 app.use('/api/announcements', announcementsRoutes);

@@ -315,12 +315,8 @@ const PillNav = ({
 
               const pillStyle = {
                 // Keep the pill visibly “selected” (especially on mobile)
-                background: isActive
-                  ? "var(--hover-pill-bg, var(--base, #000))"
-                  : "var(--pill-bg, #fff)",
-                color: isActive
-                  ? "var(--hover-text, #fff)"
-                  : "var(--pill-text, var(--base, #000))",
+                background: "var(--pill-bg, #fff)",
+                color: "var(--pill-text, var(--base, #000))",
                 paddingLeft: "var(--pill-pad-x)",
                 paddingRight: "var(--pill-pad-x)",
               };

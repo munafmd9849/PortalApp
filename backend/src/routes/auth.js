@@ -135,7 +135,7 @@ router.post('/register', [
         await tx.student.create({
           data: {
             userId: createdUser.id,
-            fullName: profile.fullName || createdUser.email, // Use email as fallback for name
+            fullName: (profile.fullName && profile.fullName.trim()) || '', // Name filled in First-time setup, not email
             email: createdUser.email,
             phone: profile.phone || '',
             enrollmentId: enrollmentId, // Can be null initially, user will set it later
@@ -380,6 +380,24 @@ router.post('/login', [
       },
     });
 
+    // For students: treat as completed if DB flag is true OR all required profile fields are filled
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? (() => {
+            const s = user.student;
+            if (!s) return false;
+            if (s.profileCompleted === true) return true;
+            const email = (user.email || '').trim();
+            const fullName = (s.fullName || '').trim();
+            const phone = (s.phone || '').trim();
+            const enrollmentId = (s.enrollmentId || '').trim();
+            const school = (s.school || '').trim();
+            const center = (s.center || '').trim();
+            const batch = (s.batch || '').trim();
+            return !!(email && fullName && phone && enrollmentId && school && center && batch);
+          })()
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -387,6 +405,7 @@ router.post('/login', [
         role: user.role,
         status: user.status,
         emailVerified: user.emailVerified,
+        profileCompleted,
       },
       accessToken,
       refreshToken,
@@ -475,6 +494,24 @@ router.get('/me', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // For students: treat as completed if DB flag is true OR all required profile fields are filled (avoids modal for already-filled profiles)
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? (() => {
+            const s = user.student;
+            if (!s) return false;
+            if (s.profileCompleted === true) return true;
+            const email = (user.email || '').trim();
+            const fullName = (s.fullName || '').trim();
+            const phone = (s.phone || '').trim();
+            const enrollmentId = (s.enrollmentId || '').trim();
+            const school = (s.school || '').trim();
+            const center = (s.center || '').trim();
+            const batch = (s.batch || '').trim();
+            return !!(email && fullName && phone && enrollmentId && school && center && batch);
+          })()
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -488,6 +525,7 @@ router.get('/me', authenticate, async (req, res) => {
         recruiter: user.recruiter,
         admin: user.admin,
       },
+      profileCompleted,
     });
   } catch (error) {
     console.error('Get user error:', error);

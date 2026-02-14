@@ -1,3 +1,6 @@
+/* Crack-style display font (CDN) for "Cracked it" */
+@import url("https://fonts.cdnfonts.com/css/broken-up");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,17 +9,8 @@
   font-family: 'Caveat', 'cursive' !important;
 }
 
-/* Cracked Slash display font (Cracked It heading) */
-@font-face {
-  font-family: 'Cracked Slash';
-  src: url('/fonts/CrackedSlash-0v6JR.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-.font-cracked-slash {
-  font-family: 'Cracked Slash', 'Inter', ui-sans-serif, system-ui, sans-serif !important;
+.font-crack-display {
+  font-family: 'Broken Up', sans-serif !important;
   letter-spacing: 0.04em;
 }
 

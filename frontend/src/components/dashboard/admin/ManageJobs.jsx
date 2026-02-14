@@ -842,12 +842,12 @@ export default function ManageJobs() {
                       </div>
                     </div>
 
-                    {/* Interview Date */}
-                    <div className="flex-1 min-w-0">
+                    {/* Interview Date - fixed width */}
+                    <div className="w-28 shrink-0">
                       <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
                         <span className="text-sm font-medium text-slate-600">Interview</span>
                       </div>
-                      <div className="text-slate-900 text-sm">
+                      <div className="text-slate-900 text-sm text-center">
                         {job.driveDate ? (
                           job.driveDate.toDate ?
                             job.driveDate.toDate().toLocaleDateString('en-GB') :
@@ -856,26 +856,35 @@ export default function ManageJobs() {
                       </div>
                     </div>
 
-                    {/* School */}
-                    <div className="flex-2 min-w-0">
+                    {/* Dropdowns group: School, Batch, Center - reduced gap between them */}
+                    <div className="flex items-stretch gap-1 shrink-0">
+                    {/* School - fixed width */}
+                    <div className="w-40 shrink-0 min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <GraduationCap className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">School</span>
                       </div>
-                      <div className="relative" ref={el => schoolDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => schoolDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleSchoolDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : 'Select Schools'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showSchools[job.id] && !isJobPosted(job) && (
+                        {showSchools[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {schoolOptions.map((school) => (
                               <label key={school.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -889,28 +898,37 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
                     </div>
-                    {/* Batch */}
-                    <div className="flex-2 min-w-0">
+                    {/* Batch - fixed width */}
+                    <div className="w-40 shrink-0 min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <Users className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Batch</span>
                       </div>
-                      <div className="relative" ref={el => batchDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => batchDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleBatchDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : 'Select Batches'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showBatches[job.id] && !isJobPosted(job) && (
+                        {showBatches[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {batchOptions.map((batch) => (
                               <label key={batch.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -924,29 +942,38 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Center */}
-                    <div className="flex-3 min-w-0">
+                    {/* Center - fixed width */}
+                    <div className="w-40 shrink-0 min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <MapPin className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Center</span>
                       </div>
-                      <div className="relative" ref={el => centerDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => centerDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleCenterDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : 'Select Centers'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showCenters[job.id] && !isJobPosted(job) && (
+                        {showCenters[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {centerOptions.map((center) => (
                               <label key={center.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -960,7 +987,10 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
+                    </div>
                     </div>
                   </div>
 

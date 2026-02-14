@@ -16,6 +16,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [emailVerified, setEmailVerified] = useState(false);
   const [userStatus, setUserStatus] = useState(null);
+  const [profileCompleted, setProfileCompleted] = useState(true);
 
   // Track if user has been loaded to prevent repeated calls
   const userLoadedRef = useRef(false);
@@ -43,11 +44,18 @@ export function AuthProvider({ children }) {
         const data = await api.getCurrentUser();
         
         const userData = data.user;
+        const completed =
+          typeof data.profileCompleted === 'boolean'
+            ? data.profileCompleted
+            : (userData?.role === 'STUDENT'
+                ? Boolean(userData?.student?.profileCompleted)
+                : true);
 
         setUser(userData);
         setRole(userData.role);
         setEmailVerified(userData.emailVerified || false);
         setUserStatus(userData.status || 'ACTIVE');
+        setProfileCompleted(completed);
 
         // Initialize Socket.IO connection (only once)
         if (userData && !socketInitializedRef.current) {
@@ -100,10 +108,19 @@ export function AuthProvider({ children }) {
       const roleUpper = selectedRole ? selectedRole.toUpperCase() : undefined;
       const data = await api.login({ email, password, selectedRole: roleUpper });
       
-      setUser(data.user);
-      setRole(data.user.role);
-      setEmailVerified(data.user.emailVerified || false);
-      setUserStatus(data.user.status || 'ACTIVE');
+      const loginUser = data.user;
+      const completed =
+        typeof loginUser.profileCompleted === 'boolean'
+          ? loginUser.profileCompleted
+          : (loginUser?.role === 'STUDENT'
+              ? Boolean(loginUser?.student?.profileCompleted)
+              : true);
+
+      setUser(loginUser);
+      setRole(loginUser.role);
+      setEmailVerified(loginUser.emailVerified || false);
+      setUserStatus(loginUser.status || 'ACTIVE');
+      setProfileCompleted(completed);
 
       // Initialize Socket.IO (only once)
       if (!socketInitializedRef.current) {
@@ -169,6 +186,11 @@ export function AuthProvider({ children }) {
       setRole(data.user.role);
       setEmailVerified(false);
       setUserStatus(data.user.status);
+      setProfileCompleted(
+        data.user.role === 'STUDENT'
+          ? Boolean(data.user.student?.profileCompleted)
+          : true
+      );
 
       // Initialize Socket.IO (only once)
       if (data.user && !socketInitializedRef.current) {
@@ -299,6 +321,9 @@ export function AuthProvider({ children }) {
     try {
       const data = await api.getCurrentUser();
       setEmailVerified(data.user.emailVerified || false);
+      if (typeof data.profileCompleted === 'boolean') {
+        setProfileCompleted(data.profileCompleted);
+      }
       return data.user.emailVerified || false;
     } catch (error) {
       return false;
@@ -341,6 +366,7 @@ export function AuthProvider({ children }) {
     userStatus,
     loading,
     emailVerified,
+    profileCompleted,
     login,
     logout,
     loginWithGoogle,
@@ -351,7 +377,7 @@ export function AuthProvider({ children }) {
     getPendingAdminRequests,
     approveAdminRequest,
     rejectAdminRequest,
-  }), [user, role, userStatus, loading, emailVerified]);
+  }), [user, role, userStatus, loading, emailVerified, profileCompleted]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -37,19 +37,57 @@ const ResumeTemplate1 = ({ student }) => {
   // Parse education
   const education = student.education || [];
 
+  const formatCgpa = (v) => {
+    if (v == null || v === '') return '';
+    const n = parseFloat(String(v).trim().replace(/,/g, ''));
+    return Number.isNaN(n) ? String(v) : n.toFixed(1);
+  };
+
+  const renderExperienceDescription = (text) => {
+    if (!text || !text.trim()) return null;
+    if (text.includes('\n')) {
+      const lines = text.split(/\n+/).filter(Boolean);
+      return (
+        <ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
+          {lines.map((line, i) => (
+            <li key={i} style={{ marginBottom: '3px' }}>{line.trim()}</li>
+          ))}
+        </ul>
+      );
+    }
+    return <p style={{ margin: '5px 0 0 0', textAlign: 'justify' }}>{text}</p>;
+  };
+
+  const sectionHeadingStyle = {
+    fontSize: '14pt',
+    fontWeight: 'bold',
+    margin: '0 0 4px 0',
+    textTransform: 'uppercase',
+  };
+  const sectionLineStyle = {
+    width: '100%',
+    minWidth: '100%',
+    borderBottom: '1px solid #000',
+    marginBottom: '8px',
+    boxSizing: 'border-box',
+  };
+
   return (
     <div className="resume-template-1" style={{ 
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '11pt',
       lineHeight: '1.4',
       color: '#000',
+      width: '8.5in',
       maxWidth: '8.5in',
       margin: '0 auto',
       padding: '0.5in',
-      backgroundColor: '#fff'
+      backgroundColor: '#fff',
+      boxSizing: 'border-box'
     }}>
       {/* Header */}
-      <div style={{ marginBottom: '20px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+      <div style={{ marginBottom: '20px', width: '100%' }}>
+        <div style={{ width: '100%', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
         <h1 style={{ 
           fontSize: '24pt', 
           fontWeight: 'bold', 
@@ -64,59 +102,25 @@ const ResumeTemplate1 = ({ student }) => {
           {student.linkedin && <span style={{ marginLeft: '15px' }}>{student.linkedin}</span>}
           {student.githubUrl && <span style={{ marginLeft: '15px' }}>{student.githubUrl}</span>}
         </div>
+        </div>
       </div>
 
       {/* Summary */}
       {student.summary && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Summary
-          </h2>
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Summary</h2>
+          <div style={sectionLineStyle} />
           <p style={{ margin: 0, textAlign: 'justify' }}>
             {student.summary}
           </p>
         </div>
       )}
 
-      {/* Skills */}
-      {skills.length > 0 && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Skills
-          </h2>
-          <p style={{ margin: 0 }}>
-            {skills.join(', ')}
-          </p>
-        </div>
-      )}
-
-      {/* Experience */}
+      {/* Experience - ATS order: before Education and Skills */}
       {experiences.length > 0 && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Experience
-          </h2>
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Experience</h2>
+          <div style={sectionLineStyle} />
           {experiences.map((exp, idx) => (
             <div key={idx} style={{ marginBottom: '12px' }}>
               <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
@@ -125,29 +129,53 @@ const ResumeTemplate1 = ({ student }) => {
               <div style={{ fontSize: '10pt', fontStyle: 'italic', marginBottom: '5px' }}>
                 {exp.start} - {exp.end || 'Present'}
               </div>
-              {exp.description && (
-                <p style={{ margin: '5px 0 0 0', textAlign: 'justify' }}>
-                  {exp.description}
-                </p>
+              {renderExperienceDescription(exp.description)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Education - ATS order: after Experience */}
+      {education.length > 0 && (
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Education</h2>
+          <div style={sectionLineStyle} />
+          {education.map((edu, idx) => (
+            <div key={idx} style={{ marginBottom: '10px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
+                {edu.degree} | {edu.institution}
+              </div>
+              {edu.startYear && edu.endYear && (
+                <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>
+                  {edu.startYear} - {edu.endYear}
+                </div>
+              )}
+              {edu.cgpa && (
+                <div style={{ fontSize: '10pt' }}>
+                  CGPA: {formatCgpa(edu.cgpa)}
+                </div>
               )}
             </div>
           ))}
         </div>
       )}
 
+      {/* Skills - ATS order: after Education; clear list for keyword matching */}
+      {skills.length > 0 && (
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Skills</h2>
+          <div style={sectionLineStyle} />
+          <p style={{ margin: 0 }}>
+            {skills.join(', ')}
+          </p>
+        </div>
+      )}
+
       {/* Projects */}
       {projects.length > 0 && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Projects
-          </h2>
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Projects</h2>
+          <div style={sectionLineStyle} />
           {projects.map((project, idx) => (
             <div key={idx} style={{ marginBottom: '12px' }}>
               <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
@@ -182,52 +210,11 @@ const ResumeTemplate1 = ({ student }) => {
         </div>
       )}
 
-      {/* Education */}
-      {education.length > 0 && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Education
-          </h2>
-          {education.map((edu, idx) => (
-            <div key={idx} style={{ marginBottom: '10px' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
-                {edu.degree} | {edu.institution}
-              </div>
-              {edu.startYear && edu.endYear && (
-                <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>
-                  {edu.startYear} - {edu.endYear}
-                </div>
-              )}
-              {edu.cgpa && (
-                <div style={{ fontSize: '10pt' }}>
-                  CGPA: {edu.cgpa}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Achievements */}
       {student.achievements && student.achievements.length > 0 && (
-        <div style={{ marginBottom: '15px' }}>
-          <h2 style={{ 
-            fontSize: '14pt', 
-            fontWeight: 'bold', 
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            borderBottom: '1px solid #000',
-            paddingBottom: '3px'
-          }}>
-            Achievements
-          </h2>
+        <div style={{ marginBottom: '15px', width: '100%' }}>
+          <h2 style={sectionHeadingStyle}>Achievements</h2>
+          <div style={sectionLineStyle} />
           <ul style={{ margin: 0, paddingLeft: '20px' }}>
             {student.achievements.map((ach, idx) => (
               <li key={idx} style={{ marginBottom: '5px' }}>

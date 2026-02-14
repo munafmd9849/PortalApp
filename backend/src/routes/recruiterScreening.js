@@ -22,4 +22,8 @@ router.patch('/screening/application/:applicationId', recruiterScreeningControll
 // POST /api/recruiter/screening/finalize?token=XYZ
 router.post('/screening/finalize', recruiterScreeningController.verifyRecruiterToken, recruiterScreeningController.finalizeScreening);
 
+// Stream resume for viewing in browser (inline, not download)
+// GET /api/recruiter/screening/resume/:applicationId?token=XYZ&jobId=ABC
+router.get('/screening/resume/:applicationId', recruiterScreeningController.streamResume);
+
 export default router;

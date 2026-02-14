@@ -5,11 +5,14 @@
  */
 
 import prisma from '../config/database.js';
+import jwt from 'jsonwebtoken';
 import { createNotification } from './notifications.js';
 import { getIO } from '../config/socket.js';
 import { sendApplicationNotification, sendApplicationStatusUpdateNotification } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess } from '../utils/response.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 /**
  * ==============================
@@ -1349,7 +1352,43 @@ export async function applyToJob(req, res) {
       });
     }
 
-    // Get student with full details including CGPA and backlogs
+    // -----------------------------------------------------------------------
+    // Year of Passing (YOP) eligibility check
+    // Job.yop is the upper limit; student's year of passing is derived from batch.
+    // Example rule: job.yop = 2027 → students with YOP <= 2027 can apply.
+    // -----------------------------------------------------------------------
+    if (job.yop) {
+      const jobYopStr = String(job.yop).trim();
+      const jobYopInt = parseInt(jobYopStr, 10);
+
+      if (!Number.isNaN(jobYopInt)) {
+        // Derive student's year of passing from batch (e.g. "23-27" → 2027)
+        const batch = studentProfile?.batch || null;
+        let studentYop = null;
+
+        if (batch) {
+          const parts = batch.split('-').map((p) => p.trim()).filter(Boolean);
+          const endPart = parts.length > 1 ? parts[1] : parts[0];
+          const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+          if (!Number.isNaN(endNum)) {
+            // If stored as 2‑digit year (e.g. 27), assume 2000s
+            studentYop = endNum < 100 ? 2000 + endNum : endNum;
+          }
+        }
+
+        if (studentYop !== null && studentYop > jobYopInt) {
+          return res.status(400).json({
+            error: 'YOP requirement not met',
+            message: `This job is open for students passing out in ${jobYopInt} or earlier.`,
+            requirement: jobYopInt,
+            yourYearOfPassing: studentYop,
+          });
+        }
+      }
+    }
+
+    // Get student with full details including CGPA, backlogs and batch (for YOP logic)
     const studentProfile = await prisma.student.findUnique({
       where: { id: student.id },
       select: {
@@ -1358,6 +1397,7 @@ export async function applyToJob(req, res) {
         email: true,
         cgpa: true,
         backlogs: true,
+        batch: true, // e.g. "23-27"
       },
     });
 
@@ -1746,5 +1786,32 @@ export async function updateApplicationStatus(req, res) {
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });
+  }
+}
+
+/**
+ * Get a short-lived URL to view resume inline (opens in new tab without Bearer)
+ * GET /api/applications/:applicationId/resume-view-url
+ * Auth: ADMIN or RECRUITER
+ */
+export async function getResumeViewUrl(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true }
+    });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    const token = jwt.sign(
+      { type: 'application', applicationId: application.id },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    res.json({ url: `/api/resume/view?t=${token}` });
+  } catch (error) {
+    console.error('Get resume view URL error:', error);
+    res.status(500).json({ error: 'Failed to get resume view URL' });
   }
 }

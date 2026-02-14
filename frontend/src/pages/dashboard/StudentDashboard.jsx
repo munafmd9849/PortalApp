@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
+import ProfileCompletionModal from '../../components/dashboard/student/ProfileCompletionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -113,7 +114,9 @@ const normalizeProfileSnapshot = (profile = {}) => ({
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+  const { logout, user, profileCompleted } = useAuth();
+  const [showProfileCompletionModal, setShowProfileCompletionModal] = useState(false);
+
   // Data caching to avoid reloading on tab switches
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(null);
@@ -126,7 +129,6 @@ export default function StudentDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
-  const { logout, user } = useAuth();
   
   // PERSISTENT CACHE: Use localStorage to cache data across page navigation
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
@@ -229,6 +231,20 @@ export default function StudentDashboard() {
   const [isFormDirty, setIsFormDirty] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
 
+  // Show mandatory profile completion modal when needed
+  useEffect(() => {
+    if (user?.role === 'STUDENT' && profileCompleted === false) {
+      setShowProfileCompletionModal(true);
+      document.body.style.overflow = 'hidden';
+    } else {
+      setShowProfileCompletionModal(false);
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [user?.role, profileCompleted]);
+
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
     email,
@@ -316,6 +332,9 @@ export default function StudentDashboard() {
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [newSkill, setNewSkill] = useState({ skillName: '', rating: 1 });
   
+  // Career stats from backend (Shortlisted, Interviewed, Offers - used in dashboard)
+  const [studentStats, setStudentStats] = useState({ applied: 0, shortlisted: 0, interviewed: 0, offers: 0 });
+
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
@@ -341,6 +360,8 @@ export default function StudentDashboard() {
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [applying, setApplying] = useState({});
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PER_PAGE = 10;
   
   
   // Resume Selection Modal state
@@ -402,6 +423,78 @@ export default function StudentDashboard() {
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
 
+  // Career Insights: real counts from pipeline (screening → shortlisted, test → interviewed, offer).
+  // No artificial funnel normalization — we show what the backend actually tracked.
+  const displayStats = useMemo(() => {
+    if (!applications || applications.length === 0) {
+      return {
+        applied: studentStats.applied ?? 0,
+        shortlisted: studentStats.shortlisted ?? 0,
+        interviewed: studentStats.interviewed ?? 0,
+        offers: studentStats.offers ?? 0,
+      };
+    }
+    const applied = applications.length;
+    const asUpper = (x) => (typeof x === 'string' ? x : '').toUpperCase();
+    const asLower = (x) => (typeof x === 'string' ? x : '').toLowerCase();
+
+    // Shortlisted = passed resume screening (or went further: qualified for interview = passed screening + test)
+    const hasShortlisted = (app) => {
+      const screening = asUpper(app.screeningStatus);
+      const status = asLower(app.currentStage || app.status);
+      return (
+        screening === 'RESUME_SELECTED' ||
+        screening === 'SCREENING_SELECTED' ||
+        screening === 'TEST_SELECTED' ||
+        screening === 'INTERVIEW_ELIGIBLE' ||
+        status === 'shortlisted' ||
+        status === 'screening qualified' ||
+        status === 'qualified for interview'
+      );
+    };
+
+    // Interviewed = qualified for interview (TEST_SELECTED / INTERVIEW_ELIGIBLE) or had interview rounds or got offer
+    const hasInterviewed = (app) => {
+      const screening = asUpper(app.screeningStatus);
+      const status = asLower(app.currentStage || app.status);
+      const interviewStatus = asUpper(
+        typeof app.interviewStatus === 'string'
+          ? app.interviewStatus
+          : (app.interviewStatus?.statusText ?? app.interviewStatus?.status ?? '')
+      );
+      return (
+        screening === 'TEST_SELECTED' ||
+        screening === 'INTERVIEW_ELIGIBLE' ||
+        status.includes('interview round') ||
+        status === 'qualified for interview' ||
+        status === 'interview completed' ||
+        status === 'interviewed' ||
+        interviewStatus === 'SELECTED'
+      );
+    };
+
+    // Offers = got offer (status OFFERED/SELECTED or interviewStatus SELECTED)
+    const hasOffer = (app) => {
+      const status = asLower(app.currentStage || app.status);
+      const interviewStatus = asUpper(
+        typeof app.interviewStatus === 'string'
+          ? app.interviewStatus
+          : (app.interviewStatus?.statusText ?? app.interviewStatus?.status ?? '')
+      );
+      return (
+        status === 'offered' ||
+        status === 'selected' ||
+        status === 'selected (final)' ||
+        interviewStatus === 'SELECTED'
+      );
+    };
+
+    const shortlisted = applications.filter(hasShortlisted).length;
+    const interviewed = applications.filter(hasInterviewed).length;
+    const offers = applications.filter(hasOffer).length;
+    return { applied, shortlisted, interviewed, offers };
+  }, [applications, studentStats]);
+
   // Job loading with proper targeting logic
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
@@ -414,6 +507,7 @@ export default function StudentDashboard() {
         if (cachedJobs) {
           console.log('✅ Using cached jobs data');
           setJobs(cachedJobs);
+          setJobsPage(1);
           setLoadingJobs(false);
           return; // Use cached data, skip API call
         }
@@ -482,6 +576,7 @@ export default function StudentDashboard() {
         });
         
         setJobs(targetedJobs);
+        setJobsPage(1);
         // CACHE: Store filtered jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
@@ -489,6 +584,7 @@ export default function StudentDashboard() {
         }
       } else {
         setJobs(jobs);
+        setJobsPage(1);
         // CACHE: Store all jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
@@ -499,6 +595,7 @@ export default function StudentDashboard() {
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
+      setJobsPage(1);
     } finally {
       setLoadingJobs(false);
     }
@@ -650,6 +747,14 @@ export default function StudentDashboard() {
 
         // Set skills from profile data (already loaded, no need for separate API call)
         setSkillsEntries(Array.isArray(profileData.skills) ? profileData.skills : []);
+
+        // Set career stats from backend (Shortlisted, Interviewed, Offers)
+        setStudentStats({
+          applied: profileData.statsApplied ?? 0,
+          shortlisted: profileData.statsShortlisted ?? 0,
+          interviewed: profileData.statsInterviewed ?? 0,
+          offers: profileData.statsOffers ?? 0,
+        });
 
         const sanitizedProfile = {
           fullName: profileData.fullName || '',
@@ -1061,6 +1166,38 @@ export default function StudentDashboard() {
     return studentCgpa >= requiredCgpa;
   };
 
+  // Check if student's derived Year of Passing (from batch) meets job YOP requirement
+  // Rule: job.yop = Y → students with YOP <= Y can apply.
+  const meetsYopRequirement = (job) => {
+    const jobYop = job?.yop;
+    if (!jobYop || !batch) {
+      // No YOP restriction or student has no batch set → allow
+      return true;
+    }
+
+    const jobYopInt = parseInt(String(jobYop).trim(), 10);
+    if (Number.isNaN(jobYopInt)) {
+      // If job YOP is not a valid number, don't block
+      return true;
+    }
+
+    // Derive student's year of passing from batch string, e.g. "23-27" → 2027
+    const parts = String(batch)
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const endPart = parts.length > 1 ? parts[1] : parts[0];
+    const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+    if (Number.isNaN(endNum)) {
+      // If batch format is unexpected, don't block
+      return true;
+    }
+
+    const studentYop = endNum < 100 ? 2000 + endNum : endNum;
+    return studentYop <= jobYopInt;
+  };
+
   // Job Description navigation handler
   const handleKnowMore = (job) => {
     navigate(`/job/${job.id}`);
@@ -1201,6 +1338,35 @@ export default function StudentDashboard() {
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+
+  // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleProfileUpdated = async (event) => {
+      const updatedUserId = event?.detail?.userId;
+      if (updatedUserId && updatedUserId !== user.id) return;
+
+      try {
+        // Clear any cached profile/jobs so we get fresh data
+        clearCache();
+
+        // Force reload profile so local state (fullName/phone/enrollmentId/school/center/batch) is updated
+        loadingProfileRef.current = false;
+        await loadProfile(true);
+
+        // Force reload jobs with the new targeting fields
+        dataLoadingRef.current.jobs = false;
+        await loadJobsData(true);
+      } catch (err) {
+        // Non-fatal: just log for debugging
+        console.error('Error reloading profile after profileUpdated event', err);
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdated);
+    return () => window.removeEventListener('profileUpdated', handleProfileUpdated);
+  }, [user?.id, loadProfile, loadJobsData]);
   
   // OPTIMIZED: Interview history is now loaded on mount with applications (no need to reload on tab switch)
   // Track last active tab for other potential use cases
@@ -2045,7 +2211,8 @@ export default function StudentDashboard() {
             youtubeUrl,
             school,
             profilePhoto,
-            jobFlexibility
+            jobFlexibility,
+            stats: displayStats,
           }}
           jobs={jobs}
           applications={applications}
@@ -2160,14 +2327,23 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  {/* Job Listings */}
+                  {/* Job Listings - paginated (10 per page) */}
+                  {(() => {
+                    const totalJobs = jobs.length;
+                    const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+                    const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+                    const start = (currentPage - 1) * JOBS_PER_PAGE;
+                    const paginatedJobs = jobs.slice(start, start + JOBS_PER_PAGE);
+                    return (
+                      <>
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                    {jobs.map((job) => {
+                    {paginatedJobs.map((job) => {
                       const companyName = job.company?.name || job.company || 'Company';
                       const isApplied = hasApplied(job.id);
                       const isApplying = applying[job.id];
                       const cgpaNotMet = !meetsCgpaRequirement(job);
                       const deadlinePassed = isDeadlinePassed(job);
+                      const yopNotEligible = !meetsYopRequirement(job);
                       
                       return (
                         <div
@@ -2204,7 +2380,7 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2215,14 +2391,17 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
                                 className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -2246,6 +2425,11 @@ export default function StudentDashboard() {
                                   <>
                                     <XCircle className="h-5 w-5" />
                                     Deadline Passed
+                                  </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    YOP Not Eligible
                                   </>
                                 ) : (
                                   <>
@@ -2290,7 +2474,7 @@ export default function StudentDashboard() {
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2301,14 +2485,17 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
                                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
                                     : isApplying
                                     ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
                                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                                     : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
                                 }`}
@@ -2328,6 +2515,11 @@ export default function StudentDashboard() {
                                     <XCircle className="h-5 w-5" />
                                     CGPA Not Met
                                   </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-5 w-5" />
+                                    YOP Not Eligible
+                                  </>
                                 ) : (
                                   <>
                                     <Briefcase className="h-5 w-5" />
@@ -2341,6 +2533,39 @@ export default function StudentDashboard() {
                       );
                     })}
                   </div>
+
+                  {/* Pagination */}
+                  {totalJobs > JOBS_PER_PAGE && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 py-2 text-sm text-gray-700">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -2377,31 +2602,8 @@ export default function StudentDashboard() {
           } : null
         });
         
-        // REMOVED: Force reload logic - this was causing infinite loop when no applications exist
-        // The useEffect hooks above handle loading appropriately
-        
-        const totalApplied = applications.length;
-        
-        // Use currentStage for accurate stats (backend computed status)
-        const shortlisted = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status === 'shortlisted' || status === 'screening qualified';
-        }).length;
-        
-        const interviewed = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status.includes('interview round') || 
-                 status === 'qualified for interview' || 
-                 status === 'interview completed' ||
-                 status === 'interviewed';
-        }).length;
-        
-        const offers = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status === 'offered' || 
-                 status === 'selected' || 
-                 status === 'selected (final)';
-        }).length;
+        // Use same pipeline stats as Career Insights (screening → shortlisted, test → interviewed, offer)
+        const { applied: totalApplied, shortlisted, interviewed, offers } = displayStats;
 
         // Filter applications with interview history (Past Records)
         const pastRecords = interviewHistory.filter(app => app.interviewHistory?.hasInterview);
@@ -2814,7 +3016,7 @@ export default function StudentDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Enhanced Application Cards */}
+                    {/* Enhanced Application Cards - Collapsible like Past Applications */}
                     {applications.map((application, index) => (
                       <div
                         key={application.id}
@@ -2835,6 +3037,64 @@ export default function StudentDashboard() {
                         }`}></div>
                         
                         <div className="p-8">
+                          {/* Header Row - Always visible (like Past Applications) */}
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className={`${getCompanyColor(application.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
+                                <span className="text-white font-bold text-2xl">
+                                  {getCompanyInitial(application.company?.name)}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">
+                                  {application.job?.jobTitle || 'Unknown Position'}
+                                </h3>
+                                <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
+                                  <Building2 className="w-4 h-4" />
+                                  {application.company?.name || 'Unknown Company'}
+                                </p>
+                                {application.screeningStatusText && (
+                                  <p className="text-sm text-gray-500 mt-1">{application.screeningStatusText}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
+                                {getStatusIcon(application.currentStage || application.status)}
+                                {(() => {
+                                  const status = application.currentStage || application.status;
+                                  if (status === 'job_removed') return 'Job Removed';
+                                  if (status) return status.charAt(0).toUpperCase() + status.slice(1);
+                                  return 'Unknown';
+                                })()}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setExpandedApplications(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(application.id)) {
+                                      newSet.delete(application.id);
+                                    } else {
+                                      newSet.add(application.id);
+                                    }
+                                    return newSet;
+                                  });
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200"
+                              >
+                                <span className="text-sm font-medium text-gray-700">View Details</span>
+                                {expandedApplications.has(application.id) ? (
+                                  <IoIosArrowDropup className="w-5 h-5 text-gray-600" />
+                                ) : (
+                                  <IoIosArrowDropdown className="w-5 h-5 text-gray-600" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Collapsible Details */}
+                          {expandedApplications.has(application.id) && (
+                            <div className="mt-6 pt-6 border-t border-gray-200 space-y-6">
                           {/* Screening Status Badge (only show if not selected/completed - use currentStage for final status) */}
                           {(() => {
                             // Don't show screening status badge if already selected or completed
@@ -2845,7 +3105,7 @@ export default function StudentDashboard() {
                             if (isFinal || !application.screeningStatusText) return null;
                             
                             return (
-                              <div className={`mb-4 p-3 border rounded-lg ${
+                              <div className={`p-3 border rounded-lg ${
                                 application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
                                   ? 'bg-red-50 border-red-200'
                                   : application.screeningStatus === 'TEST_SELECTED'
@@ -2876,7 +3136,7 @@ export default function StudentDashboard() {
                           
                           {/* Interview Status Badge (only if passed screening) */}
                           {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Info className="w-4 h-4 text-blue-600" />
                                 <span className="text-sm font-medium text-blue-800">
@@ -2890,37 +3150,6 @@ export default function StudentDashboard() {
                               )}
                             </div>
                           )}
-                          
-                          {/* Enhanced Header Row */}
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-                            <div className="flex items-center gap-4">
-                              <div className={`${getCompanyColor(application.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
-                                <span className="text-white font-bold text-2xl">
-                                  {getCompanyInitial(application.company?.name)}
-                                </span>
-                              </div>
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">
-                                  {application.job?.jobTitle || 'Unknown Position'}
-                                </h3>
-                                <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
-                                  <Building2 className="w-4 h-4" />
-                                  {application.company?.name || 'Unknown Company'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
-                                {getStatusIcon(application.currentStage || application.status)}
-                                {(() => {
-                                  const status = application.currentStage || application.status;
-                                  if (status === 'job_removed') return 'Job Removed';
-                                  if (status) return status.charAt(0).toUpperCase() + status.slice(1);
-                                  return 'Unknown';
-                                })()}
-                              </span>
-                            </div>
-                          </div>
 
                           {/* Enhanced Job Details Grid */}
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -2999,7 +3228,7 @@ export default function StudentDashboard() {
                             </div>
                           </div>
 
-                          {/* Enhanced Job Description Preview */}
+                          {/* Job Description Preview */}
                           {application.job?.description && (
                             <div className="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100">
                               <div className="flex items-center gap-2 mb-3">
@@ -3007,8 +3236,8 @@ export default function StudentDashboard() {
                                 <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
                               </div>
                               <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
-                                {application.job.description.length > 200 
-                                  ? `${application.job.description.substring(0, 200)}...` 
+                                {application.job.description.length > 200
+                                  ? `${application.job.description.substring(0, 200)}...`
                                   : application.job.description}
                               </p>
                             </div>
@@ -3057,6 +3286,8 @@ export default function StudentDashboard() {
                               </div>
                             ) : null;
                           })()}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -4186,7 +4417,8 @@ export default function StudentDashboard() {
             youtubeUrl,
             school,
             profilePhoto,
-            jobFlexibility
+            jobFlexibility,
+            stats: displayStats,
           }}
           jobs={jobs}
           applications={applications}
@@ -4204,16 +4436,11 @@ export default function StudentDashboard() {
 
   return (
     <>
-      <DashboardLayout studentProfile={dataLoaded ? {
-        fullName,
-        headline: Headline || null,
-        enrollmentId,
-        cgpa,
-        profilePhoto: profilePhoto,
-        school,
-        center,
-        batch,
-      } : null}>
+      <ProfileCompletionModal
+        isOpen={showProfileCompletionModal}
+        onSaved={() => setShowProfileCompletionModal(false)}
+      />
+      <DashboardLayout>
         <div className="flex min-h-screen relative">
           <aside
             className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"

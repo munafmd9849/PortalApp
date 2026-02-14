@@ -547,3 +547,81 @@ export function verifyRecruiterToken(req, res, next) {
   req.screeningToken = decoded;
   next();
 }
+
+/**
+ * Stream resume for viewing in browser (inline, not download)
+ * GET /api/recruiter/screening/resume/:applicationId?token=...&jobId=...
+ * Fetches the resume from storage and streams with Content-Disposition: inline so the PDF opens in the tab.
+ */
+export async function streamResume(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const token = req.query.token;
+    const jobId = req.query.jobId;
+
+    if (!token || !jobId) {
+      return res.status(401).json({ error: 'Token and jobId are required' });
+    }
+
+    const decoded = verifyScreeningToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    if (decoded.jobId !== jobId) {
+      return res.status(403).json({ error: 'Token does not match job' });
+    }
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: { select: { id: true } },
+        student: {
+          select: {
+            resumeUrl: true,
+            resumeFileName: true,
+            resumeFiles: {
+              where: { isDefault: true },
+              select: { fileUrl: true, fileName: true },
+              take: 1
+            }
+          }
+        }
+      }
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    if (application.jobId !== decoded.jobId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const defaultResume = application.student?.resumeFiles?.[0];
+    const resumeUrl = defaultResume?.fileUrl || application.student?.resumeUrl;
+    const fileName = defaultResume?.fileName || application.student?.resumeFileName || 'resume.pdf';
+
+    if (!resumeUrl || resumeUrl.trim() === '') {
+      return res.status(404).json({ error: 'Resume not found for this application' });
+    }
+
+    const fetchResponse = await fetch(resumeUrl, { method: 'GET' });
+    if (!fetchResponse.ok) {
+      return res.status(502).json({ error: 'Failed to load resume from storage' });
+    }
+
+    const buffer = await fetchResponse.arrayBuffer();
+    const pdfBuffer = Buffer.from(buffer);
+
+    // Force inline display (not download): set headers and send raw bytes with res.end
+    const safeName = (fileName || 'resume.pdf').replace(/[^\x20-\x7E]/g, '_').replace(/"/g, "'") || 'resume.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.status(200);
+    res.end(pdfBuffer);
+  } catch (error) {
+    console.error('Stream resume error:', error);
+    res.status(500).json({ error: 'Failed to stream resume' });
+  }
+}

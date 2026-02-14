@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Mail, RefreshCw, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { showError } from '../../utils/toast';
 
 function EmailVerificationModal({ isOpen, onClose, userEmail }) {
   const { resendEmailVerification, checkEmailVerification, user } = useAuth();
@@ -57,8 +58,7 @@ function EmailVerificationModal({ isOpen, onClose, userEmail }) {
       setResendCooldown(60); // 60 second cooldown
     } catch (error) {
       console.error('Error resending verification email:', error);
-      setMessage('Failed to resend verification email. Please try again.');
-      setMessageType('error');
+      showError('Failed to resend verification email. Please try again.');
     } finally {
       setIsResending(false);
     }
@@ -83,8 +83,7 @@ function EmailVerificationModal({ isOpen, onClose, userEmail }) {
       }
     } catch (error) {
       console.error('Error checking email verification:', error);
-      setMessage('Error checking verification status. Please try again.');
-      setMessageType('error');
+      showError('Error checking verification status. Please try again.');
     } finally {
       setIsChecking(false);
     }
@@ -131,23 +130,19 @@ function EmailVerificationModal({ isOpen, onClose, userEmail }) {
             </p>
           </div>
 
-          {/* Message Display */}
-          {message && (
+          {/* Message Display (success/info only; errors go to toast) */}
+          {message && messageType !== 'error' && (
             <div className={`mb-4 p-4 rounded-xl flex items-start space-x-3 ${
               messageType === 'success' ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 shadow-sm' :
-              messageType === 'error' ? 'bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-red-500 shadow-sm' :
               'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 shadow-sm'
             }`}>
               <div className="flex-shrink-0 mt-0.5">
                 {messageType === 'success' && <CheckCircle className="text-green-600" size={20} />}
-                {messageType === 'error' && <AlertCircle className="text-red-600" size={20} />}
                 {messageType === 'info' && <AlertCircle className="text-blue-600" size={20} />}
               </div>
               <div className="flex-1">
                 <p className={`text-sm font-medium leading-relaxed ${
-                  messageType === 'success' ? 'text-green-800' :
-                  messageType === 'error' ? 'text-red-800' :
-                  'text-blue-800'
+                  messageType === 'success' ? 'text-green-800' : 'text-blue-800'
                 }`}>
                   {message}
                 </p>
