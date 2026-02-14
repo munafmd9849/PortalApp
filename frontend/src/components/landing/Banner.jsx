@@ -120,7 +120,7 @@ const Banner = () => {
             {/* Facts + arrows around India map (desktop) */}
             <div ref={factsRef} className="absolute w-full h-full">
               <div className="relative w-full h-full">
-                <div className="absolute right-[6%] top-[16%] flex items-center gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[6%] top-[13%] flex items-center gap-2 text-sm font-semibold text-gray-600">
                   <span className="shrink-0 font-bold">70%</span>
                   <span>Students lack industry‑relevant skills</span>
                 </div>
@@ -135,7 +135,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[4%] top-[25%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[4%] top-[22%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">40%</span>
                   <span>Students choose the wrong career path</span>
                 </div>
@@ -150,7 +150,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[2%] bottom-[6%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[3%] bottom-[8%] w-1/2 flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">29%</span>
                   <span>Young population lacks industry exposure</span>
                 </div>
@@ -165,7 +165,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[30%] top-[56%]" viewBox="0 0 800 800">
+                <svg xmlns="http://www.w3.org/2000/svg" className="absolute right-[35%] top-[56%]" viewBox="0 0 800 800">
                   <g strokeWidth="2" stroke="hsl(0,0%,0%)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" transform="rotate(330, 400, 400)">
                     <path d="M350.5 350.5Q362.5 419.5 449.5 449.5 " markerEnd="url(#BannerArrow4)" />
                   </g>
@@ -176,7 +176,7 @@ const Banner = () => {
                   </defs>
                 </svg>
 
-                <div className="absolute right-[3%] -bottom-[12%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-600">
+                <div className="absolute right-[4%] -bottom-[8%] w-[60%] flex items-start gap-2 text-sm font-semibold text-gray-600">
                   <span className="mt-0.5 shrink-0 font-bold">55%</span>
                   <span>Students are unprepared for real interview and hiring processes</span>
                 </div>
@@ -244,7 +244,7 @@ const Banner = () => {
                   duration={0.2}
                   delay={2}
                   stagger={0.1}
-                  className="font-bold text-base sm:text-md font-caveat italic cursive"
+                  className="font-bold text-base sm:text-md font-caveat italic cursive mt-3"
                 />
               </div>
               <div className="flex items-center justify-center">
@@ -257,7 +257,7 @@ const Banner = () => {
                   duration={0.5}
                   delay={2}
                   stagger={0.15}
-                  className="font-bold text-base sm:text-md font-caveat italic"
+                  className="font-bold text-base sm:text-md font-caveat italic mt-3"
                 />
               </div>
             </div>
@@ -337,9 +337,9 @@ const Banner = () => {
             </div>
           </div>
           <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
-            <ScribbledText text="We Shape Brilliance" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.2} delay={1} stagger={0.08} className="font-bold text-base font-caveat italic" />
+            <ScribbledText text="We Shape Brilliance" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.2} delay={1} stagger={0.08} className="font-bold text-base font-caveat italic mt-3" />
             <span className="text-gray-400">•</span>
-            <ScribbledText text="You Spot it" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.5} delay={1} stagger={0.08} className="font-bold text-base font-caveat italic" />
+            <ScribbledText text="You Spot it" color="#1f2937" lineColor="#3b82f6" lineHeight="0.15rem" lineOffset="0px" duration={0.5} delay={1} stagger={0.08} className="font-bold text-base font-caveat italic mt-3" />
           </div>
         </div>
       </div>
