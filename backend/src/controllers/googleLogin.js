@@ -113,19 +113,18 @@ export const handleGoogleLoginCallback = async (req, res) => {
         logger.info(`User ${email} logged in with Google but role mismatch. Existing: ${user.role}, Requested: ${role}`);
       }
 
-      // Update user's Google info if needed
+      // Update user's Google info if needed (User model has displayName, not name)
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          emailVerified: googleUserInfo.verified_email || user.emailVerified,
-          // Optionally update name/picture if not set
-          ...(googleUserInfo.name && !user.name && { name: googleUserInfo.name }),
+          emailVerified: googleUserInfo.verified_email ?? user.emailVerified,
+          ...(googleUserInfo.name && !user.displayName && { displayName: googleUserInfo.name }),
         },
       });
 
-      // Generate JWT tokens
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens
       return res.redirect(`${frontendUrl}/auth/google-callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
@@ -146,12 +145,12 @@ export const handleGoogleLoginCallback = async (req, res) => {
       const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
       const passwordHash = await bcrypt.hash(randomPassword, 10);
 
-      // Create user
+      // Create user (User model uses passwordHash and displayName, not password/name)
       const userData = {
         email,
-        password: passwordHash,
+        passwordHash,
         role,
-        name: googleUserInfo.name || null,
+        displayName: googleUserInfo.name || null,
         emailVerified: googleUserInfo.verified_email || false,
         status: role === 'ADMIN' ? 'PENDING' : 'ACTIVE', // Admin needs approval
       };
@@ -189,9 +188,9 @@ export const handleGoogleLoginCallback = async (req, res) => {
 
       logger.info(`New user created via Google login: ${email} (${role})`);
 
-      // Generate JWT tokens
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens
       return res.redirect(`${frontendUrl}/auth/google-callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);

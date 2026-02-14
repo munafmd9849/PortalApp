@@ -884,8 +884,11 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         try {
                           // Pass role to Google login (convert to uppercase to match backend)
                           const loggedInUser = await loginWithGoogle(role.toUpperCase());
-                          // Close modal on success - AuthRedirect will handle navigation
                           onClose();
+                          // Full-page redirect: tokens are already in localStorage; new load will run loadUser and show dashboard (avoids React state timing issues)
+                          const userRole = loggedInUser?.role || role.toUpperCase();
+                          const dashboardPath = userRole === 'STUDENT' ? '/student' : userRole === 'RECRUITER' ? '/recruiter' : userRole === 'ADMIN' ? '/admin' : '/super-admin';
+                          window.location.replace(dashboardPath);
                         } catch (err) {
                           showError(err.message || 'Google sign-in failed. Please try again.');
                         } finally {

@@ -627,12 +627,12 @@ export default function JobPostingsManager() {
 
   // Format date
   const formatDate = (date) => {
-    if (!date) return 'N/A';
+    if (!date) return 'To be announced';
     try {
       const dateObj = date.toDate ? date.toDate() : new Date(date);
       return dateObj.toLocaleDateString('en-GB');
     } catch {
-      return 'N/A';
+      return 'To be announced';
     }
   };
 

@@ -172,108 +172,108 @@ export default function PlacementResources() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <section className="bg-white rounded-3xl shadow-lg p-8 border border-slate-100">
-          <header className="mb-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+    <div className="min-h-screen bg-gray-50 min-w-0 overflow-x-hidden px-3 py-4 sm:p-4 md:p-6 pb-20 sm:pb-6">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-5 md:space-y-8 min-w-0">
+        <section className="bg-white rounded-xl md:rounded-3xl shadow-lg p-4 sm:p-6 md:p-8 border border-slate-100 min-w-0 overflow-hidden">
+          <header className="mb-4 md:mb-6">
+            <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-blue-600">
               Placement resources
             </p>
-            <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            <h1 className="text-lg sm:text-xl md:text-3xl font-bold text-slate-900 mt-1 md:mt-2 break-words">
               AI-Powered Placement Guidance
             </h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-slate-600 mt-1 md:mt-2 text-xs sm:text-sm md:text-base break-words">
               Get personalized, structured guidance for any placement topic. Powered by Google AI.
             </p>
           </header>
 
-          <form onSubmit={handleGenerate} className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <FaMagic className="h-5 w-5 text-blue-400" />
+          <form onSubmit={handleGenerate} className="relative min-w-0">
+            <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
+              <FaMagic className="h-4 w-4 md:h-5 md:w-5 text-blue-400 flex-shrink-0" />
             </div>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., How to prepare for DSA interviews?"
-              className="w-full pl-12 pr-32 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900"
+              placeholder="e.g., DSA interview prep?"
+              className="w-full min-w-0 pl-9 sm:pl-10 md:pl-12 pr-[4.25rem] sm:pr-28 md:pr-32 py-3 md:py-4 text-base sm:text-sm md:text-base rounded-xl md:rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
               maxLength={500}
             />
             <button
               type="submit"
-              className="absolute inset-y-2 right-2 px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:from-blue-700 hover:to-indigo-700 transition-all"
+              className="absolute top-1.5 right-1.5 bottom-1.5 sm:top-2 sm:right-2 sm:bottom-2 px-3 sm:px-5 py-2 text-sm md:text-base rounded-lg md:rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:from-blue-700 hover:to-indigo-700 transition-all touch-manipulation min-h-[44px] sm:min-h-0"
               disabled={loading}
             >
-              {loading ? 'Generating...' : 'Generate'}
+              <span className="sm:hidden">{loading ? '…' : 'Go'}</span>
+              <span className="hidden sm:inline">{loading ? 'Generating...' : 'Generate'}</span>
             </button>
           </form>
           
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="mt-3 md:mt-4 p-3 md:p-4 bg-red-50 border border-red-200 rounded-lg md:rounded-xl min-w-0">
+              <p className="text-xs md:text-sm text-red-700 break-words">{error}</p>
             </div>
           )}
           
           {!error && loading && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-              <p className="text-sm text-blue-700 font-medium">
-                Generating AI-powered guidance...
+            <div className="mt-3 md:mt-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl min-w-0">
+              <p className="text-xs md:text-sm text-blue-700 font-medium">
+                <span className="sm:hidden">Generating…</span>
+                <span className="hidden sm:inline">Generating AI-powered guidance...</span>
               </p>
             </div>
           )}
         </section>
 
         {!hasSearched && (
-          <div className="bg-white rounded-3xl border border-dashed border-slate-200 p-10 text-center text-slate-500">
-            <FaMagic className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-            <p className="text-lg font-medium">Ask any placement-related question</p>
-            <p className="text-sm mt-2 text-slate-400">
+          <div className="bg-white rounded-xl md:rounded-3xl border border-dashed border-slate-200 p-4 sm:p-6 md:p-10 text-center text-slate-500 min-w-0">
+            <FaMagic className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 mx-auto mb-2 sm:mb-3 md:mb-4 text-slate-300" />
+            <p className="text-sm sm:text-base md:text-lg font-medium break-words">Ask any placement-related question</p>
+            <p className="text-xs sm:text-sm mt-1 md:mt-2 text-slate-400 break-words px-1">
               Get structured guidance with key topics, resources, practice suggestions, and actionable next steps.
             </p>
           </div>
         )}
 
         {hasSearched && !loading && !error && guidance && (
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4 min-w-0">
             {/* DuckDuckGo Fallback Display */}
             {guidance.fallbackData && guidance.fallbackData.sections && (
-              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-                <div className="p-6">
+              <section className="bg-white rounded-xl md:rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-w-0">
+                <div className="p-4 sm:p-5 md:p-6">
                   {/* Banner for fallback mode */}
-                  <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold uppercase tracking-wider">
-                        AI Unavailable - Showing Verified Resources
-                      </span>
-                    </div>
-                    <p className="text-sm text-orange-700">{guidance.fallbackData.note}</p>
+                  <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-orange-50 border border-orange-200 rounded-xl min-w-0">
+                    <span className="inline-block px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold uppercase tracking-wider break-words">
+                      AI Unavailable – Verified Resources
+                    </span>
+                    {guidance.fallbackData.note && (
+                      <p className="text-xs sm:text-sm text-orange-700 mt-2 break-words">{guidance.fallbackData.note}</p>
+                    )}
                   </div>
                   
-                  {/* Title */}
                   {guidance.fallbackData.title && (
-                    <h3 className="text-xl font-bold text-slate-900 mb-6">{guidance.fallbackData.title}</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4 sm:mb-6 break-words">{guidance.fallbackData.title}</h3>
                   )}
                   
-                  {/* Sections */}
-                  <div className="space-y-6">
+                  <div className="space-y-5 sm:space-y-6">
                     {guidance.fallbackData.sections.map((section, sectionIndex) => (
-                      <div key={sectionIndex}>
-                        <h4 className="text-lg font-semibold text-slate-800 mb-3">{section.heading}</h4>
+                      <div key={sectionIndex} className="min-w-0">
+                        <h4 className="text-base sm:text-lg font-semibold text-slate-800 mb-2 sm:mb-3 break-words">{section.heading}</h4>
                         <ul className="space-y-2">
                           {section.items.map((item, itemIndex) => (
-                            <li key={itemIndex} className="flex items-start gap-3">
-                              <span className="text-blue-600 mt-1">{itemIndex + 1}.</span>
-                              <div>
+                            <li key={itemIndex} className="flex items-start gap-2 min-w-0">
+                              <span className="text-blue-600 mt-0.5 flex-shrink-0">{itemIndex + 1}.</span>
+                              <div className="min-w-0 overflow-hidden">
                                 <a
                                   href={item.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium break-words"
                                 >
                                   {item.title}
                                 </a>
                                 {item.url && (
-                                  <p className="text-xs text-slate-500 mt-1">{item.url}</p>
+                                  <p className="text-xs text-slate-500 mt-1 truncate" title={item.url}>{item.url}</p>
                                 )}
                               </div>
                             </li>
@@ -283,10 +283,9 @@ export default function PlacementResources() {
                     ))}
                   </div>
                   
-                  {/* Additional guidance text if available */}
                   {guidance.summary && (
-                    <div className="mt-6 pt-6 border-t border-slate-200">
-                      <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-200 min-w-0">
+                      <div className="text-slate-700 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
                         {guidance.summary}
                       </div>
                     </div>
@@ -297,9 +296,8 @@ export default function PlacementResources() {
             
             {/* AI Guidance - Plain Text Display (when not fallback) */}
             {guidance.summary && !guidance.fallbackData && (
-              <section className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-                <div className="p-6">
-                  {/* Show status badges */}
+              <section className="bg-white rounded-xl md:rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-w-0">
+                <div className="p-4 sm:p-5 md:p-6">
                   <div className="mb-4 flex items-center gap-2 flex-wrap">
                     {guidance.fallback && (
                       <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-semibold uppercase tracking-wider">
@@ -317,14 +315,12 @@ export default function PlacementResources() {
                       </span>
                     )}
                   </div>
-                  {/* Display full guidance text with proper formatting */}
-                  <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  <div className="text-slate-700 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words min-w-0">
                     {guidance.summary}
                   </div>
                 </div>
               </section>
             )}
-
           </div>
         )}
       </div>

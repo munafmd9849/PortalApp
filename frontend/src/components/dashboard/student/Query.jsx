@@ -502,35 +502,34 @@ const StudentQuerySystem = () => {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full border border-gray-200">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center p-3 sm:p-4 min-w-0 overflow-x-hidden pb-24 sm:pb-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-5 sm:p-8 max-w-md w-full border border-gray-200 min-w-0">
           <div className="text-center">
-            <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FaCheckCircle className="text-green-600 text-3xl" />
+            <div className="bg-green-100 w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+              <FaCheckCircle className="text-green-600 text-2xl sm:text-3xl" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Query Submitted Successfully!</h2>
-            <p className="text-gray-600 mb-6">
-              Your {queryTypes.find(t => t.id === formData.type).name.toLowerCase()} has been submitted to the placement cell. 
-              You will receive a response within 24-48 hours.
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Query Submitted!</h2>
+            <p className="text-gray-600 text-sm sm:text-base mb-4 sm:mb-6">
+              Your {queryTypes.find(t => t.id === formData.type).name.toLowerCase()} has been submitted. You’ll get a response within 24–48 hours.
             </p>
-            <div className="bg-blue-50 rounded-xl p-4 mb-6 text-left border border-blue-200">
-              <h3 className="font-medium text-blue-800 mb-2">Reference ID: #{referenceId}</h3>
-              <p className="text-sm text-blue-600">Keep this reference ID for future communication.</p>
+            <div className="bg-blue-50 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 text-left border border-blue-200">
+              <h3 className="font-medium text-blue-800 text-sm sm:text-base mb-1">Reference ID: #{referenceId}</h3>
+              <p className="text-xs sm:text-sm text-blue-600">Keep this for future communication.</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
                   setActiveView('history');
                   setSubmitted(false);
                 }}
-                className="px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all duration-200 flex-1 flex items-center justify-center"
+                className="min-h-[44px] px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all duration-200 flex-1 flex items-center justify-center"
               >
                 <FaHistory className="mr-2" />
                 View History
               </button>
               <button
                 onClick={resetForm}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex-1"
+                className="min-h-[44px] px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex-1"
               >
                 Submit Another Query
               </button>
@@ -542,29 +541,29 @@ const StudentQuerySystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-4 py-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gray-800 mb-3">Student Query Portal</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Contact the placement cell for assistance with questions, CGPA updates, backlog updates, or scheduling requests
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-3 py-5 md:p-4 md:py-8 min-w-0 overflow-x-hidden pb-24 sm:pb-8 md:pb-8">
+      <div className="max-w-6xl mx-auto min-w-0">
+        <div className="text-center mb-5 md:mb-10">
+          <h1 className="text-lg sm:text-xl md:text-3xl font-bold text-gray-800 mb-2 md:mb-3 break-words">Student Query Portal</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto text-xs sm:text-sm md:text-base px-1">
+            Contact the placement cell for questions, CGPA/backlog updates, or scheduling
           </p>
         </div>
 
         {/* View Toggle */}
-        <div className="flex justify-center mb-8">
-          <div className="bg-white rounded-sm p-1 shadow-sm border border-gray-200 inline-flex">
+        <div className="flex justify-center mb-4 md:mb-8">
+          <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex w-full max-w-sm md:max-w-none md:w-auto">
             <button
               onClick={() => setActiveView('new')}
-              className={`px-6 py-3 rounded-md font-medium transition-all duration-200 ${activeView === 'new' ? 'bg-yellow-200 text-black shadow-md' : 'text-gray-600 hover:text-gray-800'}`}
+              className={`flex-1 md:flex-none min-h-[44px] px-3 py-2.5 md:px-6 md:py-3 rounded-md font-medium transition-all duration-200 text-sm md:text-base touch-manipulation ${activeView === 'new' ? 'bg-yellow-200 text-black shadow-md' : 'text-gray-600 hover:text-gray-800'}`}
             >
               New Query
             </button>
             <button
               onClick={() => setActiveView('history')}
-              className={`px-6 py-3 rounded-md font-medium transition-all duration-200 flex items-center ${activeView === 'history' ? 'bg-yellow-500 text-white shadow-md' : 'text-gray-600 hover:text-gray-800'}`}
+              className={`flex-1 md:flex-none min-h-[44px] px-3 py-2.5 md:px-6 md:py-3 rounded-md font-medium transition-all duration-200 flex items-center justify-center text-sm md:text-base touch-manipulation ${activeView === 'history' ? 'bg-yellow-500 text-white shadow-md' : 'text-gray-600 hover:text-gray-800'}`}
             >
-              <FaHistory className="mr-2" />
+              <FaHistory className="mr-1 md:mr-2 flex-shrink-0" />
               Query History
             </button>
           </div>
@@ -572,13 +571,13 @@ const StudentQuerySystem = () => {
 
         {activeView === 'history' ? (
           /* Query History View */
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800">Your Query History</h2>
-              <p className="text-gray-600">Track the status of your previous queries</p>
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg overflow-hidden border border-gray-200 min-w-0">
+            <div className="p-4 md:p-6 border-b border-gray-200">
+              <h2 className="text-lg md:text-xl font-bold text-gray-800">Your Query History</h2>
+              <p className="text-gray-600 text-sm md:text-base">Track the status of your previous queries</p>
             </div>
             
-            <div className="p-6">
+            <div className="p-4 md:p-6">
               {loadingQueries ? (
                 <div className="text-center py-10">
                   <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -596,7 +595,7 @@ const StudentQuerySystem = () => {
                   <p className="text-gray-500 mb-4">You haven't submitted any queries to the placement cell.</p>
                   <button
                     onClick={() => setActiveView('new')}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                    className="min-h-[44px] px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
                   >
                     Submit your first query
                   </button>
@@ -604,37 +603,37 @@ const StudentQuerySystem = () => {
               ) : (
                 <div className="space-y-4">
                   {pastQueries.map(query => (
-                    <div key={query.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div key={query.id} className="border border-gray-200 rounded-xl overflow-hidden min-w-0">
                       <div 
-                        className="p-4 bg-gray-50 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="p-4 sm:p-4 bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors min-h-[44px] touch-manipulation"
                         onClick={() => toggleQueryExpand(query.id)}
                       >
-                        <div className="flex items-center">
-                          <div className="mr-4">
-                            {query.type === 'question' && <FaQuestionCircle className="text-blue-500 text-xl" />}
-                            {query.type === 'cgpa' && <FaChartLine className="text-green-500 text-xl" />}
-                            {query.type === 'backlog' && <FaChartLine className="text-orange-500 text-xl" />}
-                            {query.type === 'calendar' && <FaCalendarAlt className="text-purple-500 text-xl" />}
+                        <div className="flex items-start min-w-0 flex-1">
+                          <div className="mr-3 mt-0.5 flex-shrink-0">
+                            {query.type === 'question' && <FaQuestionCircle className="text-blue-500 text-lg sm:text-xl" />}
+                            {query.type === 'cgpa' && <FaChartLine className="text-green-500 text-lg sm:text-xl" />}
+                            {query.type === 'backlog' && <FaChartLine className="text-orange-500 text-lg sm:text-xl" />}
+                            {query.type === 'calendar' && <FaCalendarAlt className="text-purple-500 text-lg sm:text-xl" />}
                           </div>
-                          <div>
-                            <h3 className="font-medium text-gray-800">{query.subject}</h3>
-                            <p className="text-sm text-gray-500">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-medium text-gray-800 text-sm sm:text-base break-words">{query.subject || 'Query'}</h3>
+                            <p className="text-xs sm:text-sm text-gray-500 break-words mt-0.5">
                               Submitted on {new Date(query.date || query.createdAt).toLocaleDateString()}
-                              {(query.responseDate || query.respondedAt) && ` • Responded on ${new Date(query.responseDate || query.respondedAt).toLocaleDateString()}`}
+                              {(query.responseDate || query.respondedAt) && <span className="block sm:inline"> • Responded on {new Date(query.responseDate || query.respondedAt).toLocaleDateString()}</span>}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium mr-3 ${getStatusColor(query.status)}`}>
+                        <div className="flex items-center flex-shrink-0 gap-2">
+                          <span className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(query.status)} whitespace-nowrap`}>
                             {getStatusText(query.status)}
                           </span>
-                          {expandedQuery === query.id ? <FaChevronUp className="text-gray-400" /> : <FaChevronDown className="text-gray-400" />}
+                          {expandedQuery === query.id ? <FaChevronUp className="text-gray-400 w-4 h-4" /> : <FaChevronDown className="text-gray-400 w-4 h-4" />}
                         </div>
                       </div>
                       
                       {expandedQuery === query.id && (
-                        <div className="p-4 bg-white border-t border-gray-200">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                        <div className="p-4 sm:p-4 bg-white border-t border-gray-200 min-w-0">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-4">
                             <div>
                               <h4 className="text-sm font-medium text-gray-500 mb-1">Query Type</h4>
                               <p className="capitalize">{query.type}</p>
@@ -719,10 +718,10 @@ const StudentQuerySystem = () => {
           </div>
         ) : (
           /* New Query Form View */
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg overflow-hidden border border-gray-200 min-w-0">
             {/* Query Type Selection */}
-            <div className="border-b border-gray-200 bg-gray-50/50">
-              <div className="flex overflow-x-auto justify-center px-6 scrollbar-hide">
+            <div className="border-b border-gray-200 bg-gray-50/50 overflow-hidden">
+              <div className="flex overflow-x-auto justify-start md:justify-center px-2 md:px-6 scrollbar-hide gap-0 pb-1 -mb-px overflow-y-hidden min-w-0" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {queryTypes.map((type) => (
                   <button
                     key={type.id}
@@ -731,24 +730,24 @@ const StudentQuerySystem = () => {
                       setFormData({...formData, type: type.id});
                       setShowJobSelector(false);
                     }}
-                    className={`px-5 py-4 flex flex-col items-center min-w-[140px] border-b-2 transition-all duration-200 ${
+                    className={`px-3 py-3 md:px-5 md:py-4 flex flex-col items-center min-w-[88px] sm:min-w-[100px] md:min-w-[140px] border-b-2 transition-all duration-200 touch-manipulation flex-shrink-0 min-h-[44px] ${
                       activeTab === type.id
                         ? `border-${type.color}-500 text-${type.color}-600 bg-white shadow-sm`
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    <span className={`text-lg mb-2 ${activeTab === type.id ? `text-${type.color}-500` : 'text-gray-400'}`}>
+                    <span className={`text-base md:text-lg mb-1 md:mb-2 ${activeTab === type.id ? `text-${type.color}-500` : 'text-gray-400'}`}>
                       {type.icon}
                     </span>
-                    <span className="font-medium text-sm">{type.name}</span>
-                    <span className="text-xs mt-1 text-gray-400">{type.description}</span>
+                    <span className="font-medium text-xs md:text-sm">{type.name}</span>
+                    <span className="text-[10px] md:text-xs mt-0.5 md:mt-1 text-gray-400 hidden sm:block">{type.description}</span>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Query Form */}
-            <form onSubmit={handleSubmit} className="p-6">
+            <form onSubmit={handleSubmit} className="p-4 md:p-6 min-w-0">
               {/* Job Selection for Question Type */}
               {activeTab === 'question' ? (
                 <div className="mb-6">
@@ -766,11 +765,11 @@ const StudentQuerySystem = () => {
                       <p className="text-yellow-800 text-sm">No job postings available at the moment. Please check back later.</p>
                     </div>
                   ) : (
-                    <div className="relative" ref={jobSelectorRef}>
+                    <div className="relative min-w-0" ref={jobSelectorRef}>
                       <button
                         type="button"
                         onClick={() => setShowJobSelector(!showJobSelector)}
-                        className={`w-full border-2 ${formErrors.selectedJobId ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer`}
+                        className={`w-full min-h-[44px] border-2 ${formErrors.selectedJobId ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between gap-2 transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer min-w-0 touch-manipulation`}
                       >
                         <span className="truncate flex-1 text-gray-900">
                           {formData.selectedJobId ? (() => {
@@ -937,10 +936,10 @@ const StudentQuerySystem = () => {
                       {formErrors.proof && <p className="text-red-500 text-sm mt-1">{formErrors.proof}</p>}
                     </div>
                   </div>
-                  <div className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200">
-                    <div className="flex items-start">
-                      <FaInfoCircle className="text-green-600 mt-0.5 mr-3 flex-shrink-0" />
-                      <p className="text-sm text-green-700">
+                  <div className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200 min-w-0">
+                    <div className="flex items-start gap-3">
+                      <FaInfoCircle className="text-green-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-green-700 break-words min-w-0">
                         Please ensure your document is clear and shows your name, university seal, and the updated CGPA clearly. 
                         Documents must be officially issued by your institution.
                       </p>
@@ -995,10 +994,10 @@ const StudentQuerySystem = () => {
                       {formErrors.proof && <p className="text-red-500 text-sm mt-1">{formErrors.proof}</p>}
                     </div>
                   </div>
-                  <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-200">
-                    <div className="flex items-start">
-                      <FaInfoCircle className="text-orange-600 mt-0.5 mr-3 flex-shrink-0" />
-                      <p className="text-sm text-orange-700">
+                  <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-200 min-w-0">
+                    <div className="flex items-start gap-3">
+                      <FaInfoCircle className="text-orange-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-orange-700 break-words min-w-0">
                         Please ensure your document is clear and shows your name, university seal, and the updated backlogs count clearly. 
                         Documents must be officially issued by your institution.
                       </p>
@@ -1105,10 +1104,10 @@ const StudentQuerySystem = () => {
                     </div>
                   )}
                   
-                  <div className="bg-purple-50 rounded-xl p-4 mb-6 border border-purple-200">
-                    <div className="flex items-start">
-                      <FaInfoCircle className="text-purple-600 mt-0.5 mr-3 flex-shrink-0" />
-                      <p className="text-sm text-purple-700">
+                  <div className="bg-purple-50 rounded-xl p-4 mb-6 border border-purple-200 min-w-0">
+                    <div className="flex items-start gap-3">
+                      <FaInfoCircle className="text-purple-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-purple-700 break-words min-w-0">
                         Please note that calendar blocking requests require at least 24 hours advance notice and are subject to approval by the placement cell.
                       </p>
                     </div>
@@ -1118,26 +1117,26 @@ const StudentQuerySystem = () => {
 
               {/* Error Display */}
               {formErrors.submit && (
-                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <div className="flex items-start">
-                    <FaExclamationCircle className="text-red-500 mr-3 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl min-w-0">
+                  <div className="flex items-start gap-3">
+                    <FaExclamationCircle className="text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
                       <h4 className="text-red-800 font-medium mb-1">Submission Failed</h4>
-                      <p className="text-red-700 text-sm">{formErrors.submit}</p>
+                      <p className="text-red-700 text-sm break-words">{formErrors.submit}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex justify-between items-center mt-10 pt-6 border-t border-gray-100">
-                <div className="text-sm text-gray-500 flex items-center">
-                  <FaInfoCircle className="mr-2 text-blue-400" />
-                  Typically responds within 24-48 hours
-                </div>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4 mt-8 sm:mt-10 pt-6 border-t border-gray-100">
+                <p className="text-xs sm:text-sm text-gray-500 flex items-center">
+                  <FaInfoCircle className="mr-2 text-blue-400 flex-shrink-0" />
+                  Typically responds within 24–48 hours
+                </p>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className={`px-6 py-3 bg-gradient-to-r font-medium rounded-md transition-all duration-200 shadow-md hover:shadow-lg flex items-center ${
+                  className={`w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center bg-gradient-to-r ${
                     submitting 
                       ? 'from-gray-400 to-gray-500 text-gray-700 cursor-not-allowed' 
                       : 'from-blue-600 to-blue-800 text-white hover:from-blue-700 hover:to-blue-900'
@@ -1145,12 +1144,12 @@ const StudentQuerySystem = () => {
                 >
                   {submitting ? (
                     <>
-                      <FaClock className="mr-2 animate-spin" />
+                      <FaClock className="mr-2 animate-spin flex-shrink-0" />
                       Submitting...
                     </>
                   ) : (
                     <>
-                      <FaPaperPlane className="mr-2" />
+                      <FaPaperPlane className="mr-2 flex-shrink-0" />
                       Submit Query
                     </>
                   )}
@@ -1162,7 +1161,7 @@ const StudentQuerySystem = () => {
 
         {/* Additional Information */}
         {activeView === 'new' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mt-6 sm:mt-8 min-w-0">
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
               <div className="bg-blue-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
                 <FaQuestionCircle className="text-blue-600 text-xl" />

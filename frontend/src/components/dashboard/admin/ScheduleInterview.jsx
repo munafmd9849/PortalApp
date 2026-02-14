@@ -218,7 +218,7 @@ export default function ScheduleInterview() {
                           job.driveDate.toDate ?
                             job.driveDate.toDate().toLocaleDateString('en-GB') :
                             new Date(job.driveDate).toLocaleDateString('en-GB')
-                        ) : 'TBD'}
+                        ) : 'To be announced'}
                       </div>
                     </div>
 
@@ -275,7 +275,7 @@ export default function ScheduleInterview() {
                             !canStartInterview && job.driveDate
                               ? `Interview session can start only on the drive date (${new Date(job.driveDate?.toDate ? job.driveDate.toDate() : job.driveDate).toLocaleDateString()})`
                               : !job.driveDate
-                              ? 'Drive date is not set for this job'
+                              ? 'Drive date is to be announced for this job'
                               : ''
                           }
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[180px] ${

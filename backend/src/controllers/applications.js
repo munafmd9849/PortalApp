@@ -1352,6 +1352,23 @@ export async function applyToJob(req, res) {
       });
     }
 
+    // Get student with full details including CGPA, backlogs and batch (for YOP and CGPA/backlogs validation)
+    const studentProfile = await prisma.student.findUnique({
+      where: { id: student.id },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        cgpa: true,
+        backlogs: true,
+        batch: true, // e.g. "23-27"
+      },
+    });
+
+    if (!studentProfile) {
+      return res.status(404).json({ error: 'Student profile not found' });
+    }
+
     // -----------------------------------------------------------------------
     // Year of Passing (YOP) eligibility check
     // Job.yop is the upper limit; student's year of passing is derived from batch.
@@ -1387,19 +1404,6 @@ export async function applyToJob(req, res) {
         }
       }
     }
-
-    // Get student with full details including CGPA, backlogs and batch (for YOP logic)
-    const studentProfile = await prisma.student.findUnique({
-      where: { id: student.id },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        cgpa: true,
-        backlogs: true,
-        batch: true, // e.g. "23-27"
-      },
-    });
 
     // Validate CGPA requirement
     if (job.minCgpa) {

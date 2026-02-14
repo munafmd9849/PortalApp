@@ -304,12 +304,10 @@ export default function RecruiterApplicantHistory() {
                 <Building2 size={16} />
                 <span className="font-medium">{companyName}</span>
               </div>
-              {selectedJob.driveDate && (
-                <div className="flex items-center gap-2">
-                  <Calendar size={16} />
-                  <span>Drive Date: {new Date(selectedJob.driveDate).toLocaleDateString()}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <Calendar size={16} />
+                <span>Drive Date: {selectedJob.driveDate ? new Date(selectedJob.driveDate).toLocaleDateString() : 'To be announced'}</span>
+              </div>
             </div>
           </div>
         )}

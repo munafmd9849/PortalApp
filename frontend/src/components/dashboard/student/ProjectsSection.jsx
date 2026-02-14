@@ -308,18 +308,18 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
   }, [editedProject.title, editedProject.description, techStackInput]);
 
   return (
-    <div className="w-full relative">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
-        <legend className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text px-2">
+    <div className="w-full relative min-w-0">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-3 px-3 md:pb-4 md:px-6 transition-all duration-200 shadow-lg min-w-0 overflow-hidden">
+        <legend className="text-base md:text-lg md:text-xl font-bold bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text px-2">
           Projects
         </legend>
 
-        <div className="flex justify-end mb-3 mr-[-1%]">
+        <div className="flex justify-end mb-2 md:mb-3 mr-0 md:mr-[-1%]">
           <button
             onClick={addNewProject}
             disabled={loading || isAdminView}
             aria-label="Add new project"
-            className={`rounded-full p-2 shadow transition ${
+            className={`rounded-full p-1.5 md:p-2 shadow transition touch-manipulation ${
               isAdminView 
                 ? 'bg-gray-400 cursor-not-allowed opacity-60' 
                 : isAddButtonActive 
@@ -334,17 +334,17 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
 
         {/* Error and Success Messages */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+          <div className="mb-3 md:mb-4 p-2.5 md:p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-xs md:text-sm break-words">
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+          <div className="mb-3 md:mb-4 p-2.5 md:p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-xs md:text-sm">
             {success}
           </div>
         )}
 
-        <div className="my-2">
+        <div className="my-1 md:my-2">
           {/* CRITICAL: Log rendering state */}
           {console.log('🎨 [ProjectsSection] Rendering with:', {
             projectsCount: projects.length,
@@ -353,7 +353,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
             isArray: Array.isArray(projects),
           })}
           
-          <div className="space-y-2 pr-2 custom-scrollbar" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+          <div className="space-y-2 pr-1 md:pr-2 custom-scrollbar" style={{ maxHeight: 'min(350px, 60vh)' }}>
             <style>{`
               .custom-scrollbar::-webkit-scrollbar {
                 width: 8px;
@@ -382,41 +382,35 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
             `}</style>
             {/* Add new project form when editingIndex equals projects.length */}
             {editingIndex === projects.length && (
-              <div ref={formRef} className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]">
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Project Title <span className="text-red-500">*</span>
-                </label>
+              <div ref={formRef} className="rounded-lg px-3 md:px-4 py-2.5 md:py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]">
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project Title <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={editedProject.title}
                   onChange={(e) => handleChange('title', e.target.value)}
                   placeholder="Enter project title"
                   required
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Project Description <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project Description <span className="text-red-500">*</span></label>
                 <textarea
                   value={editedProject.description}
                   onChange={(e) => handleChange('description', e.target.value)}
                   placeholder="Enter project description"
                   required
-                  rows={3}
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
+                  rows={2}
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded resize-none min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Project URL <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project URL <span className="text-red-500">*</span></label>
                 <input
                   type="url"
                   value={editedProject.liveUrl}
                   onChange={(e) => handleChange('liveUrl', e.target.value)}
-                  placeholder="Enter project URL (e.g., https://example.com)"
+                  placeholder="https://example.com"
                   required
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">Tech Stack</label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Tech Stack</label>
                 <input
                   type="text"
                   value={techStackInput}
@@ -425,16 +419,16 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                     const techStack = techStackInput.split(',').map(t => t.trim()).filter(t => t);
                     handleChange('techStack', techStack);
                   }}
-                  placeholder="Enter technologies (comma-separated, e.g., React, Node.js, MongoDB)"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  placeholder="React, Node.js, MongoDB"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">GitHub URL</label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">GitHub URL</label>
                 <input
                   type="url"
                   value={editedProject.githubUrl}
                   onChange={(e) => handleChange('githubUrl', e.target.value)}
-                  placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  placeholder="https://github.com/username/repo"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
                 
                 {/* AI Generated Content */}
@@ -467,17 +461,17 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                   </div>
                 )}
                 
-                <div className="flex space-x-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <button
                     onClick={saveProject}
-                    className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 touch-manipulation"
                     disabled={loading || generating}
                   >
                     {loading ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={cancelEditing}
-                    className="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800 touch-manipulation"
                   >
                     Cancel
                   </button>
@@ -490,42 +484,36 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
               editingIndex === index ? (
                 <div
                   key={index}
-                  className="rounded-lg px-4 py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]"
+                  className="rounded-lg px-3 md:px-4 py-2.5 md:py-3 bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8]"
                 >
-                  <label className="text-sm font-semibold text-black mb-1 block">
-                    Project Title <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project Title <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={editedProject.title}
                     onChange={(e) => handleChange('title', e.target.value)}
                     placeholder="Enter project title"
                     required
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                    className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                   />
-                  <label className="text-sm font-semibold text-black mb-1 block">
-                    Project Description <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project Description <span className="text-red-500">*</span></label>
                   <textarea
                     value={editedProject.description}
                     onChange={(e) => handleChange('description', e.target.value)}
                     placeholder="Enter project description"
                     required
-                    rows={3}
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
+                    rows={2}
+                    className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded resize-none min-w-0"
                   />
-                  <label className="text-sm font-semibold text-black mb-1 block">
-                    Project URL <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Project URL <span className="text-red-500">*</span></label>
                   <input
                     type="url"
                     value={editedProject.liveUrl}
                     onChange={(e) => handleChange('liveUrl', e.target.value)}
-                    placeholder="Enter project URL (e.g., https://example.com)"
+                    placeholder="https://example.com"
                     required
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                    className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                   />
-                  <label className="text-sm font-semibold text-black mb-1 block">Tech Stack</label>
+                  <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Tech Stack</label>
                   <input
                     type="text"
                     value={techStackInput}
@@ -534,16 +522,16 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                       const techStack = techStackInput.split(',').map(t => t.trim()).filter(t => t);
                       handleChange('techStack', techStack);
                     }}
-                    placeholder="Enter technologies (comma-separated, e.g., React, Node.js, MongoDB)"
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                    placeholder="React, Node.js, MongoDB"
+                    className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                   />
-                  <label className="text-sm font-semibold text-black mb-1 block">GitHub URL</label>
+                  <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">GitHub URL</label>
                   <input
                     type="url"
                     value={editedProject.githubUrl}
                     onChange={(e) => handleChange('githubUrl', e.target.value)}
-                    placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
-                    className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                    placeholder="https://github.com/username/repo"
+                    className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                   />
                   
                   {/* AI Generated Content */}
@@ -576,17 +564,17 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
                     </div>
                   )}
                   
-                  <div className="flex space-x-2 justify-end">
+                  <div className="flex flex-wrap gap-2 justify-end">
                     <button
                       onClick={saveProject}
-                      className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                      className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 touch-manipulation"
                       disabled={loading || generating}
                     >
                       {loading ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       onClick={cancelEditing}
-                      className="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+                      className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800 touch-manipulation"
                     >
                       Cancel
                     </button>
@@ -602,12 +590,12 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
               ) : (
                 <div
                   key={index}
-                  className={`group/proj-row rounded-xl px-5 py-4 transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r ${
+                  className={`group/proj-row rounded-lg md:rounded-xl px-3 py-3 md:px-5 md:py-4 transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r min-w-0 ${
                     index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <h4 className="text-base sm:text-xl font-bold text-gray-900 flex-1 min-w-0 break-words">{project.title}</h4>
+                  <div className="flex justify-between items-start mb-1.5 md:mb-2 gap-2">
+                    <h4 className="text-sm md:text-base md:text-xl font-bold text-gray-900 flex-1 min-w-0 break-words truncate" title={project.title}>{project.title}</h4>
                     <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => startEditing(index)}

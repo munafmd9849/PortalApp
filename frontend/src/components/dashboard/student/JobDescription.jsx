@@ -353,12 +353,12 @@ const JobDescription = ({ job, isOpen, onClose }) => {
   };
 
   const formatDriveDate = (driveDate) => {
-    if (!driveDate) return new Date().toLocaleDateString('en-GB');
+    if (!driveDate) return 'To be announced';
     try {
       const date = new Date(driveDate);
       return date.toLocaleDateString('en-GB');
     } catch (err) {
-      return new Date().toLocaleDateString('en-GB');
+      return 'To be announced';
     }
   };
 

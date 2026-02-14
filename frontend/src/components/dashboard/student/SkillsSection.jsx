@@ -592,7 +592,7 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
           left: 150%;
         }
         .skill-badge-name {
-          font-size: 0.5rem !important;
+          font-size: 0.45rem !important;
           line-height: 1.15 !important;
           word-break: break-word;
           overflow-wrap: break-word;
@@ -602,7 +602,7 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
           -webkit-box-orient: vertical;
           overflow: hidden;
           text-overflow: ellipsis;
-          max-height: 1.4rem;
+          max-height: 1.2rem;
           max-width: 85%;
           width: 85%;
           margin: 0 auto;
@@ -618,9 +618,9 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
       `}</style>
       
       <div className="w-full">
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-3 sm:px-6 transition-all duration-200 shadow-lg">
 
-          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
+          <legend className="text-base sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
             Skills {skills.length > 0 && <span className="text-sm text-gray-500">({Math.min(skills.length, 8)}/8)</span>}
           </legend>
 
@@ -802,12 +802,13 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-4 sm:gap-x-4 justify-center">
+          {/* Mobile: 2×4 grid (2 rows, 4 per row). Desktop: flex wrap. */}
+          <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:gap-4 sm:justify-center">
             {skills.slice(0, 8).map((skill, index) => {
               return (
               <div
                 key={index}
-                className="skill-badge relative w-28 h-36 sm:w-33 sm:h-40 transition-transform transform group touch-manipulation"
+                className="skill-badge relative w-full h-28 sm:w-28 sm:h-36 md:w-32 md:h-40 transition-transform transform group touch-manipulation"
                 title={skill.skillName}
               >
                 <svg viewBox="0 0 512 512" className="absolute inset-0 w-full h-full z-0">
@@ -896,10 +897,10 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                     </linearGradient>
                   </defs>
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center gap-1 justify-start z-10 top-[8%]">
+                <div className="absolute inset-0 flex flex-col items-center gap-0.5 sm:gap-1 justify-start z-10 top-[8%]">
                   <FontAwesomeIcon
                     icon={getSkillIcon(skill.skillName)}
-                    className="text-3xl mb-1 text-yellow-300 drop-shadow"
+                    className="text-xl sm:text-3xl mb-0.5 sm:mb-1 text-yellow-300 drop-shadow"
                   />
                   <div className="absolute left-1/2 transform -translate-x-1/2 text-center z-20 top-[30%] w-[85%] max-w-[85%] flex items-center justify-center">
                     <span 

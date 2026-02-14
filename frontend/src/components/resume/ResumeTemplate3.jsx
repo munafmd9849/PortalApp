@@ -49,7 +49,7 @@ const ResumeTemplate3 = ({ student }) => {
       fontSize: '10pt',
       lineHeight: '1.3',
       color: '#000',
-      width: '8.5in',
+      width: '100%',
       maxWidth: '8.5in',
       margin: '0 auto',
       padding: '0.4in',

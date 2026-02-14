@@ -13,41 +13,47 @@ export default function GoogleAuthCallback() {
   const message = searchParams.get('message');
 
   useEffect(() => {
-    // Check if we're in a popup window
+    const origin = window.location.origin;
+
     if (window.opener) {
-      // We're in a popup - send message to parent
+      // Popup with opener: send tokens to parent, then close this popup (try several times – some browsers need it)
       if (accessToken && refreshToken) {
-        window.opener.postMessage({
+        const payload = {
           type: 'GOOGLE_LOGIN_SUCCESS',
           accessToken,
           refreshToken,
-        }, window.location.origin);
-        // Close popup after a short delay
-        setTimeout(() => {
-          window.close();
-        }, 100);
+        };
+        window.opener.postMessage(payload, origin);
+        window.opener.postMessage(payload, origin);
+        const tryClose = () => { try { window.close(); } catch (_) {} };
+        tryClose();
+        setTimeout(tryClose, 50);
+        setTimeout(tryClose, 150);
+        setTimeout(tryClose, 300);
+        setTimeout(() => { window.opener?.postMessage(payload, origin); tryClose(); }, 100);
       } else if (error) {
         window.opener.postMessage({
           type: 'GOOGLE_LOGIN_ERROR',
           error: message || error,
-        }, window.location.origin);
-        // Close popup after a short delay
-        setTimeout(() => {
-          window.close();
-        }, 100);
+        }, origin);
+        setTimeout(() => { try { window.close(); } catch (_) {} }, 300);
       }
-    } else {
-      // Not in a popup - redirect to home with error/success
-      if (accessToken && refreshToken) {
-        // Store tokens and reload
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        window.location.href = '/';
+    } else if (accessToken && refreshToken) {
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      // Popup that lost opener (we open with name 'Google Login'): close so opener finds tokens in localStorage. Try multiple times.
+      if (window.name === 'Google Login') {
+        const tryClose = () => { try { window.close(); } catch (_) {} };
+        tryClose();
+        setTimeout(tryClose, 100);
+        setTimeout(tryClose, 300);
       } else {
-        // Redirect to home with error
-        const errorMsg = message || error || 'Google login failed';
-        window.location.href = `/?error=${encodeURIComponent(errorMsg)}`;
+        window.location.replace('/');
       }
+    } else if (error) {
+      window.location.replace(`/?error=${encodeURIComponent(message || error || 'Google login failed')}`);
+    } else {
+      window.location.replace(`/?error=${encodeURIComponent(message || error || 'Google login failed')}`);
     }
   }, [accessToken, refreshToken, error, message]);
 

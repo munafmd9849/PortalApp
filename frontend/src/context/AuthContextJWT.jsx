@@ -101,6 +101,19 @@ export function AuthProvider({ children }) {
     };
   }, [user?.id, loadUser]);
 
+  // When another tab/window clears tokens (e.g. refresh failed), clear our state so we don't show dashboard with stale auth
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if ((e.key === 'accessToken' || e.key === 'refreshToken') && e.newValue == null) {
+        setUser(null);
+        setRole(null);
+        userLoadedRef.current = false;
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // Login (replaces signInWithEmailAndPassword)
   const login = async (email, password, selectedRole) => {
     try {
@@ -241,69 +254,97 @@ export function AuthProvider({ children }) {
 
       // Wait for popup to complete OAuth flow
       return new Promise((resolve, reject) => {
-        // Listen for message from popup (when callback page loads)
-        const messageHandler = async (event) => {
-          // Verify origin for security
-          if (event.origin !== window.location.origin) {
+        let settled = false;
+        const cleanup = () => {
+          try { clearInterval(checkClosed); } catch (_) {}
+          try { clearInterval(pollInterval); } catch (_) {}
+          window.removeEventListener('message', messageHandler);
+        };
+        const doResolve = (value) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(value);
+        };
+        const doReject = (err) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(err);
+        };
+
+        const finishWithTokens = async (accessToken, refreshToken) => {
+          if (!accessToken || !refreshToken) {
+            doReject(new Error('No tokens received from Google login'));
             return;
           }
-
-          if (event.data.type === 'GOOGLE_LOGIN_SUCCESS') {
-            window.removeEventListener('message', messageHandler);
-            popup.close();
-            
-            // Extract tokens from message
-            const { accessToken, refreshToken } = event.data;
-            
-            if (accessToken && refreshToken) {
-              // Store tokens
-              api.setAuthTokens(accessToken, refreshToken);
-              
-              // Reload user data and wait for it to complete
-              try {
-                await loadUser(true);
-                // Get user data from API to return
-                const userData = await api.getCurrentUser();
-                resolve({ 
-                  user: userData.user, 
-                  role: userData.user.role,
-                  status: userData.user.status 
-                });
-              } catch (loadError) {
-                reject(loadError);
-              }
-            } else {
-              reject(new Error('No tokens received from Google login'));
-            }
-          } else if (event.data.type === 'GOOGLE_LOGIN_ERROR') {
-            window.removeEventListener('message', messageHandler);
-            popup.close();
-            reject(new Error(event.data.error || 'Google login failed'));
+          try {
+            api.setAuthTokens(accessToken, refreshToken);
+            await loadUser(true);
+            const userData = await api.getCurrentUser();
+            // Close popup before resolving so it's gone before main window redirects
+            try { if (popup && !popup.closed) popup.close(); } catch (_) {}
+            doResolve({
+              user: userData.user,
+              role: userData.user.role,
+              status: userData.user.status,
+            });
+          } catch (loadError) {
+            doReject(loadError);
+          } finally {
+            try { if (popup && !popup.closed) popup.close(); } catch (_) {}
           }
         };
 
+        // 1) Message from popup (primary) – close popup immediately so it disappears
+        const messageHandler = async (event) => {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type === 'GOOGLE_LOGIN_SUCCESS') {
+            try { if (popup && !popup.closed) popup.close(); } catch (_) {}
+            const { accessToken: at, refreshToken: rt } = event.data;
+            await finishWithTokens(at, rt);
+          } else if (event.data?.type === 'GOOGLE_LOGIN_ERROR') {
+            try { if (popup && !popup.closed) popup.close(); } catch (_) {}
+            doReject(new Error(event.data.error || 'Google login failed'));
+          }
+        };
         window.addEventListener('message', messageHandler);
 
-        // Also check if popup was closed manually
-        const checkClosed = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkClosed);
-            window.removeEventListener('message', messageHandler);
-            reject(new Error('Google login was cancelled'));
+        // 2) Poll popup location (fallback when postMessage is dropped or delayed)
+        const pollInterval = setInterval(() => {
+          if (settled || popup.closed) return;
+          try {
+            const href = popup.location?.href || '';
+            if (href.indexOf('/auth/google-callback') === -1) return;
+            const url = new URL(popup.location.href);
+            const at = url.searchParams.get('accessToken');
+            const rt = url.searchParams.get('refreshToken');
+            if (at && rt) {
+              finishWithTokens(at, rt);
+            } else if (url.searchParams.get('error')) {
+              const msg = url.searchParams.get('message') || url.searchParams.get('error');
+              try { popup.close(); } catch (_) {}
+              doReject(new Error(msg || 'Google login failed'));
+            }
+          } catch (_) {
+            // Cross-origin (popup on Google) – ignore
           }
-        }, 1000);
+        }, 300);
 
-        // Cleanup on success/error
-        const originalResolve = resolve;
-        const originalReject = reject;
-        resolve = (value) => {
-          clearInterval(checkClosed);
-          originalResolve(value);
-        };
-        reject = (error) => {
-          clearInterval(checkClosed);
-          originalReject(error);
-        };
+        // 3) When popup closes: if tokens appeared in localStorage (popup lost opener and set them), complete login; else reject after 2s
+        const startTime = Date.now();
+        const checkClosed = setInterval(() => {
+          if (settled) return;
+          if (!popup.closed) return;
+          const at = localStorage.getItem('accessToken');
+          const rt = localStorage.getItem('refreshToken');
+          if (at && rt) {
+            finishWithTokens(at, rt);
+            return;
+          }
+          if (Date.now() - startTime < 2000) return;
+          doReject(new Error('Google login was cancelled'));
+        }, 1000);
       });
     } catch (error) {
       console.error('Google login error:', error);
