@@ -381,7 +381,13 @@ useEffect(() => {
   const [currentApplicationsPage, setCurrentApplicationsPage] = useState(1);
   const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
   const APPLICATIONS_LIST_PER_PAGE = 10;
-  
+
+  // Reset pagination to page 1 when switching between Current and Past applications
+  useEffect(() => {
+    setCurrentApplicationsPage(1);
+    setPastApplicationsPage(1);
+  }, [applicationsView]);
+
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
@@ -2967,10 +2973,10 @@ useEffect(() => {
                         </div>
                       );
                           })}
-                          {totalPast > APPLICATIONS_LIST_PER_PAGE && (
+                          {totalPast > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
                               <p className="text-sm text-gray-600">
-                                Showing {startPast + 1}–{Math.min(startPast + APPLICATIONS_LIST_PER_PAGE, totalPast)} of {totalPast} applications
+                                Showing {startPast + 1}–{Math.min(startPast + APPLICATIONS_LIST_PER_PAGE, totalPast)} of {totalPast} application{totalPast !== 1 ? 's' : ''}
                               </p>
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => setPastApplicationsPage((p) => Math.max(1, p - 1))} disabled={pastPage <= 1} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -3284,10 +3290,10 @@ useEffect(() => {
                         </div>
                       </div>
                     ))}
-                          {totalCurrent > APPLICATIONS_LIST_PER_PAGE && (
+                          {totalCurrent > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
                               <p className="text-sm text-gray-600">
-                                Showing {startCurrent + 1}–{Math.min(startCurrent + APPLICATIONS_LIST_PER_PAGE, totalCurrent)} of {totalCurrent} applications
+                                Showing {startCurrent + 1}–{Math.min(startCurrent + APPLICATIONS_LIST_PER_PAGE, totalCurrent)} of {totalCurrent} application{totalCurrent !== 1 ? 's' : ''}
                               </p>
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => setCurrentApplicationsPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
