@@ -225,10 +225,10 @@ const DashboardHome = ({
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4 min-w-0 overflow-hidden">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 md:p-3">
+          <p className="text-red-800 text-xs md:text-sm break-words">{error}</p>
         </div>
       )}
 
@@ -244,6 +244,7 @@ const DashboardHome = ({
         <ApplicationTrackerSection 
           applications={displayApplications} 
           onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
+          onViewJD={handleKnowMore}
         />
       )}
 

@@ -166,6 +166,16 @@ const ResumeBuilder = () => {
   const fileInputRef = useRef(null);
   const [showResumesModal, setShowResumesModal] = useState(false);
 
+  // Mobile layout: single column, section dropdown, sticky actions
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   // Load resumes
   const loadResumes = async () => {
     if (!user?.id) return;
@@ -1020,33 +1030,35 @@ const ResumeBuilder = () => {
   };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex-1">
-            <h2 className="text-xl font-bold flex items-center gap-2 mb-1 flex-wrap">
-              <div className="bg-white/20 p-1.5 rounded-lg">
-                <FileText size={20} />
+    <div className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
+      {/* Header - compact on mobile */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 sm:p-6 text-white shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base sm:text-xl font-bold flex items-center gap-2 mb-0.5 sm:mb-1 flex-wrap">
+              <div className="bg-white/20 p-1.5 rounded-lg flex-shrink-0">
+                <FileText size={isMobile ? 18 : 20} />
               </div>
               Resume Builder
             </h2>
-            <p className="text-blue-100 text-sm ml-9">
-              Build, upload, or analyze your professional resume with AI assistance
+            <p className={`text-blue-100 ml-0 sm:ml-9 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+              Build, upload, or analyze your resume
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleRefresh}
-              className="bg-white/20 hover:bg-white/30 rounded-lg px-4 py-2 flex items-center gap-2 transition-all cursor-pointer font-medium shadow-md hover:shadow-lg text-sm"
+              className="bg-white/20 hover:bg-white/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-medium shadow-md hover:shadow-lg text-xs sm:text-sm"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={isMobile ? 14 : 16} />
               Refresh
             </button>
+            {!isMobile && (
             <div className="flex items-center gap-2 bg-white/20 rounded-lg px-4 py-2 shadow-md text-sm">
               <Sparkles size={16} className="animate-pulse" />
               <span className="font-semibold">AI-Powered</span>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -1065,78 +1077,92 @@ const ResumeBuilder = () => {
         </div>
       )}
 
-      {/* Main Mode Navigation - Top 3 Options */}
-      <div className="bg-white rounded-xl border-2 border-gray-200 p-3 shadow-sm">
-        <div className="flex flex-wrap gap-3">
+      {/* Main Mode Navigation - compact pill segment on mobile, full buttons on desktop */}
+      <div className="bg-white rounded-xl border-2 border-gray-200 p-2 sm:p-3 shadow-sm">
+        <div className="flex flex-wrap gap-1.5 sm:gap-3">
           <button
             onClick={() => {
               setActiveMode('buildResume');
               setActiveSection('personal');
             }}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all font-semibold cursor-pointer ${
+            className={`flex-1 min-w-0 sm:min-w-[180px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'buildResume'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
-            <FileText size={22} />
-            <span className="text-base">Build Resume</span>
+            <FileText size={isMobile ? 18 : 22} />
+            <span>{isMobile ? 'Build' : 'Build Resume'}</span>
           </button>
           <button
             onClick={() => setActiveMode('uploadResume')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all font-semibold cursor-pointer ${
+            className={`flex-1 min-w-0 sm:min-w-[180px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'uploadResume'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
-            <Upload size={22} />
-            <span className="text-base">Upload Resume</span>
+            <Upload size={isMobile ? 18 : 22} />
+            <span>{isMobile ? 'Upload' : 'Upload Resume'}</span>
           </button>
           <button
             onClick={() => setActiveMode('atsFriendly')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all font-semibold cursor-pointer ${
+            className={`flex-1 min-w-0 sm:min-w-[180px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'atsFriendly'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
-            <BarChart3 size={22} />
-            <span className="text-base">ATS Friendly</span>
+            <BarChart3 size={isMobile ? 18 : 22} />
+            <span>{isMobile ? 'ATS' : 'ATS Friendly'}</span>
           </button>
         </div>
       </div>
 
-      {/* Build Resume Mode - Section Tabs */}
+      {/* Build Resume Mode - Section navigation: dropdown on mobile, tabs on desktop */}
       {activeMode === 'buildResume' && (
-        <div className="bg-white rounded-xl border-2 border-gray-200 p-3 shadow-sm">
-          <div className="flex gap-2 items-center">
-            <div className="flex gap-2 flex-1">
-              {buildSections.map((section) => {
-                const Icon = section.icon;
-                const isActive = activeSection === section.id;
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => setActiveSection(section.id)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-sm font-medium cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
-                    }`}
-                  >
-                    <Icon size={14} />
-                    <span>{section.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-2 sm:p-3 shadow-sm overflow-x-auto">
+          <div className="flex gap-2 items-center min-w-0">
+            {/* Mobile: custom section dropdown */}
+            {isMobile ? (
+              <div className="flex-1 min-w-0">
+                <CustomDropdown
+                  options={buildSections.map((s) => ({ value: s.id, label: s.label }))}
+                  value={activeSection}
+                  onChange={(v) => setActiveSection(v)}
+                  placeholder="Choose section"
+                  icon={Layout}
+                  iconColor="text-blue-600"
+                />
+              </div>
+            ) : (
+              <div className="flex gap-1.5 sm:gap-2 flex-1 min-w-0 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin">
+                {buildSections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className={`flex-shrink-0 flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg transition-all text-xs sm:text-sm font-medium cursor-pointer whitespace-nowrap ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
+                      }`}
+                    >
+                      <Icon size={14} />
+                      <span>{section.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <button
               onClick={() => {
                 loadResumes();
                 setShowResumesModal(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium shadow-md hover:shadow-lg"
+              className="flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium shadow-md hover:shadow-lg text-sm"
               title="View Saved Resumes"
             >
               <FileText size={18} />
@@ -1155,11 +1181,12 @@ const ResumeBuilder = () => {
       {/* Build Resume Mode Content */}
       {activeMode === 'buildResume' && (
         <>
-          {/* Side-by-side layout for form sections (not preview) */}
+          {/* Mobile: show only form when editing, or only preview when on Preview section */}
+          {/* Desktop: side-by-side form + live preview (or full preview section) */}
           {activeSection !== 'preview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Side - Form Section */}
-              <div className="bg-white rounded-xl border-2 border-gray-200 p-8 shadow-sm">
+            <div className={`grid gap-4 sm:gap-6 min-w-0 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+              {/* Left Side - Form Section (on mobile this is the only column) */}
+              <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6 lg:p-8 shadow-sm min-w-0 overflow-x-hidden">
         {/* Personal Info */}
         {activeSection === 'personal' && (
           <div className="space-y-6">
@@ -1907,41 +1934,42 @@ const ResumeBuilder = () => {
         )}
               </div>
 
-              {/* Right Side - Live Preview */}
-              <div className="bg-white rounded-xl border-2 border-gray-200 p-6 shadow-sm sticky top-6 h-[95vh] flex flex-col">
-                <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-3">
-                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <Eye size={20} className="text-blue-600" />
+              {/* Right Side - Live Preview (hidden on mobile: use section dropdown to open "Preview" for full-screen preview) */}
+              {!isMobile && (
+              <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6 shadow-sm lg:sticky lg:top-6 lg:h-[95vh] flex flex-col min-h-[320px] lg:min-h-0 min-w-0">
+                <div className="flex items-center justify-between mb-3 sm:mb-4 border-b border-gray-200 pb-3">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <Eye size={18} className="text-blue-600 sm:w-5 sm:h-5" />
                     Live Preview
                   </h3>
                 </div>
                 {/* Template Selector for Live Preview */}
-                <div className="mb-4">
+                <div className="mb-3 sm:mb-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Layout size={16} className="text-blue-600" />
-                    <span className="text-sm font-semibold text-gray-700">Template</span>
+                    <Layout size={16} className="text-blue-600 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700">Template</span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 sm:gap-2">
                     {templates.map((template) => (
                       <button
                         key={template.id}
                         onClick={() => setSelectedTemplate(template.id)}
-                        className={`flex-1 flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all cursor-pointer ${
+                        className={`flex-1 min-w-0 flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-lg border-2 transition-all cursor-pointer ${
                           selectedTemplate === template.id
                             ? 'border-blue-500 bg-blue-50 shadow-md'
                             : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                         }`}
                         title={template.description}
                       >
-                        <span className="text-lg mb-1">{template.icon}</span>
-                        <span className="text-xs font-medium text-gray-800">{template.name}</span>
+                        <span className="text-base sm:text-lg mb-0.5 sm:mb-1">{template.icon}</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-gray-800 truncate w-full text-center">{template.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50 flex-1">
-                  <div id="resume-preview-sidebar" className="bg-white shadow-lg w-full h-full overflow-y-auto">
-                    <div className="p-6">
+                <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50 flex-1 min-h-0 flex flex-col">
+                  <div id="resume-preview-sidebar" className="bg-white shadow-lg w-full min-w-0 flex-1 overflow-auto">
+                    <div className="p-3 sm:p-4 lg:p-6 max-w-full">
                       <ErrorBoundary>
                         {renderTemplate()}
                       </ErrorBoundary>
@@ -1957,60 +1985,63 @@ const ResumeBuilder = () => {
                   </button>
                 </div>
               </div>
+              )}
             </div>
           )}
 
-        {/* Full Preview Section */}
+        {/* Full Preview Section (full-width on mobile with sticky bottom bar) */}
         {activeSection === 'preview' && (
-          <div className="space-y-6">
-            {/* Template Selector */}
-            <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Layout size={18} className="text-blue-600" />
-                <h3 className="text-base font-semibold text-gray-800">Choose Template</h3>
+          <div className={`space-y-6 ${isMobile ? 'pb-28' : ''}`}>
+            {/* Template Selector - compact on mobile */}
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-3 sm:p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                <Layout size={18} className="text-blue-600 flex-shrink-0" />
+                <h3 className="text-sm sm:text-base font-semibold text-gray-800">Choose Template</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className={`grid gap-2 sm:gap-4 ${isMobile ? 'grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
                 {templates.map((template) => (
                   <button
                     key={template.id}
                     onClick={() => setSelectedTemplate(template.id)}
-                    className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                    className={`p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer text-center ${
                       selectedTemplate === template.id
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 hover:border-blue-500 hover:shadow-md'
                     }`}
                   >
-                    <div className="text-2xl mb-1.5">{template.icon}</div>
-                    <div className="font-semibold text-sm text-gray-800">{template.name}</div>
-                    <div className="text-xs text-gray-600 mt-1">{template.description}</div>
+                    <div className="text-xl sm:text-2xl mb-1 sm:mb-1.5">{template.icon}</div>
+                    <div className="font-semibold text-xs sm:text-sm text-gray-800">{template.name}</div>
+                    {!isMobile && <div className="text-xs text-gray-600 mt-1">{template.description}</div>}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border-2 border-gray-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
-                <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                  <div className="bg-green-100 p-1.5 rounded-lg">
-                    <Eye size={20} className="text-green-600" />
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-5 shadow-sm min-w-0 overflow-hidden">
+              {/* Desktop: title + actions in header. Mobile: title only (actions in sticky bar) */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 pb-3 mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                  <div className="bg-green-100 p-1.5 rounded-lg flex-shrink-0">
+                    <Eye size={18} className="text-green-600 sm:w-5 sm:h-5" />
                   </div>
                   Resume Preview
                 </h3>
-                <div className="flex items-center gap-3">
+                {!isMobile && (
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   <button
                     onClick={handleSaveAll}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-gray-600 text-white px-5 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all"
+                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-gray-600 text-white px-3 sm:px-5 py-2 sm:py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all text-sm sm:text-base"
                     title="Save all resume data"
                   >
                     {saving ? (
                       <>
-                        <Loader className="animate-spin" size={18} />
+                        <Loader className="animate-spin flex-shrink-0" size={18} />
                         <span>Saving...</span>
                       </>
                     ) : (
                       <>
-                        <Save size={18} />
+                        <Save size={18} className="flex-shrink-0" />
                         <span>Save All</span>
                       </>
                     )}
@@ -2018,17 +2049,17 @@ const ResumeBuilder = () => {
                   <button
                     onClick={handleGeneratePDFAndSave}
                     disabled={generatingAndSaving || exporting}
-                    className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all"
+                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-green-600 text-white px-3 sm:px-5 py-2 sm:py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-md hover:shadow-lg transition-all text-sm sm:text-base"
                     title="Generate PDF and save it to your resume manager for job applications"
                   >
                     {generatingAndSaving ? (
                       <>
-                        <Loader className="animate-spin" size={18} />
-                        <span>Generating & Saving...</span>
+                        <Loader className="animate-spin flex-shrink-0" size={18} />
+                        <span>Generating...</span>
                       </>
                     ) : (
                       <>
-                        <Upload size={18} />
+                        <Upload size={18} className="flex-shrink-0" />
                         <span>Generate & Save</span>
                       </>
                     )}
@@ -2036,33 +2067,72 @@ const ResumeBuilder = () => {
                   <button
                     onClick={handleExportPDF}
                     disabled={exporting || generatingAndSaving}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-lg hover:shadow-xl transition-all"
+                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
                     title="Download PDF to your computer"
                   >
                     {exporting ? (
                       <>
-                        <Loader className="animate-spin" size={18} />
+                        <Loader className="animate-spin flex-shrink-0" size={18} />
                         <span>Generating PDF...</span>
                       </>
                     ) : (
                       <>
-                        <Download size={18} />
-                        <span>Download as PDF</span>
+                        <Download size={18} className="flex-shrink-0" />
+                        <span>Download PDF</span>
                       </>
                     )}
                   </button>
                 </div>
+                )}
               </div>
 
-              <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+              <div className="border-2 border-gray-300 rounded-lg overflow-x-auto overflow-y-hidden bg-gray-50 w-full max-w-full">
                 <div id="resume-preview" className="bg-white shadow-2xl" style={{ transform: 'scale(0.8)', transformOrigin: 'top left', width: '125%' }}>
-                  <div className="p-8">
+                  <div className="p-4 sm:p-6 lg:p-8">
                     <ErrorBoundary>
                       {renderTemplate()}
                     </ErrorBoundary>
                   </div>
                 </div>
               </div>
+
+              {/* Mobile-only: sticky bottom action bar (Save, Generate, Download, Back) */}
+              {isMobile && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg p-3 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('personal')}
+                    className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border-2 border-gray-300 text-gray-700 bg-gray-50 font-medium text-sm"
+                  >
+                    <Edit2 size={16} />
+                    Back to edit
+                  </button>
+                  <button
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-600 text-white rounded-lg font-medium text-sm disabled:opacity-50"
+                  >
+                    {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                    Save
+                  </button>
+                  <button
+                    onClick={handleGeneratePDFAndSave}
+                    disabled={generatingAndSaving || exporting}
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-green-600 text-white rounded-lg font-medium text-sm disabled:opacity-50"
+                  >
+                    {generatingAndSaving ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
+                    Save PDF
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={exporting || generatingAndSaving}
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm disabled:opacity-50"
+                  >
+                    {exporting ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
+                    Download
+                  </button>
+                </div>
+              )}
 
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mt-6">
                 <div className="flex items-start gap-3">
@@ -2087,12 +2157,12 @@ const ResumeBuilder = () => {
 
       {/* Upload Resume Mode Content */}
       {activeMode === 'uploadResume' && (
-        <div className="bg-white rounded-xl border-2 border-gray-200 p-5 shadow-sm">
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-5 shadow-sm min-w-0 overflow-x-hidden">
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <div className="bg-blue-100 p-1.5 rounded-lg">
-                  <Upload size={20} className="text-blue-600" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 pb-4">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                <div className="bg-blue-100 p-1.5 rounded-lg flex-shrink-0">
+                  <Upload size={18} className="text-blue-600 sm:w-5 sm:h-5" />
                 </div>
                 Upload Resume
               </h3>
@@ -2328,10 +2398,10 @@ const ResumeBuilder = () => {
 
       {/* View Saved Resumes Modal */}
       {showResumesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowResumesModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
-              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={() => setShowResumesModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-w-full max-h-[90vh] overflow-y-auto overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
+              <h3 className="text-lg sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="bg-blue-100 p-2 rounded-lg">
                   <FileText size={24} className="text-blue-600" />
                 </div>
@@ -2362,11 +2432,11 @@ const ResumeBuilder = () => {
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 sm:p-6">
                   {resumes.map((resume) => (
-                    <div key={resume.id} className="bg-gray-50 border-2 border-gray-200 rounded-lg p-5 hover:border-blue-300 transition-all">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div key={resume.id} className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4 sm:p-5 hover:border-blue-300 transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                           <div className="bg-blue-100 p-3 rounded-lg flex-shrink-0">
                             <FileText size={24} className="text-blue-600" />
                           </div>
@@ -2396,13 +2466,13 @@ const ResumeBuilder = () => {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
+                        <div className="flex flex-wrap items-center gap-2 sm:ml-4">
                           <button
                             type="button"
                             onClick={() => handleViewResume(resume)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg"
+                            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg text-sm"
                           >
-                            <Eye size={18} />
+                            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
                             View
                           </button>
                           <a
@@ -2410,9 +2480,9 @@ const ResumeBuilder = () => {
                             download={resume.fileName || resume.title || 'resume.pdf'}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-all font-medium shadow-md hover:shadow-lg"
+                            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-all font-medium shadow-md hover:shadow-lg text-sm"
                           >
-                            <Download size={18} />
+                            <Download size={16} className="sm:w-[18px] sm:h-[18px]" />
                             Download
                           </a>
                           <button
@@ -2423,9 +2493,9 @@ const ResumeBuilder = () => {
                               }
                             }}
                             disabled={saving}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg text-sm"
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                             Delete
                           </button>
                         </div>

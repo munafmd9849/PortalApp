@@ -104,9 +104,9 @@ async function refreshAccessToken() {
     setAuthTokens(data.accessToken, refreshToken);
     return data.accessToken;
   } catch (error) {
-    // Clear tokens and redirect on refresh failure
+    // Clear tokens and redirect on refresh failure (replace so back button doesn't return to broken state)
     clearAuthTokens();
-    window.location.href = '/';
+    window.location.replace('/');
     throw error;
   }
 }

@@ -99,7 +99,7 @@ export default function AdminProfile() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Floating Alert */}
       {showFloatingAlert && (
         <div
@@ -122,9 +122,9 @@ export default function AdminProfile() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Profile</h2>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Profile</h2>
           <div className="text-sm text-gray-500">
             Fields marked with <span className="text-red-500">*</span> are required
           </div>
@@ -132,7 +132,7 @@ export default function AdminProfile() {
 
         <form className="space-y-8" onSubmit={handleSaveProfile}>
           {/* Profile Photo Section */}
-          <div className="bg-blue-50 rounded-lg p-6 border border-blue-100">
+          <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border border-blue-100">
             <div className="flex items-start gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">

@@ -185,17 +185,17 @@ export default function AdminJobDetail() {
   }
 
   return (
-    <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 p-8">
+    <div className="space-y-4 sm:space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 sm:p-6 md:p-8 overflow-x-hidden">
       {/* Header with Back Button */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between mb-4 sm:mb-6">
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:text-slate-900 hover:bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200 transition-all duration-200 font-medium"
+          className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:text-slate-900 hover:bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200 transition-all duration-200 font-medium touch-manipulation w-full sm:w-auto justify-center"
         >
           <FaArrowLeft className="text-sm" />
           <span>Back</span>
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Edit Button - Show for IN_REVIEW jobs (admin can edit all fields) */}
           {(job.status === 'IN_REVIEW' || job.status === 'in_review') && (
             <button
@@ -264,11 +264,11 @@ export default function AdminJobDetail() {
       </div>
 
       {/* Job Header */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-8 relative overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6 md:p-8 relative overflow-hidden">
         {/* Decorative gradient overlay */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100/30 to-indigo-100/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-slate-800 via-blue-700 to-indigo-700 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-slate-800 via-blue-700 to-indigo-700 bg-clip-text text-transparent">
             {job.jobTitle || job.title || 'Job Position'}
           </h1>
           <p className="text-xl text-slate-600 mb-4 font-medium">
@@ -304,10 +304,10 @@ export default function AdminJobDetail() {
       </div>
 
       {/* Job Details Grid */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
-        <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
+        <div className="flex items-center gap-2 mb-4 sm:mb-6 pb-3 border-b border-slate-200">
           <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
-          <h2 className="text-xl font-semibold text-slate-800">Job Details</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Job Details</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Compensation */}
@@ -367,7 +367,7 @@ export default function AdminJobDetail() {
       </div>
 
       {/* Company Information */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
           <div className="w-1 h-6 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
           <h2 className="text-xl font-semibold text-slate-800">Company Information</h2>
@@ -412,7 +412,7 @@ export default function AdminJobDetail() {
 
       {/* Roles & Responsibilities */}
       {job.description && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-cyan-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Roles & Responsibilities</h2>
@@ -425,7 +425,7 @@ export default function AdminJobDetail() {
 
       {/* Skills Required */}
       {(job.requiredSkills || job.skills) && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Skills Required</h2>
@@ -469,7 +469,7 @@ export default function AdminJobDetail() {
 
       {/* Requirements */}
       {job.requirements && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-cyan-500 to-teal-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Requirements</h2>
@@ -518,7 +518,7 @@ export default function AdminJobDetail() {
 
       {/* Eligibility Criteria */}
       {(job.qualification || job.specialization || job.yop || job.minCgpa || job.gapAllowed || job.backlogs) && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-teal-500 to-emerald-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Eligibility Criteria</h2>
@@ -568,7 +568,7 @@ export default function AdminJobDetail() {
 
       {/* Experience Level */}
       {job.experienceLevel && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-slate-500 to-slate-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Experience Level</h2>
@@ -581,7 +581,7 @@ export default function AdminJobDetail() {
 
       {/* Screening Funnel (Admin View) */}
       {screeningData && screeningData.summary && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Screening Funnel</h2>
@@ -735,7 +735,7 @@ export default function AdminJobDetail() {
 
       {/* Drive Details */}
       {(job.driveDate || job.driveVenues || job.applicationDeadline) && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-200">
             <div className="flex items-center gap-2">
               <div className="w-1 h-6 bg-gradient-to-b from-rose-500 to-pink-600 rounded-full"></div>
@@ -857,7 +857,7 @@ export default function AdminJobDetail() {
 
       {/* SPOCs (Single Point of Contact) */}
       {job.spocs && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-violet-500 to-purple-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Contact Information (SPOCs)</h2>
@@ -903,7 +903,7 @@ export default function AdminJobDetail() {
 
       {/* Targeting Information */}
       {(job.targetSchools || job.targetCenters || job.targetBatches) && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-indigo-500 to-blue-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Targeting Information</h2>
@@ -978,7 +978,7 @@ export default function AdminJobDetail() {
 
       {/* Interview Process */}
       {interviewRounds && interviewRounds.length > 0 && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-pink-500 to-rose-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Interview Process</h2>
@@ -1003,7 +1003,7 @@ export default function AdminJobDetail() {
 
       {/* Additional Information */}
       {(job.serviceAgreement || job.blockingPeriod || job.instructions) && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
             <div className="w-1 h-6 bg-gradient-to-b from-amber-500 to-orange-600 rounded-full"></div>
             <h2 className="text-xl font-semibold text-slate-800">Additional Information</h2>
@@ -1041,7 +1041,7 @@ export default function AdminJobDetail() {
       )}
 
       {/* Job Status & Metadata */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-6">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-blue-100/50 p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
           <div className="w-1 h-6 bg-gradient-to-b from-slate-500 to-slate-600 rounded-full"></div>
           <h2 className="text-xl font-semibold text-slate-800">Job Status & Metadata</h2>

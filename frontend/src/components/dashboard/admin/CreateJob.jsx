@@ -217,6 +217,7 @@ export default function CreateJob({ onCreated }) {
             : [{ fullName: '', email: '', phone: '' }],
           driveDateText: driveDate ? toDDMMYYYY(driveDate.toISOString()) : '',
           driveDateISO: driveDate ? driveDate.toISOString() : '',
+          driveDateNotDecided: !driveDate,
           applicationDeadlineText: applicationDeadline ? toDDMMYYYY(applicationDeadline.toISOString()) : '',
           applicationDeadlineISO: applicationDeadline ? applicationDeadline.toISOString() : '',
           driveVenues: Array.isArray(jobData.driveVenues) ? jobData.driveVenues : [],
@@ -410,6 +411,7 @@ export default function CreateJob({ onCreated }) {
     spocs: [{ fullName: '', email: '', phone: '' }],
     driveDateText: '',
     driveDateISO: '',
+    driveDateNotDecided: false,
     applicationDeadlineText: '',
     applicationDeadlineISO: '',
     driveVenues: [],
@@ -596,12 +598,16 @@ export default function CreateJob({ onCreated }) {
     
     // === SECTION 2: DRIVE INFORMATION ===
     if (jobData.driveDate) {
-      // Handle drive date conversion
       const dateStr = jobData.driveDate;
       if (dateStr.includes('/')) {
         updates.driveDateText = dateStr;
         updates.driveDateISO = toISOFromDDMMYYYY(dateStr);
       }
+      updates.driveDateNotDecided = false;
+    } else {
+      updates.driveDateNotDecided = true;
+      updates.driveDateText = '';
+      updates.driveDateISO = '';
     }
     
     if (jobData.driveVenue) {
@@ -722,10 +728,11 @@ export default function CreateJob({ onCreated }) {
   const isDriveDetailsComplete = useMemo(() => {
     const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
     const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
-    // Check both form and driveDraft for venues to handle sync issues
     const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
-    return hasDriveDate && hasApplicationDeadline && hasVenues;
-  }, [form.driveDateISO, form.driveDateText, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
+    // Drive date is either "not decided" (TBD) or a specific date
+    const driveDateOk = form.driveDateNotDecided || hasDriveDate;
+    return driveDateOk && hasApplicationDeadline && hasVenues;
+  }, [form.driveDateISO, form.driveDateText, form.driveDateNotDecided, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
     return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
@@ -1113,8 +1120,8 @@ export default function CreateJob({ onCreated }) {
       gapAllowed: form.gapAllowed || '',
       gapYears: form.gapYears || '',
       backlogs: form.backlogs || '',
-      // Drive details - check both form and driveDraft states for consistency
-      driveDate: form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null,
+      // Drive details - drive date optional (null = "To be announced")
+      driveDate: form.driveDateNotDecided ? null : (form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null),
       applicationDeadline: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText) || null,
       driveVenues: (Array.isArray(form.driveVenues) && form.driveVenues.length > 0) ? form.driveVenues : (Array.isArray(driveDraft.driveVenues) ? driveDraft.driveVenues : []),
       reportingTime: (form.reportingTime || driveDraft.reportingTime || '').trim() || null,
@@ -1343,7 +1350,7 @@ export default function CreateJob({ onCreated }) {
         const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
         const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
         const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
-        if (!hasDriveDate) details.push('• Drive Date');
+        if (!form.driveDateNotDecided && !hasDriveDate) details.push('• Drive Date (or check "Drive date not decided")');
         if (!hasApplicationDeadline) details.push('• Application Deadline');
         if (!hasVenues) details.push('• Drive Venue (at least one)');
       }
@@ -1521,7 +1528,7 @@ export default function CreateJob({ onCreated }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Custom Calendar Styles */}
       <style>{`
         .react-datepicker {
@@ -1566,16 +1573,16 @@ export default function CreateJob({ onCreated }) {
       `}</style>
 
       {/* Header - ALWAYS VISIBLE */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-6">
-        <div className="flex items-start gap-4">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-shrink-0">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
               <Briefcase className="w-6 h-6 text-white" />
             </div>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                 {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
               </h2>
               <div className="flex items-center gap-3">
@@ -2203,42 +2210,62 @@ export default function CreateJob({ onCreated }) {
             {!isSectionCollapsed('drive') && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Drive Date with DatePicker */}
+                  {/* Drive Date with DatePicker or "Not decided" */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                       <FaCalendarAlt className="w-4 h-4 text-green-600" />
-                      Drive Date <span className="text-red-500">*</span>
+                      Drive Date
                     </label>
-                    <div className="relative">
-                      <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5 pointer-events-none z-10" />
-                      <DatePicker
-                        selected={driveDraft.driveDateISO ? new Date(driveDraft.driveDateISO) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            const isoDate = date.toISOString();
-                            const formattedDate = toDDMMYYYY(isoDate);
-                            setDriveDraft(prev => ({
-                              ...prev,
-                              driveDateISO: isoDate,
-                              driveDateText: formattedDate
-                            }));
-                            update({ driveDateISO: isoDate, driveDateText: formattedDate });
-                          } else {
-                            setDriveDraft(prev => ({
-                              ...prev,
-                              driveDateISO: '',
-                              driveDateText: ''
-                            }));
+                    {!form.driveDateNotDecided ? (
+                      <div className="relative mb-2">
+                        <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5 pointer-events-none z-10" />
+                        <DatePicker
+                          selected={driveDraft.driveDateISO ? new Date(driveDraft.driveDateISO) : null}
+                          onChange={(date) => {
+                            if (date) {
+                              const isoDate = date.toISOString();
+                              const formattedDate = toDDMMYYYY(isoDate);
+                              setDriveDraft(prev => ({
+                                ...prev,
+                                driveDateISO: isoDate,
+                                driveDateText: formattedDate
+                              }));
+                              update({ driveDateISO: isoDate, driveDateText: formattedDate });
+                            } else {
+                              setDriveDraft(prev => ({
+                                ...prev,
+                                driveDateISO: '',
+                                driveDateText: ''
+                              }));
+                              update({ driveDateISO: '', driveDateText: '' });
+                            }
+                          }}
+                          dateFormat="dd/MM/yyyy"
+                          placeholderText="Select drive date"
+                          minDate={new Date()}
+                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                          wrapperClassName="w-full"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic mb-2">Drive date will show as &quot;To be announced&quot;. You can set it later when decided.</p>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.driveDateNotDecided}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          update({ driveDateNotDecided: checked });
+                          if (checked) {
+                            setDriveDraft(prev => ({ ...prev, driveDateISO: '', driveDateText: '' }));
                             update({ driveDateISO: '', driveDateText: '' });
                           }
                         }}
-                        dateFormat="dd/MM/yyyy"
-                        placeholderText="Select drive date"
-                        minDate={new Date()}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
-                        wrapperClassName="w-full"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                    </div>
+                      <span className="text-sm text-gray-700">Drive date not decided (TBD)</span>
+                    </label>
                   </div>
 
                   {/* Application Deadline with DatePicker */}

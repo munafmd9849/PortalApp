@@ -76,22 +76,22 @@ export default function ResumeSplitView({ uid, resumeId = 'default' }) {
   const previewContent = data.previewMode === 'enhanced' ? data.enhancedText : data.originalText;
 
   return (
-    <div className="w-full h-full flex">
-      <div className="w-1/2 h-full pr-2">
-        <div className="w-full h-full border border-gray-200 bg-white rounded-md overflow-hidden">
+    <div className="w-full max-w-full h-full flex flex-col md:flex-row overflow-hidden">
+      <div className="w-full md:w-1/2 h-1/2 md:h-full md:pr-2 flex-shrink-0 min-h-0">
+        <div className="w-full h-full border border-gray-200 bg-white rounded-md overflow-hidden min-h-[200px]">
           <div className="px-3 py-2 text-xs text-gray-500 border-b">Editor ({data.previewMode === 'enhanced' ? 'Enhanced' : 'Original'})</div>
           <textarea
-            className="w-full h-[calc(100%-32px)] p-3 outline-none resize-none"
+            className="w-full h-[calc(100%-32px)] min-h-[120px] p-3 outline-none resize-none"
             value={data.previewMode === 'enhanced' ? data.enhancedText : data.originalText}
             onChange={handleChange(data.previewMode === 'enhanced' ? 'enhancedText' : 'originalText')}
             placeholder={data.previewMode === 'enhanced' ? 'Type enhanced resume text...' : 'Type original resume text...'}
           />
         </div>
       </div>
-      <div className="w-1/2 h-full pl-2">
-        <div className="w-full h-full border border-gray-200 bg-white rounded-md overflow-auto">
+      <div className="w-full md:w-1/2 h-1/2 md:h-full md:pl-2 flex-shrink-0 min-h-0 mt-2 md:mt-0">
+        <div className="w-full h-full border border-gray-200 bg-white rounded-md overflow-auto min-h-[200px]">
           <div className="px-3 py-2 text-xs text-gray-500 border-b">Live Preview ({data.previewMode === 'enhanced' ? 'Enhanced' : 'Original'})</div>
-          <div className="p-3 whitespace-pre-wrap text-sm text-gray-800">
+          <div className="p-3 whitespace-pre-wrap text-sm text-gray-800 break-words">
             {previewContent || <span className="text-gray-400">Start typing to see the preview...</span>}
           </div>
         </div>

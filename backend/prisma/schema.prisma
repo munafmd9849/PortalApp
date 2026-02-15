@@ -406,7 +406,7 @@ model Job {
   // Location & Dates
   location            String?
   companyLocation     String?
-  driveDate           DateTime // REQUIRED: Interview drive date - interviews cannot start before this
+  driveDate           DateTime? // Optional: Interview drive date when decided; null = "To be announced"
   applicationDeadline DateTime // REQUIRED: Last date/time students can apply - applications are permanently closed after this
 
   // Job Details
@@ -433,8 +433,11 @@ model Job {
   isActive Boolean @default(false)
   isPosted Boolean @default(false)
   
-  // Email trigger flag
+  // Email trigger flags
   applicationDeadlineMailSent Boolean @default(false) // Flag to prevent duplicate deadline emails
+  driveReminder7dSent         Boolean @default(false) // Reminder 7 days before drive (recruiter + admin)
+  driveReminder3dSent         Boolean @default(false) // Reminder 3 days before drive (recruiter + admin)
+  driveReminder24hSent        Boolean @default(false) // Reminder 24h before drive (recruiter + admin + applicants)
 
   // Post-drive notes (after interview session ends)
   adminNote    String? // Note from admin about the placement drive (visible in Applicants section)

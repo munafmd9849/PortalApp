@@ -269,57 +269,53 @@ const Achievements = ({ isAdminView = false }) => {
       return (
         <div
           key={achievement.id}
-          className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4"
+          className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-3 md:p-4"
         >
-          <label className="text-sm font-semibold text-black mb-1 block">
-            {achievement.hasCertificate ? 'Certification Title' : 'Award Title'} <span className="text-red-500">*</span>
-          </label>
+          <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">{achievement.hasCertificate ? 'Certification Title' : 'Award Title'} <span className="text-red-500">*</span></label>
           <input
             type="text"
             value={editedAchievement.title}
             onChange={e => setEditedAchievement(prev => ({ ...prev, title: e.target.value }))}
             placeholder={achievement.hasCertificate ? "Enter certification title" : "Enter award title"}
-            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+            className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
           />
-          <label className="text-sm font-semibold text-black mb-1 block">
-            Description <span className="text-red-500">*</span>
-          </label>
+          <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Description <span className="text-red-500">*</span></label>
           <textarea
             value={editedAchievement.description}
             onChange={e => setEditedAchievement(prev => ({ ...prev, description: e.target.value }))}
             placeholder={achievement.hasCertificate ? "Enter certification description" : "Enter award description"}
-            rows={3}
-            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
+            rows={2}
+            className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded resize-none min-w-0"
           />
           {achievement.hasCertificate && (
             <>
-              <label className="text-sm font-semibold text-black mb-1 block">Certificate URL</label>
+              <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Certificate URL</label>
               <input
                 type="url"
                 value={editedAchievement.certificateUrl}
                 onChange={e => setEditedAchievement(prev => ({ ...prev, certificateUrl: e.target.value }))}
-                placeholder="Enter certificate URL (e.g., https://example.com/certificate)"
-                className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                placeholder="https://example.com/certificate"
+                className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
               />
             </>
           )}
-          <div className="flex space-x-2 justify-end">
+          <div className="flex flex-wrap gap-2 justify-end">
             <button
               onClick={saveAchievement}
-              className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+              className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 touch-manipulation"
               disabled={loading}
             >
               {loading ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={cancelEditing}
-              className="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+              className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800 touch-manipulation"
             >
               Cancel
             </button>
             <button
               onClick={() => handleDeleteAchievement(achievement.id)}
-              className="px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+              className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 touch-manipulation"
               disabled={loading}
             >
               Delete
@@ -338,13 +334,13 @@ const Achievements = ({ isAdminView = false }) => {
     return (
       <div 
         key={achievement.id} 
-        className={`flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 p-4 sm:p-5 rounded-xl transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r ${bgStyle}`}
+        className={`flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 md:gap-3 p-3 md:p-5 rounded-lg md:rounded-xl transition-all duration-300 hover:shadow-lg border-2 border-gray-200 hover:border-[#3c80a7] bg-gradient-to-r min-w-0 ${bgStyle}`}
       >
-        <div className="flex items-start space-x-3 flex-1 min-w-0">
-          <Award className="h-6 w-6 text-yellow-500 mt-1 flex-shrink-0" />
+        <div className="flex items-start space-x-2 md:space-x-3 flex-1 min-w-0">
+          <Award className="h-5 w-5 md:h-6 md:w-6 text-yellow-500 mt-0.5 md:mt-1 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <h4 className="text-base sm:text-lg font-bold text-gray-900 mb-2 break-words">{achievement.title}</h4>
-            <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">{achievement.description}</p>
+            <h4 className="text-sm md:text-base md:text-lg font-bold text-gray-900 mb-1 md:mb-2 break-words line-clamp-2" title={achievement.title}>{achievement.title}</h4>
+            <p className="text-xs md:text-sm md:text-base text-gray-700 leading-relaxed break-words line-clamp-3 md:line-clamp-none">{achievement.description}</p>
           </div>
         </div>
         <div className="flex-shrink-0 flex space-x-2 self-end sm:self-auto">
@@ -401,31 +397,31 @@ const Achievements = ({ isAdminView = false }) => {
         }
       `}</style>
 
-      <div className="w-full relative space-y-6">
+      <div className="w-full relative space-y-4 md:space-y-6 min-w-0">
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+          <div className="mb-3 md:mb-4 p-2.5 md:p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-xs md:text-sm break-words">
             {error}
           </div>
         )}
         {/* Success Message */}
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+          <div className="mb-3 md:mb-4 p-2.5 md:p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-xs md:text-sm">
             {success}
           </div>
         )}
         {/* Awards & Achievements */}
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-5 px-4 sm:px-6 transition-all duration-200 shadow-lg">
-          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-3 md:pb-5 px-3 md:px-6 transition-all duration-200 shadow-lg min-w-0 overflow-hidden">
+          <legend className="text-base md:text-lg md:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
             Awards & Achievements
           </legend>
 
-          <div className="flex justify-end mb-4 mr-[-1%]">
+          <div className="flex justify-end mb-2 md:mb-4 mr-0 md:mr-[-1%]">
             <button
               onClick={() => addNewAchievement(false)}
               disabled={isAdminView}
               aria-label="Add new award"
-              className={`rounded-full p-2 shadow transition ${
+              className={`rounded-full p-1.5 md:p-2 shadow transition touch-manipulation ${
                 isAdminView 
                   ? 'bg-gray-400 cursor-not-allowed opacity-60' 
                   : isAwardAddButtonActive 
@@ -439,46 +435,42 @@ const Achievements = ({ isAdminView = false }) => {
           </div>
 
           <div
-            className={`space-y-3 pb-4 ${
+            className={`space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 ${
               awardsAndAchievements.length > 0
-                ? "max-h-[300px] overflow-y-auto custom-scrollbar pr-2"
+                ? "max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar"
                 : ""
             }`}
           >
             {/* Add new award form when editing */}
             {editingId === 'new' && !editedAchievement.hasCertificate && (
-              <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4">
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Award Title <span className="text-red-500">*</span>
-                </label>
+              <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-3 md:p-4">
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Award Title <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={editedAchievement.title}
                   onChange={e => handleChange('title', e.target.value)}
                   placeholder="Enter award title"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Description <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Description <span className="text-red-500">*</span></label>
                 <textarea
                   value={editedAchievement.description}
                   onChange={e => handleChange('description', e.target.value)}
                   placeholder="Enter award description"
-                  rows={3}
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
+                  rows={2}
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded resize-none min-w-0"
                 />
-                <div className="flex space-x-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <button
                     onClick={saveAchievement}
-                    className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 touch-manipulation"
                     disabled={loading}
                   >
                     {loading ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={cancelEditing}
-                    className="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800 touch-manipulation"
                   >
                     Cancel
                   </button>
@@ -491,17 +483,17 @@ const Achievements = ({ isAdminView = false }) => {
         </fieldset>
 
         {/* Certifications */}
-        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
-          <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
+        <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-3 md:pb-4 px-3 md:px-6 transition-all duration-200 shadow-lg min-w-0 overflow-hidden">
+          <legend className="text-base md:text-lg md:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] text-transparent bg-clip-text">
             Certifications
           </legend>
 
-          <div className="flex justify-end mb-3 mr-[-1%]">
+          <div className="flex justify-end mb-2 md:mb-3 mr-0 md:mr-[-1%]">
             <button
               onClick={() => addNewAchievement(true)}
               disabled={isAdminView}
               aria-label="Add new certificate"
-              className={`rounded-full p-2 shadow transition ${
+              className={`rounded-full p-1.5 md:p-2 shadow transition touch-manipulation ${
                 isAdminView 
                   ? 'bg-gray-400 cursor-not-allowed opacity-60' 
                   : isCertAddButtonActive 
@@ -515,54 +507,50 @@ const Achievements = ({ isAdminView = false }) => {
           </div>
 
           <div
-            className={`space-y-3 pb-4 ${
+            className={`space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 ${
               certificates.length > 0
-                ? "max-h-[300px] overflow-y-auto custom-scrollbar pr-2"
+                ? "max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar"
                 : ""
             }`}
           >
             {/* Add new certificate form when editing */}
             {editingId === 'new' && editedAchievement.hasCertificate && (
-              <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-4">
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Certification Title <span className="text-red-500">*</span>
-                </label>
+              <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-3 md:p-4">
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Certification Title <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={editedAchievement.title}
                   onChange={e => handleChange('title', e.target.value)}
                   placeholder="Enter certification title"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">
-                  Description <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Description <span className="text-red-500">*</span></label>
                 <textarea
                   value={editedAchievement.description}
                   onChange={e => handleChange('description', e.target.value)}
                   placeholder="Enter certification description"
-                  rows={3}
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded resize-none"
+                  rows={2}
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded resize-none min-w-0"
                 />
-                <label className="text-sm font-semibold text-black mb-1 block">Certificate URL</label>
+                <label className="text-xs md:text-sm font-semibold text-black mb-0.5 md:mb-1 block">Certificate URL</label>
                 <input
                   type="url"
                   value={editedAchievement.certificateUrl}
                   onChange={e => handleChange('certificateUrl', e.target.value)}
-                  placeholder="Enter certificate URL (e.g., https://example.com/certificate)"
-                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                  placeholder="https://example.com/certificate"
+                  className="w-full mb-1.5 md:mb-2 px-2 py-1.5 md:py-1 text-sm md:text-base border border-gray-300 rounded min-w-0"
                 />
-                <div className="flex space-x-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <button
                     onClick={saveAchievement}
-                    className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 touch-manipulation"
                     disabled={loading}
                   >
                     {loading ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={cancelEditing}
-                    className="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+                    className="px-2.5 py-1.5 md:px-3 md:py-1 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800 touch-manipulation"
                   >
                     Cancel
                   </button>

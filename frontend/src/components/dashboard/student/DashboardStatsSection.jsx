@@ -55,7 +55,8 @@ const DashboardStatsSection = ({ studentData }) => {
         </legend>
 
         <div className="mb-3 mt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {/* Mobile: 2×2 grid, smaller cards. Desktop (lg+): 4 columns, original size */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
             {statsData.map((stat, index) => {
               const Icon = stat.icon;
               const displayValue = stat.count;
@@ -63,17 +64,15 @@ const DashboardStatsSection = ({ studentData }) => {
               return (
                 <div
                   key={index}
-                  className={`bg-gradient-to-br ${stat.bgFrom} ${stat.bgTo} p-6 rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[140px] flex flex-col justify-between group`}
+                  className={`bg-gradient-to-br ${stat.bgFrom} ${stat.bgTo} p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center flex-1 gap-4">
-                      <div className={`p-3.5 flex items-center justify-center shadow-lg rounded-xl ${stat.iconBgColor} group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className={`h-7 w-7 ${stat.iconColor}`} />
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-xs font-bold uppercase tracking-wider ${stat.textColor} mb-2`}>{stat.label}</p>
-                        <p className="text-4xl font-extrabold text-gray-900 break-words">{displayValue}</p>
-                      </div>
+                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
+                    <div className={`p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 ${stat.iconBgColor} group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className={`h-3 w-3 lg:h-7 lg:w-7 ${stat.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className={`text-[10px] lg:text-xs font-bold uppercase tracking-wider ${stat.textColor} mb-0.5 lg:mb-2 truncate`}>{stat.label}</p>
+                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(displayValue)}>{displayValue}</p>
                     </div>
                   </div>
                 </div>

@@ -137,23 +137,23 @@ export default function AdminApplicantsHub() {
   }, [addNoteJobId, loading, jobs, setSearchParams]);
 
   return (
-    <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 p-8">
+    <div className="space-y-4 sm:space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 sm:p-6 md:p-8 overflow-x-hidden">
       {/* Header */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-6 relative z-10">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-3">
               <Users className="w-6 h-6 text-indigo-600" />
               Applicants Tracking
             </h1>
-            <p className="text-slate-600 mt-1">
+            <p className="text-slate-600 mt-1 text-sm sm:text-base">
               Select a company to see all jobs posted by that company. Open a job to view JD, notes, drive date, and applicants.
             </p>
           </div>
         </div>
 
         <div className="border-t border-slate-200 pt-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2 text-slate-700 font-semibold">
               <Filter className="w-4 h-4" />
               Filters
@@ -324,11 +324,11 @@ export default function AdminApplicantsHub() {
             className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-sky-50 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-6 h-6 text-indigo-600" />
-                  {selectedCompany.companyName}
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-sky-50 rounded-t-2xl">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2 min-w-0 truncate">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0" />
+                  <span className="truncate">{selectedCompany.companyName}</span>
                 </h2>
                 <button
                   onClick={() => setSelectedCompany(null)}
@@ -343,7 +343,7 @@ export default function AdminApplicantsHub() {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="space-y-4">
                 {selectedCompany.jobs.map((job) => {
                   const jobId = job?.id || job?.jobId;

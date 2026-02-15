@@ -94,7 +94,7 @@ export default function ResumePreview({ resumeUrl, resumeData, scale = 1 }) {
   // If we have resumeData, render the resume preview directly
   if (resumeData) {
     return (
-      <div className="bg-white p-8 max-w-4xl mx-auto my-8 shadow-lg">
+      <div className="bg-white p-4 sm:p-6 lg:p-8 w-full max-w-4xl mx-auto my-4 sm:my-8 shadow-lg overflow-x-hidden">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
@@ -269,10 +269,10 @@ export default function ResumePreview({ resumeUrl, resumeData, scale = 1 }) {
   };
 
   return (
-    <div style={containerStyle} className="bg-white shadow-lg">
-      <div className="w-full max-w-4xl mx-auto bg-white" style={{ minHeight: '11in' }}>
+    <div style={containerStyle} className="bg-white shadow-lg max-w-full overflow-x-hidden">
+      <div className="w-full max-w-4xl mx-auto bg-white overflow-x-hidden" style={{ minHeight: '11in' }}>
         {/* Header Section */}
-        <div className="p-8 pb-6" style={{ backgroundColor: template.colors.accent }}>
+        <div className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-6" style={{ backgroundColor: template.colors.accent }}>
           <div className="text-center">
             <h1 
               className="text-4xl font-bold mb-2"
@@ -335,7 +335,7 @@ export default function ResumePreview({ resumeUrl, resumeData, scale = 1 }) {
 
         {/* Professional Summary */}
         {resumeData.summary && (
-          <div className="px-8 py-4">
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
             <h2 
               className="text-xl font-semibold mb-3 pb-1 border-b-2"
               style={{ 
@@ -352,7 +352,7 @@ export default function ResumePreview({ resumeUrl, resumeData, scale = 1 }) {
         )}
 
         {/* Dynamic Sections */}
-        <div className="px-8 pb-8">
+        <div className="px-4 sm:px-6 lg:px-8 pb-6 lg:pb-8">
           {resumeData.sections?.map((section) => (
             <div key={section.id} className="mb-6">
               <h2 

@@ -328,11 +328,11 @@ export default function AdminHome() {
   const schoolRadarData = buildSchoolRadarData(selectedSchool);
 
   return (
-    <div className="space-y-6 p-4 bg-gradient-to-br from-gray-50 to-blue-50/30 min-h-screen">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/30 min-h-screen overflow-x-hidden">
       {/* Header with consistent colors */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="relative">
-          <h1 className="text-3xl font-bold" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Admin Dashboard
           </h1>
           <div className="absolute -bottom-1 left-0 w-1/2 h-0.5" style={{ background: `linear-gradient(to right, ${chartColors.blue}, transparent)` }}></div>
@@ -341,7 +341,7 @@ export default function AdminHome() {
 
       {/* Filter Section with consistent colors - Only visible to SuperAdmin */}
       {isSuperAdmin && (
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <Filter className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
             Filter Dashboard
@@ -501,14 +501,14 @@ export default function AdminHome() {
       {/* Overall Insights and Metrics */}
       {!isLoading && dashboardData && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <div className="p-4 sm:p-6 border-b border-gray-200">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
               Key Insights & Metrics
             </h2>
           </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.blueLight }}>
                   <Users className="w-6 h-6" style={{ color: chartColors.blue }} />

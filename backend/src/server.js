@@ -420,8 +420,10 @@ start();
 // Scheduled task: Check for jobs with passed deadlines and send recruiter screening emails
 // Runs every hour
 import { checkAndSendScreeningEmails } from './services/screeningEmailService.js';
+import { checkAndSendDriveReminders } from './services/driveReminderService.js';
 
 let screeningEmailInterval = null;
+let driveReminderInterval = null;
 
 // Track if database quota is exceeded (set during server startup)
 let dbQuotaExceeded = false;
@@ -502,15 +504,33 @@ function startScreeningEmailScheduler() {
   console.log('📅 [Deadline Email] Scheduler started (runs every 1 minute for near-real-time delivery)');
 }
 
-// Start scheduler
+// Drive reminder scheduler: 7d / 3d / 24h before drive (recruiter+admin; 24h also to applicants)
+function startDriveReminderScheduler() {
+  const run = async () => {
+    try {
+      const result = await checkAndSendDriveReminders();
+      if (result.sent > 0) {
+        console.log(`✅ [Drive Reminder] Sent ${result.sent} reminder(s) for ${result.processed} job(s) checked`);
+      }
+    } catch (err) {
+      console.error('❌ [Drive Reminder] Error:', err.message || err);
+    }
+  };
+  // Run once after 2 minutes, then every 24 hours (so we hit "7 days before", "3 days before", "1 day before" once per job)
+  setTimeout(run, 2 * 60 * 1000);
+  driveReminderInterval = setInterval(run, 24 * 60 * 60 * 1000);
+  console.log('📅 [Drive Reminder] Scheduler started (runs daily for 7d/3d/24h reminders)');
+}
+
+// Start schedulers
 startScreeningEmailScheduler();
+startDriveReminderScheduler();
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
-  if (screeningEmailInterval) {
-    clearInterval(screeningEmailInterval);
-  }
+  if (screeningEmailInterval) clearInterval(screeningEmailInterval);
+  if (driveReminderInterval) clearInterval(driveReminderInterval);
   await prisma.$disconnect();
   server.close(() => {
     console.log('Server closed');
@@ -520,6 +540,8 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
+  if (screeningEmailInterval) clearInterval(screeningEmailInterval);
+  if (driveReminderInterval) clearInterval(driveReminderInterval);
   await prisma.$disconnect();
   server.close(() => {
     console.log('Server closed');
