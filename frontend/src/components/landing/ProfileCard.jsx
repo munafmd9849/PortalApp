@@ -404,22 +404,12 @@ const ProfileCardComponent = ({
                 <p>{title}</p>
               </div>
             </div>
-            {/* Hover/tap overlay: testimonial & batch lower-left, icons bottom-right */}
-            <div className="pc-overlay" onClick={(e) => e.stopPropagation()}>
+            {/* Always visible: package pill + social links at bottom */}
+            <div className="pc-card-bottom" onClick={(e) => e.stopPropagation()}>
               {status && (
                 <div className="pc-package-pill">
                   {status}
                 </div>
-              )}
-              {testimonial && (
-                <p className="pc-overlay-quote font-caveat">
-                  {testimonial}
-                </p>
-              )}
-              {batch && (
-                <span className="pc-batch pc-batch-overlay">
-                  {batch}
-                </span>
               )}
               <div className="pc-overlay-icons">
                 {linkedinUrl && (
@@ -448,6 +438,19 @@ const ProfileCardComponent = ({
                 )}
               </div>
             </div>
+            {/* Hover/tap overlay: testimonial & batch only */}
+            <div className="pc-overlay" onClick={(e) => e.stopPropagation()}>
+              {testimonial && (
+                <p className="pc-overlay-quote font-caveat">
+                  {testimonial}
+                </p>
+              )}
+              {batch && (
+                <span className="pc-batch pc-batch-overlay">
+                  {batch}
+                </span>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -457,4 +460,3 @@ const ProfileCardComponent = ({
 
 const ProfileCard = React.memo(ProfileCardComponent);
 export default ProfileCard;
-

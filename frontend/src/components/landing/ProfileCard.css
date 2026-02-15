@@ -394,6 +394,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .pc-details p {
@@ -406,6 +407,7 @@
   width: 100%;
   color: #ffffff;
   text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .pc-details .pc-batch {
@@ -416,6 +418,7 @@
   color: #ffffff;
   margin-top: 0.15rem;
   text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .pc-batch-overlay {
@@ -425,9 +428,62 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-/* Hover overlay: testimonial lower-left, icons bottom-right */
+/* Always visible and on top: package pill + social links stay clickable even when overlay is shown */
+.pc-card-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem 0.55rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.2) 70%, transparent 100%);
+  pointer-events: auto;
+  border-radius: 0 0 var(--card-radius) var(--card-radius);
+}
+
+/* Override .pc-card * so bottom bar and links are visible and clickable */
+.pc-card-bottom,
+.pc-card-bottom * {
+  pointer-events: auto;
+  display: revert;
+  grid-area: unset;
+}
+
+/* Package pill: original position (bottom-right, above social links), highest z so always on top */
+.pc-card-bottom .pc-package-pill {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 2.75rem;
+  margin: 0;
+  display: inline-flex;
+  z-index: 10;
+}
+
+.pc-card-bottom .pc-overlay-icons {
+  margin-top: 0;
+  display: flex;
+}
+
+.pc-card-bottom a.pc-overlay-icon {
+  cursor: pointer;
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.pc-card-bottom a.pc-overlay-icon:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Hover overlay: testimonial + batch only (sits below .pc-card-bottom so links stay clickable) */
 .pc-overlay {
   position: absolute;
   inset: 0;
@@ -466,7 +522,7 @@
   line-height: 1.4;
   color: #ffffff;
   text-align: left;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 12px rgba(0, 0, 0, 0.3);
 }
 
 .pc-overlay-icons {
@@ -494,7 +550,7 @@
   transform: scale(1.08);
 }
 
-/* Always-visible package capsule (e.g., 18 LPA) bottom-right */
+/* Always-visible package capsule (e.g., 18 LPA) – transparent pill */
 .pc-package-pill {
   position: absolute;
   right: 0.85rem;
@@ -502,11 +558,8 @@
   z-index: 8;
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.9);
+  background: transparent;
   border: 1px solid rgba(248, 250, 252, 0.6);
-  box-shadow:
-    0 6px 14px rgba(15, 23, 42, 0.6),
-    0 0 0 1px rgba(15, 23, 42, 0.7);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -571,4 +624,3 @@
     font-size: 0.75rem;
   }
 }
-
