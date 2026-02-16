@@ -13,6 +13,7 @@ import RecruiterProfile from '../../components/dashboard/recruiter/RecruiterProf
 import RecruiterQuery from '../../components/dashboard/recruiter/RecruiterQuery';
 import InterviewScheduling from '../../components/dashboard/admin/InterviewScheduling';
 import { useAuth } from '../../hooks/useAuth';
+import showLogoutConfirm from '../../utils/logoutConfirm';
 import api from '../../services/api';
 
 const RecruiterDashboard = () => {
@@ -150,19 +151,19 @@ const RecruiterDashboard = () => {
       e.stopPropagation();
     }
     
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to logout?');
+    // Show confirmation dialog (custom modal)
+    const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
     if (!confirmed) {
       return; // User cancelled, don't proceed with logout
     }
-    
+
     console.log('Recruiter logout - starting...');
-    
+
     // Call logout (this clears tokens and state immediately)
     await logout();
-    
+
     console.log('Recruiter logout - state cleared, navigating to home');
-    
+
     // Navigate immediately - state is already cleared
     navigate('/', { replace: true });
   };

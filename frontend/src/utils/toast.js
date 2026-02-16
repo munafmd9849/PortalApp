@@ -182,6 +182,13 @@ export function handleApiError(error, defaultMessage = 'An error occurred') {
   if (error?.name === 'AbortError' || error?.message?.includes('timeout')) {
     message = 'Request timed out. Please try again.';
   }
+  // Suppress noisy server message when there's simply no auth token.
+  // Many dev workflows call protected endpoints (health checks) without a token;
+  // showing "No token provided" as an error on the landing page is confusing.
+  if (error?.response?.status === 401 && (message === 'No token provided' || message === 'No refresh token provided')) {
+    console.warn('API returned 401 (no token) — suppressed user toast:', message);
+    return message;
+  }
 
   showError(message);
   return message;

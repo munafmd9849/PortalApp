@@ -305,10 +305,16 @@ export const getOrCreateSession = async (req, res) => {
           try {
             const parsed = JSON.parse(job.interviewRounds);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              jobRounds = parsed.map((r, i) => ({
-                roundNumber: i + 1,
-                name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
-              }));
+              jobRounds = parsed.map((r, i) => {
+                // Be permissive about possible keys coming from various editors/clients.
+                // Prefer explicit round name fields in this order, then fallback to generic label.
+                const rawName = (r.name || r.title || r.roundName || r.label || r.titleName || r.round || '');
+                const cleanName = (typeof rawName === 'string' ? rawName.trim() : '');
+                return {
+                  roundNumber: i + 1,
+                  name: cleanName || `Round ${i + 1}`,
+                };
+              });
             }
           } catch (e) {
             // ignore invalid JSON
@@ -1461,6 +1467,39 @@ export const startRound = async (req, res) => {
           });
         }
       }
+    }
+
+    // CRITICAL SAFEGUARD: Prevent starting a round if there are no candidates assigned to it.
+    // For round 1: ensure there are eligible applications (INTERVIEW_ELIGIBLE or TEST_SELECTED).
+    // For later rounds: ensure there are SELECTED candidates from previous round.
+    let candidateCount = 0;
+    if (round.roundNumber === 1) {
+      candidateCount = await prisma.application.count({
+        where: {
+          jobId: round.session.jobId,
+          screeningStatus: { in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] },
+        },
+      });
+    } else {
+      // Count SELECTED evaluations from previous round
+      const previousRound = round.session.rounds.find(r => r.roundNumber === round.roundNumber - 1);
+      if (previousRound) {
+        candidateCount = await prisma.roundEvaluation.count({
+          where: {
+            roundId: previousRound.id,
+            status: 'SELECTED',
+          },
+        });
+      } else {
+        candidateCount = 0;
+      }
+    }
+
+    if (!candidateCount || candidateCount === 0) {
+      return res.status(409).json({
+        error: 'No candidates assigned for this round',
+        message: 'Cannot start the round because there are zero candidates assigned. Assign candidates before starting the round.',
+      });
     }
 
     // Use transaction to ensure atomicity

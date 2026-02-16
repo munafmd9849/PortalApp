@@ -20,6 +20,7 @@ import SuperAdminStats from '../../components/dashboard/admin/SuperAdminStats';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, UserPlus, BarChart3, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import showLogoutConfirm from '../../utils/logoutConfirm';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 
 const BASE = '/super-admin';
@@ -132,7 +133,8 @@ export default function SuperAdminDashboard() {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const handleLogout = async () => {
-    if (!window.confirm('Are you sure you want to logout?')) return;
+    const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
+    if (!confirmed) return;
     try {
       await logout();
       navigate('/', { replace: true });
