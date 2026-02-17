@@ -112,7 +112,7 @@ const getRoundIcon = (label) => {
  * Format salary for display
  */
 function formatSalary(salary) {
-  if (!salary || (typeof salary === 'string' && salary.trim() === '')) return "As per industry standards";
+  if (!salary || (typeof salary === 'string' && salary.trim() === '')) return "—";
   if (salary === 'As per industry standards') return "As per industry standards";
   if (typeof salary === "number") {
     return `₹${(salary / 100000).toFixed(1)} LPA`;
@@ -127,12 +127,12 @@ function formatSalary(salary) {
  * Format date for display
  */
 function formatDriveDate(driveDate) {
-  if (!driveDate) return new Date().toLocaleDateString('en-GB');
+  if (!driveDate) return "To be announced";
   try {
     const date = new Date(driveDate);
     return date.toLocaleDateString('en-GB');
   } catch (err) {
-    return new Date().toLocaleDateString('en-GB');
+    return "To be announced";
   }
 }
 
@@ -483,7 +483,7 @@ const JobContent = React.memo(({
           </div>
           <div className="flex-1">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">
-              {displayJob.jobTitle || "Job Position"}
+              {displayJob.jobTitle || "—"}
             </h2>
             <p className="text-gray-600 font-semibold flex items-center gap-2 text-sm md:text-base">
               <span className="flex items-center gap-1">
@@ -575,7 +575,6 @@ const JobContent = React.memo(({
             displayJob={displayJob}
             countdown={countdown}
             responsibilities={responsibilities}
-            jobDescription={jobDescription}
             formatSalary={formatSalary}
             formatDriveDate={formatDriveDate}
           />
@@ -657,7 +656,7 @@ const JobContent = React.memo(({
 JobContent.displayName = 'JobContent';
 
 // Overview Tab Component - Premium Design
-const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDescription, formatSalary, formatDriveDate }) => (
+const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, formatSalary, formatDriveDate }) => (
   <div className="space-y-6 md:space-y-8">
     {/* Key Details - Premium glassmorphism cards */}
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -771,24 +770,6 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, jobDe
       </div>
     ) : null}
 
-    {/* Description */}
-    <div>
-      <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Job Description</h3>
-      <div 
-        className="p-6 md:p-8 rounded-2xl border border-gray-200 bg-gray-50"
-        style={{
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <div 
-          className="text-gray-700 prose prose-sm md:prose-base max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 whitespace-pre-line"
-          dangerouslySetInnerHTML={{ 
-            __html: sanitizeHTML(jobDescription) 
-          }}
-        />
-      </div>
-    </div>
-
     {/* Responsibilities */}
     <div>
       <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Responsibilities</h3>
@@ -860,7 +841,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             </div>
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Qualification</p>
-              <p className="text-sm text-gray-600">{displayJob.qualification || "B.E./B.Tech, M.E./M.Tech, MCA, or equivalent degree"}</p>
+              <p className="text-sm text-gray-600">{displayJob.qualification || "—"}</p>
             </div>
           </div>
           
@@ -871,7 +852,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             </div>
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Specialization</p>
-              <p className="text-sm text-gray-600">{displayJob.specialization || "Computer Science, Information Technology, Software Engineering, or related fields"}</p>
+              <p className="text-sm text-gray-600">{displayJob.specialization || "—"}</p>
             </div>
           </div>
           
@@ -882,7 +863,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             </div>
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Minimum CGPA/Percentage</p>
-              <p className="text-sm text-gray-600">{displayJob.minCgpa || "7.0 CGPA or 70% aggregate"}</p>
+              <p className="text-sm text-gray-600">{displayJob.minCgpa || "—"}</p>
             </div>
           </div>
           
@@ -893,7 +874,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             </div>
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Year of Passing</p>
-              <p className="text-sm text-gray-600">{displayJob.yop || displayJob.yearOfPassing || "2024, 2025, or 2026"}</p>
+              <p className="text-sm text-gray-600">{displayJob.yop || displayJob.yearOfPassing || "—"}</p>
             </div>
           </div>
           
@@ -907,8 +888,9 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Year Gaps</p>
               <p className="text-sm text-gray-600">
-                {displayJob.gapAllowed || "Allowed (Max 2 years)"}
-                {displayJob.gapAllowed === 'Allowed' && displayJob.gapYears && ` (Max ${displayJob.gapYears} years)`}
+                {displayJob.gapAllowed
+                  ? displayJob.gapAllowed + (displayJob.gapAllowed === 'Allowed' && displayJob.gapYears ? ` (Max ${displayJob.gapYears} years)` : '')
+                  : "—"}
               </p>
             </div>
           </div>
@@ -922,7 +904,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
             </div>
             <div>
                 <p className="font-semibold text-gray-900 mb-1">Active Backlogs</p>
-              <p className="text-sm text-gray-600">{displayJob.backlogs || "Not Allowed (Must have cleared all backlogs)"}</p>
+              <p className="text-sm text-gray-600">{displayJob.backlogs || "—"}</p>
             </div>
           </div>
         </div>
@@ -1346,9 +1328,9 @@ const ProcessTab = React.memo(({ displayJob, interviewTimeline }) => {
             >
               <p className="font-semibold text-sm text-blue-700 mb-2">Drive Venue</p>
               <p className="text-gray-900 font-semibold">
-                {(displayJob.driveVenues && Array.isArray(displayJob.driveVenues) && displayJob.driveVenues.length > 0) 
-                  ? displayJob.driveVenues[0] 
-                  : displayJob.location || "Campus Placement Cell"}
+                {(displayJob.driveVenues && Array.isArray(displayJob.driveVenues) && displayJob.driveVenues.length > 0)
+                  ? displayJob.driveVenues[0]
+                  : displayJob.location || displayJob.companyLocation || "—"}
               </p>
             </div>
             
@@ -1360,29 +1342,7 @@ const ProcessTab = React.memo(({ displayJob, interviewTimeline }) => {
               }}
             >
               <p className="font-semibold text-sm text-green-700 mb-2">Reporting Time</p>
-              <p className="text-gray-900 font-semibold">{displayJob.reportingTime || "9:00 AM"}</p>
-            </div>
-            
-            {/* Documents Required - Purple */}
-            <div 
-              className="p-5 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100/50 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-              style={{
-                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.15)',
-              }}
-            >
-              <p className="font-semibold text-sm text-purple-700 mb-2">Documents Required</p>
-              <p className="text-gray-900 font-semibold">{displayJob.documentsRequired || "Resume, ID Proof, Academic Certificates"}</p>
-            </div>
-            
-            {/* Dress Code - Orange/Amber */}
-            <div 
-              className="p-5 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-              style={{
-                boxShadow: '0 4px 15px rgba(245, 158, 11, 0.15)',
-              }}
-            >
-              <p className="font-semibold text-sm text-amber-700 mb-2">Dress Code</p>
-              <p className="text-gray-900 font-semibold">{displayJob.dressCode || "Formal"}</p>
+              <p className="text-gray-900 font-semibold">{displayJob.reportingTime || "—"}</p>
             </div>
           </div>
         </div>

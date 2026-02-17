@@ -7,12 +7,17 @@ import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
 import { Radar, PolarArea, Bar, Doughnut, Line } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
+import { useAuth } from '../../../hooks/useAuth';
 // import api from '../../../services/api'; // Unused import removed
 // TODO: Replace Firebase operations with API calls
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
 
 export default function AdminHome() {
+  const { user, role } = useAuth();
+  const userRole = (role || user?.role || '').toUpperCase();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  
   const [filters, setFilters] = useState({ campus: '', school: '', batch: '', admin: '' });
   const [selectedSchool, setSelectedSchool] = useState('SOT');
 
@@ -323,32 +328,24 @@ export default function AdminHome() {
   const schoolRadarData = buildSchoolRadarData(selectedSchool);
 
   return (
-    <div className="space-y-6 p-4 bg-gradient-to-br from-gray-50 to-blue-50/30 min-h-screen">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/30 min-h-screen overflow-x-hidden">
       {/* Header with consistent colors */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="relative">
-          <h1 className="text-3xl font-bold" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Admin Dashboard
           </h1>
           <div className="absolute -bottom-1 left-0 w-1/2 h-0.5" style={{ background: `linear-gradient(to right, ${chartColors.blue}, transparent)` }}></div>
         </div>
-        <div className="flex items-center bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-all duration-300">
-          <div className="relative">
-            <Filter className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-          </div>
-          <span className="text-sm font-semibold" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Filters Applied: {Object.values(filters).flat().length}
-          </span>
-        </div>
-        
       </div>
 
-      {/* Filter Section with consistent colors */}
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-          <Filter className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-          Filter Dashboard
-        </h2>
+      {/* Filter Section with consistent colors - Only visible to SuperAdmin */}
+      {isSuperAdmin && (
+        <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <Filter className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
+            Filter Dashboard
+          </h2>
 
         {(filters.campus || filters.school || filters.batch || filters.admin) && (
           <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -441,7 +438,24 @@ export default function AdminHome() {
             placeholder="Select Admin"
           />
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* Info message for regular admins */}
+      {!isSuperAdmin && (
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <Filter className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-blue-700">
+                <strong>Viewing your data:</strong> You are viewing data for your assigned center/school only.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards with consistent colors */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -487,14 +501,14 @@ export default function AdminHome() {
       {/* Overall Insights and Metrics */}
       {!isLoading && dashboardData && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <div className="p-4 sm:p-6 border-b border-gray-200">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
               Key Insights & Metrics
             </h2>
           </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.blueLight }}>
                   <Users className="w-6 h-6" style={{ color: chartColors.blue }} />

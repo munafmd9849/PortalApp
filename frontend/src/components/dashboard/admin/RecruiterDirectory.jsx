@@ -554,13 +554,13 @@ export default function RecruiterDirectory() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Header and Analytics */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Recruiter Directory</h2>
-            <p className="text-gray-600 text-lg">Manage and monitor all recruiter accounts</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">Recruiter Directory</h2>
+            <p className="text-gray-600 text-sm sm:text-lg">Manage and monitor all recruiter accounts</p>
           </div>
         </div>
 
@@ -598,7 +598,7 @@ export default function RecruiterDirectory() {
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
         <div className="flex items-center gap-2 mb-4">
           <FaFilter className="w-5 h-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>

@@ -134,6 +134,7 @@ export async function getTargetedJobsForStudent(studentId) {
           recruiterId: job.recruiterId,
           driveDate: parseDate(job.driveDate),
           applicationDeadline: parseDate(job.applicationDeadline),
+          reportingTime: job.reportingTime || null,
           createdAt: parseDate(job.createdAt),
           postedAt: parseDate(job.postedAt),
           status: job.status?.toLowerCase() || 'draft',
@@ -231,6 +232,7 @@ const fetchJobsFromAPI = async (filters = {}) => {
           recruiterId: job.recruiterId,
           driveDate: job.driveDate,
           applicationDeadline: job.applicationDeadline,
+          reportingTime: job.reportingTime || null,
           status: status, // Normalized lowercase status (ACCEPTED -> accepted, IN_REVIEW -> in_review)
           isPosted: isPosted,
           posted: isPosted,

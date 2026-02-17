@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { User, SquarePen } from 'lucide-react';
+import { User, SquarePen, Menu } from 'lucide-react';
+import { useAdminMobileMenu } from '../../../contexts/AdminMobileMenuContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../services/api';
 
@@ -106,14 +107,50 @@ export default function AdminLayout({ children }) {
     iconSize: 8,
   };
 
+  const adminMobileMenu = useAdminMobileMenu();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
-      {/* Horizontal Navbar (mirrors DashboardLayout without progress ring and details) */}
+      {/* Horizontal Navbar */}
       <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
         <div className="w-full px-2 py-1">
-          <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400 relative overflow-hidden">
-            <div className="flex justify-between items-center h-23 gap-2 relative z-20">
-              {/* Left Side - Admin avatar and name (no progress ring) */}
+          <div className="px-4 md:px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400 relative overflow-hidden">
+            {/* Mobile header: Hamburger | Logo | Profile */}
+            <div className="flex md:hidden justify-between items-center min-h-[3.5rem] gap-2">
+              <div className="flex-shrink-0">
+                {adminMobileMenu && (
+                  <button
+                    type="button"
+                    onClick={() => adminMobileMenu.setMobileMenuOpen(true)}
+                    className="p-3 -ml-1 rounded-lg text-gray-600 hover:bg-blue-100 hover:text-blue-600 transition-colors touch-manipulation"
+                    aria-label="Open menu"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 flex justify-center min-w-0">
+                <img src={PWIOILOGO} alt="Brand" className="h-7 w-auto object-contain" />
+              </div>
+              <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
+                <div
+                  className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center overflow-hidden shadow"
+                  style={{ width: '2.25rem', height: '2.25rem' }}
+                >
+                  {loading ? (
+                    <User className="text-white h-3.5 w-3.5" />
+                  ) : adminProfile?.profilePhoto ? (
+                    <img src={adminProfile.profilePhoto} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="text-white h-3.5 w-3.5" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop header - unchanged */}
+            <div className="hidden md:flex justify-between items-center h-23 gap-2 relative z-20">
+              {/* Left Side - Admin avatar and name */}
               <div className="flex items-center flex-1 z-30">
                 {/* Simple Profile Image (no completion circle) */}
                 <div className="flex-shrink-0">

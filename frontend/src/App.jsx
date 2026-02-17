@@ -13,9 +13,9 @@ import AdminSlider from './components/landing/CareerService'
 import PlacementFAQ from './components/landing/FAQs'
 import RecruitersSection from './components/landing/founder'
 import Records from './components/landing/Records'
-import LoginModal from './components/landing/LoginModal'
 import NotificationModal from './components/Notification'
 import DevTeam from './components/landing/DevTeam'
+import LoginModal from './components/landing/LoginModal'
 import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import RecruiterDashboard from './pages/dashboard/RecruiterDashboard'
@@ -28,7 +28,7 @@ import InterviewerRoundEvaluation from './pages/interview/InterviewerRoundEvalua
 import Assessment from './pages/Assessment'
 import RecruiterScreening from './pages/recruiter/RecruiterScreening'
 import JobDescriptionPage from './pages/JobDescriptionPage'
-import Login from './pages/Login'
+import AuthPage from './pages/AuthPage'
 import Unsubscribe from './pages/Unsubscribe'
 import ResetPassword from './pages/ResetPassword'
 import Endorsement from './pages/Endorsement'
@@ -39,27 +39,29 @@ import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
 import { ToastProvider } from './components/ui/Toast'
 
+const LANDING_PRELOADER_KEY = 'landingPreloaderSeen';
+
 function LandingPage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => sessionStorage.getItem(LANDING_PRELOADER_KEY) === '1');
   const [timelineAutoplay, setTimelineAutoplay] = useState(false)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [loginType, setLoginType] = useState('Student')
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [loginRole, setLoginRole] = useState('Student');
 
   const triggerTimelineAnimation = () => {
     setTimelineAutoplay(true);
-    // Reset after animation completes
     setTimeout(() => setTimelineAutoplay(false), 3500);
   };
 
-  const openModal = (type = 'Student') => {
-    setLoginType(type);
-    setIsModalOpen(true);
+  // Open login/signup as modal on landing page
+  const openLoginModal = (type = 'Student') => {
     triggerTimelineAnimation();
+    setLoginRole(type);
+    setIsLoginOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
+  const handleCloseLoginModal = () => {
+    setIsLoginOpen(false);
   };
 
   const scrollToContact = () => {
@@ -97,12 +99,19 @@ function LandingPage() {
   return (
     <>
       {isLoading ? (
-        <Preloader onComplete={() => setIsLoading(false)} />
+        <Preloader onComplete={() => { sessionStorage.setItem(LANDING_PRELOADER_KEY, '1'); setIsLoading(false); }} />
       ) : (
         <main className='w-full min-h-screen'>
           <NotificationModal />
 
-          <Header onLoginOpen={openModal} onScrollToContact={scrollToContact} />
+          {/* Global login modal mounted on landing page */}
+          <LoginModal
+            isOpen={isLoginOpen}
+            onClose={handleCloseLoginModal}
+            defaultRole={loginRole}
+          />
+
+          <Header onLoginOpen={openLoginModal} onScrollToContact={scrollToContact} />
 
           {/* Banner - Odd component #F2F0EA */}
           <div className='bg-gradient-to-b from-gray-50 to-[#FFEECE]'>
@@ -126,7 +135,7 @@ function LandingPage() {
 
           {/* Records - Even component #A8D5E3 */}
           <div className='bg-[#FFEECE]'>
-            <Records onLoginOpen={openModal} />
+            <Records onLoginOpen={openLoginModal} />
           </div>
 
           {/* PlacementTimeline - #A8D5E3 background */}
@@ -150,7 +159,7 @@ function LandingPage() {
           {/* Footer - Odd component #F2F0EA */}
           <div>
             <PWIOIFooter 
-              onLoginOpen={openModal} 
+              onLoginOpen={openLoginModal} 
               onContactTeam={handleContactTeam}
               onMeetDevTeam={handleMeetDevTeam}
               onPlacementPolicy={handlePlacementPolicy}
@@ -159,8 +168,6 @@ function LandingPage() {
         </main>
       )}
 
-      {/* LoginModal rendered at app level for proper centering */}
-      <LoginModal isOpen={isModalOpen} onClose={closeModal} defaultRole={loginType} />
     </>
   )
 }
@@ -182,6 +189,9 @@ function AppContent() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage defaultMode="login" />} />
+        <Route path="/signup" element={<AuthPage defaultMode="register" />} />
+        <Route path="/forgot" element={<AuthPage defaultMode="forgot" />} />
         <Route path="/dev-team" element={<DevTeam />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />

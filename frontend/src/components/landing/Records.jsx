@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ProfileCard from './ProfileCard.jsx';
+import './Records.css';
 
 const STUDENT_RECORDS = [
   [
@@ -36,81 +38,17 @@ const BATCHES = [
   { id: '2025-2029', name: '2025-2029', students: 98 },
 ];
 
-// Enhanced Student Card Component
-const StudentCard = ({ student, index }) => {
-  return (
-    <div
-      className="relative group bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 ease-out transform hover:scale-[1.03] hover:shadow-xl border border-gray-100 w-full max-w-[280px] h-[340px]"
-      style={{
-        animationDelay: `${index * 100}ms`,
-        animation: 'slideInUp 0.6s ease-out forwards'
-      }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1565C0]/5 to-[#1565C0]/10" />
-
-      <div className="relative pt-5 pb-1">
-        <div className="flex justify-center">
-          <div className="relative">
-            <img
-              src={student.profileImg}
-              className="w-16 h-16 rounded-full border-2 border-[#1565C0] shadow-sm object-cover transition-colors"
-            />
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#1565C0] rounded-full border border-white flex items-center justify-center">
-              <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 pb-4 flex-grow flex flex-col">
-        <h3 className="text-base font-bold text-[#1565C0] text-center mb-2">
-          {student.name}
-        </h3>
-
-        <div className="space-y-1.5 flex-grow">
-          <div className="text-center">
-            <p className="font-bold text-gray-900 text-base">{student.company}</p>
-          </div>
-          <div className="text-center">
-            <p className="font-medium text-gray-700 text-sm">{student.role}</p>
-          </div>
-          <div className="text-center py-1">
-            <p className="font-bold text-[#1565C0] text-xl leading-tight">{student.package}</p>
-          </div>
-          <div className="text-center">
-            <p className="font-medium text-gray-600 text-sm">{student.batch}</p>
-          </div>
-        </div>
-
-        <div className='flex justify-center gap-3 mt-3 pt-2 border-t border-gray-200'>
-          <a
-            href={student.linkedin}
-            target="_blank"
-            rel="noopener noreferrer"
-            className='relative bg-blue-100 hover:bg-blue-600 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden group/linkedin shadow-sm hover:shadow-md hover:scale-110'
-            title="View LinkedIn Profile"
-          >
-            <svg className="relative z-10 w-4.5 h-4.5 text-blue-600 group-hover/linkedin:text-white transition-colors duration-200" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-            </svg>
-          </a>
-
-          <a
-            href={`mailto:${String(student.name || '').toLowerCase().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().replace(/\s+/g, '')}.com`}
-            className='relative bg-gray-100 hover:bg-gray-700 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden group/email shadow-sm hover:shadow-md hover:scale-110'
-            title="Send Email"
-          >
-            <svg className="relative z-10 w-4.5 h-4.5 text-gray-600 group-hover/email:text-white transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-            </svg>
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Grateful 2–3 line testimonials about the experience (used on hover)
+const TESTIMONIALS = [
+  `Without their support, I would not have been able to handle the competitive market with such confidence. Grateful for every mock interview and feedback.`,
+  `The placement cell didn't just help me land the offer — they prepared me for the real challenges ahead. Forever thankful for this journey.`,
+  `From resume reviews to interview prep, every step was guided with care. I'm here today because someone believed in me before I did.`,
+  `The workshops and one-on-one mentoring made all the difference. More than the offer, I'm grateful for the growth I experienced here.`,
+  `I walked into the process nervous and came out with clarity. Thank you for making placement feel less like a race and more like a journey.`,
+  `The support I received here went beyond placement — it shaped how I approach problems and present myself. Truly life-changing.`,
+  `Mock interviews, resume tips, and constant encouragement — I had it all. Grateful to have cracked it with such a strong team behind me.`,
+  `Every doubt I had was met with patience and guidance. This experience didn't just get me a job; it gave me confidence for life.`,
+];
 
 export default function PlacementRecords({ onLoginOpen }) {
   const [currentRow, setCurrentRow] = useState(0);
@@ -118,7 +56,7 @@ export default function PlacementRecords({ onLoginOpen }) {
   const [isRotating, setIsRotating] = useState(true);
   const [mobileIndex, setMobileIndex] = useState(0);
   const [isSectionInView, setIsSectionInView] = useState(false);
-  const cardsToShow = 4;
+  const cardsToShow = 5;
   const sectionRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
@@ -142,6 +80,7 @@ export default function PlacementRecords({ onLoginOpen }) {
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
+
 
   useEffect(() => {
     if (!isRotating) return;
@@ -183,10 +122,17 @@ export default function PlacementRecords({ onLoginOpen }) {
       <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
-            <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight">
-              Hear How They Cracked It
+            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight flex flex-wrap items-center justify-center gap-x-2">
+              Hear How They{' '}
+              <span className="inline-block h-[0.95em] w-[4em] sm:w-[5em] overflow-hidden align-middle -ml-1.5">
+                <img
+                  src="/Untitled_Artwork_4.gif"
+                  alt="Cracked It"
+                  className="w-full h-full object-contain object-center"
+                />
+              </span>
             </h2>
-            <p className="text-xl text-gray-600 font-normal">
+            <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">
               Success stories from our placed students
             </p>
 
@@ -233,18 +179,48 @@ export default function PlacementRecords({ onLoginOpen }) {
           </div>
 
           <div className="relative">
-            {/* Laptop and up: 4-card grid (original) */}
+            {/* Laptop and up: 5-card grid using ProfileCard */}
             <div
-              className="hidden lg:grid grid-cols-4 gap-6 lg:gap-8 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full"
+              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full"
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
             >
               {currentCards.map((student, index) => (
-                <StudentCard
+                <div
                   key={`${currentRow}-${index}`}
-                  student={student}
-                  index={index}
-                />
+                  className="w-full max-w-[230px] xl:max-w-[250px]"
+                  style={{
+                    animationDelay: `${index * 80}ms`,
+                    animation: 'slideInUp 0.6s ease-out forwards'
+                  }}
+                >
+                  <ProfileCard
+                    name={student.name}
+                    title={`${student.company} • ${student.role}`}
+                    batch={student.batch}
+                    handle={String(student.name || '')
+                      .toLowerCase()
+                      .replace(/\s+/g, '')}
+                    status={student.package}
+                    contactText="View Profile"
+                    avatarUrl={student.profileImg}
+                    showUserInfo={false}
+                    enableTilt={true}
+                    enableMobileTilt={false}
+                    showBehindGlow
+                    behindGlowColor="rgba(148,163,184,0.4)"
+                    customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
+                    testimonial={TESTIMONIALS[(currentRow * cardsToShow + index) % TESTIMONIALS.length]}
+                    linkedinUrl={student.linkedin}
+                    emailHref={`mailto:${String(student.name || '')
+                      .toLowerCase()
+                      .trim()
+                      .replace(/\s+/g, '.')}@${String(student.company || '')
+                      .toLowerCase()
+                      .trim()
+                      .replace(/\s+/g, '')}.com`}
+                  />
+                </div>
               ))}
             </div>
             <div className="hidden lg:flex justify-center mt-8 gap-2">
@@ -261,7 +237,7 @@ export default function PlacementRecords({ onLoginOpen }) {
               ))}
             </div>
 
-            {/* Mobile only: horizontal snap carousel (below lg) */}
+            {/* Mobile only: ProfileCard carousel — 1 full card + 1/4 of next */}
             <div
               ref={mobileScrollRef}
               className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
@@ -272,9 +248,29 @@ export default function PlacementRecords({ onLoginOpen }) {
               {mobileCards.map((student, idx) => (
                 <div
                   key={`${student.name}-${idx}`}
-                  className="snap-center shrink-0 w-[84%] sm:w-[62%] max-w-[280px] mx-auto"
+                  className="snap-center shrink-0 flex justify-center"
+                  style={{ width: '80%', minWidth: '80%' }}
                 >
-                  <StudentCard student={student} index={idx % 6} />
+                  <div className="w-full max-w-[240px]">
+                    <ProfileCard
+                      name={student.name}
+                      title={`${student.company} • ${student.role}`}
+                      batch={student.batch}
+                      handle={String(student.name || '').toLowerCase().replace(/\s+/g, '')}
+                      status={student.package}
+                      contactText="View Profile"
+                      avatarUrl={student.profileImg}
+                      showUserInfo={false}
+                      enableTilt={false}
+                      enableMobileTilt={false}
+                      showBehindGlow
+                      behindGlowColor="rgba(148,163,184,0.4)"
+                      customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
+                      testimonial={TESTIMONIALS[idx % TESTIMONIALS.length]}
+                      linkedinUrl={student.linkedin}
+                      emailHref={`mailto:${String(student.name || '').toLowerCase().trim().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().trim().replace(/\s+/g, '')}.com`}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

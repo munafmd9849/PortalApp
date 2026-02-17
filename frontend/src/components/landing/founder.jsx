@@ -4,6 +4,7 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { FaQuoteLeft, FaQuoteRight } from "react-icons/fa6";
+import { FaLinkedin } from "react-icons/fa";
 
 import R1 from "../../assets/images/Rec1.png";
 import R2 from "../../assets/images/Rec2.png";
@@ -56,11 +57,23 @@ const AnimatedTestimonials = ({ testimonials, autoplay = false }) => {
                   transition={{ duration: 0.4, ease: "easeInOut" }}
                   className="absolute inset-0 origin-bottom"
                 >
-                  <img
-                    src={testimonial.src}
-                    alt={testimonial.name}
-                    className="h-full w-full rounded-3xl object-cover"
-                  />
+                  <div className="relative h-full w-full">
+                    <img
+                      src={testimonial.src}
+                      alt={testimonial.name}
+                      className="h-full w-full rounded-3xl object-cover"
+                    />
+                    {testimonial.linkedin && (
+                      <a
+                        href={testimonial.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute top-3 right-3 inline-flex items-center justify-center rounded-full bg-white/90 p-2 shadow-md hover:bg-white transition"
+                      >
+                        <FaLinkedin className="h-4 w-4 text-[#0A66C2]" />
+                      </a>
+                    )}
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -134,12 +147,14 @@ export default function TestimonialSection() {
     email: "",
     message: "",
   });
+  const [currentStep, setCurrentStep] = useState(1);
 
   const testimonials = [
     {
       src: `${R1}`,
       name: "Arvind Kumar",
       designation: "Software Engineer",
+      linkedin: "https://www.linkedin.com/in/arvind-kumar",
       quote:
         `Hiring from them has always felt less like a transaction and more like discovering a hidden talent gem—shiny, valuable, and instantly impressive`,
     },
@@ -147,6 +162,7 @@ export default function TestimonialSection() {
       src: `${R2}`,
       name: "Priya Patel",
       designation: "Data Analyst",
+      linkedin: "https://www.linkedin.com/in/priya-patel",
       quote:
         `Working with them is like having a recruitment cheat code—every role gets filled with that perfect candidate`,
     },
@@ -154,6 +170,7 @@ export default function TestimonialSection() {
       src: `${R3}`,
       name: "Shobhit Singh",
       designation: "Marketing Specialist",
+      linkedin: "https://www.linkedin.com/in/shobhit-singh",
       quote:
         `Hiring from them has always been suspiciously easy—like they've cracked some secret hiring algorithm`,
     },
@@ -172,14 +189,14 @@ export default function TestimonialSection() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     setIsSubmitting(true);
     setSubmitStatus({ type: null, message: '' });
 
-      try {
-        // Import contact service dynamically to avoid issues
-        const { submitContactForm } = await import('../../services/contact.js');
-      
+    try {
+      // Import contact service dynamically to avoid issues
+      const { submitContactForm } = await import('../../services/contact.js');
+
       const result = await submitContactForm({
         name: formData.name,
         company: formData.company,
@@ -192,8 +209,8 @@ export default function TestimonialSection() {
           type: 'success', 
           message: result.message || 'Thank you for your message! We will get back to you soon.' 
         });
-    setFormData({ name: "", company: "", email: "", message: "" });
-        
+        setFormData({ name: "", company: "", email: "", message: "" });
+
         // Clear success message after 5 seconds
         setTimeout(() => {
           setSubmitStatus({ type: null, message: '' });
@@ -217,7 +234,7 @@ export default function TestimonialSection() {
         <AnimatedTestimonials testimonials={testimonials} autoplay={true} />
       </div>
 
-      {/* CONTACT FORM */}
+      {/* CONTACT FORM (simple, previous style) */}
       <div id="contact-form" className="w-full lg:w-1/3">
         <div className="sticky top-[10%] bg-gray-100 p-6 rounded-xl shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-gray-700">
@@ -274,7 +291,7 @@ export default function TestimonialSection() {
             >
               {isSubmitting ? 'Submitting...' : "Let's Talk"}
             </button>
-            
+
             {/* Status Messages */}
             {submitStatus.type && (
               <div className={`mt-3 p-3 rounded-md text-sm ${

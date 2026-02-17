@@ -10,6 +10,7 @@ import * as studentController from '../controllers/students.js';
 import * as resumeController from '../controllers/resume.js';
 import * as publicProfileController from '../controllers/publicProfile.js';
 import { uploadProfileImage, uploadResume } from '../middleware/upload.js';
+import prisma from '../config/database.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -21,6 +22,53 @@ router.get('/profile', studentController.getStudentProfile);
 
 // Update own profile
 router.put('/profile', studentController.updateStudentProfile);
+
+// Enforce mandatory profile completion for student routes
+// Allow access to /profile even when incomplete
+// Use same derived logic as auth: complete if DB flag is true OR all required fields are filled
+router.use(async (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'STUDENT') {
+      return next();
+    }
+
+    // Allow profile GET/PUT and skills endpoint without completion
+    if (req.path === '/profile' || req.path === '/skills') {
+      return next();
+    }
+
+    const student = req.user?.student ?? await prisma.student.findUnique({
+      where: { userId: req.userId },
+    });
+
+    if (!student) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE' });
+    }
+
+    const isComplete =
+      student.profileCompleted === true ||
+      (() => {
+        const email = (req.user?.email || '').trim();
+        const fullName = (student.fullName || '').trim();
+        const phone = (student.phone || '').trim();
+        const enrollmentId = (student.enrollmentId || '').trim();
+        const school = (student.school || '').trim();
+        const center = (student.center || '').trim();
+        const batch = (student.batch || '').trim();
+        return !!(email && fullName && phone && enrollmentId && school && center && batch);
+      })();
+
+    if (!isComplete) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE' });
+    }
+
+    return next();
+  } catch (error) {
+    console.error('Profile completion guard error:', error);
+    return res.status(500).json({ error: 'Failed to verify profile completion' });
+  }
+});
 
 // Get skills
 router.get('/skills', studentController.getStudentSkills);
@@ -90,6 +138,13 @@ router.post('/resume',
 router.get('/resumes', 
   requireRole(['STUDENT']),
   studentController.getResumes
+);
+
+// Get short-lived URL to view resume inline (for new tab)
+// GET /api/students/resume/:resumeId/view-url
+router.get('/resume/:resumeId/view-url',
+  requireRole(['STUDENT']),
+  studentController.getStudentResumeViewUrl
 );
 
 // Set default resume

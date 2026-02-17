@@ -78,16 +78,15 @@ const DashboardHome = ({
   const displayApplications = Array.isArray(applications) ? applications : [];
   const displayJobs = Array.isArray(jobs) ? jobs : [];
 
-  // Convert studentData props to expected format and calculate stats
+  // Use parent's stats (StudentDashboard sends displayStats with funnel enforced: offers <= interviewed <= shortlisted <= applied)
+  const stats =
+    studentData?.stats && typeof studentData.stats.applied === 'number'
+      ? studentData.stats
+      : { applied: 0, shortlisted: 0, interviewed: 0, offers: 0 };
   const formattedStudentData = studentData ? {
     id: user?.id,
     ...studentData,
-    stats: {
-      applied: displayApplications.length,
-      shortlisted: displayApplications.filter(app => app.status === 'shortlisted').length,
-      interviewed: displayApplications.filter(app => app.status === 'interviewed').length,
-      offers: displayApplications.filter(app => app.status === 'selected' || app.status === 'offered').length
-    }
+    stats,
   } : null;
 
 
@@ -174,6 +173,35 @@ const DashboardHome = ({
     return studentCgpaNum >= requiredCgpa;
   };
 
+  // Check if student's Year of Passing (derived from batch) meets job YOP requirement
+  const meetsYopRequirement = (job) => {
+    const jobYop = job?.yop;
+    const studentBatch = formattedStudentData?.batch;
+
+    if (!jobYop || !studentBatch) {
+      return true;
+    }
+
+    const jobYopInt = parseInt(String(jobYop).trim(), 10);
+    if (Number.isNaN(jobYopInt)) {
+      return true;
+    }
+
+    const parts = String(studentBatch)
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const endPart = parts.length > 1 ? parts[1] : parts[0];
+    const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+    if (Number.isNaN(endNum)) {
+      return true;
+    }
+
+    const studentYop = endNum < 100 ? 2000 + endNum : endNum;
+    return studentYop <= jobYopInt;
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'applied': return 'text-blue-600 bg-blue-100';
@@ -197,10 +225,10 @@ const DashboardHome = ({
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4 min-w-0 overflow-hidden">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 md:p-3">
+          <p className="text-red-800 text-xs md:text-sm break-words">{error}</p>
         </div>
       )}
 
@@ -216,6 +244,7 @@ const DashboardHome = ({
         <ApplicationTrackerSection 
           applications={displayApplications} 
           onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
+          onViewJD={handleKnowMore}
         />
       )}
 
@@ -230,6 +259,7 @@ const DashboardHome = ({
           onExploreMore={() => window.dispatchEvent(new CustomEvent('navigateToJobs'))}
           meetsCgpaRequirement={meetsCgpaRequirement}
           isDeadlinePassed={isDeadlinePassed}
+          meetsYopRequirement={meetsYopRequirement}
         />
       )}
 

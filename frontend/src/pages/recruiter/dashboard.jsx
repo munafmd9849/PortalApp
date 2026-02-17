@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -19,6 +19,7 @@ import {
   FaGraduationCap, FaBriefcase, FaProjectDiagram, FaEnvelope, FaPhone, FaMapMarkerAlt,
   FaUser, FaChartLine, FaBell, FaSearch, FaFilter, FaCog, FaQuestionCircle
 } from 'react-icons/fa';
+import api from '../../services/api';
 
 ChartJS.register(
   CategoryScale,
@@ -33,238 +34,214 @@ ChartJS.register(
   Filler
 );
 
+function formatTimeAgo(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const now = new Date();
+  const sec = Math.floor((now - d) / 1000);
+  if (sec < 60) return 'Just now';
+  if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)} hours ago`;
+  if (sec < 604800) return `${Math.floor(sec / 86400)} days ago`;
+  return d.toLocaleDateString();
+}
+
 const RecruiterDashboard = () => {
   const [timeFilter, setTimeFilter] = useState('Y-23');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [bookmarkedCandidates, setBookmarkedCandidates] = useState(new Set());
   
-  // Stats data with icons
-  const statsData = [
-    { label: 'Applications', value: 245, trend: 12, color: 'from-violet-300 to-violet-400', icon: <FaFileAlt className="text-white" /> },
-    { label: 'Shortlisted', value: 98, trend: 8, color: 'from-cyan-300 to-cyan-400', icon: <FaCheckCircle className="text-white" /> },
-    { label: 'Offers Rolled', value: 42, trend: 5, color: 'from-amber-300 to-amber-400', icon: <FaBullseye className="text-white" /> },
-    { label: 'On-hold', value: 35, trend: -2, color: 'from-orange-300 to-orange-400', icon: <FaPauseCircle className="text-white" /> },
-    { label: 'Rejected', value: 70, trend: -5, color: 'from-rose-300 to-rose-400', icon: <FaTimesCircle className="text-white" /> },
-  ];
+  // Actual data from API
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [aggregateStats, setAggregateStats] = useState({
+    total: 0,
+    shortlisted: 0,
+    selected: 0,
+    rejected: 0,
+    interviewing: 0,
+  });
+  const [recentApplications, setRecentApplications] = useState([]);
+  const [schoolCounts, setSchoolCounts] = useState({});
+  const [jobTitles, setJobTitles] = useState({});
 
-  // Pipeline data
-  const pipelineData = {
-    labels: ['Applications', 'Shortlisted', 'On-hold', 'Rejected'],
-    data: [245, 98, 35, 70],
-    percentages: [100, 40, 14.3, 28.6],
-    colors: [
-      'bg-gradient-to-r from-violet-300 to-violet-400',
-      'bg-gradient-to-r from-cyan-300 to-cyan-400',
-      'bg-gradient-to-r from-orange-300 to-orange-400',
-      'bg-gradient-to-r from-rose-300 to-rose-400'
-    ],
-  };
+  const loadDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const me = await api.getCurrentUser();
+      const recruiterId = me?.user?.recruiter?.id;
+      if (!recruiterId) {
+        setAggregateStats({ total: 0, shortlisted: 0, selected: 0, rejected: 0, interviewing: 0 });
+        setRecentApplications([]);
+        setSchoolCounts({});
+        setLoading(false);
+        return;
+      }
 
-  // Candidate data
-  const candidates = [
-    {
-      id: 1,
-      name: 'Iffa Naaz',
-      school: 'SOM',
-      skills: ['Business Analytics', 'Python', 'Canva'],
-      experience: '2 years',
-      status: 'Available',
-      profile: {
-        email: 'iffanaaz@pwioi.com',
-        phone: '+91 9876543210',
-        location: 'Mumbai, India',
-        education: 'BBA Manipal - PW IOI (2024)',
-        experience: [
-          { role: 'XYZ', company: 'pqy', duration: '2022-Present' }
-        ],
-        projects: [
-          { name: 'E-commerce Platform', description: 'Built a full-stack e-commerce application' }
-        ]
-      }
-    },
-    {
-      id: 2,
-      name: 'Harshika Malhotra',
-      school: 'SOT',
-      skills: ['Python', 'ML', 'Data Analysis','JAVA', 'Problem Solving'],
-      experience: '1.5 years',
-      status: 'Available',
-      profile: {
-        email: 'harshika@example.com',
-        phone: '+91 9876543211',
-        location: 'Bangalore, India',
-        education: 'IIT Madras - PW IOI (2023)',
-        experience: [
-          { role: 'Data Analyst', company: 'Data Insights Inc', duration: '2021-Present' }
-        ],
-        projects: [
-          { name: 'Predictive Analysis Model', description: 'Developed ML model for sales forecasting' }
-        ]
-      }
-    },
-    {
-      id: 3,
-      name: 'Someone',
-      school: 'SOH',
-      skills: ['BP Check', 'Anesthesia specialist', 'Excel'],
-      experience: '3 years',
-      status: 'Interviewing',
-      profile: {
-        email: 'someone@example.com',
-        phone: '+91 9876543212',
-        location: 'Delhi, India',
-        education: 'Health University - PW IOI (2022)',
-        experience: [
-          { role: 'Finance Associate', company: 'Global Finance Corp', duration: '2019-Present' }
-        ],
-        projects: [
-          { name: 'Financial Reporting System', description: 'Automated financial reports generation' }
-        ]
-      }
-    },
-  ];
+      const jobsRes = await api.getJobs({ recruiterId, limit: 100 });
+      const jobs = Array.isArray(jobsRes) ? jobsRes : (jobsRes?.jobs || []);
+      const jobMap = {};
+      jobs.forEach((j) => { jobMap[j.id] = j.jobTitle || j.title || 'Job'; });
+      setJobTitles(jobMap);
 
-  // Application status notifications
-  const notifications = [
-    {
-      id: 1,
-      type: 'application_update',
-      title: 'Application Status Update',
-      text: 'Your application for Software Developer position has been floated to the hiring team.',
-      time: '2 hours ago',
-      status: 'floated'
-    },
-    {
-      id: 2,
-      type: 'application_update',
-      title: 'Application Status Update',
-      text: 'Your application for Data Analyst position is currently under review.',
-      time: '1 day ago',
-      status: 'under_review'
-    },
-    {
-      id: 3,
-      type: 'application_update',
-      title: 'Application Status Update',
-      text: 'Your application for Finance Manager position has been rejected.',
-      time: '3 days ago',
-      status: 'rejected'
+      let total = 0;
+      let shortlisted = 0;
+      let selected = 0;
+      let rejected = 0;
+      let interviewing = 0;
+      const allApplications = [];
+      const schoolMap = {};
+
+      await Promise.all(
+        jobs.slice(0, 15).map(async (job) => {
+          try {
+            const res = await api.get(`/admin/jobs/${job.id}/applications`, {
+              params: { limit: 1, page: 1 },
+            });
+            const data = res?.data || res;
+            const stats = data.stats || {};
+            total += stats.totalApplications || 0;
+            shortlisted += stats.shortlisted || 0;
+            selected += stats.selected || 0;
+            rejected += stats.rejected || 0;
+            interviewing += stats.interviewing || 0;
+
+            const appRes = await api.get(`/admin/jobs/${job.id}/applications`, {
+              params: { limit: 25, page: 1, sortBy: 'appliedAt', order: 'desc' },
+            });
+            const appData = appRes?.data || appRes;
+            const apps = appData.applications || [];
+            apps.forEach((a) => {
+              allApplications.push({ ...a, jobId: job.id, jobTitle: jobMap[job.id] });
+              const school = a.student?.school || 'Other';
+              schoolMap[school] = (schoolMap[school] || 0) + 1;
+            });
+          } catch (_) {
+            // Skip job if no access or error
+          }
+        })
+      );
+
+      setAggregateStats({ total, shortlisted, selected, rejected, interviewing });
+      setSchoolCounts(schoolMap);
+      allApplications.sort((a, b) => new Date(b.appliedAt || 0) - new Date(a.appliedAt || 0));
+      setRecentApplications(allApplications.slice(0, 30));
+    } catch (err) {
+      console.error('Recruiter dashboard load error:', err);
+      setError(err?.message || 'Failed to load dashboard data');
+      setAggregateStats({ total: 0, shortlisted: 0, selected: 0, rejected: 0, interviewing: 0 });
+      setRecentApplications([]);
+      setSchoolCounts({});
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, []);
 
-  // Different chart data based on time filter
-  const getChartData = (filter) => {
-    if (filter === 'Y-23') {
-      return {
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        datasets: [
-          {
-            label: 'Applications',
-            data: [45, 52, 38, 60, 55, 30, 15],
-            borderColor: 'rgb(167, 139, 250)',
-            backgroundColor: 'rgba(167, 139, 250, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Shortlists',
-            data: [18, 25, 20, 28, 22, 15, 8],
-            borderColor: 'rgb(103, 232, 249)',
-            backgroundColor: 'rgba(103, 232, 249, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Offers',
-            data: [8, 12, 10, 15, 13, 7, 3],
-            borderColor: 'rgb(253, 230, 138)',
-            backgroundColor: 'rgba(253, 230, 138, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-        ],
-      };
-    } else if (filter === 'Y-24') {
-      return {
-        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-        datasets: [
-          {
-            label: 'Applications',
-            data: [165, 159, 180, 181],
-            borderColor: 'rgb(167, 139, 250)',
-            backgroundColor: 'rgba(167, 139, 250, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Shortlists',
-            data: [68, 78, 85, 90],
-            borderColor: 'rgb(103, 232, 249)',
-            backgroundColor: 'rgba(103, 232, 249, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Offers',
-            data: [28, 32, 38, 42],
-            borderColor: 'rgb(253, 230, 138)',
-            backgroundColor: 'rgba(253, 230, 138, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-        ],
-      };
-    } else { // 6m
-      return {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        datasets: [
-          {
-            label: 'Applications',
-            data: [265, 259, 280, 281, 256, 272],
-            borderColor: 'rgb(167, 139, 250)',
-            backgroundColor: 'rgba(167, 139, 250, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Shortlists',
-            data: [108, 118, 125, 130, 115, 120],
-            borderColor: 'rgb(103, 232, 249)',
-            backgroundColor: 'rgba(103, 232, 249, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Offers',
-            data: [42, 48, 52, 55, 50, 58],
-            borderColor: 'rgb(253, 230, 138)',
-            backgroundColor: 'rgba(253, 230, 138, 0.1)',
-            tension: 0.3,
-            fill: true,
-          },
-        ],
-      };
-    }
-  };
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  const pipelineChartData = getChartData(timeFilter);
+  // Stats data from actual API
+  const statsData = useMemo(() => [
+    { label: 'Applications', value: aggregateStats.total, trend: 0, color: 'from-violet-300 to-violet-400', icon: <FaFileAlt className="text-white" /> },
+    { label: 'Shortlisted', value: aggregateStats.shortlisted, trend: 0, color: 'from-cyan-300 to-cyan-400', icon: <FaCheckCircle className="text-white" /> },
+    { label: 'Offers Rolled', value: aggregateStats.selected, trend: 0, color: 'from-amber-300 to-amber-400', icon: <FaBullseye className="text-white" /> },
+    { label: 'Interviewing', value: aggregateStats.interviewing, trend: 0, color: 'from-orange-300 to-orange-400', icon: <FaPauseCircle className="text-white" /> },
+    { label: 'Rejected', value: aggregateStats.rejected, trend: 0, color: 'from-rose-300 to-rose-400', icon: <FaTimesCircle className="text-white" /> },
+  ], [aggregateStats]);
 
-  // Doughnut chart data
-  const doughnutData = {
-    labels: ['SOM', 'SOT', 'SOH'],
+  const totalForPct = aggregateStats.total || 1;
+  const pipelineData = useMemo(() => {
+    const pct = (n) => ((n / totalForPct) * 100).toFixed(1);
+    return {
+      labels: ['Applications', 'Shortlisted', 'Interviewing', 'Rejected'],
+      data: [aggregateStats.total, aggregateStats.shortlisted, aggregateStats.interviewing, aggregateStats.rejected],
+      percentages: [
+        pct(aggregateStats.total),
+        pct(aggregateStats.shortlisted),
+        pct(aggregateStats.interviewing),
+        pct(aggregateStats.rejected),
+      ],
+      colors: [
+        'bg-gradient-to-r from-violet-300 to-violet-400',
+        'bg-gradient-to-r from-cyan-300 to-cyan-400',
+        'bg-gradient-to-r from-orange-300 to-orange-400',
+        'bg-gradient-to-r from-rose-300 to-rose-400',
+      ],
+    };
+  }, [aggregateStats, totalForPct]);
+
+  // Candidates from recent applications (actual data)
+  const candidates = useMemo(() =>
+    recentApplications.map((app, index) => ({
+      id: app.applicationId || app.student?.id || index,
+      name: app.student?.name || app.student?.email || 'Applicant',
+      school: app.student?.school || '—',
+      skills: [],
+      experience: '—',
+      status: app.currentStage || app.finalStatus || 'Applied',
+      profile: {
+        email: app.student?.email || '',
+        phone: '',
+        location: [app.student?.center].filter(Boolean).join(', ') || '—',
+        education: '—',
+        experience: [],
+        projects: [],
+      },
+      applicationId: app.applicationId,
+      jobTitle: app.jobTitle,
+      appliedAt: app.appliedAt,
+      profileLink: app.student?.profileLink,
+    })),
+    [recentApplications]
+  );
+
+  // Notifications from recent application activity (actual data)
+  const notifications = useMemo(() =>
+    recentApplications.slice(0, 8).map((app, index) => ({
+      id: app.applicationId || index,
+      type: 'application_update',
+      title: 'Application Update',
+      text: `${app.student?.name || 'Applicant'} applied for ${app.jobTitle || 'your job'}.`,
+      time: formatTimeAgo(app.appliedAt),
+      status: (app.finalStatus || app.currentStage || 'applied').toLowerCase().replace(/\s+/g, '_'),
+    })),
+    [recentApplications]
+  );
+
+  // Pipeline chart from actual stats (current snapshot)
+  const pipelineChartData = useMemo(() => ({
+    labels: ['Applications', 'Shortlisted', 'Interviewing', 'Rejected'],
     datasets: [
       {
-        data: [45, 30, 25],
-        backgroundColor: [
-          'rgba(167, 139, 250, 0.8)',
-          'rgba(103, 232, 249, 0.8)',
-          'rgba(253, 230, 138, 0.8)',
-        ],
-        borderWidth: 0,
+        label: 'Count',
+        data: [aggregateStats.total, aggregateStats.shortlisted, aggregateStats.interviewing, aggregateStats.rejected],
+        borderColor: 'rgb(167, 139, 250)',
+        backgroundColor: 'rgba(167, 139, 250, 0.2)',
+        tension: 0.3,
+        fill: true,
       },
     ],
-  };
+  }), [aggregateStats]);
+
+  // Doughnut chart from actual school distribution
+  const doughnutData = useMemo(() => {
+    const labels = Object.keys(schoolCounts);
+    const data = Object.values(schoolCounts);
+    const colors = ['rgba(167, 139, 250, 0.8)', 'rgba(103, 232, 249, 0.8)', 'rgba(253, 230, 138, 0.8)', 'rgba(52, 211, 153, 0.8)', 'rgba(251, 146, 60, 0.8)'];
+    return {
+      labels: labels.length ? labels : ['No data yet'],
+      datasets: [
+        {
+          data: data.length ? data : [1],
+          backgroundColor: data.length ? colors.slice(0, data.length) : ['rgba(200, 200, 200, 0.5)'],
+          borderWidth: 0,
+        },
+      ],
+    };
+  }, [schoolCounts]);
 
   // Function to view candidate profile
   const viewProfile = (candidate) => {
@@ -285,23 +262,45 @@ const RecruiterDashboard = () => {
 
   // Function to get status badge color
   const getStatusBadgeColor = (status) => {
-    switch(status) {
-      case 'floated': return 'bg-blue-50 text-blue-600';
-      case 'under_review': return 'bg-amber-50 text-amber-600';
-      case 'rejected': return 'bg-rose-50 text-rose-600';
-      default: return 'bg-gray-50 text-gray-600';
-    }
+    const s = String(status || '').toLowerCase();
+    if (s.includes('rejected')) return 'bg-rose-50 text-rose-600';
+    if (s.includes('selected')) return 'bg-emerald-50 text-emerald-600';
+    if (s.includes('shortlist') || s.includes('qualified')) return 'bg-cyan-50 text-cyan-600';
+    if (s.includes('interview')) return 'bg-amber-50 text-amber-600';
+    return 'bg-gray-50 text-gray-600';
   };
 
   // Function to get status text
   const getStatusText = (status) => {
-    switch(status) {
-      case 'floated': return 'Application Floated';
-      case 'under_review': return 'Under Review';
-      case 'rejected': return 'Application Rejected';
-      default: return status;
-    }
+    const s = String(status || '').replace(/_/g, ' ');
+    return s || 'Applied';
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[320px]">
+        <div className="text-center">
+          <div className="inline-block w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+        <p className="text-rose-700">{error}</p>
+        <button
+          type="button"
+          onClick={loadDashboardData}
+          className="mt-2 px-3 py-1.5 bg-rose-100 text-rose-800 rounded-lg text-sm font-medium hover:bg-rose-200"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -331,51 +330,30 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
-        {/* Pipeline Graph - Made larger */}
+        {/* Pipeline Graph - Actual data */}
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 md:col-span-2 lg:col-span-3">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-gray-800 flex items-center">
               <FaChartLine className="mr-2 text-violet-500" />
               Applications Pipeline
             </h2>
-            <div className="flex space-x-2">
-              {['Y-23', 'Y-24', 'Y-25'].map((period) => (
-                <button
-                  key={period}
-                  className={`px-3 py-1 rounded-lg text-sm ${
-                    timeFilter === period
-                      ? 'bg-violet-100 text-violet-600'
-                      : 'text-gray-500 hover:bg-gray-100'
-                  }`}
-                  onClick={() => setTimeFilter(period)}
-                >
-                  {period}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="h-80">
-            <Line
+            <Bar
               data={pipelineChartData}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: {
-                    position: 'top',
-                  },
+                  legend: { display: false },
                 },
                 scales: {
                   y: {
                     beginAtZero: true,
-                    grid: {
-                      drawBorder: false,
-                    },
+                    grid: { drawBorder: false },
                   },
                   x: {
-                    grid: {
-                      display: false,
-                    },
+                    grid: { display: false },
                   },
                 },
               }}
@@ -422,14 +400,14 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
-        {/* Track Applications Section - Now on its own line */}
+        {/* Track Applications Section - Actual data */}
         <div className="bg-white bg-gradient-to-r from-cyan-400 via-green-100 to-green-500  p-3 rounded-lg shadow-sm border border-gray-100 md:col-span-2 lg:col-span-3 xl:col-span-4">
           <h2 className="text-lg font-bold text-gray-800 mb-6 ">Track Applications</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: 'New Applications', value: 24, color: 'from-blue-300 to-blue-400', icon: <FaFileAlt className="text-white" /> },
-              { label: 'Pending Review', value: 18, color: 'from-amber-300 to-amber-400', icon: <FaHourglassHalf className="text-white" /> },
-              { label: 'Interviews Scheduled', value: 9, color: 'from-emerald-300 to-emerald-400', icon: <FaCalendar className="text-white" /> },
+              { label: 'Total Applications', value: aggregateStats.total, color: 'from-blue-300 to-blue-400', icon: <FaFileAlt className="text-white" /> },
+              { label: 'Pending Review', value: aggregateStats.shortlisted, color: 'from-amber-300 to-amber-400', icon: <FaHourglassHalf className="text-white" /> },
+              { label: 'Interviewing', value: aggregateStats.interviewing, color: 'from-emerald-300 to-emerald-400', icon: <FaCalendar className="text-white" /> },
             ].map((item, index) => (
               <div key={index} className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-lg border border-gray-100">
                 <div className="flex items-center justify-between">
@@ -489,23 +467,30 @@ const RecruiterDashboard = () => {
                     </button>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {candidate.skills.map((skill, i) => (
-                    <span
-                      key={i}
-                      className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-lg"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {(candidate.skills?.length > 0) && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {candidate.skills.map((skill, i) => (
+                      <span
+                        key={i}
+                        className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-lg"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2 mt-4">
-                  <button className="text-xs bg-gradient-to-r from-violet-500 to-violet-600 text-white px-3 py-1.5 rounded-lg">
-                    Shortlist
-                  </button>
-                  <button className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg">
-                    Schedule Interview
-                  </button>
+                  {candidate.profileLink && (
+                    <a
+                      href={candidate.profileLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs bg-gradient-to-r from-violet-500 to-violet-600 text-white px-3 py-1.5 rounded-lg"
+                    >
+                      View profile
+                    </a>
+                  )}
+                  <span className="text-xs text-gray-500 py-1.5">{candidate.jobTitle && `Applied to ${candidate.jobTitle}`}</span>
                 </div>
               </div>
             ))}
@@ -542,14 +527,14 @@ const RecruiterDashboard = () => {
           </button>
         </div>
 
-        {/* Interview Tracking */}
+        {/* Interview Tracking - Actual data */}
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100">
           <h2 className="text-lg font-bold text-gray-800 mb-6">Interview Tracking</h2>
           <div className="space-y-4">
             {[
-              { label: 'Upcoming Interviews', value: 5, color: 'from-amber-300 to-amber-400', icon: <FaCalendar className="text-white" /> },
-              { label: 'Pending Feedback', value: 3, color: 'from-orange-300 to-orange-400', icon: <FaHourglassHalf className="text-white" /> },
-              { label: 'Completed', value: 12, color: 'from-emerald-300 to-emerald-400', icon: <FaCheck className="text-white" /> },
+              { label: 'Interviewing', value: aggregateStats.interviewing, color: 'from-amber-300 to-amber-400', icon: <FaCalendar className="text-white" /> },
+              { label: 'Shortlisted', value: aggregateStats.shortlisted, color: 'from-orange-300 to-orange-400', icon: <FaHourglassHalf className="text-white" /> },
+              { label: 'Selected / Rejected', value: aggregateStats.selected + aggregateStats.rejected, color: 'from-emerald-300 to-emerald-400', icon: <FaCheck className="text-white" /> },
             ].map((item, index) => (
               <div key={index} className="flex items-center">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br ${item.color} mr-3`}>
@@ -629,31 +614,35 @@ const RecruiterDashboard = () => {
                 <p className="text-gray-600">{selectedCandidate.profile.education}</p>
               </div>
               
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
-                  <FaBriefcase className="mr-2 text-violet-500" />
-                  Experience
-                </h3>
-                {selectedCandidate.profile.experience.map((exp, index) => (
-                  <div key={index} className="mb-2">
-                    <p className="font-medium">{exp.role}</p>
-                    <p className="text-gray-600">{exp.company}, {exp.duration}</p>
-                  </div>
-                ))}
-              </div>
+              {(selectedCandidate.profile.experience?.length > 0) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                    <FaBriefcase className="mr-2 text-violet-500" />
+                    Experience
+                  </h3>
+                  {selectedCandidate.profile.experience.map((exp, index) => (
+                    <div key={index} className="mb-2">
+                      <p className="font-medium">{exp.role}</p>
+                      <p className="text-gray-600">{exp.company}, {exp.duration}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
-                  <FaProjectDiagram className="mr-2 text-violet-500" />
-                  Projects
-                </h3>
-                {selectedCandidate.profile.projects.map((project, index) => (
-                  <div key={index} className="mb-2">
-                    <p className="font-medium">{project.name}</p>
-                    <p className="text-gray-600">{project.description}</p>
-                  </div>
-                ))}
-              </div>
+              {(selectedCandidate.profile.projects?.length > 0) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                    <FaProjectDiagram className="mr-2 text-violet-500" />
+                    Projects
+                  </h3>
+                  {selectedCandidate.profile.projects.map((project, index) => (
+                    <div key={index} className="mb-2">
+                      <p className="font-medium">{project.name}</p>
+                      <p className="text-gray-600">{project.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Skills</h3>

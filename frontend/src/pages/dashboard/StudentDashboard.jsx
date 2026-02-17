@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
+import ProfileCompletionModal from '../../components/dashboard/student/ProfileCompletionModal';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   getStudentProfile, 
@@ -59,7 +60,12 @@ import {
   Globe,
   Plus,
   Link as LinkIcon,
-  Eye
+  Eye,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -67,29 +73,23 @@ import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
+import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
+
+/** Format CGPA for display (avoids floating-point e.g. 8.699999999999999 → "8.70") */
+function formatCgpaForDisplay(val) {
+  if (val === undefined || val === null || val === '') return '';
+  const n = parseFloat(val);
+  if (Number.isNaN(n)) return String(val).trim();
+  const clamped = Math.max(0, Math.min(10, n));
+  return clamped.toFixed(2);
+}
 
 const normalizeProfileSnapshot = (profile = {}) => ({
   fullName: profile.fullName || '',
   email: profile.email || '',
   phone: profile.phone || '',
   enrollmentId: profile.enrollmentId || '',
-  cgpa:
-    profile.cgpa !== undefined && profile.cgpa !== null
-      ? (() => {
-          // Always format to 2 decimal places for display
-          const cgpaStr = String(profile.cgpa);
-          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-            return cgpaStr; // Already in correct format
-          } else if (/^\d+$/.test(cgpaStr)) {
-            return cgpaStr + '.00'; // Integer -> add .00
-          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-            // Has decimal but not 2 places
-            const parts = cgpaStr.split('.');
-            return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
-          }
-          return cgpaStr;
-        })()
-      : '',
+  cgpa: profile.cgpa !== undefined && profile.cgpa !== null ? formatCgpaForDisplay(profile.cgpa) : '',
   backlogs: profile.backlogs || '',
   batch: profile.batch || '',
   center: profile.center || '',
@@ -113,7 +113,9 @@ const normalizeProfileSnapshot = (profile = {}) => ({
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+  const { logout, user, profileCompleted } = useAuth();
+  const [showProfileCompletionModal, setShowProfileCompletionModal] = useState(false);
+
   // Data caching to avoid reloading on tab switches
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(null);
@@ -126,7 +128,14 @@ export default function StudentDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
-  const { logout, user } = useAuth();
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
   
   // PERSISTENT CACHE: Use localStorage to cache data across page navigation
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
@@ -228,6 +237,36 @@ export default function StudentDashboard() {
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
+  const [profileSectionsOpen, setProfileSectionsOpen] = useState({
+    photo: true,
+    personal: true,
+    academic: false,
+    location: false,
+    professional: false,
+    social: false,
+    coding: false,
+    otherProfiles: false,
+    bio: false,
+    terms: false,
+    publicProfile: false,
+  });
+  const toggleProfileSection = (id) => {
+    setProfileSectionsOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+// Show mandatory profile completion modal when needed
+useEffect(() => {
+  if (user?.role === 'STUDENT' && profileCompleted === false) {
+    setShowProfileCompletionModal(true);
+    document.body.style.overflow = 'hidden';
+  } else {
+    setShowProfileCompletionModal(false);
+    document.body.style.overflow = '';
+  }
+  return () => {
+    document.body.style.overflow = '';
+  };
+}, [user?.role, profileCompleted]);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
@@ -288,7 +327,7 @@ export default function StudentDashboard() {
     setEmail(snapshot.email);
     setPhone(snapshot.phone);
     setEnrollmentId(snapshot.enrollmentId);
-    setCgpa(snapshot.cgpa);
+    setCgpa(formatCgpaForDisplay(snapshot.cgpa));
     setBacklogs(snapshot.backlogs);
     setBatch(snapshot.batch);
     setCenter(snapshot.center);
@@ -316,6 +355,9 @@ export default function StudentDashboard() {
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [newSkill, setNewSkill] = useState({ skillName: '', rating: 1 });
   
+  // Career stats from backend (Shortlisted, Interviewed, Offers - used in dashboard)
+  const [studentStats, setStudentStats] = useState({ applied: 0, shortlisted: 0, interviewed: 0, offers: 0 });
+
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
@@ -336,11 +378,22 @@ export default function StudentDashboard() {
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
   const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application details
-  
+  const [currentApplicationsPage, setCurrentApplicationsPage] = useState(1);
+  const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
+  const APPLICATIONS_LIST_PER_PAGE = 10;
+
+  // Reset pagination to page 1 when switching between Current and Past applications
+  useEffect(() => {
+    setCurrentApplicationsPage(1);
+    setPastApplicationsPage(1);
+  }, [applicationsView]);
+
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [applying, setApplying] = useState({});
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PER_PAGE = 10;
   
   
   // Resume Selection Modal state
@@ -402,6 +455,78 @@ export default function StudentDashboard() {
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
 
+  // Career Insights: real counts from pipeline (screening → shortlisted, test → interviewed, offer).
+  // No artificial funnel normalization — we show what the backend actually tracked.
+  const displayStats = useMemo(() => {
+    if (!applications || applications.length === 0) {
+      return {
+        applied: studentStats.applied ?? 0,
+        shortlisted: studentStats.shortlisted ?? 0,
+        interviewed: studentStats.interviewed ?? 0,
+        offers: studentStats.offers ?? 0,
+      };
+    }
+    const applied = applications.length;
+    const asUpper = (x) => (typeof x === 'string' ? x : '').toUpperCase();
+    const asLower = (x) => (typeof x === 'string' ? x : '').toLowerCase();
+
+    // Shortlisted = passed resume screening (or went further: qualified for interview = passed screening + test)
+    const hasShortlisted = (app) => {
+      const screening = asUpper(app.screeningStatus);
+      const status = asLower(app.currentStage || app.status);
+      return (
+        screening === 'RESUME_SELECTED' ||
+        screening === 'SCREENING_SELECTED' ||
+        screening === 'TEST_SELECTED' ||
+        screening === 'INTERVIEW_ELIGIBLE' ||
+        status === 'shortlisted' ||
+        status === 'screening qualified' ||
+        status === 'qualified for interview'
+      );
+    };
+
+    // Interviewed = qualified for interview (TEST_SELECTED / INTERVIEW_ELIGIBLE) or had interview rounds or got offer
+    const hasInterviewed = (app) => {
+      const screening = asUpper(app.screeningStatus);
+      const status = asLower(app.currentStage || app.status);
+      const interviewStatus = asUpper(
+        typeof app.interviewStatus === 'string'
+          ? app.interviewStatus
+          : (app.interviewStatus?.statusText ?? app.interviewStatus?.status ?? '')
+      );
+      return (
+        screening === 'TEST_SELECTED' ||
+        screening === 'INTERVIEW_ELIGIBLE' ||
+        status.includes('interview round') ||
+        status === 'qualified for interview' ||
+        status === 'interview completed' ||
+        status === 'interviewed' ||
+        interviewStatus === 'SELECTED'
+      );
+    };
+
+    // Offers = got offer (status OFFERED/SELECTED or interviewStatus SELECTED)
+    const hasOffer = (app) => {
+      const status = asLower(app.currentStage || app.status);
+      const interviewStatus = asUpper(
+        typeof app.interviewStatus === 'string'
+          ? app.interviewStatus
+          : (app.interviewStatus?.statusText ?? app.interviewStatus?.status ?? '')
+      );
+      return (
+        status === 'offered' ||
+        status === 'selected' ||
+        status === 'selected (final)' ||
+        interviewStatus === 'SELECTED'
+      );
+    };
+
+    const shortlisted = applications.filter(hasShortlisted).length;
+    const interviewed = applications.filter(hasInterviewed).length;
+    const offers = applications.filter(hasOffer).length;
+    return { applied, shortlisted, interviewed, offers };
+  }, [applications, studentStats]);
+
   // Job loading with proper targeting logic
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
@@ -414,6 +539,7 @@ export default function StudentDashboard() {
         if (cachedJobs) {
           console.log('✅ Using cached jobs data');
           setJobs(cachedJobs);
+          setJobsPage(1);
           setLoadingJobs(false);
           return; // Use cached data, skip API call
         }
@@ -482,6 +608,7 @@ export default function StudentDashboard() {
         });
         
         setJobs(targetedJobs);
+        setJobsPage(1);
         // CACHE: Store filtered jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
@@ -489,6 +616,7 @@ export default function StudentDashboard() {
         }
       } else {
         setJobs(jobs);
+        setJobsPage(1);
         // CACHE: Store all jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
@@ -499,6 +627,7 @@ export default function StudentDashboard() {
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
+      setJobsPage(1);
     } finally {
       setLoadingJobs(false);
     }
@@ -523,21 +652,7 @@ export default function StudentDashboard() {
           setEmail(cachedProfile.email || '');
           setPhone(cachedProfile.phone || '');
           setEnrollmentId(cachedProfile.enrollmentId || '');
-          if (cachedProfile.cgpa) {
-            const cgpaStr = String(cachedProfile.cgpa);
-            if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-              setCgpa(cgpaStr);
-            } else if (/^\d+$/.test(cgpaStr)) {
-              setCgpa(cgpaStr + '.00');
-            } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-              const parts = cgpaStr.split('.');
-              setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
-            } else {
-              setCgpa(cgpaStr);
-            }
-          } else {
-            setCgpa('');
-          }
+          setCgpa(formatCgpaForDisplay(cachedProfile.cgpa));
           setBacklogs(cachedProfile.backlogs || '');
           setBatch(cachedProfile.batch || '');
           setCenter(cachedProfile.center || '');
@@ -595,23 +710,7 @@ export default function StudentDashboard() {
         setEmail(profileData.email || '');
         setPhone(profileData.phone || '');
         setEnrollmentId(profileData.enrollmentId || '');
-        // Format CGPA to always show 2 decimal places
-        const cgpaValue = profileData.cgpa;
-        if (cgpaValue) {
-          const cgpaStr = String(cgpaValue);
-          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-            setCgpa(cgpaStr);
-          } else if (/^\d+$/.test(cgpaStr)) {
-            setCgpa(cgpaStr + '.00');
-          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-            const parts = cgpaStr.split('.');
-            setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
-          } else {
-            setCgpa(cgpaStr);
-          }
-        } else {
-          setCgpa('');
-        }
+        setCgpa(formatCgpaForDisplay(profileData.cgpa));
         setBacklogs(profileData.backlogs || '');
         setBatch(profileData.batch || ''); // No default - must be set
         setCenter(profileData.center || ''); // No default - must be set
@@ -650,6 +749,14 @@ export default function StudentDashboard() {
 
         // Set skills from profile data (already loaded, no need for separate API call)
         setSkillsEntries(Array.isArray(profileData.skills) ? profileData.skills : []);
+
+        // Set career stats from backend (Shortlisted, Interviewed, Offers)
+        setStudentStats({
+          applied: profileData.statsApplied ?? 0,
+          shortlisted: profileData.statsShortlisted ?? 0,
+          interviewed: profileData.statsInterviewed ?? 0,
+          offers: profileData.statsOffers ?? 0,
+        });
 
         const sanitizedProfile = {
           fullName: profileData.fullName || '',
@@ -1061,6 +1168,38 @@ export default function StudentDashboard() {
     return studentCgpa >= requiredCgpa;
   };
 
+  // Check if student's derived Year of Passing (from batch) meets job YOP requirement
+  // Rule: job.yop = Y → students with YOP <= Y can apply.
+  const meetsYopRequirement = (job) => {
+    const jobYop = job?.yop;
+    if (!jobYop || !batch) {
+      // No YOP restriction or student has no batch set → allow
+      return true;
+    }
+
+    const jobYopInt = parseInt(String(jobYop).trim(), 10);
+    if (Number.isNaN(jobYopInt)) {
+      // If job YOP is not a valid number, don't block
+      return true;
+    }
+
+    // Derive student's year of passing from batch string, e.g. "23-27" → 2027
+    const parts = String(batch)
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const endPart = parts.length > 1 ? parts[1] : parts[0];
+    const endNum = endPart ? parseInt(endPart, 10) : NaN;
+
+    if (Number.isNaN(endNum)) {
+      // If batch format is unexpected, don't block
+      return true;
+    }
+
+    const studentYop = endNum < 100 ? 2000 + endNum : endNum;
+    return studentYop <= jobYopInt;
+  };
+
   // Job Description navigation handler
   const handleKnowMore = (job) => {
     navigate(`/job/${job.id}`);
@@ -1201,6 +1340,35 @@ export default function StudentDashboard() {
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+
+  // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleProfileUpdated = async (event) => {
+      const updatedUserId = event?.detail?.userId;
+      if (updatedUserId && updatedUserId !== user.id) return;
+
+      try {
+        // Clear any cached profile/jobs so we get fresh data
+        clearCache();
+
+        // Force reload profile so local state (fullName/phone/enrollmentId/school/center/batch) is updated
+        loadingProfileRef.current = false;
+        await loadProfile(true);
+
+        // Force reload jobs with the new targeting fields
+        dataLoadingRef.current.jobs = false;
+        await loadJobsData(true);
+      } catch (err) {
+        // Non-fatal: just log for debugging
+        console.error('Error reloading profile after profileUpdated event', err);
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdated);
+    return () => window.removeEventListener('profileUpdated', handleProfileUpdated);
+  }, [user?.id, loadProfile, loadJobsData]);
   
   // OPTIMIZED: Interview history is now loaded on mount with applications (no need to reload on tab switch)
   // Track last active tab for other potential use cases
@@ -1598,23 +1766,7 @@ export default function StudentDashboard() {
         setEmail(updatedProfile.email || '');
         setPhone(updatedProfile.phone || '');
         setEnrollmentId(updatedProfile.enrollmentId || '');
-        // Format CGPA to always show 2 decimal places
-        const cgpaValue = updatedProfile.cgpa;
-        if (cgpaValue) {
-          const cgpaStr = String(cgpaValue);
-          if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-            setCgpa(cgpaStr);
-          } else if (/^\d+$/.test(cgpaStr)) {
-            setCgpa(cgpaStr + '.00');
-          } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-            const parts = cgpaStr.split('.');
-            setCgpa(parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2));
-          } else {
-            setCgpa(cgpaStr);
-          }
-        } else {
-          setCgpa('');
-        }
+        setCgpa(formatCgpaForDisplay(updatedProfile.cgpa));
         setBacklogs(updatedProfile.backlogs || '');
         setBatch(updatedProfile.batch || '');
         setCenter(updatedProfile.center || '');
@@ -1775,19 +1927,21 @@ export default function StudentDashboard() {
     { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'text-blue-600' },
   ];
 
+  // Social links (LinkedIn, YouTube, Instagram) visible for all schools when student has added them.
+  // Coding platforms (LeetCode, Codeforces, GFG, HackerRank, GitHub) only for SOT.
   const visibleSkillsCredentials = React.useMemo(() => {
-    if (school === 'SOH') {
-      // School of HealthCare: YouTube, Instagram, and LinkedIn
+    if (school === 'SOT') {
+      // Tech students: social (LinkedIn, YouTube) + coding platforms (GitHub, LeetCode, etc.) — no Instagram
+      return skillsCredentials.filter((skill) => ['linkedin', 'youtube', 'github', 'leetcode', 'codeforces', 'gfg', 'hackerrank'].includes(skill.id));
+    } else if (school === 'SOH') {
+      // School of Healthcare: LinkedIn, YouTube, Instagram
       return skillsCredentials.filter((skill) => ['youtube', 'instagram', 'linkedin'].includes(skill.id));
     } else if (school === 'SOM') {
-      // School of Management: Only Instagram and YouTube
-      return skillsCredentials.filter((skill) => ['instagram', 'youtube'].includes(skill.id));
-    } else if (school === 'SOT') {
-      // School of Technology: All skills except Instagram
-      return skillsCredentials.filter((skill) => skill.id !== 'instagram');
+      // School of Management: LinkedIn, Instagram, YouTube (LinkedIn allowed for all schools)
+      return skillsCredentials.filter((skill) => ['linkedin', 'instagram', 'youtube'].includes(skill.id));
     } else {
-      // Default: Show all skills (for when school is not yet selected)
-      return skillsCredentials;
+      // Other schools / not set: only social links (LinkedIn, YouTube, Instagram) — no coding platforms
+      return skillsCredentials.filter((skill) => ['linkedin', 'youtube', 'instagram'].includes(skill.id));
     }
   }, [school]);
 
@@ -2043,7 +2197,8 @@ export default function StudentDashboard() {
             youtubeUrl,
             school,
             profilePhoto,
-            jobFlexibility
+            jobFlexibility,
+            stats: displayStats,
           }}
           jobs={jobs}
           applications={applications}
@@ -2059,9 +2214,9 @@ export default function StudentDashboard() {
 
       case 'jobs':
         return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Explore Job Opportunities</h2>
+          <div className="space-y-4 md:space-y-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">Explore Job Opportunities</h2>
               
               {/* Profile completion check */}
               {!profileComplete ? (
@@ -2158,33 +2313,42 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  {/* Job Listings */}
-                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                    {jobs.map((job) => {
+                  {/* Job Listings - paginated (10 per page) */}
+                  {(() => {
+                    const totalJobs = jobs.length;
+                    const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+                    const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+                    const start = (currentPage - 1) * JOBS_PER_PAGE;
+                    const paginatedJobs = jobs.slice(start, start + JOBS_PER_PAGE);
+                    return (
+                      <>
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-3 sm:gap-4">
+                    {paginatedJobs.map((job) => {
                       const companyName = job.company?.name || job.company || 'Company';
                       const isApplied = hasApplied(job.id);
                       const isApplying = applying[job.id];
                       const cgpaNotMet = !meetsCgpaRequirement(job);
                       const deadlinePassed = isDeadlinePassed(job);
+                      const yopNotEligible = !meetsYopRequirement(job);
                       
                       return (
                         <div
                           key={job.id}
-                          className="group bg-white rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all duration-300 overflow-hidden"
+                          className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden"
                         >
                           {/* Mobile Layout */}
-                          <div className="md:hidden p-5 space-y-4">
-                            <div className="flex items-start gap-4">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
+                          <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
+                            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 shadow-md ${getCompanyColor(companyName)}`}>
                                 {getCompanyInitial(companyName)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{companyName}</h3>
-                                <p className="text-base font-semibold text-blue-600 mb-2">{job.jobTitle}</p>
-                                <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
+                                <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
+                                <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
-                                    <Calendar className="h-4 w-4 text-gray-400" />
-                                    <span>{formatDate(job.driveDate || job.applicationDeadline)}</span>
+                                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                                    <span>{job.driveDate ? formatDate(job.driveDate) : 'To be announced'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
@@ -2192,17 +2356,17 @@ export default function StudentDashboard() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex gap-2 pt-2 border-t border-gray-200">
+                            <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
                               <button
                                 onClick={() => handleKnowMore(job)}
-                                className="flex-1 px-4 py-2.5 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2"
+                                className="flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm hover:shadow-md touch-manipulation"
                               >
-                                <Eye className="h-4 w-4" />
-                                Know More
+                                <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                <span className="truncate">Know More</span>
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2213,42 +2377,50 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
-                                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                                className={`flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${
                                   isApplied
-                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
+                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                     : isApplying
-                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
-                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
-                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
+                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
+                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
+                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
                                 }`}
                               >
                                 {isApplied ? (
                                   <>
-                                    <CheckCircle className="h-5 w-5" />
-                                    Applied!
+                                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="truncate">Applied!</span>
                                   </>
                                 ) : isApplying ? (
                                   <>
-                                    <Loader className="h-5 w-5 animate-spin" />
-                                    Applying...
+                                    <Loader className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 animate-spin" />
+                                    <span className="truncate">Applying...</span>
                                   </>
                                 ) : cgpaNotMet ? (
                                   <>
-                                    <XCircle className="h-5 w-5" />
-                                    CGPA Not Met
+                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="truncate">CGPA Not Met</span>
                                   </>
                                 ) : deadlinePassed ? (
                                   <>
-                                    <XCircle className="h-5 w-5" />
-                                    Deadline Passed
+                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="truncate">Deadline Passed</span>
+                                  </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="truncate">YOP Not Eligible</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Briefcase className="h-5 w-5" />
-                                    Apply Now
+                                    <Briefcase className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="truncate">Apply</span>
                                   </>
                                 )}
                               </button>
@@ -2270,7 +2442,7 @@ export default function StudentDashboard() {
                             <div className="col-span-2 flex items-center">
                               <div className="flex items-center gap-2 text-gray-700">
                                 <Calendar className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm font-medium">{formatDate(job.driveDate || job.applicationDeadline)}</span>
+                                <span className="text-sm font-medium">{job.driveDate ? formatDate(job.driveDate) : 'To be announced'}</span>
                               </div>
                             </div>
 
@@ -2281,14 +2453,14 @@ export default function StudentDashboard() {
                             <div className="col-span-5 flex items-center justify-end gap-3">
                               <button
                                 onClick={() => handleKnowMore(job)}
-                                className="px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md"
+                                className="px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm hover:shadow-md"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4 flex-shrink-0" />
                                 Know More
                               </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed}
+                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
                                 title={
                                   deadlinePassed 
                                     ? 'Application deadline has passed. Applications are no longer being accepted.'
@@ -2299,36 +2471,49 @@ export default function StudentDashboard() {
                                         return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
                                       }
                                       return "CGPA requirement not met. Please check the job requirements.";
-                                    })() : ''
+                                    })()
+                                    : yopNotEligible
+                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                    : ''
                                 }
-                                className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
+                                className={`px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${
                                   isApplied
-                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-2 border-green-300'
+                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                     : isApplying
-                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-2 border-blue-300'
-                                    : cgpaNotMet || deadlinePassed
-                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
-                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg border-2 border-transparent'
+                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
+                                    : cgpaNotMet || deadlinePassed || yopNotEligible
+                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
+                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
                                 }`}
                               >
                                 {isApplied ? (
                                   <>
-                                    <CheckCircle className="h-5 w-5" />
+                                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
                                     Applied!
                                   </>
                                 ) : isApplying ? (
                                   <>
-                                    <Loader className="h-5 w-5 animate-spin" />
+                                    <Loader className="h-4 w-4 flex-shrink-0 animate-spin" />
                                     Applying...
                                   </>
                                 ) : cgpaNotMet ? (
                                   <>
-                                    <XCircle className="h-5 w-5" />
+                                    <XCircle className="h-4 w-4 flex-shrink-0" />
                                     CGPA Not Met
+                                  </>
+                                ) : deadlinePassed ? (
+                                  <>
+                                    <XCircle className="h-4 w-4 flex-shrink-0" />
+                                    Deadline Passed
+                                  </>
+                                ) : yopNotEligible ? (
+                                  <>
+                                    <XCircle className="h-4 w-4 flex-shrink-0" />
+                                    YOP Not Eligible
                                   </>
                                 ) : (
                                   <>
-                                    <Briefcase className="h-5 w-5" />
+                                    <Briefcase className="h-4 w-4 flex-shrink-0" />
                                     Apply Now
                                   </>
                                 )}
@@ -2339,6 +2524,39 @@ export default function StudentDashboard() {
                       );
                     })}
                   </div>
+
+                  {/* Pagination */}
+                  {totalJobs > JOBS_PER_PAGE && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 py-2 text-sm text-gray-700">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -2375,153 +2593,129 @@ export default function StudentDashboard() {
           } : null
         });
         
-        // REMOVED: Force reload logic - this was causing infinite loop when no applications exist
-        // The useEffect hooks above handle loading appropriately
-        
-        const totalApplied = applications.length;
-        
-        // Use currentStage for accurate stats (backend computed status)
-        const shortlisted = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status === 'shortlisted' || status === 'screening qualified';
-        }).length;
-        
-        const interviewed = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status.includes('interview round') || 
-                 status === 'qualified for interview' || 
-                 status === 'interview completed' ||
-                 status === 'interviewed';
-        }).length;
-        
-        const offers = applications.filter(app => {
-          const status = (app.currentStage || app.status)?.toLowerCase() || '';
-          return status === 'offered' || 
-                 status === 'selected' || 
-                 status === 'selected (final)';
-        }).length;
+        // Use same pipeline stats as Career Insights (screening → shortlisted, test → interviewed, offer)
+        const { applied: totalApplied, shortlisted, interviewed, offers } = displayStats;
 
         // Filter applications with interview history (Past Records)
         const pastRecords = interviewHistory.filter(app => app.interviewHistory?.hasInterview);
 
         return (
-          <div className="space-y-8">
-            {/* Enhanced Application Summary - Muted Colors - Compact Size */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 via-gray-50 to-blue-50 rounded-xl shadow-lg border border-gray-200 p-5">
-              {/* Subtle background pattern */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-200 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-200 rounded-full blur-3xl"></div>
-              </div>
-              
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-1">Application Dashboard</h3>
-                    <p className="text-sm text-gray-600">Track your job application journey</p>
-                  </div>
-                  <div className="hidden md:block">
-                    <Briefcase className="w-10 h-10 text-gray-300" />
+          <div className="space-y-5 sm:space-y-8 overflow-x-hidden">
+            {/* Application Dashboard – same style as Career Insights (fieldset + gradient legend) */}
+            <fieldset className="bg-white rounded-xl border-2 border-[#8ec5ff] py-5 px-4 sm:px-6 transition-all duration-200 shadow-lg hover:shadow-xl">
+              <legend className="text-lg sm:text-xl font-bold px-3 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
+                Application Dashboard
+              </legend>
+              <p className="text-slate-600 mt-1 mb-3 text-sm">Track your job application journey</p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
+                <div className="bg-gradient-to-br from-white to-red-100 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
+                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-red-600 group-hover:scale-110 transition-transform duration-300">
+                      <Briefcase className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-red-700 mb-0.5 lg:mb-2 truncate">Applied</p>
+                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(totalApplied)}>{totalApplied}</p>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="group bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200 hover:border-blue-400 hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-blue-200 rounded-lg">
-                        <ClipboardList className="w-4 h-4 text-blue-700" />
-                      </div>
+                <div className="bg-gradient-to-br from-white to-blue-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
+                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-blue-600 group-hover:scale-110 transition-transform duration-300">
+                      <AlertCircle className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
                     </div>
-                    <div className="text-2xl font-bold text-blue-700 mb-0.5">{totalApplied}</div>
-                    <div className="text-xs text-blue-600 font-medium">Total Applied</div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-blue-700 mb-0.5 lg:mb-2 truncate">Shortlisted</p>
+                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(shortlisted)}>{shortlisted}</p>
+                    </div>
                   </div>
-                  
-                  <div className="group bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200 hover:border-yellow-400 hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-yellow-200 rounded-lg">
-                        <AlertCircle className="w-4 h-4 text-yellow-700" />
-                      </div>
+                </div>
+                <div className="bg-gradient-to-br from-white to-green-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
+                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-green-600 group-hover:scale-110 transition-transform duration-300">
+                      <CheckCircle className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
                     </div>
-                    <div className="text-2xl font-bold text-yellow-700 mb-0.5">{shortlisted}</div>
-                    <div className="text-xs text-yellow-600 font-medium">Shortlisted</div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-green-700 mb-0.5 lg:mb-2 truncate">Interviewed</p>
+                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(interviewed)}>{interviewed}</p>
+                    </div>
                   </div>
-                  
-                  <div className="group bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-200 hover:border-purple-400 hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-purple-200 rounded-lg">
-                        <CheckCircle className="w-4 h-4 text-purple-700" />
-                      </div>
+                </div>
+                <div className="bg-gradient-to-br from-white to-purple-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
+                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-purple-600 group-hover:scale-110 transition-transform duration-300">
+                      <TrendingUp className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
                     </div>
-                    <div className="text-2xl font-bold text-purple-700 mb-0.5">{interviewed}</div>
-                    <div className="text-xs text-purple-600 font-medium">Interviewed</div>
-                  </div>
-                  
-                  <div className="group bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200 hover:border-green-400 hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-green-200 rounded-lg">
-                        <Award className="w-4 h-4 text-green-700" />
-                      </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-purple-700 mb-0.5 lg:mb-2 truncate">Offers</p>
+                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(offers)}>{offers}</p>
                     </div>
-                    <div className="text-2xl font-bold text-green-700 mb-0.5">{offers}</div>
-                    <div className="text-xs text-green-600 font-medium">Offers</div>
                   </div>
                 </div>
               </div>
-            </div>
+            </fieldset>
 
-            {/* Enhanced View Toggle */}
-            <div className="flex justify-center">
-              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-2 shadow-xl border border-gray-200/50 inline-flex gap-2">
+            {/* Enhanced View Toggle - responsive: stack on mobile, row on desktop */}
+            <div className="flex justify-center px-1">
+              <div className="bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-2 shadow-xl border border-gray-200/50 w-full max-w-md sm:max-w-none sm:w-auto inline-flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={() => setApplicationsView('current')}
-                  className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${
                     applicationsView === 'current' 
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105' 
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg sm:scale-105' 
                       : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
                 >
-                  <Briefcase className="w-5 h-5" />
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   Current Applications
                 </button>
                 <button
                   onClick={() => setApplicationsView('past')}
-                  className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${
                     applicationsView === 'past' 
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105' 
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105' 
                       : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
                 >
-                  <ClipboardList className="w-5 h-5" />
+                  <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   Past Applications
                 </button>
               </div>
             </div>
 
             {applicationsView === 'past' ? (
-              /* Enhanced Past Applications View */
-              <div className="space-y-6">
-                <div className="bg-gradient-to-r from-slate-100 via-gray-50 to-purple-50 rounded-2xl shadow-lg border border-gray-200 p-6">
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">Past Applications</h2>
-                  <p className="text-gray-600">Your interview history and results</p>
+              /* Enhanced Past Applications View - responsive */
+              <div className="space-y-4 sm:space-y-6">
+                <div className="bg-gradient-to-r from-slate-100 via-gray-50 to-purple-50 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
+                  <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 truncate">Past Applications</h2>
+                  <p className="text-sm sm:text-base text-gray-600">Your interview history and results</p>
                 </div>
                 
                 {loadingInterviewHistory ? (
-                  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-lg">
-                    <Loader className="animate-spin h-12 w-12 text-purple-600 mb-4" />
-                    <span className="text-gray-600 text-lg font-medium">Loading interview history...</span>
+                  <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
+                    <Loader className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-purple-600 mb-4" />
+                    <span className="text-gray-600 text-sm sm:text-lg font-medium text-center">Loading interview history...</span>
                   </div>
                 ) : pastRecords.length === 0 ? (
-                  <div className="text-center py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg border border-gray-200">
-                    <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full mb-6">
-                      <ClipboardList className="w-12 h-12 text-purple-500" />
+                  <div className="text-center py-12 sm:py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 px-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full mb-4 sm:mb-6">
+                      <ClipboardList className="w-8 h-8 sm:w-12 sm:h-12 text-purple-500" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-800 mb-2">No Past Records</h3>
-                    <p className="text-gray-500 text-lg mb-1">Your completed interview records will appear here.</p>
-                    <p className="text-gray-400 text-sm">Keep applying and attending interviews to build your history!</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Past Records</h3>
+                    <p className="text-gray-500 text-sm sm:text-lg mb-1">Your completed interview records will appear here.</p>
+                    <p className="text-gray-400 text-xs sm:text-sm">Keep applying and attending interviews to build your history!</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {pastRecords.map((record, index) => {
+                    {(() => {
+                      const totalPast = pastRecords.length;
+                      const totalPastPages = Math.max(1, Math.ceil(totalPast / APPLICATIONS_LIST_PER_PAGE));
+                      const pastPage = Math.min(Math.max(1, pastApplicationsPage), totalPastPages);
+                      const startPast = (pastPage - 1) * APPLICATIONS_LIST_PER_PAGE;
+                      const paginatedPastRecords = pastRecords.slice(startPast, startPast + APPLICATIONS_LIST_PER_PAGE);
+                      return (
+                        <>
+                          {paginatedPastRecords.map((record, index) => {
                       const history = record.interviewHistory;
                       const isCracked = history.isCracked;
                       const isRejected = history.isRejected;
@@ -2529,67 +2723,60 @@ export default function StudentDashboard() {
                       return (
                         <div
                           key={record.id}
-                          className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                          className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
                           style={{ animationDelay: `${index * 100}ms` }}
                         >
-                          {/* Gradient accent bar */}
                           <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
                             isCracked ? 'from-green-500 to-emerald-500' :
                             isRejected ? 'from-red-500 to-rose-500' :
                             'from-gray-400 to-gray-500'
                           }`}></div>
                           
-                          <div className="p-8">
-                            {/* Enhanced Header Row */}
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-                              <div className="flex items-center gap-4">
-                                <div className={`${getCompanyColor(record.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
-                                  <span className="text-white font-bold text-2xl">
-                                    {getCompanyInitial(record.company?.name)}
-                                  </span>
+                          <div className="p-4 sm:p-6 lg:p-8">
+                            {/* Header: stack on mobile, row on desktop */}
+                            <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                                  <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                    <span className="text-white font-bold text-lg sm:text-2xl">
+                                      {getCompanyInitial(record.company?.name)}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-purple-600 transition-colors">
+                                      {record.job?.jobTitle || 'Unknown Position'}
+                                    </h3>
+                                    <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
+                                      <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                      {record.company?.name || 'Unknown Company'}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
-                                    {record.job?.jobTitle || 'Unknown Position'}
-                                  </h3>
-                                  <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
-                                    <Building2 className="w-4 h-4" />
-                                    {record.company?.name || 'Unknown Company'}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                {/* Dropdown Button */}
                                 <button
                                   onClick={() => {
                                     setExpandedApplications(prev => {
                                       const newSet = new Set(prev);
-                                      if (newSet.has(record.id)) {
-                                        newSet.delete(record.id);
-                                      } else {
-                                        newSet.add(record.id);
-                                      }
+                                      if (newSet.has(record.id)) newSet.delete(record.id);
+                                      else newSet.add(record.id);
                                       return newSet;
                                     });
                                   }}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200"
+                                  className="self-start sm:self-center flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
                                 >
-                                  <span className="text-sm font-medium text-gray-700">View Details</span>
+                                  <span>View Details</span>
                                   {expandedApplications.has(record.id) ? (
-                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600" />
+                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
                                   ) : (
-                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600" />
+                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
                                   )}
                                 </button>
                               </div>
                             </div>
 
-                            {/* Dropdown Content - Status and Round Details */}
                             {expandedApplications.has(record.id) && (
-                              <div className="mb-6 space-y-6 border-t border-gray-200 pt-6">
-                                {/* Screening Status Badge (shown first, before interview status) */}
+                              <div className="mb-4 sm:mb-6 space-y-4 sm:space-y-6 border-t border-gray-200 pt-4 sm:pt-6">
                                 {record.screeningStatusText && (
-                                  <div className={`p-4 border rounded-lg ${
+                                  <div className={`p-3 sm:p-4 border rounded-lg ${
                                     record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
                                       ? 'bg-red-50 border-red-200'
                                       : record.screeningStatus === 'TEST_SELECTED'
@@ -2618,36 +2805,34 @@ export default function StudentDashboard() {
                                   </div>
                                 )}
                                 
-                                {/* Status Badges */}
-                                <div className="flex items-center gap-3 justify-center md:justify-start">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center sm:justify-start">
                                   {isCracked && (
-                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
-                                      <CheckCircle className="w-5 h-5" />
+                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
+                                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                                       Cracked
                                     </span>
                                   )}
                                   {isRejected && (
-                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
-                                      <XCircle className="w-5 h-5" />
+                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
+                                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                                       Rejected
                                     </span>
                                   )}
                                   {!isCracked && !isRejected && (
-                                    <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
-                                      <Clock className="w-5 h-5" />
+                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
+                                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                                       Pending
                                     </span>
                                   )}
                                 </div>
 
-                                {/* Enhanced Interview Details */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
                                     <div className="flex items-center gap-2 mb-2">
                                       <Trophy className="w-5 h-5 text-blue-600" />
                                       <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
                                     </div>
-                                    <p className="text-lg font-bold text-gray-800">
+                                    <p className="text-sm sm:text-lg font-bold text-gray-800 break-words">
                                       {history.lastRoundReached || 'Not evaluated'}
                                     </p>
                                   </div>
@@ -2664,7 +2849,7 @@ export default function StudentDashboard() {
 
                                 {/* Enhanced Rounds Progress */}
                                 {history.rounds && history.rounds.length > 0 && (
-                                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
+                                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 rounded-lg sm:rounded-xl border border-gray-200 overflow-x-hidden">
                                     <div className="flex items-center gap-2 mb-4">
                                       <ClipboardList className="w-5 h-5 text-indigo-600" />
                                       <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
@@ -2677,7 +2862,7 @@ export default function StudentDashboard() {
                                         return (
                                           <div
                                             key={index}
-                                            className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                                            className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
                                               wasReached 
                                                 ? evaluation?.status === 'SELECTED'
                                                   ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
@@ -2730,8 +2915,7 @@ export default function StudentDashboard() {
                                               </div>
                                             </div>
                                             
-                                            {/* Round Details */}
-                                            <div className="space-y-2 pl-16">
+                                            <div className="space-y-2 pl-0 sm:pl-16">
                                               {wasReached ? (
                                                 <>
                                                   {evaluation?.marks !== null && (
@@ -2776,8 +2960,7 @@ export default function StudentDashboard() {
                               </div>
                             )}
 
-                            {/* Enhanced Applied Date */}
-                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-gray-200 flex items-center gap-3">
                               <div className="p-2 bg-blue-100 rounded-lg">
                                 <Calendar className="w-5 h-5 text-blue-600" />
                               </div>
@@ -2789,37 +2972,62 @@ export default function StudentDashboard() {
                           </div>
                         </div>
                       );
-                    })}
+                          })}
+                          {totalPast > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
+                              <p className="text-sm text-gray-600">
+                                Showing {startPast + 1}–{Math.min(startPast + APPLICATIONS_LIST_PER_PAGE, totalPast)} of {totalPast} application{totalPast !== 1 ? 's' : ''}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setPastApplicationsPage((p) => Math.max(1, p - 1))} disabled={pastPage <= 1} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                  <ChevronLeft className="h-4 w-4" /> Prev
+                                </button>
+                                <span className="text-sm font-medium text-gray-700 px-2">Page {pastPage} of {totalPastPages}</span>
+                                <button type="button" onClick={() => setPastApplicationsPage((p) => Math.min(totalPastPages, p + 1))} disabled={pastPage >= totalPastPages} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                  Next <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
             ) : (
-              /* Enhanced Current Applications View */
-              <div className="space-y-6">
+              /* Current Applications View - responsive */
+              <div className="space-y-4 sm:space-y-6">
                 {loadingApplications ? (
-                  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-lg">
-                    <Loader className="animate-spin h-12 w-12 text-indigo-600 mb-4" />
-                    <span className="text-gray-600 text-lg font-medium">Loading your applications...</span>
+                  <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
+                    <Loader className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-indigo-600 mb-4" />
+                    <span className="text-gray-600 text-sm sm:text-lg font-medium text-center">Loading your applications...</span>
                   </div>
                 ) : !applications || applications.length === 0 ? (
-                  <div className="text-center py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg border border-gray-200">
-                    <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full mb-6">
-                      <ClipboardList className="w-12 h-12 text-indigo-500" />
+                  <div className="text-center py-12 sm:py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 px-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full mb-4 sm:mb-6">
+                      <ClipboardList className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-800 mb-2">No Applications Yet</h3>
-                    <p className="text-gray-500 text-lg mb-1">Start your job search journey today!</p>
-                    <p className="text-gray-400 text-sm">Browse available jobs and apply to track your progress here.</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Applications Yet</h3>
+                    <p className="text-gray-500 text-sm sm:text-lg mb-1">Start your job search journey today!</p>
+                    <p className="text-gray-400 text-xs sm:text-sm">Browse available jobs and apply to track your progress here.</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Enhanced Application Cards */}
-                    {applications.map((application, index) => (
+                  <div className="space-y-4 sm:space-y-6">
+                    {(() => {
+                      const totalCurrent = applications.length;
+                      const totalCurrentPages = Math.max(1, Math.ceil(totalCurrent / APPLICATIONS_LIST_PER_PAGE));
+                      const currentPage = Math.min(Math.max(1, currentApplicationsPage), totalCurrentPages);
+                      const startCurrent = (currentPage - 1) * APPLICATIONS_LIST_PER_PAGE;
+                      const paginatedApplications = applications.slice(startCurrent, startCurrent + APPLICATIONS_LIST_PER_PAGE);
+                      return (
+                        <>
+                          {paginatedApplications.map((application, index) => (
                       <div
                         key={application.id}
-                        className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                        className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
                         style={{ animationDelay: `${index * 100}ms` }}
                       >
-                        {/* Gradient accent bar */}
                         <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
                           (() => {
                             const status = (application.currentStage || application.status)?.toLowerCase() || '';
@@ -2832,8 +3040,64 @@ export default function StudentDashboard() {
                           })()
                         }`}></div>
                         
-                        <div className="p-8">
-                          {/* Screening Status Badge (only show if not selected/completed - use currentStage for final status) */}
+                        <div className="p-4 sm:p-6 lg:p-8">
+                          <div className="flex flex-col gap-3 sm:gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                                <div className={`${getCompanyColor(application.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                  <span className="text-white font-bold text-lg sm:text-2xl">
+                                    {getCompanyInitial(application.company?.name)}
+                                  </span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-indigo-600 transition-colors">
+                                    {application.job?.jobTitle || 'Unknown Position'}
+                                  </h3>
+                                  <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
+                                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                    {application.company?.name || 'Unknown Company'}
+                                  </p>
+                                  {application.screeningStatusText && (
+                                    <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{application.screeningStatusText}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
+                                <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
+                                  {getStatusIcon(application.currentStage || application.status)}
+                                  <span className="truncate max-w-[120px] sm:max-w-none">
+                                    {(() => {
+                                      const status = application.currentStage || application.status;
+                                      if (status === 'job_removed') return 'Job Removed';
+                                      if (status) return status.charAt(0).toUpperCase() + status.slice(1);
+                                      return 'Unknown';
+                                    })()}
+                                  </span>
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setExpandedApplications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(application.id)) newSet.delete(application.id);
+                                      else newSet.add(application.id);
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
+                                >
+                                  <span>View Details</span>
+                                  {expandedApplications.has(application.id) ? (
+                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                  ) : (
+                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {expandedApplications.has(application.id) && (
+                            <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200 space-y-4 sm:space-y-6">
                           {(() => {
                             // Don't show screening status badge if already selected or completed
                             const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
@@ -2843,7 +3107,7 @@ export default function StudentDashboard() {
                             if (isFinal || !application.screeningStatusText) return null;
                             
                             return (
-                              <div className={`mb-4 p-3 border rounded-lg ${
+                              <div className={`p-3 sm:p-3 border rounded-lg ${
                                 application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
                                   ? 'bg-red-50 border-red-200'
                                   : application.screeningStatus === 'TEST_SELECTED'
@@ -2874,7 +3138,7 @@ export default function StudentDashboard() {
                           
                           {/* Interview Status Badge (only if passed screening) */}
                           {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Info className="w-4 h-4 text-blue-600" />
                                 <span className="text-sm font-medium text-blue-800">
@@ -2888,81 +3152,48 @@ export default function StudentDashboard() {
                               )}
                             </div>
                           )}
-                          
-                          {/* Enhanced Header Row */}
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-                            <div className="flex items-center gap-4">
-                              <div className={`${getCompanyColor(application.company?.name)} w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
-                                <span className="text-white font-bold text-2xl">
-                                  {getCompanyInitial(application.company?.name)}
-                                </span>
-                              </div>
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">
-                                  {application.job?.jobTitle || 'Unknown Position'}
-                                </h3>
-                                <p className="text-lg font-semibold text-gray-600 flex items-center gap-2">
-                                  <Building2 className="w-4 h-4" />
-                                  {application.company?.name || 'Unknown Company'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
-                                {getStatusIcon(application.currentStage || application.status)}
-                                {(() => {
-                                  const status = application.currentStage || application.status;
-                                  if (status === 'job_removed') return 'Job Removed';
-                                  if (status) return status.charAt(0).toUpperCase() + status.slice(1);
-                                  return 'Unknown';
-                                })()}
-                              </span>
-                            </div>
-                          </div>
 
-                          {/* Enhanced Job Details Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                            <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <MapPin className="w-4 h-4 text-blue-600" />
                                 <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Location</p>
                               </div>
-                              <p className="text-base font-bold text-gray-800">
+                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
                                 {application.job?.location || 'Not specified'}
                               </p>
                             </div>
-                            <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                            <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
                               <div className="flex items-center gap-2 mb-2">
-                                <Briefcase className="w-4 h-4 text-purple-600" />
+                                <Briefcase className="w-4 h-4 text-purple-600 flex-shrink-0" />
                                 <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Experience</p>
                               </div>
-                              <p className="text-base font-bold text-gray-800">
+                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
                                 {application.job?.experienceLevel || 'Not specified'}
                               </p>
                             </div>
-                            <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
+                            <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
                               <div className="flex items-center gap-2 mb-2">
-                                <Clock className="w-4 h-4 text-green-600" />
+                                <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
                                 <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Job Type</p>
                               </div>
-                              <p className="text-base font-bold text-gray-800">
+                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
                                 {application.job?.jobType || 'Not specified'}
                               </p>
                             </div>
-                            <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
+                            <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <Award className="w-4 h-4 text-amber-600" />
                                 <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Salary</p>
                               </div>
-                              <p className="text-base font-bold text-gray-800">
+                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
                                 {application.job?.salaryRange || 'Not disclosed'}
                               </p>
                             </div>
                           </div>
 
-                          {/* Enhanced Application Timeline */}
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-xl border border-gray-200 mb-6">
-                            <div className="flex flex-wrap items-center gap-6 text-sm">
+                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 mb-4 sm:mb-6">
+                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
                               <div className="flex items-center gap-2 text-gray-700">
                                 <div className="p-2 bg-blue-100 rounded-lg">
                                   <Calendar className="w-4 h-4 text-blue-600" />
@@ -2997,16 +3228,15 @@ export default function StudentDashboard() {
                             </div>
                           </div>
 
-                          {/* Enhanced Job Description Preview */}
                           {application.job?.description && (
-                            <div className="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100">
+                            <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
                               <div className="flex items-center gap-2 mb-3">
                                 <FileText className="w-5 h-5 text-indigo-600" />
                                 <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
                               </div>
                               <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
-                                {application.job.description.length > 200 
-                                  ? `${application.job.description.substring(0, 200)}...` 
+                                {application.job.description.length > 200
+                                  ? `${application.job.description.substring(0, 200)}...`
                                   : application.job.description}
                               </p>
                             </div>
@@ -3055,10 +3285,30 @@ export default function StudentDashboard() {
                               </div>
                             ) : null;
                           })()}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
-
+                          {totalCurrent > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
+                              <p className="text-sm text-gray-600">
+                                Showing {startCurrent + 1}–{Math.min(startCurrent + APPLICATIONS_LIST_PER_PAGE, totalCurrent)} of {totalCurrent} application{totalCurrent !== 1 ? 's' : ''}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setCurrentApplicationsPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                  <ChevronLeft className="h-4 w-4" /> Prev
+                                </button>
+                                <span className="text-sm font-medium text-gray-700 px-2">Page {currentPage} of {totalCurrentPages}</span>
+                                <button type="button" onClick={() => setCurrentApplicationsPage((p) => Math.min(totalCurrentPages, p + 1))} disabled={currentPage >= totalCurrentPages} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                  Next <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                 </div>
               )}
             </div>
@@ -3078,18 +3328,31 @@ export default function StudentDashboard() {
 
       case 'editProfile':
         return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
-                <div className="text-sm text-gray-500">
-                  Fields marked with <span className="text-red-500">*</span> are required
-                </div>
+          <div className="min-w-0 overflow-x-hidden pb-24 md:pb-0 w-full">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 w-full max-w-4xl md:max-w-none mx-auto">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Edit Profile</h2>
+                <p className="text-xs sm:text-sm text-gray-500 flex-shrink-0">
+                  <span className="text-red-500">*</span> required
+                </p>
               </div>
-              
-              <form className="space-y-8" onSubmit={handleSaveProfile}>
-                {/* Profile Photo Section */}
-                <div className="bg-blue-50 rounded-lg p-6 border border-blue-100">
+
+              <form id="editProfileForm" className="space-y-4 sm:space-y-6 md:space-y-8" onSubmit={handleSaveProfile}>
+                {/* Profile Photo Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('photo')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-blue-50 border-b border-blue-100/50 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <ImageIcon size={18} className="text-blue-600" />
+                      Profile Photo
+                    </span>
+                    {profileSectionsOpen.photo ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.photo ? 'block' : 'hidden'} md:block`}>
+                <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border border-blue-100">
                   <div className="flex items-start gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -3185,15 +3448,30 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Personal Information Section */}
+                {/* Personal Information Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('personal')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <User size={18} className="text-blue-600" />
+                      Personal Information
+                    </span>
+                    {profileSectionsOpen.personal ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.personal ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <User size={20} className="text-blue-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                    <User size={20} className="text-blue-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Personal Information</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <User size={16} className="text-gray-500" />
@@ -3281,15 +3559,30 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Academic Information Section */}
+                {/* Academic Information Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('academic')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <FaGraduationCap size={18} className="text-purple-600" />
+                      Academic Information
+                    </span>
+                    {profileSectionsOpen.academic ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.academic ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <FaGraduationCap size={20} className="text-purple-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Academic Information</h3>
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                    <FaGraduationCap size={20} className="text-purple-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Academic Information</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Trophy size={16} className="text-yellow-500" />
@@ -3474,15 +3767,30 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Location Section */}
+                {/* Location Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('location')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <MapPin size={18} className="text-green-600" />
+                      Location
+                    </span>
+                    {profileSectionsOpen.location ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.location ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <MapPin size={20} className="text-green-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Location</h3>
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                    <MapPin size={20} className="text-green-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Location</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <MapPin size={16} className="text-gray-500" />
@@ -3537,14 +3845,29 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
-
-                {/* Professional Profile Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <Briefcase size={20} className="text-indigo-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Professional Profile</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                </div>
+
+                {/* Professional Profile Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('professional')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <Briefcase size={18} className="text-indigo-600" />
+                      Professional Profile
+                    </span>
+                    {profileSectionsOpen.professional ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.professional ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                    <Briefcase size={20} className="text-indigo-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Professional Profile</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Type size={16} className="text-gray-500" />
@@ -3581,13 +3904,28 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Social Media & Coding Profiles Section */}
+                {/* Social Media & Coding - collapsible on mobile (no inner collapsible for each sub-section to keep edit smaller) */}
                 {(school === 'SOT' || school === 'SOM' || school === 'SOH') && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                    <button
+                      type="button"
+                      onClick={() => toggleProfileSection('social')}
+                      className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                    >
+                      <span className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Globe size={18} className="text-blue-600" />
+                        Social & Links
+                      </span>
+                      {profileSectionsOpen.social ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                    </button>
+                    <div className={`${profileSectionsOpen.social ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                      <Globe size={20} className="text-blue-600" />
-                      <h3 className="text-lg font-semibold text-gray-900">Social Media & Coding Profiles</h3>
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                      <Globe size={20} className="text-blue-600 hidden md:block" />
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Social Media & Coding Profiles</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -3635,16 +3973,31 @@ export default function StudentDashboard() {
                       )}
                     </div>
                   </div>
+                  </div>
+                  </div>
                 )}
 
-                {/* Coding Platforms Section - Only for SOT */}
+                {/* Coding Platforms Section - Only for SOT, collapsible on mobile */}
                 {school === 'SOT' && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                    <button
+                      type="button"
+                      onClick={() => toggleProfileSection('coding')}
+                      className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                    >
+                      <span className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Code2 size={18} className="text-orange-600" />
+                        Coding Platforms
+                      </span>
+                      {profileSectionsOpen.coding ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                    </button>
+                    <div className={`${profileSectionsOpen.coding ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                      <Code2 size={20} className="text-orange-600" />
-                      <h3 className="text-lg font-semibold text-gray-900">Coding Platforms</h3>
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                      <Code2 size={20} className="text-orange-600 hidden md:block" />
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Coding Platforms</h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                           <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
@@ -3699,14 +4052,29 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                   </div>
+                  </div>
+                </div>
                 )}
 
-                {/* Other Profiles Section - After Coding Platforms */}
+                {/* Other Profiles Section - collapsible on mobile */}
                 {(school === 'SOT' || school === 'SOM' || school === 'SOH') && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                    <button
+                      type="button"
+                      onClick={() => toggleProfileSection('otherProfiles')}
+                      className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                    >
+                      <span className="font-semibold text-gray-900 flex items-center gap-2">
+                        <LinkIcon size={18} className="text-purple-600" />
+                        Other Profiles
+                      </span>
+                      {profileSectionsOpen.otherProfiles ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                    </button>
+                    <div className={`${profileSectionsOpen.otherProfiles ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                      <LinkIcon size={20} className="text-purple-600" />
-                      <h3 className="text-lg font-semibold text-gray-900">Other Profiles</h3>
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                      <LinkIcon size={20} className="text-purple-600 hidden md:block" />
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Other Profiles</h3>
                     </div>
                     <p className="text-sm text-gray-600">
                       Add additional profiles (e.g., Kaggle, CodeChef, or any other platform)
@@ -3855,13 +4223,28 @@ export default function StudentDashboard() {
                       Add Profile
                     </button>
                   </div>
+                  </div>
+                  </div>
                 )}
 
-                {/* Bio Section */}
+                {/* Bio Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('bio')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <FileText size={18} className="text-gray-600" />
+                      About Me
+                    </span>
+                    {profileSectionsOpen.bio ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.bio ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <FileText size={20} className="text-gray-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">About Me</h3>
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                    <FileText size={20} className="text-gray-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">About Me</h3>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -3877,9 +4260,21 @@ export default function StudentDashboard() {
                     ></textarea>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Terms & Actions Section */}
-                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                {/* Terms & Actions Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('terms')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900">Terms & Save</span>
+                    {profileSectionsOpen.terms ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.terms ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
+                <div className="bg-gray-50 rounded-lg p-4 sm:p-6 border border-gray-200">
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
                       <input
@@ -3893,7 +4288,7 @@ export default function StudentDashboard() {
                         I acknowledge that the information provided on this dashboard is accurate to the best of the institution's knowledge. I understand that the institution shall not be held liable for any errors, omissions, or discrepancies.
                       </label>
                     </div>
-                    <div className="flex space-x-4 justify-end pt-4 border-t border-gray-200">
+                    <div className="hidden md:flex md:flex-nowrap gap-4 justify-end pt-4 border-t border-gray-200">
                       <button
                         type="button"
                         onClick={() => {
@@ -3901,7 +4296,7 @@ export default function StudentDashboard() {
                           setIsChecked(false);
                           setValidationErrors({});
                         }}
-                        className="px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-medium cursor-pointer"
+                        className="flex-shrink-0 px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-medium cursor-pointer"
                       >
                         Reset
                       </button>
@@ -3909,7 +4304,7 @@ export default function StudentDashboard() {
                         type="submit"
                         id='editSaveBtn'
                         disabled={!isChecked || saving}
-                        className={`px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
+                        className={`flex-shrink-0 px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
                           (!isChecked || saving) 
                             ? 'bg-gray-400 cursor-not-allowed' 
                             : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
@@ -3927,12 +4322,27 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Public Profile Sharing Section */}
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 border border-indigo-200">
+                {/* Public Profile Sharing Section - collapsible on mobile */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden md:border-0 md:rounded-none md:overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => toggleProfileSection('publicProfile')}
+                    className="md:hidden w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 border-b border-gray-200 text-left"
+                  >
+                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                      <LinkIcon size={18} className="text-indigo-600" />
+                      Share Profile
+                    </span>
+                    {profileSectionsOpen.publicProfile ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                  </button>
+                  <div className={`${profileSectionsOpen.publicProfile ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4 sm:p-6 border border-indigo-200">
                   <div className="flex items-center gap-2 pb-3 border-b border-indigo-200 mb-4">
-                    <LinkIcon size={20} className="text-indigo-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Public Profile Sharing</h3>
+                    <LinkIcon size={20} className="text-indigo-600 hidden md:block" />
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Public Profile Sharing</h3>
                   </div>
 
                   <div className="space-y-4">
@@ -4117,9 +4527,11 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                  </div>
+                </div>
 
-                {/* Save Button */}
-                <div className="flex justify-end pt-4 border-t border-gray-200">
+                {/* Save Button - hidden on mobile (sticky bar used instead) */}
+                <div className="hidden md:flex justify-end pt-4 border-t border-gray-200">
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -4154,6 +4566,53 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               </form>
+
+              {/* Sticky Save bar - mobile only */}
+              <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-3 py-3 safe-area-pb">
+                <div className="max-w-4xl mx-auto flex flex-col gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => setIsChecked(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+                    />
+                    <span className="text-sm text-gray-700">I confirm the information is accurate</span>
+                  </label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetProfileForm();
+                        setIsChecked(false);
+                        setValidationErrors({});
+                      }}
+                      className="flex-1 min-h-[44px] px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition-colors"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="submit"
+                      form="editProfileForm"
+                      disabled={!isChecked || saving}
+                      className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors ${
+                        (!isChecked || saving)
+                          ? 'bg-gray-400 cursor-not-allowed text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      {saving ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader className="animate-spin" size={18} />
+                          Saving...
+                        </span>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -4184,7 +4643,8 @@ export default function StudentDashboard() {
             youtubeUrl,
             school,
             profilePhoto,
-            jobFlexibility
+            jobFlexibility,
+            stats: displayStats,
           }}
           jobs={jobs}
           applications={applications}
@@ -4201,20 +4661,32 @@ export default function StudentDashboard() {
   };
 
   return (
-    <>
-      <DashboardLayout studentProfile={dataLoaded ? {
-        fullName,
-        headline: Headline || null,
-        enrollmentId,
-        cgpa,
-        profilePhoto: profilePhoto,
-        school,
-        center,
-        batch,
-      } : null}>
+    <StudentMobileMenuContext.Provider value={{ mobileMenuOpen, setMobileMenuOpen }}>
+      <ProfileCompletionModal
+        isOpen={showProfileCompletionModal}
+        onSaved={() => setShowProfileCompletionModal(false)}
+      />
+      <DashboardLayout
+        studentProfile={{
+          fullName,
+          profilePhoto: profilePhoto || undefined,
+          profileImageUrl: profilePhoto || undefined,
+          enrollmentId,
+          cgpa,
+          headline: Headline,
+          tagline: Headline,
+          school,
+          email,
+          phone,
+          city,
+          stateRegion,
+          bio,
+        }}
+      >
         <div className="flex min-h-screen relative">
+          {/* Desktop sidebar: visible from md up */}
           <aside
-            className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"
+            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
             <div className="p-3 h-full flex flex-col">
@@ -4252,7 +4724,7 @@ export default function StudentDashboard() {
                   <nav className="space-y-1">
                     {visibleSkillsCredentials.map((skill) => {
                       const Icon = skill.icon;
-                      const profileUrl = skill.id === 'leetcode' ? leetcode
+                      const raw = skill.id === 'leetcode' ? leetcode
                         : skill.id === 'codeforces' ? codeforces
                         : skill.id === 'gfg' ? gfg
                         : skill.id === 'hackerrank' ? hackerrank
@@ -4261,7 +4733,7 @@ export default function StudentDashboard() {
                         : skill.id === 'youtube' ? youtubeUrl
                         : skill.id === 'linkedin' ? linkedin
                         : '';
-                      
+                      const profileUrl = (raw && typeof raw === 'string') ? raw.trim() : '';
                       if (!profileUrl) return null;
                       
                       return (
@@ -4351,14 +4823,122 @@ export default function StudentDashboard() {
             />
           </aside>
 
+          {/* Mobile drawer overlay */}
+          {mobileMenuOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              aria-hidden
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          )}
+          {/* Mobile drawer sidebar */}
+          <aside
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${
+              mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+            aria-modal
+            aria-label="Navigation menu"
+          >
+            <div className="p-3 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-gray-900">Navigation</h2>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Close menu"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <nav className="space-y-1">
+                {(tabs || []).map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <div key={tab.id} className="mb-1">
+                      <button
+                        onClick={() => handleTabClick(tab.id)}
+                        className={`w-full flex items-center rounded-lg text-sm font-medium transition-all px-3 py-3 cursor-pointer ${
+                          activeTab === tab.id
+                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                            : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 mr-2" />
+                        {tab.label}
+                      </button>
+                    </div>
+                  );
+                })}
+              </nav>
+              {((visibleSkillsCredentials && visibleSkillsCredentials.length > 0) || (otherProfiles && otherProfiles.length > 0)) && (
+                <div className="mt-6">
+                  <h2 className="text-base font-bold text-gray-900 mb-3">Skills & Credentials</h2>
+                  <nav className="space-y-1">
+                    {(visibleSkillsCredentials || []).map((skill) => {
+                      const Icon = skill.icon;
+                      const raw = skill.id === 'leetcode' ? leetcode : skill.id === 'codeforces' ? codeforces : skill.id === 'gfg' ? gfg : skill.id === 'hackerrank' ? hackerrank : skill.id === 'github' ? githubUrl : skill.id === 'instagram' ? instagramUrl : skill.id === 'youtube' ? youtubeUrl : skill.id === 'linkedin' ? linkedin : '';
+                      const profileUrl = (raw && typeof raw === 'string') ? raw.trim() : '';
+                      if (!profileUrl) return null;
+                      return (
+                        <div key={skill.id} className="mb-1">
+                          <button
+                            onClick={() => handleSkillClick(skill.id)}
+                            className="w-full flex items-center rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 px-3 py-2"
+                          >
+                            <Icon className={`h-4 w-4 mr-2 ${skill.color}`} />
+                            {skill.label}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {otherProfiles && otherProfiles.length > 0 && otherProfiles.map((profile, index) => {
+                      if (!profile.platformName || !profile.profileId) return null;
+                      let profileUrl = profile.profileId;
+                      if (!profileUrl.startsWith('http')) {
+                        const platformLower = profile.platformName.toLowerCase();
+                        if (platformLower.includes('kaggle')) profileUrl = `https://www.kaggle.com/${profile.profileId}`;
+                        else if (platformLower.includes('codechef')) profileUrl = `https://www.codechef.com/users/${profile.profileId}`;
+                        else if (platformLower.includes('atcoder')) profileUrl = `https://atcoder.jp/users/${profile.profileId}`;
+                        else if (platformLower.includes('topcoder')) profileUrl = `https://www.topcoder.com/members/${profile.profileId}`;
+                      }
+                      return (
+                        <div key={`other-${index}`} className="mb-1">
+                          <button
+                            onClick={() => window.open(profileUrl, '_blank')}
+                            className="w-full flex items-center rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 px-3 py-2"
+                          >
+                            <LinkIcon className="h-4 w-4 mr-2 text-purple-600" />
+                            {profile.platformName}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </nav>
+                </div>
+              )}
+              <div className="mt-auto pt-4 border-t border-gray-300">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center rounded-lg text-sm font-medium text-red-500 hover:bg-red-100 px-3 py-3"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </button>
+              </div>
+            </div>
+          </aside>
+
           <main
             className="bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 min-h-screen transition-all duration-200 ease-in-out"
             style={{
-              marginLeft: `${sidebarWidth}%`,
-              width: `${100 - sidebarWidth}%`
+              marginLeft: isMobile ? 0 : `${sidebarWidth}%`,
+              width: isMobile ? '100%' : `${100 - sidebarWidth}%`
             }}
           >
-            <div className="p-8">
+            {/* All pages: reduced side/top/bottom wrapping so content uses more space */}
+            <div className="px-3 py-4 sm:px-4 sm:py-5 md:px-5 md:py-6">
               {renderContent()}
             </div>
           </main>
@@ -4466,6 +5046,6 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
-    </>
+    </StudentMobileMenuContext.Provider>
   );
 }

@@ -30,6 +30,10 @@ export const getGoogleLoginUrl = async (req, res) => {
     // Generate OAuth URL
     const authUrl = generateAuthOAuthUrl(state);
 
+    // Log exact redirect URI so you can add it to Google Cloud Console if you get redirect_uri_mismatch
+    const redirectUri = process.env.GOOGLE_AUTH_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI;
+    logger.info(`[Google Login] Use this EXACT URL in Google Cloud Console → Credentials → OAuth 2.0 Client → Authorized redirect URIs: ${redirectUri}`);
+
     res.json({
       success: true,
       authUrl,
@@ -48,13 +52,20 @@ export const getGoogleLoginUrl = async (req, res) => {
  * GET /auth/google-login/callback
  * Exchange code for tokens, create/login user, return JWT tokens
  */
+/** Redirect to frontend callback with error so popup can postMessage to opener */
+function redirectLoginError(frontendUrl, errorCode, message) {
+  const params = new URLSearchParams({ error: errorCode });
+  if (message) params.set('message', message);
+  return `${frontendUrl}/auth/google-callback?${params.toString()}`;
+}
+
 export const handleGoogleLoginCallback = async (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL;
   try {
     const { code, state } = req.query;
 
     if (!code) {
-      const frontendUrl = process.env.FRONTEND_URL;
-      return res.redirect(`${frontendUrl}/?error=google_login_no_code`);
+      return res.redirect(redirectLoginError(frontendUrl, 'google_login_no_code', 'No authorization code from Google. Please try again.'));
     }
 
     // Parse state to get role
@@ -77,8 +88,7 @@ export const handleGoogleLoginCallback = async (req, res) => {
     const googleUserInfo = await exchangeCodeForAuthTokens(code);
 
     if (!googleUserInfo.email) {
-      const frontendUrl = process.env.FRONTEND_URL;
-      return res.redirect(`${frontendUrl}/?error=google_login_no_email`);
+      return res.redirect(redirectLoginError(frontendUrl, 'google_login_no_email', 'Could not get email from Google. Please try again.'));
     }
 
     const email = googleUserInfo.email.toLowerCase().trim();
@@ -103,22 +113,20 @@ export const handleGoogleLoginCallback = async (req, res) => {
         logger.info(`User ${email} logged in with Google but role mismatch. Existing: ${user.role}, Requested: ${role}`);
       }
 
-      // Update user's Google info if needed
+      // Update user's Google info if needed (User model has displayName, not name)
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          emailVerified: googleUserInfo.verified_email || user.emailVerified,
-          // Optionally update name/picture if not set
-          ...(googleUserInfo.name && !user.name && { name: googleUserInfo.name }),
+          emailVerified: googleUserInfo.verified_email ?? user.emailVerified,
+          ...(googleUserInfo.name && !user.displayName && { displayName: googleUserInfo.name }),
         },
       });
 
-      // Generate JWT tokens
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens
-      const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/auth/google-callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
     } else {
       // New user - create account
@@ -126,25 +134,23 @@ export const handleGoogleLoginCallback = async (req, res) => {
       const emailLower = email.toLowerCase();
       
       if (role === 'STUDENT' && !emailLower.endsWith('@pwioi.com')) {
-        const frontendUrl = process.env.FRONTEND_URL;
-        return res.redirect(`${frontendUrl}/?error=google_login_invalid_domain&role=student`);
+        return res.redirect(redirectLoginError(frontendUrl, 'google_login_invalid_domain', 'Student sign-up requires a @pwioi.com email address.'));
       }
-      
+
       if (role === 'ADMIN' && !emailLower.endsWith('@pwioi.live')) {
-        const frontendUrl = process.env.FRONTEND_URL;
-        return res.redirect(`${frontendUrl}/?error=google_login_invalid_domain&role=admin`);
+        return res.redirect(redirectLoginError(frontendUrl, 'google_login_invalid_domain', 'Admin sign-up requires a @pwioi.live email address.'));
       }
 
       // Generate a random password (user won't need it since they use Google)
       const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
       const passwordHash = await bcrypt.hash(randomPassword, 10);
 
-      // Create user
+      // Create user (User model uses passwordHash and displayName, not password/name)
       const userData = {
         email,
-        password: passwordHash,
+        passwordHash,
         role,
-        name: googleUserInfo.name || null,
+        displayName: googleUserInfo.name || null,
         emailVerified: googleUserInfo.verified_email || false,
         status: role === 'ADMIN' ? 'PENDING' : 'ACTIVE', // Admin needs approval
       };
@@ -182,17 +188,15 @@ export const handleGoogleLoginCallback = async (req, res) => {
 
       logger.info(`New user created via Google login: ${email} (${role})`);
 
-      // Generate JWT tokens
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens
-      const frontendUrl = process.env.FRONTEND_URL;
       return res.redirect(`${frontendUrl}/auth/google-callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
     }
   } catch (error) {
     logger.error('Error in Google login callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL;
-    return res.redirect(`${frontendUrl}/?error=google_login_failed&message=${encodeURIComponent(error.message)}`);
+    return res.redirect(redirectLoginError(frontendUrl, 'google_login_failed', error.message || 'Google sign-in failed. Please try again.'));
   }
 };

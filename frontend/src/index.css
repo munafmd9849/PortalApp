@@ -1,9 +1,17 @@
+/* Crack-style display font (CDN) for "Cracked it" */
+@import url("https://fonts.cdnfonts.com/css/broken-up");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 /* Explicit Caveat font class */
 .font-caveat {
   font-family: 'Caveat', 'cursive' !important;
+}
+
+.font-crack-display {
+  font-family: 'Broken Up', sans-serif !important;
+  letter-spacing: 0.04em;
 }
 
 /* Hide scrollbar for the entire application */
@@ -256,6 +264,20 @@ body {
   --text-light: #f8f9fa;
   --text-dark: #333;
   --shadow: 0 10px 30px rgba(0,0,0,0.08);
+
+  /* Warm cream theme (auth / landing) */
+  --pl-primary: #B8860B;
+  --pl-bg: #FFF7E6;
+  --pl-text: #1F2933;
+  --pl-text-secondary: #6B7280;
+  --pl-text-muted: #9CA3AF;
+  --pl-link: #B8860B;
+  --pl-link-hover: #9A7209;
+  --pl-border: #F0E0B8;
+  --pl-surface: rgba(255, 247, 230, 0.95);
+  --pl-surface-strong: #FFFBF5;
+  --pl-disabled: #CBD5E1;
+  --pl-accent-orange: #E0B767;
 }
 
 .testimonial-section {

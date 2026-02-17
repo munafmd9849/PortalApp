@@ -37,16 +37,24 @@ const ResumeTemplate2 = ({ student }) => {
   // Parse education
   const education = student.education || [];
 
+  const formatCgpa = (v) => {
+    if (v == null || v === '') return '';
+    const n = parseFloat(String(v).trim().replace(/,/g, ''));
+    return Number.isNaN(n) ? String(v) : n.toFixed(1);
+  };
+
   return (
     <div className="resume-template-2" style={{ 
       fontFamily: 'Georgia, serif',
       fontSize: '11pt',
       lineHeight: '1.5',
       color: '#000',
+      width: '100%',
       maxWidth: '8.5in',
       margin: '0 auto',
       padding: '0.6in',
-      backgroundColor: '#fff'
+      backgroundColor: '#fff',
+      boxSizing: 'border-box'
     }}>
       {/* Header */}
       <div style={{ marginBottom: '25px', textAlign: 'center', borderBottom: '3px solid #333', paddingBottom: '15px' }}>
@@ -87,25 +95,7 @@ const ResumeTemplate2 = ({ student }) => {
         </div>
       )}
 
-      {/* Skills */}
-      {skills.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ 
-            fontSize: '13pt', 
-            fontWeight: 'bold', 
-            marginBottom: '10px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            Technical Skills
-          </h2>
-          <div style={{ paddingLeft: '10px' }}>
-            {skills.join(' • ')}
-          </div>
-        </div>
-      )}
-
-      {/* Experience */}
+      {/* Experience - ATS order: before Education and Skills */}
       {experiences.length > 0 && (
         <div style={{ marginBottom: '20px' }}>
           <h2 style={{ 
@@ -129,12 +119,69 @@ const ResumeTemplate2 = ({ student }) => {
                 {exp.start} - {exp.end || 'Present'}
               </div>
               {exp.description && (
-                <p style={{ margin: '5px 0 0 0', textAlign: 'justify' }}>
-                  {exp.description}
-                </p>
+                exp.description.includes('\n') ? (
+                  <ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
+                    {exp.description.split(/\n+/).filter(Boolean).map((line, i) => (
+                      <li key={i} style={{ marginBottom: '4px' }}>{line.trim()}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ margin: '5px 0 0 0', textAlign: 'justify' }}>
+                    {exp.description}
+                  </p>
+                )
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Education - ATS order: after Experience */}
+      {education.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{ 
+            fontSize: '13pt', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Education
+          </h2>
+          {education.map((edu, idx) => (
+            <div key={idx} style={{ marginBottom: '12px', paddingLeft: '10px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
+                {edu.degree}
+              </div>
+              <div style={{ fontSize: '11pt', marginBottom: '3px' }}>
+                {edu.institution}
+              </div>
+              {edu.startYear && edu.endYear && (
+                <div style={{ fontSize: '10pt', fontStyle: 'italic', color: '#555' }}>
+                  {edu.startYear} - {edu.endYear}
+                  {edu.cgpa && ` • CGPA: ${formatCgpa(edu.cgpa)}`}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Skills - ATS order: after Education */}
+      {skills.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{ 
+            fontSize: '13pt', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Technical Skills
+          </h2>
+          <div style={{ paddingLeft: '10px' }}>
+            {skills.join(' • ')}
+          </div>
         </div>
       )}
 
@@ -178,37 +225,6 @@ const ResumeTemplate2 = ({ student }) => {
                 <p style={{ margin: '5px 0', textAlign: 'justify' }}>
                   {project.description}
                 </p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Education */}
-      {education.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ 
-            fontSize: '13pt', 
-            fontWeight: 'bold', 
-            marginBottom: '10px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            Education
-          </h2>
-          {education.map((edu, idx) => (
-            <div key={idx} style={{ marginBottom: '12px', paddingLeft: '10px' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>
-                {edu.degree}
-              </div>
-              <div style={{ fontSize: '11pt', marginBottom: '3px' }}>
-                {edu.institution}
-              </div>
-              {edu.startYear && edu.endYear && (
-                <div style={{ fontSize: '10pt', fontStyle: 'italic', color: '#555' }}>
-                  {edu.startYear} - {edu.endYear}
-                  {edu.cgpa && ` • CGPA: ${edu.cgpa}`}
-                </div>
               )}
             </div>
           ))}

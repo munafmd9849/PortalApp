@@ -217,9 +217,11 @@ export default function CreateJob({ onCreated }) {
             : [{ fullName: '', email: '', phone: '' }],
           driveDateText: driveDate ? toDDMMYYYY(driveDate.toISOString()) : '',
           driveDateISO: driveDate ? driveDate.toISOString() : '',
+          driveDateNotDecided: !driveDate,
           applicationDeadlineText: applicationDeadline ? toDDMMYYYY(applicationDeadline.toISOString()) : '',
           applicationDeadlineISO: applicationDeadline ? applicationDeadline.toISOString() : '',
           driveVenues: Array.isArray(jobData.driveVenues) ? jobData.driveVenues : [],
+          reportingTime: jobData.reportingTime || '',
           qualification: jobData.qualification || '',
           specialization: jobData.specialization || '',
           yop: jobData.yop || '',
@@ -246,6 +248,7 @@ export default function CreateJob({ onCreated }) {
           applicationDeadlineText: updates.applicationDeadlineText,
           applicationDeadlineISO: updates.applicationDeadlineISO,
           driveVenues: updates.driveVenues,
+          reportingTime: updates.reportingTime,
         });
 
         setForm(updates);
@@ -304,6 +307,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: draft.applicationDeadlineText || '',
         applicationDeadlineISO: draft.applicationDeadlineISO || '',
         driveVenues: Array.isArray(draft.driveVenues) ? draft.driveVenues : [],
+        reportingTime: draft.reportingTime || '',
         qualification: draft.qualification || '',
         specialization: draft.specialization || '',
         yop: draft.yop || '',
@@ -329,6 +333,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: updates.applicationDeadlineText,
         applicationDeadlineISO: updates.applicationDeadlineISO,
         driveVenues: updates.driveVenues,
+        reportingTime: updates.reportingTime,
       });
 
       // Update form
@@ -406,9 +411,11 @@ export default function CreateJob({ onCreated }) {
     spocs: [{ fullName: '', email: '', phone: '' }],
     driveDateText: '',
     driveDateISO: '',
+    driveDateNotDecided: false,
     applicationDeadlineText: '',
     applicationDeadlineISO: '',
     driveVenues: [],
+    reportingTime: '',
     qualification: '',
     specialization: '',
     yop: '',
@@ -435,6 +442,7 @@ export default function CreateJob({ onCreated }) {
     applicationDeadlineText: '',
     applicationDeadlineISO: '',
     driveVenues: [],
+    reportingTime: '',
   });
 
   // Handle JD file upload (PDF/DOC parsing)
@@ -590,12 +598,16 @@ export default function CreateJob({ onCreated }) {
     
     // === SECTION 2: DRIVE INFORMATION ===
     if (jobData.driveDate) {
-      // Handle drive date conversion
       const dateStr = jobData.driveDate;
       if (dateStr.includes('/')) {
         updates.driveDateText = dateStr;
         updates.driveDateISO = toISOFromDDMMYYYY(dateStr);
       }
+      updates.driveDateNotDecided = false;
+    } else {
+      updates.driveDateNotDecided = true;
+      updates.driveDateText = '';
+      updates.driveDateISO = '';
     }
     
     if (jobData.driveVenue) {
@@ -698,7 +710,7 @@ export default function CreateJob({ onCreated }) {
     
     // Conditional requirement based on job type
     const comp = form.jobType === 'Internship'
-      ? form.stipend?.trim() && form.duration?.trim()
+      ? form.stipend?.trim() && form.duration?.trim() // For internships, stipend is required (free text) along with duration
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
     
     // Validation checks (format/error checks)
@@ -716,10 +728,11 @@ export default function CreateJob({ onCreated }) {
   const isDriveDetailsComplete = useMemo(() => {
     const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
     const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
-    // Check both form and driveDraft for venues to handle sync issues
     const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
-    return hasDriveDate && hasApplicationDeadline && hasVenues;
-  }, [form.driveDateISO, form.driveDateText, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
+    // Drive date is either "not decided" (TBD) or a specific date
+    const driveDateOk = form.driveDateNotDecided || hasDriveDate;
+    return driveDateOk && hasApplicationDeadline && hasVenues;
+  }, [form.driveDateISO, form.driveDateText, form.driveDateNotDecided, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
     return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
@@ -784,12 +797,8 @@ export default function CreateJob({ onCreated }) {
   };
 
   const onStipendChange = (value) => {
-    if (value === '' || isValidNumeric(value)) {
-      update({ stipend: value });
-      setStipendError('');
-    } else {
-      setStipendError('Please enter the amount');
-    }
+    update({ stipend: value });
+    setStipendError('');
   };
 
   const onDurationChange = (value) => {
@@ -803,12 +812,8 @@ export default function CreateJob({ onCreated }) {
   };
 
   const onSalaryChange = (value) => {
-    if (value === '' || isValidNumeric(value.replace(/[,]/g, ''))) {
-      update({ salary: value });
-      setSalaryError('');
-    } else {
-      setSalaryError('Please enter the amount');
-    }
+    update({ salary: value });
+    setSalaryError('');
   };
 
   const onCompanyLocationChange = (value) => {
@@ -1115,10 +1120,11 @@ export default function CreateJob({ onCreated }) {
       gapAllowed: form.gapAllowed || '',
       gapYears: form.gapYears || '',
       backlogs: form.backlogs || '',
-      // Drive details - check both form and driveDraft states for consistency
-      driveDate: form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null,
+      // Drive details - drive date optional (null = "To be announced")
+      driveDate: form.driveDateNotDecided ? null : (form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null),
       applicationDeadline: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText) || null,
       driveVenues: (Array.isArray(form.driveVenues) && form.driveVenues.length > 0) ? form.driveVenues : (Array.isArray(driveDraft.driveVenues) ? driveDraft.driveVenues : []),
+      reportingTime: (form.reportingTime || driveDraft.reportingTime || '').trim() || null,
       // Pre-Interview Requirements
       requiresScreening: form.requiresScreening || false,
       requiresTest: form.requiresTest || false,
@@ -1160,6 +1166,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: form.applicationDeadlineText || driveDraft.applicationDeadlineText || '',
         applicationDeadlineISO: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || '',
         driveVenues: form.driveVenues.length > 0 ? form.driveVenues : driveDraft.driveVenues,
+        reportingTime: form.reportingTime || driveDraft.reportingTime || '',
       };
       await saveJobDraft(payload);
       // Reload drafts list after saving
@@ -1200,6 +1207,7 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineText: '',
         applicationDeadlineISO: '',
         driveVenues: [],
+        reportingTime: '',
         qualification: '',
         specialization: '',
         yop: '',
@@ -1225,6 +1233,7 @@ export default function CreateJob({ onCreated }) {
         driveDateText: '',
         driveDateISO: '',
         driveVenues: [],
+        reportingTime: '',
       });
 
       setCollapsedSections(new Set());
@@ -1341,7 +1350,7 @@ export default function CreateJob({ onCreated }) {
         const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
         const hasApplicationDeadline = !!(form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText));
         const hasVenues = (form.driveVenues?.length > 0) || (driveDraft.driveVenues?.length > 0);
-        if (!hasDriveDate) details.push('• Drive Date');
+        if (!form.driveDateNotDecided && !hasDriveDate) details.push('• Drive Date (or check "Drive date not decided")');
         if (!hasApplicationDeadline) details.push('• Application Deadline');
         if (!hasVenues) details.push('• Drive Venue (at least one)');
       }
@@ -1519,7 +1528,7 @@ export default function CreateJob({ onCreated }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Custom Calendar Styles */}
       <style>{`
         .react-datepicker {
@@ -1564,16 +1573,16 @@ export default function CreateJob({ onCreated }) {
       `}</style>
 
       {/* Header - ALWAYS VISIBLE */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-6">
-        <div className="flex items-start gap-4">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-shrink-0">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
               <Briefcase className="w-6 h-6 text-white" />
             </div>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                 {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
               </h2>
               <div className="flex items-center gap-3">
@@ -1973,10 +1982,11 @@ export default function CreateJob({ onCreated }) {
                         Stipend <span className="text-red-500">*</span>
                       </label>
                       <input 
+                        type="text"
                         className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                           stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                         }`} 
-                        placeholder="₹ per month (e.g. 15000)" 
+                        placeholder="e.g. ₹15000 per month, As per performance, As per industry standards" 
                         value={form.stipend} 
                         onChange={(e) => onStipendChange(e.target.value)} 
                       />
@@ -2005,10 +2015,11 @@ export default function CreateJob({ onCreated }) {
                       Salary (CTC) <span className="text-red-500">*</span>
                     </label>
                     <input 
+                      type="text"
                       className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                         salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                       }`} 
-                      placeholder="₹ per annum (e.g. 12,00,000)" 
+                      placeholder="e.g. 12 LPA, 10–15 LPA, As per industry standards" 
                       value={form.salary} 
                       onChange={(e) => onSalaryChange(e.target.value)} 
                     />
@@ -2095,10 +2106,11 @@ export default function CreateJob({ onCreated }) {
 
                 {/* Company SPOC Subsection */}
                 <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <Users size={18} className="text-indigo-600" />
                     <h4 className="text-md font-semibold text-gray-900">Company SPOC</h4>
                   </div>
+                  <p className="text-sm text-gray-500 mb-4">Single Point of Contact for this job—the person candidates or the placement team can reach for queries (e.g. HR, recruiter, or hiring manager).</p>
                   {(Array.isArray(form.spocs) ? form.spocs : [{ fullName: '', email: '', phone: '' }]).map((spoc, idx) => (
                     <div key={idx} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
@@ -2198,42 +2210,62 @@ export default function CreateJob({ onCreated }) {
             {!isSectionCollapsed('drive') && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Drive Date with DatePicker */}
+                  {/* Drive Date with DatePicker or "Not decided" */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                       <FaCalendarAlt className="w-4 h-4 text-green-600" />
-                      Drive Date <span className="text-red-500">*</span>
+                      Drive Date
                     </label>
-                    <div className="relative">
-                      <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5 pointer-events-none z-10" />
-                      <DatePicker
-                        selected={driveDraft.driveDateISO ? new Date(driveDraft.driveDateISO) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            const isoDate = date.toISOString();
-                            const formattedDate = toDDMMYYYY(isoDate);
-                            setDriveDraft(prev => ({
-                              ...prev,
-                              driveDateISO: isoDate,
-                              driveDateText: formattedDate
-                            }));
-                            update({ driveDateISO: isoDate, driveDateText: formattedDate });
-                          } else {
-                            setDriveDraft(prev => ({
-                              ...prev,
-                              driveDateISO: '',
-                              driveDateText: ''
-                            }));
+                    {!form.driveDateNotDecided ? (
+                      <div className="relative mb-2">
+                        <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5 pointer-events-none z-10" />
+                        <DatePicker
+                          selected={driveDraft.driveDateISO ? new Date(driveDraft.driveDateISO) : null}
+                          onChange={(date) => {
+                            if (date) {
+                              const isoDate = date.toISOString();
+                              const formattedDate = toDDMMYYYY(isoDate);
+                              setDriveDraft(prev => ({
+                                ...prev,
+                                driveDateISO: isoDate,
+                                driveDateText: formattedDate
+                              }));
+                              update({ driveDateISO: isoDate, driveDateText: formattedDate });
+                            } else {
+                              setDriveDraft(prev => ({
+                                ...prev,
+                                driveDateISO: '',
+                                driveDateText: ''
+                              }));
+                              update({ driveDateISO: '', driveDateText: '' });
+                            }
+                          }}
+                          dateFormat="dd/MM/yyyy"
+                          placeholderText="Select drive date"
+                          minDate={new Date()}
+                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                          wrapperClassName="w-full"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic mb-2">Drive date will show as &quot;To be announced&quot;. You can set it later when decided.</p>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.driveDateNotDecided}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          update({ driveDateNotDecided: checked });
+                          if (checked) {
+                            setDriveDraft(prev => ({ ...prev, driveDateISO: '', driveDateText: '' }));
                             update({ driveDateISO: '', driveDateText: '' });
                           }
                         }}
-                        dateFormat="dd/MM/yyyy"
-                        placeholderText="Select drive date"
-                        minDate={new Date()}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
-                        wrapperClassName="w-full"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                    </div>
+                      <span className="text-sm text-gray-700">Drive date not decided (TBD)</span>
+                    </label>
                   </div>
 
                   {/* Application Deadline with DatePicker */}
@@ -2279,13 +2311,15 @@ export default function CreateJob({ onCreated }) {
                   </div>
                 </div>
 
-                {/* Drive Venue Multi-Select Dropdown */}
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <MapPin size={16} className="text-green-600" />
-                    Drive Venue <span className="text-red-500">*</span>
-                  </label>
-                  <div ref={venueDropdownRef} className="relative">
+                {/* Drive Venue & Reporting Time - side by side */}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Drive Venue Multi-Select Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <MapPin size={16} className="text-green-600" />
+                      Drive Venue <span className="text-red-500">*</span>
+                    </label>
+                    <div ref={venueDropdownRef} className="relative">
                       <button
                         type="button"
                         className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
@@ -2326,6 +2360,27 @@ export default function CreateJob({ onCreated }) {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Reporting Time */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Clock size={16} className="text-green-600" />
+                      Reporting Time
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 9:00 AM"
+                      value={form.reportingTime || driveDraft.reportingTime || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        update({ reportingTime: val });
+                        setDriveDraft((d) => ({ ...d, reportingTime: val }));
+                      }}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Time candidates should report on the drive date</p>
+                  </div>
                 </div>
               </>
             )}
@@ -2383,17 +2438,27 @@ export default function CreateJob({ onCreated }) {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Calendar size={16} className="text-gray-500" />
+                      <FaCalendarAlt className="w-4 h-4 text-amber-600" />
                       Year of Passing <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.yop?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 2025 or 25" 
-                      value={form.yop} 
-                      onChange={(e) => onYopChange(e.target.value)} 
-                    />
+                    <div className="relative">
+                      <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-500 w-5 h-5 pointer-events-none z-10" />
+                      <DatePicker
+                        selected={form.yop?.trim() ? (() => {
+                          const y = parseInt(form.yop, 10);
+                          return isNaN(y) ? null : new Date(y < 100 ? 2000 + y : y, 0, 1);
+                        })() : null}
+                        onChange={(date) => update({ yop: date ? String(date.getFullYear()) : '' })}
+                        showYearPicker
+                        dateFormat="yyyy"
+                        placeholderText="Select year"
+                        yearItemNumber={12}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+                        wrapperClassName="w-full"
+                        minDate={new Date(2020, 0, 1)}
+                        maxDate={new Date(2035, 11, 31)}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -2401,7 +2466,7 @@ export default function CreateJob({ onCreated }) {
                       Minimum CGPA/Percentage <span className="text-red-500">*</span>
                     </label>
                     <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
+                      className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
                         minCgpaError ? 'border-red-500 bg-red-50' : form.minCgpa?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                       }`} 
                       placeholder="e.g. 7.0 or 70%" 

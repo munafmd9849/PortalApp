@@ -391,26 +391,18 @@ export async function createJob(req, res) {
       });
     }
 
-    if (!jobData.driveDate) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Drive date is required',
-        field: 'driveDate',
-        message: 'Drive date is required. Interview sessions cannot start before this date.'
-      });
-    }
-
-    // CRITICAL: Validate driveDate must be AFTER applicationDeadline
-    const deadline = new Date(jobData.applicationDeadline);
-    const driveDate = new Date(jobData.driveDate);
-    
-    if (driveDate <= deadline) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Invalid date configuration',
-        field: 'driveDate',
-        message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
-      });
+    // Drive date is optional ("Not decided" / TBD). When provided, it must be after application deadline.
+    if (jobData.driveDate) {
+      const deadline = new Date(jobData.applicationDeadline);
+      const driveDate = new Date(jobData.driveDate);
+      if (driveDate <= deadline) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid date configuration',
+          field: 'driveDate',
+          message: 'Drive date must be after the application deadline. Interviews happen after applications close.'
+        });
+      }
     }
 
     // Validate all emails
@@ -594,6 +586,7 @@ export async function createJob(req, res) {
       jobType: mappedData.jobType || null,
       workMode: mappedData.workMode || null,
       experienceLevel: mappedData.experienceLevel || null,
+      reportingTime: (mappedData.reportingTime && String(mappedData.reportingTime).trim() !== '') ? String(mappedData.reportingTime).trim() : null,
       // Eligibility Requirements
       qualification: mappedData.qualification || null,
       specialization: mappedData.specialization || null,
@@ -602,6 +595,10 @@ export async function createJob(req, res) {
       gapAllowed: mappedData.gapAllowed || null,
       gapYears: mappedData.gapYears || null,
       backlogs: mappedData.backlogs || null,
+      // Interview rounds from job creation (stored for session/rounds sync)
+      ...(jobData.interviewRounds && Array.isArray(jobData.interviewRounds) && jobData.interviewRounds.length > 0
+        ? { interviewRounds: JSON.stringify(jobData.interviewRounds) }
+        : {}),
       // Pre-Interview Requirements
       requiresScreening: mappedData.requiresScreening === true || mappedData.requiresScreening === 'true',
       requiresTest: mappedData.requiresTest === true || mappedData.requiresTest === 'true',
@@ -816,7 +813,11 @@ export async function updateJob(req, res) {
       const oldDriveDate = existingJob.driveDate ? new Date(existingJob.driveDate) : null;
       
       const newDeadline = updateData.applicationDeadline ? new Date(updateData.applicationDeadline) : oldDeadline;
-      const newDriveDate = updateData.driveDate ? new Date(updateData.driveDate) : oldDriveDate;
+      const newDriveDate = updateData.driveDate != null && updateData.driveDate !== ''
+        ? new Date(updateData.driveDate)
+        : (updateData.hasOwnProperty('driveDate') && (updateData.driveDate === null || updateData.driveDate === ''))
+          ? null
+          : oldDriveDate;
 
       // LOG: Old vs new values
       logger.info('📅 [updateJob] Date update request:', {
@@ -826,7 +827,7 @@ export async function updateJob(req, res) {
         oldApplicationDeadline: oldDeadline?.toISOString(),
         newApplicationDeadline: updateData.applicationDeadline ? new Date(updateData.applicationDeadline).toISOString() : 'unchanged',
         oldDriveDate: oldDriveDate?.toISOString(),
-        newDriveDate: updateData.driveDate ? new Date(updateData.driveDate).toISOString() : 'unchanged',
+        newDriveDate: newDriveDate ? newDriveDate.toISOString() : 'null (TBD)',
         timestamp: new Date().toISOString(),
       });
 
@@ -837,15 +838,8 @@ export async function updateJob(req, res) {
         });
       }
 
-      if (!existingJob.driveDate && !updateData.driveDate) {
-        return res.status(400).json({ 
-          error: 'Drive date is required',
-          message: 'Drive date must be set for this job.'
-        });
-      }
-
-      // Enforce: driveDate must be AFTER applicationDeadline
-      if (newDriveDate <= newDeadline) {
+      // Drive date is optional (TBD). When both are set, enforce driveDate > applicationDeadline.
+      if (newDriveDate && newDeadline && newDriveDate <= newDeadline) {
         logger.warn('❌ [updateJob] Invalid date configuration rejected:', {
           jobId,
           applicationDeadline: newDeadline?.toISOString(),
@@ -866,7 +860,7 @@ export async function updateJob(req, res) {
       'companyId', 'recruiterId', 'companyName', 'recruiterEmail', 'recruiterName', 'recruiterEmails',
       'salary', 'ctc', 'salaryRange',
       'location', 'companyLocation', 'driveDate', 'applicationDeadline',
-      'jobType', 'workMode', 'experienceLevel', 'driveVenues',
+      'jobType', 'workMode', 'experienceLevel', 'driveVenues', 'reportingTime',
       'qualification', 'specialization', 'yop', 'minCgpa', 'gapAllowed', 'gapYears', 'backlogs',
       'spocs', 'status', 'isActive', 'isPosted', 'applicationDeadlineMailSent',
       'requiresScreening', 'requiresTest',
@@ -1005,6 +999,7 @@ export async function updateJob(req, res) {
         finalUpdateData.requirements = existingRequirements 
           ? (requirementsText ? `${existingRequirements}\n\n${requirementsText}` : existingRequirements)
           : requirementsText;
+        finalUpdateData.interviewRounds = JSON.stringify(interviewRoundsArray);
       }
     }
     
@@ -1659,7 +1654,9 @@ export async function updateJobAdminNote(req, res) {
 }
 
 /**
- * Update recruiter note for a job (post-drive note, visible in Company History)
+ * Update recruiter note for a job (post–placement-drive note, visible in Company History).
+ * Called when a recruiter adds/edits a note after an interview session for this job has ended.
+ * Correctly maps to the job and the recruiter who owns it (job.recruiterId).
  * PATCH /api/jobs/:jobId/recruiter-note - RECRUITER only, must own the job
  */
 export async function updateJobRecruiterNote(req, res) {

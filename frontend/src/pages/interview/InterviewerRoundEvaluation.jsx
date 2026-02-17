@@ -6,7 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
-import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
+import { Loader, AlertCircle, Save, CheckCircle, XCircle, Clock, ArrowLeft, User, FileText, ExternalLink, Users, Link as LinkIcon, ChevronDown } from 'lucide-react';
 import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import ThankYouPopup from '../../components/common/ThankYouPopup';
 
@@ -26,6 +27,7 @@ const InterviewerRoundEvaluation = () => {
   const [endingRound, setEndingRound] = useState(false);
   const [showThankYouPopup, setShowThankYouPopup] = useState(false);
   const [pendingNavigate, setPendingNavigate] = useState(null);
+  const [openStatusDropdown, setOpenStatusDropdown] = useState(null); // applicationId when open
 
   useEffect(() => {
     if (!token) {
@@ -36,6 +38,16 @@ const InterviewerRoundEvaluation = () => {
 
     loadRoundData();
   }, [roundId, token]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (openStatusDropdown != null && !e.target.closest('.status-dropdown-container')) {
+        setOpenStatusDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openStatusDropdown]);
 
   const loadRoundData = async () => {
     try {
@@ -70,7 +82,7 @@ const InterviewerRoundEvaluation = () => {
       });
       setEvaluations(evalMap);
 
-      // End round only when all candidates are SELECTED or REJECTED (no ON_HOLD)
+      // Round can only end when every candidate is SELECTED or REJECTED (no PENDING, no ON_HOLD)
       const allDecided = list.length > 0 && list.every(
         (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED'].includes(c.evaluation.status)
       );
@@ -215,6 +227,16 @@ const InterviewerRoundEvaluation = () => {
     }
   };
 
+  // Capsule-style status options (spreadsheet-like dropdown)
+  const STATUS_OPTIONS = [
+    { value: 'SELECTED', label: 'Select', bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+    { value: 'REJECTED', label: 'Reject', bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200' },
+    { value: 'ON_HOLD', label: 'On hold', bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+  ];
+
+  const getStatusOption = (status) =>
+    STATUS_OPTIONS.find((o) => o.value === status) || { value: '', label: 'Status', bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -296,6 +318,15 @@ const InterviewerRoundEvaluation = () => {
       {/* Main Content */}
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="max-w-full mx-auto">
+          {/* Banner: on-hold candidates must be changed to Selected or Rejected before ending round */}
+          {candidates.some((c) => c.evaluation?.status === 'ON_HOLD') && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+              <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <p className="text-sm font-medium text-amber-800">
+                You have candidate(s) marked <strong>On hold</strong>. Change each to <strong>Selected</strong> or <strong>Rejected</strong> and click <strong>Update</strong> so you can end the round.
+              </p>
+            </div>
+          )}
           {/* Candidates Table */}
           {candidates.length === 0 ? (
             <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-12 text-center">
@@ -310,9 +341,7 @@ const InterviewerRoundEvaluation = () => {
                   <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                     <tr>
                       <th className="px-4 py-4 text-left text-sm font-bold uppercase tracking-wider">Details</th>
-                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Selected</th>
-                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Rejected</th>
-                      <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">On Hold</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold uppercase tracking-wider">Status</th>
                       <th className="px-4 py-4 text-left text-sm font-bold uppercase tracking-wider">Remarks</th>
                       <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Resume</th>
                       <th className="px-4 py-4 text-center text-sm font-bold uppercase tracking-wider">Profile</th>
@@ -322,7 +351,8 @@ const InterviewerRoundEvaluation = () => {
                   <tbody className="divide-y divide-gray-200">
                     {candidates.map((candidate) => {
                       const evaluation = evaluations[candidate.applicationId] || { status: '', remarks: '' };
-                      const isEvaluated = candidate.evaluation && candidate.evaluation.status;
+                      // Recruiter can change status (Select / Reject / On hold) and remarks until they click "End Round"
+                      const isLocked = false;
                       const isSaving = saving[candidate.applicationId];
 
                       return (
@@ -377,40 +407,38 @@ const InterviewerRoundEvaluation = () => {
                             </div>
                           </td>
 
-                          {/* Selected Column - always editable so on-hold can be changed to accept/reject */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            <input
-                              type="radio"
-                              name={`status-${candidate.applicationId}`}
-                              checked={evaluation.status === 'SELECTED'}
-                              onChange={() => handleStatusChange(candidate.applicationId, 'SELECTED')}
-                              disabled={isSaving}
-                              className="w-5 h-5 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                          </td>
-
-                          {/* Rejected Column */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            <input
-                              type="radio"
-                              name={`status-${candidate.applicationId}`}
-                              checked={evaluation.status === 'REJECTED'}
-                              onChange={() => handleStatusChange(candidate.applicationId, 'REJECTED')}
-                              disabled={isSaving}
-                              className="w-5 h-5 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                          </td>
-
-                          {/* On Hold Column */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            <input
-                              type="radio"
-                              name={`status-${candidate.applicationId}`}
-                              checked={evaluation.status === 'ON_HOLD'}
-                              onChange={() => handleStatusChange(candidate.applicationId, 'ON_HOLD')}
-                              disabled={isSaving}
-                              className="w-5 h-5 text-yellow-600 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
+                          {/* Status column: capsule dropdown (spreadsheet-style) */}
+                          <td className="px-4 py-4 align-top">
+                            <div className="relative inline-block status-dropdown-container">
+                              <button
+                                type="button"
+                                onClick={() => !isLocked && !isSaving && setOpenStatusDropdown((prev) => (prev === candidate.applicationId ? null : candidate.applicationId))}
+                                disabled={isLocked || isSaving}
+                                className={`inline-flex items-center gap-1.5 min-w-[120px] rounded-full px-3 py-1.5 text-sm font-medium border transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${evaluation.status ? `${getStatusOption(evaluation.status).bg} ${getStatusOption(evaluation.status).text} ${getStatusOption(evaluation.status).border} border` : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                              >
+                                <span>{evaluation.status ? getStatusOption(evaluation.status).label : 'Status'}</span>
+                                {!isLocked && !isSaving && (
+                                  <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${openStatusDropdown === candidate.applicationId ? 'rotate-180' : ''}`} />
+                                )}
+                              </button>
+                              {openStatusDropdown === candidate.applicationId && (
+                                <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-xl bg-white border border-gray-200 shadow-lg min-w-[140px]">
+                                  {STATUS_OPTIONS.map((opt) => (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      onClick={() => {
+                                        handleStatusChange(candidate.applicationId, opt.value);
+                                        setOpenStatusDropdown(null);
+                                      }}
+                                      className={`w-full text-left rounded-full px-3 py-2 text-sm font-medium ${opt.bg} ${opt.text} border ${opt.border} mx-1 mb-0.5 last:mb-0 hover:opacity-90 transition-opacity`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </td>
 
                           {/* Remarks Column - always editable so on-hold can be updated to accept/reject with remarks */}
@@ -418,7 +446,7 @@ const InterviewerRoundEvaluation = () => {
                             <textarea
                               value={evaluation.remarks}
                               onChange={(e) => handleRemarksChange(candidate.applicationId, e.target.value)}
-                              disabled={isSaving}
+                              disabled={isLocked || isSaving}
                               rows={3}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
                               placeholder="Enter remarks..."
@@ -426,10 +454,13 @@ const InterviewerRoundEvaluation = () => {
                             {(evaluation.status === 'REJECTED' || evaluation.status === 'ON_HOLD') && !evaluation.remarks?.trim() && (
                               <p className="text-xs text-red-600 mt-1">Remarks required</p>
                             )}
-                            {isEvaluated && candidate.evaluation?.status && (
+                            {candidate.evaluation?.status && (
                               <div className="mt-2 flex items-center gap-1 text-xs">
                                 {getStatusIcon(candidate.evaluation.status)}
                                 <span className="font-medium text-gray-700">{candidate.evaluation.status}</span>
+                                {candidate.evaluation.status === 'ON_HOLD' && (
+                                  <span className="text-amber-600">— change to Selected/Rejected and Save to end round</span>
+                                )}
                               </div>
                             )}
                           </td>
@@ -438,7 +469,18 @@ const InterviewerRoundEvaluation = () => {
                           <td className="px-4 py-4 text-center whitespace-nowrap">
                             {candidate.student.resumeUrl ? (
                               <button
-                                onClick={() => {
+                                onClick={async () => {
+                                  try {
+                                    const result = await api.getApplicationResumeViewUrl(candidate.applicationId);
+                                    const path = result?.url || result?.data?.url;
+                                    if (path) {
+                                      const base = API_BASE_URL.replace(/\/api\/?$/, '');
+                                      const viewUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+                                      const w = window.open(viewUrl, '_blank');
+                                      if (w) w.focus();
+                                      return;
+                                    }
+                                  } catch (_) { /* fallback */ }
                                   const pdfWindow = window.open(candidate.student.resumeUrl, '_blank');
                                   if (pdfWindow) pdfWindow.focus();
                                 }}
@@ -470,7 +512,7 @@ const InterviewerRoundEvaluation = () => {
                             )}
                           </td>
 
-                          {/* Action Column - always show Save/Update so on-hold can be changed to accept/reject */}
+                          {/* Action Column - always allow Save/Update until round is ended */}
                           <td className="px-4 py-4 text-center whitespace-nowrap">
                             <button
                               onClick={() => handleSaveEvaluation(candidate.applicationId)}
@@ -485,7 +527,7 @@ const InterviewerRoundEvaluation = () => {
                               ) : (
                                 <>
                                   <Save className="w-4 h-4" />
-                                  <span className="hidden sm:inline">{isEvaluated ? 'Update' : 'Save'}</span>
+                                  <span className="hidden sm:inline">{candidate.evaluation?.status ? 'Update' : 'Save'}</span>
                                 </>
                               )}
                             </button>

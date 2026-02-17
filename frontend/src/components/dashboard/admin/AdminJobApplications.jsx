@@ -189,7 +189,7 @@ export default function AdminJobApplications() {
   const totalPages = payload?.pagination?.totalPages ?? null;
 
   return (
-    <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 p-8">
+    <div className="space-y-4 sm:space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 sm:p-6 md:p-8 overflow-x-hidden">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -404,7 +404,7 @@ export default function AdminJobApplications() {
             </button>
           </div>
         ) : loading ? (
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="h-5 w-56 bg-slate-200 rounded animate-pulse mb-4" />
             <div className="overflow-x-auto">
               <table className="min-w-full">

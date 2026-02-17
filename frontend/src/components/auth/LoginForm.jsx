@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { showError } from '../../utils/toast';
 
 export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole = 'student' }) {
   const { login, loginWithGoogle } = useAuth();
@@ -7,42 +8,38 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
   const [password, setPassword] = useState('');
   const [role, setRole] = useState(defaultRole);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
     try {
       const result = await login(email, password, role);
       
-      // Handle admin pending approval
       if (result.status === 'pending' && result.role === 'admin') {
-        setError('Your admin access is pending approval from the Super Admin.');
+        showError('Your admin access is pending approval from the Super Admin.');
         return;
       }
       
       if (result.status === 'rejected') {
-        setError('Admin access denied.');
+        showError('Admin access denied.');
         return;
       }
       
       onSuccess?.(result.user);
     } catch (err) {
-      setError(err.message || 'Login failed');
+      showError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogle = async () => {
-    setError('');
     setLoading(true);
     try {
       const loggedInUser = await loginWithGoogle();
       onSuccess?.(loggedInUser);
     } catch (err) {
-      setError(err.message || 'Google sign-in failed');
+      showError(err.message || 'Google sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -63,8 +60,6 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      
       {/* Role Selection */}
       <div>
         <label className="block text-sm font-medium mb-1">Login as:</label>

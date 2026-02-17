@@ -522,9 +522,9 @@ const EducationSection = ({ isAdminView = false }) => {
 
   return (
     <div className="w-full">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] pt-1 pb-4 px-3 sm:px-6 transition-all duration-200 shadow-lg">
 
-        <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
+        <legend className="text-base sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text select-none">
           Education
         </legend>
 
@@ -587,7 +587,7 @@ const EducationSection = ({ isAdminView = false }) => {
             {educationEntries.map((education, index) => (
               <div
                 key={education.id}
-                className={`group/edu-row flex flex-col md:grid md:grid-cols-4 gap-3 md:gap-4 p-3 sm:p-4 rounded-xl relative
+                className={`group/edu-row flex flex-col md:grid md:grid-cols-4 gap-2 md:gap-4 p-2.5 sm:p-4 rounded-xl relative
                   bg-gradient-to-r 
                   ${index % 2 !== 0 ? 'from-gray-50 to-gray-100' : 'from-[#f0f8fa] to-[#e6f3f8]'}
                   hover:shadow-md transition ${
@@ -595,31 +595,31 @@ const EducationSection = ({ isAdminView = false }) => {
                   }`}
                 onClick={editMode ? () => handleEditClick(education) : undefined}
               >
-                {/* Mobile Layout */}
-                <div className="md:hidden space-y-2">
-                  <div>
-                    <span className="text-base font-semibold text-black block">
+                {/* Mobile Layout - compact text and padding */}
+                <div className="md:hidden space-y-1.5 min-w-0">
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold text-black block truncate" title={education.institute}>
                       {education.institute}
                     </span>
                     {[education.city, education.state].filter(Boolean).length > 0 && (
-                      <span className="text-sm italic text-gray-600">
+                      <span className="text-xs italic text-gray-600 truncate block">
                         {[education.city, education.state].filter(Boolean).join(', ')}
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs min-w-0">
+                    <div className="min-w-0">
                       <span className="text-gray-500">Qualification:</span>
-                      <span className="ml-1 text-black font-medium">{education.branch || 'N/A'}</span>
+                      <span className="ml-1 text-black font-medium truncate block">{education.branch || 'N/A'}</span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-gray-500">YOP:</span>
-                      <span className="ml-1 text-black font-medium">{education.yop || 'N/A'}</span>
+                      <span className="ml-1 text-black font-medium truncate block">{education.yop || 'N/A'}</span>
                     </div>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Score:</span>
-                    <span className="ml-1 text-black font-medium">
+                  <div className="text-xs min-w-0 flex items-baseline gap-1">
+                    <span className="text-gray-500 flex-shrink-0">Score:</span>
+                    <span className="truncate text-black font-medium" title={education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : ''}>
                       {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
                     </span>
                   </div>
@@ -627,32 +627,34 @@ const EducationSection = ({ isAdminView = false }) => {
 
                 {/* Desktop Layout */}
                 <>
-                  <div className="hidden md:flex flex-col">
-                    <span className="text-sm lg:text-base font-bold text-gray-900">
+                  <div className="hidden md:flex flex-col min-w-0 overflow-hidden">
+                    <span className="text-sm lg:text-base font-bold text-gray-900 truncate" title={education.institute}>
                       {education.institute}
                     </span>
                     {[education.city, education.state].filter(Boolean).length > 0 && (
                       <div className="overflow-hidden max-h-0 group-hover/edu-row:max-h-6 transition-all duration-300 ease-in-out">
-                        <span className="text-xs lg:text-sm italic text-gray-600 block">
+                        <span className="text-xs lg:text-sm italic text-gray-600 block truncate">
                           {[education.city, education.state].filter(Boolean).join(', ')}
                         </span>
                       </div>
                     )}
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
-                    {education.branch}
+                  <div className="hidden md:flex items-center text-sm lg:text-base font-semibold text-gray-800 min-w-0 overflow-hidden">
+                    <span className="truncate" title={education.branch}>{education.branch}</span>
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-semibold text-gray-800 flex items-center">
-                    {education.yop}
+                  <div className="hidden md:flex items-center text-sm lg:text-base font-semibold text-gray-800 min-w-0 overflow-hidden">
+                    <span className="truncate" title={education.yop}>{education.yop}</span>
                   </div>
-                  <div className="hidden md:block text-sm lg:text-base font-bold text-gray-900 flex items-center">
-                    {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
+                  <div className="hidden md:flex items-center text-sm lg:text-base font-bold text-gray-900 min-w-0 overflow-hidden">
+                    <span className="truncate" title={education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : ''}>
+                      {education.score && education.scoreType ? `${education.score} ${education.scoreType === 'CGPA' ? 'CGPA' : '%'}` : 'N/A'}
+                    </span>
                   </div>
                 </>
                 
                 {/* Edit and Delete buttons - only visible in edit mode */}
                 {editMode && (
-                  <div className="absolute top-2 right-2 flex gap-1 z-10">
+                  <div className="absolute top-1.5 right-1.5 md:top-2 md:right-2 flex gap-1 z-10">
                     <button
                       type="button"
                       className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 touch-manipulation"
@@ -664,7 +666,7 @@ const EducationSection = ({ isAdminView = false }) => {
                       }}
                       disabled={loading}
                     >
-                      <Edit3 className="h-4 w-4" />
+                      <Edit3 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                     </button>
                     <button
                       type="button"
@@ -677,7 +679,7 @@ const EducationSection = ({ isAdminView = false }) => {
                       }}
                       disabled={loading}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                     </button>
                   </div>
                 )}
@@ -688,43 +690,43 @@ const EducationSection = ({ isAdminView = false }) => {
         )}
 
         {showForm && (
-          <div className="mb-4 p-4 border border-gray-300 rounded bg-gray-50">
+          <div className="mb-4 p-3 md:p-4 border border-gray-300 rounded bg-gray-50">
             {/* Row 1: Institute (wider), City, State */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
               <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   Institute Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter institute name"
                   value={currentEdu.institute}
                   onChange={(e) => handleInputChange('institute', e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   City <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="City"
                   value={currentEdu.city}
                   onChange={(e) => handleInputChange('city', e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   State <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="State"
                   value={currentEdu.state}
                   onChange={(e) => handleInputChange('state', e.target.value)}
@@ -733,22 +735,22 @@ const EducationSection = ({ isAdminView = false }) => {
             </div>
 
             {/* Row 2: Branch, YOP, ScoreType dropdown, Score */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   Qualification/Branch <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., CSE, 12th, 10th"
                   value={currentEdu.branch}
                   onChange={(e) => handleInputChange('branch', e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   Year of Passing <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -757,14 +759,14 @@ const EducationSection = ({ isAdminView = false }) => {
                   inputMode="numeric"
                   min="1900"
                   max="2099"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="YYYY"
                   value={currentEdu.yop}
                   onChange={(e) => handleInputChange('yop', e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   Score Type <span className="text-red-500">*</span>
                 </label>
                 <CustomDropdown
@@ -781,7 +783,7 @@ const EducationSection = ({ isAdminView = false }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
                   {currentEdu.scoreType} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -790,7 +792,7 @@ const EducationSection = ({ isAdminView = false }) => {
                   step={currentEdu.scoreType === 'CGPA' ? '0.01' : '0.1'}
                   min={currentEdu.scoreType === 'CGPA' ? '0' : '0'}
                   max={currentEdu.scoreType === 'CGPA' ? '10' : '100'}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={currentEdu.scoreType === 'CGPA' ? 'e.g., 8.4' : 'e.g., 80.4'}
                   value={currentEdu.score}
                   onChange={(e) => handleInputChange('score', e.target.value)}
@@ -798,19 +800,19 @@ const EducationSection = ({ isAdminView = false }) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-xs text-gray-600">Entry {educationEntries.length + (editingId ? 0 : 1)} of 4</p>
               <div className="flex space-x-2">
                 <button
                   onClick={saveEducation}
-                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm disabled:opacity-50"
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-md hover:bg-blue-700 text-xs md:text-sm disabled:opacity-50 touch-manipulation"
                   disabled={loading}
                 >
                   {loading ? 'Saving...' : 'Save Education'}
                 </button>
                 <button
                   onClick={cancelEdit}
-                  className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+                  className="px-3 py-1.5 md:px-4 md:py-2 rounded bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs md:text-base touch-manipulation"
                 >
                   Cancel
                 </button>

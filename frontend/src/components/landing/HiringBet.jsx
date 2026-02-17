@@ -11,13 +11,13 @@ const HiringBet = ({ userSelection = 'SOT' }) => {
   const getWordsBySelection = (selection) => {
     switch (selection) {
       case 'SOT': // Software Development
-        return ["framework","tool", "API", "library"," language","tech-stack"];
+        return ["framework", "tool", "API", "library", "language", "tech-stack", "AI Assistant", "ML Model"];
       case 'SOM': // Software Management
         return ["case study", "algorithm", "metric"];
       case 'SOH': // Software Healthcare
         return ["EMR", "procedure", "diagnosis", "treatment"];
       default:
-        return ["framework","tool", "API", "languages"];
+        return ["framework", "tool", "API", "languages"];
     }
   };
 

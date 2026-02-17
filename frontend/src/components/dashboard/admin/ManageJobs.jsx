@@ -61,6 +61,13 @@ export default function ManageJobs() {
   const [selectedBatches, setSelectedBatches] = useState({});
   const [selectedCenters, setSelectedCenters] = useState({});
   const [activeFilter, setActiveFilter] = useState('in_review'); // Default to in_review to show jobs pending approval
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PER_PAGE = 10;
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setJobsPage(1);
+  }, [activeFilter]);
 
   // Filter options state
   const [schoolOptions, setSchoolOptions] = useState([]);
@@ -753,11 +760,11 @@ export default function ManageJobs() {
   const postedCount = allManageJobs.filter(job => isJobPosted(job)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Header with Statistics */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Manage & Post Jobs</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Manage & Post Jobs</h2>
           <p className="text-sm text-slate-600 mt-1">
             Select target schools and batches, then post jobs to students
           </p>
@@ -765,11 +772,11 @@ export default function ManageJobs() {
       </div>
 
       {/* Filter Buttons - Show both IN_REVIEW and POSTED sections */}
-      <div className="flex justify-center mb-6">
-        <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex gap-2">
+      <div className="flex justify-center mb-4 sm:mb-6">
+        <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex flex-wrap justify-center gap-2">
           <button
             onClick={() => setActiveFilter('in_review')}
-            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'in_review'
+            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'in_review'
               ? 'bg-blue-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
@@ -778,7 +785,7 @@ export default function ManageJobs() {
           </button>
           <button
             onClick={() => setActiveFilter('posted')}
-            className={`px-6 py-2 rounded-md font-medium transition-all duration-200 ${activeFilter === 'posted'
+            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'posted'
               ? 'bg-green-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
@@ -815,17 +822,27 @@ export default function ManageJobs() {
             </div>
           )}
 
-          {getSortedJobs().map((job, index) => {
+          {(() => {
+            const allJobs = getSortedJobs();
+            const totalJobs = allJobs.length;
+            const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+            const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+            const start = (currentPage - 1) * JOBS_PER_PAGE;
+            const paginatedJobs = allJobs.slice(start, start + JOBS_PER_PAGE);
+            
+            return (
+              <>
+                {paginatedJobs.map((job, index) => {
             const jobStatus = isJobPosted(job) ? getJobStatus(job) : null;
 
             return (
-              <div key={job.id} className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-4 ${isJobPosted(job) ? 'bg-green-50' : 'bg-blue-50'
+              <div key={job.id} className={`relative border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-4 mx-2 sm:mx-4 ${isJobPosted(job) ? 'bg-green-50' : 'bg-blue-50'
                 }`}>
-                <div className="p-4">
-                  {/* First Row: Company, Interview Date, School, Batch, Center, Actions */}
-                  <div className="flex items-center justify-between gap-4">
+                <div className="p-3 sm:p-4">
+                  {/* First Row: Company, Interview Date, School, Batch, Center - stack on mobile */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
                     {/* Company - STATUS BADGE BACK HERE */}
-                    <div className="flex-4 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2 -mt-2">
                         <Building2 className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Company</span>
@@ -837,17 +854,17 @@ export default function ManageJobs() {
                           </span>
                         )}
                       </div>
-                      <div className="font-semibold text-slate-900 text-xl truncate ml-[5%]">
+                      <div className="font-semibold text-slate-900 text-lg sm:text-xl truncate md:ml-[5%]">
                         {job.company?.name || job.companyName || job.company || 'N/A'}
                       </div>
                     </div>
 
-                    {/* Interview Date */}
-                    <div className="flex-1 min-w-0">
+                    {/* Interview Date - full width on mobile */}
+                    <div className="w-full md:w-28 shrink-0">
                       <div className="flex items-center justify-center gap-2 mb-2 -mt-2">
                         <span className="text-sm font-medium text-slate-600">Interview</span>
                       </div>
-                      <div className="text-slate-900 text-sm">
+                      <div className="text-slate-900 text-sm text-center">
                         {job.driveDate ? (
                           job.driveDate.toDate ?
                             job.driveDate.toDate().toLocaleDateString('en-GB') :
@@ -856,26 +873,35 @@ export default function ManageJobs() {
                       </div>
                     </div>
 
-                    {/* School */}
-                    <div className="flex-2 min-w-0">
+                    {/* Dropdowns group: School, Batch, Center - stack on mobile */}
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-1 md:shrink-0">
+                    {/* School - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <GraduationCap className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">School</span>
                       </div>
-                      <div className="relative" ref={el => schoolDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => schoolDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleSchoolDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : 'Select Schools'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showSchools[job.id] && !isJobPosted(job) && (
+                        {showSchools[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {schoolOptions.map((school) => (
                               <label key={school.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -889,28 +915,37 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
                     </div>
-                    {/* Batch */}
-                    <div className="flex-2 min-w-0">
+                    {/* Batch - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <Users className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Batch</span>
                       </div>
-                      <div className="relative" ref={el => batchDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => batchDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleBatchDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : 'Select Batches'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showBatches[job.id] && !isJobPosted(job) && (
+                        {showBatches[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {batchOptions.map((batch) => (
                               <label key={batch.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -924,29 +959,38 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Center */}
-                    <div className="flex-3 min-w-0">
+                    {/* Center - full width on mobile */}
+                    <div className="w-full sm:w-40 shrink-0 min-w-0 sm:min-w-[10rem]">
                       <div className="flex justify-center -translate-x-2 items-center gap-2 mb-1">
                         <MapPin className="w-4 h-4 text-slate-500" />
                         <span className="text-sm font-medium text-slate-600">Center</span>
                       </div>
-                      <div className="relative" ref={el => centerDropdownRefs.current[job.id] = el}>
+                      <div className="relative w-full" ref={el => centerDropdownRefs.current[job.id] = el}>
+                        {isJobPosted(job) ? (
+                          <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
+                            <span className="truncate block">
+                              {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : '—'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
                         <button
                           type="button"
-                          className={`w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
+                          className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left flex items-center justify-between gap-1 ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-blue-100'
                             }`}
                           onClick={() => toggleCenterDropdown(job.id)}
-                          disabled={isJobPosted(job)}
                         >
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : 'Select Centers'}
                           </span>
                           <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         </button>
-                        {showCenters[job.id] && !isJobPosted(job) && (
+                        {showCenters[job.id] && (
                           <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
                             {centerOptions.map((center) => (
                               <label key={center.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
@@ -960,26 +1004,29 @@ export default function ManageJobs() {
                             ))}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
+                    </div>
                     </div>
                   </div>
 
-                  {/* Second Row: Role and Actions - STATUS BADGE REMOVED FROM HERE */}
+                  {/* Second Row: Role and Actions - stack on mobile */}
                   <div className="mt-2 pt-2 border-t border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Briefcase className="w-4 h-4 text-slate-500" />
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Briefcase className="w-4 h-4 text-slate-500 flex-shrink-0" />
                         <span className="text-sm font-medium text-slate-600">Role:</span>
                         <span className="font-semibold text-slate-900 truncate">{job.jobTitle || 'N/A'}</span>
                       </div>
 
                       {/* Post, Share and Delete Actions */}
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex flex-wrap items-center gap-2 md:ml-4">
                         {/* Post Action */}
                         <button
                           onClick={() => handlePostJob(job.id)}
                           disabled={!canPostJob(job) || postingJobs.has(job.id)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center min-w-[120px] ${isJobPosted(job)
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center w-full sm:w-auto sm:min-w-[120px] touch-manipulation ${isJobPosted(job)
                             ? 'bg-green-500 text-white cursor-not-allowed'
                             : postingJobs.has(job.id)
                               ? 'bg-blue-100 text-blue-500 cursor-not-allowed'
@@ -1088,6 +1135,47 @@ export default function ManageJobs() {
               </div>
             );
           })}
+
+                {/* Pagination */}
+                {(() => {
+                  const allJobs = getSortedJobs();
+                  const totalJobs = allJobs.length;
+                  const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+                  const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
+                  const start = (currentPage - 1) * JOBS_PER_PAGE;
+                  
+                  return totalJobs > JOBS_PER_PAGE ? (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 px-4">
+                      <p className="text-sm text-gray-600">
+                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 py-2 text-sm text-gray-700">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </>
+            );
+          })()}
         </div>
       </div>
 

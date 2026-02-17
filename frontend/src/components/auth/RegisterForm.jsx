@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import CustomDropdown from '../common/CustomDropdown';
 import { FaUser } from 'react-icons/fa';
+import { showError } from '../../utils/toast';
 
 export default function RegisterForm({ onSuccess }) {
   const { registerWithEmail } = useAuth();
@@ -9,17 +10,15 @@ export default function RegisterForm({ onSuccess }) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
     try {
       await registerWithEmail({ email, password, role });
       onSuccess?.();
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      showError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -27,7 +26,6 @@ export default function RegisterForm({ onSuccess }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      {error && <p className="text-sm text-red-600">{error}</p>}
       <input className="w-full border px-3 py-2 rounded cursor-text" placeholder="Email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} />
       <input className="w-full border px-3 py-2 rounded cursor-text" placeholder="Password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} />
       <CustomDropdown

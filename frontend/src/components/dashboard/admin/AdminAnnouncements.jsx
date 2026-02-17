@@ -186,10 +186,10 @@ export default function AdminAnnouncements() {
   };
 
   return (
-    <div className="space-y-8 min-h-screen -m-8 p-8" style={{ background: '#fff' }}>
+    <div className="space-y-6 sm:space-y-8 min-h-screen p-4 sm:p-6 md:p-8 overflow-x-hidden" style={{ background: '#fff' }}>
       {/* Header - GenZ / Retro (solid colors) */}
       <div
-        className="rounded-2xl p-6 text-center shadow-lg"
+        className="rounded-2xl p-4 sm:p-6 text-center shadow-lg"
         style={{
           background: COLORS.gold,
           fontFamily: 'system-ui, -apple-system, sans-serif',

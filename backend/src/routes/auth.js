@@ -135,7 +135,7 @@ router.post('/register', [
         await tx.student.create({
           data: {
             userId: createdUser.id,
-            fullName: profile.fullName || createdUser.email, // Use email as fallback for name
+            fullName: (profile.fullName && profile.fullName.trim()) || '', // Name filled in First-time setup, not email
             email: createdUser.email,
             phone: profile.phone || '',
             enrollmentId: enrollmentId, // Can be null initially, user will set it later
@@ -238,13 +238,24 @@ router.post('/login', [
     const role = (selectedRole || roleFromBody) ? (selectedRole || roleFromBody).toUpperCase() : undefined;
 
     // Super Admin: specific email + password → always log in as Super Admin (no role selector on login).
-    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
-    const isSuperAdminLogin = email.toLowerCase() === superAdminEmail;
+    // Note: express-validator's normalizeEmail() removes dots from Gmail addresses
+    // So we need to normalize the super admin email for comparison
+    const superAdminEmailRaw = (process.env.SUPER_ADMIN_EMAIL || 'malhotra.harshikaa@gmail.com').trim().toLowerCase();
+    // Normalize the super admin email the same way express-validator does (remove dots for Gmail)
+    const superAdminEmailNormalized = superAdminEmailRaw.replace(/\.(?=.*@gmail\.com)/g, '');
+    const isSuperAdminLogin = email.toLowerCase() === superAdminEmailNormalized || email.toLowerCase() === superAdminEmailRaw;
 
     let user = null;
     if (isSuperAdminLogin) {
-      user = await prisma.user.findUnique({
-        where: { email },
+      // Try both normalized and original email formats for database lookup
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: email },
+            { email: superAdminEmailRaw },
+            { email: superAdminEmailNormalized }
+          ]
+        },
         include: { student: true, recruiter: true, admin: true },
       });
       if (user && user.role !== 'SUPER_ADMIN') {
@@ -369,6 +380,24 @@ router.post('/login', [
       },
     });
 
+    // For students: treat as completed if DB flag is true OR all required profile fields are filled
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? (() => {
+            const s = user.student;
+            if (!s) return false;
+            if (s.profileCompleted === true) return true;
+            const email = (user.email || '').trim();
+            const fullName = (s.fullName || '').trim();
+            const phone = (s.phone || '').trim();
+            const enrollmentId = (s.enrollmentId || '').trim();
+            const school = (s.school || '').trim();
+            const center = (s.center || '').trim();
+            const batch = (s.batch || '').trim();
+            return !!(email && fullName && phone && enrollmentId && school && center && batch);
+          })()
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -376,6 +405,7 @@ router.post('/login', [
         role: user.role,
         status: user.status,
         emailVerified: user.emailVerified,
+        profileCompleted,
       },
       accessToken,
       refreshToken,
@@ -464,6 +494,24 @@ router.get('/me', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // For students: treat as completed if DB flag is true OR all required profile fields are filled (avoids modal for already-filled profiles)
+    const profileCompleted =
+      user.role === 'STUDENT'
+        ? (() => {
+            const s = user.student;
+            if (!s) return false;
+            if (s.profileCompleted === true) return true;
+            const email = (user.email || '').trim();
+            const fullName = (s.fullName || '').trim();
+            const phone = (s.phone || '').trim();
+            const enrollmentId = (s.enrollmentId || '').trim();
+            const school = (s.school || '').trim();
+            const center = (s.center || '').trim();
+            const batch = (s.batch || '').trim();
+            return !!(email && fullName && phone && enrollmentId && school && center && batch);
+          })()
+        : true;
+
     res.json({
       user: {
         id: user.id,
@@ -477,6 +525,7 @@ router.get('/me', authenticate, async (req, res) => {
         recruiter: user.recruiter,
         admin: user.admin,
       },
+      profileCompleted,
     });
   } catch (error) {
     console.error('Get user error:', error);

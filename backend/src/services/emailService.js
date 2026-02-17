@@ -932,3 +932,113 @@ export async function sendAnnouncementEmail(to, announcement, attachments = []) 
   }
 }
 
+/** Format drive date for email display */
+function formatDriveDateForEmail(driveDate) {
+  if (!driveDate) return 'To be announced';
+  const d = new Date(driveDate);
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/**
+ * Send drive reminder (7 days or 3 days before drive) to recruiter(s) and admin(s)
+ * @param {Object} job - Job with jobTitle, companyName, driveDate, driveVenues, reportingTime
+ * @param {string[]} recipientEmails - Recruiter + admin emails
+ * @param {number} daysUntil - 7 or 3
+ */
+export async function sendDriveReminderRecruiterAdmin(job, recipientEmails, daysUntil) {
+  if (!recipientEmails?.length) return { success: false, message: 'No recipients' };
+  const companyName = job.companyName || job.company?.name || 'Company';
+  const driveDateStr = formatDriveDateForEmail(job.driveDate);
+  const subject = `Reminder: Drive in ${daysUntil} days – ${job.jobTitle} at ${companyName}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Placement Drive Reminder</h2>
+      <p>Hello,</p>
+      <p>This is a reminder that the placement drive for the following job is in <strong>${daysUntil} day${daysUntil > 1 ? 's' : ''}</strong>.</p>
+      <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
+        <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
+        <p><strong>Company:</strong> ${companyName}</p>
+        <p><strong>Drive date:</strong> ${driveDateStr}</p>
+        ${(job.reportingTime || job.driveVenues) ? `<p><strong>Reporting time:</strong> ${job.reportingTime || '—'}</p>` : ''}
+        ${job.driveVenues ? `<p><strong>Venue(s):</strong> ${typeof job.driveVenues === 'string' ? job.driveVenues : (Array.isArray(job.driveVenues) ? job.driveVenues.join(', ') : '—')}</p>` : ''}
+      </div>
+      <p>Please ensure all preparations are in place.</p>
+      <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+      <p style="color: #666; font-size: 12px;">This is an automated reminder from PWIOI Placement Portal.</p>
+    </div>
+  `;
+  const text = `Reminder: Drive in ${daysUntil} days – ${job.jobTitle} at ${companyName}. Drive date: ${driveDateStr}.`;
+  const to = recipientEmails.filter(Boolean);
+  const result = await sendEmail({ to, subject, html, text });
+  logger.info(`Drive ${daysUntil}d reminder sent to ${to.length} recipient(s) for job ${job.id}`);
+  return { success: true, ...result };
+}
+
+/**
+ * Send 24-hour drive reminder to recruiter(s), admin(s), and applicants
+ * @param {Object} job - Job with jobTitle, companyName, driveDate, driveVenues, reportingTime
+ * @param {string[]} recruiterAdminEmails - Recruiter + admin emails
+ * @param {string[]} applicantEmails - Student applicants' emails
+ */
+export async function sendDriveReminder24h(job, recruiterAdminEmails, applicantEmails) {
+  const companyName = job.companyName || job.company?.name || 'Company';
+  const driveDateStr = formatDriveDateForEmail(job.driveDate);
+  const venueInfo = job.driveVenues ? (typeof job.driveVenues === 'string' ? job.driveVenues : (Array.isArray(job.driveVenues) ? job.driveVenues.join(', ') : '')) : '';
+  const reportingTime = job.reportingTime || '';
+
+  // Email to recruiter + admin
+  if (recruiterAdminEmails?.length) {
+    const subject = `Reminder: Drive tomorrow – ${job.jobTitle} at ${companyName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">Drive Tomorrow</h2>
+        <p>Hello,</p>
+        <p>The placement drive for <strong>${job.jobTitle}</strong> at ${companyName} is <strong>tomorrow</strong> (${driveDateStr}).</p>
+        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
+          <p><strong>Drive date:</strong> ${driveDateStr}</p>
+          ${reportingTime ? `<p><strong>Reporting time:</strong> ${reportingTime}</p>` : ''}
+          ${venueInfo ? `<p><strong>Venue(s):</strong> ${venueInfo}</p>` : ''}
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+        <p style="color: #666; font-size: 12px;">PWIOI Placement Portal – automated reminder.</p>
+      </div>
+    `;
+    const text = `Drive tomorrow: ${job.jobTitle} at ${companyName}. Date: ${driveDateStr}.`;
+    await sendEmail({ to: recruiterAdminEmails, subject, html, text });
+    logger.info(`Drive 24h reminder (recruiter/admin) sent for job ${job.id}`);
+  }
+
+  // Email to each applicant
+  if (applicantEmails?.length) {
+    const subject = `Reminder: Your placement drive is tomorrow – ${job.jobTitle} at ${companyName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">Drive Tomorrow</h2>
+        <p>Hello,</p>
+        <p>This is a reminder that the placement drive you applied for is <strong>tomorrow</strong>.</p>
+        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
+          <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
+          <p><strong>Company:</strong> ${companyName}</p>
+          <p><strong>Date:</strong> ${driveDateStr}</p>
+          ${reportingTime ? `<p><strong>Reporting time:</strong> ${reportingTime}</p>` : ''}
+          ${venueInfo ? `<p><strong>Venue(s):</strong> ${venueInfo}</p>` : ''}
+        </div>
+        <p>Please be on time and bring the required documents.</p>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+        <p style="color: #666; font-size: 12px;">PWIOI Placement Portal – automated reminder.</p>
+      </div>
+    `;
+    const text = `Your drive for ${job.jobTitle} at ${companyName} is tomorrow (${driveDateStr}). ${reportingTime ? `Reporting: ${reportingTime}. ` : ''}${venueInfo ? `Venue: ${venueInfo}` : ''}`;
+    for (const email of applicantEmails) {
+      try {
+        await sendEmail({ to: email, subject, html, text });
+      } catch (err) {
+        logger.error(`Failed to send 24h reminder to applicant ${email}:`, err);
+      }
+    }
+    logger.info(`Drive 24h reminder sent to ${applicantEmails.length} applicant(s) for job ${job.id}`);
+  }
+
+  return { success: true };
+}
+

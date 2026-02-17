@@ -353,12 +353,12 @@ const JobDescription = ({ job, isOpen, onClose }) => {
   };
 
   const formatDriveDate = (driveDate) => {
-    if (!driveDate) return new Date().toLocaleDateString('en-GB');
+    if (!driveDate) return 'To be announced';
     try {
       const date = new Date(driveDate);
       return date.toLocaleDateString('en-GB');
     } catch (err) {
-      return new Date().toLocaleDateString('en-GB');
+      return 'To be announced';
     }
   };
 
@@ -813,19 +813,11 @@ const JobDescription = ({ job, isOpen, onClose }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="font-medium text-sm text-gray-500">Drive Venue</p>
-                      <p className="text-gray-800">{(displayJob.driveVenues && Array.isArray(displayJob.driveVenues) && displayJob.driveVenues.length > 0) ? displayJob.driveVenues[0] : displayJob.location || "Campus Placement Cell"}</p>
+                      <p className="text-gray-800">{(displayJob.driveVenues && Array.isArray(displayJob.driveVenues) && displayJob.driveVenues.length > 0) ? displayJob.driveVenues[0] : displayJob.location || displayJob.companyLocation || "—"}</p>
                     </div>
                     <div>
                       <p className="font-medium text-sm text-gray-500">Reporting Time</p>
-                      <p className="text-gray-800">9:00 AM</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm text-gray-500">Documents Required</p>
-                      <p className="text-gray-800">Resume, ID Proof, Academic Certificates</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm text-gray-500">Dress Code</p>
-                      <p className="text-gray-800">Formal</p>
+                      <p className="text-gray-800">{displayJob.reportingTime || "—"}</p>
                     </div>
                   </div>
                 </div>
