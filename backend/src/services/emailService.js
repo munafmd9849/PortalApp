@@ -934,7 +934,7 @@ export async function sendAnnouncementEmail(to, announcement, attachments = []) 
 
 /** Format drive date for email display */
 function formatDriveDateForEmail(driveDate) {
-  if (!driveDate) return 'To be announced';
+  if (!driveDate) return 'TBD';
   const d = new Date(driveDate);
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 }

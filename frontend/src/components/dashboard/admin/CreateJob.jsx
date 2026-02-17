@@ -1120,7 +1120,7 @@ export default function CreateJob({ onCreated }) {
       gapAllowed: form.gapAllowed || '',
       gapYears: form.gapYears || '',
       backlogs: form.backlogs || '',
-      // Drive details - drive date optional (null = "To be announced")
+      // Drive details - drive date optional (null = "TBD")
       driveDate: form.driveDateNotDecided ? null : (form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText) || null),
       applicationDeadline: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || toISOFromDDMMYYYY(form.applicationDeadlineText) || toISOFromDDMMYYYY(driveDraft.applicationDeadlineText) || null,
       driveVenues: (Array.isArray(form.driveVenues) && form.driveVenues.length > 0) ? form.driveVenues : (Array.isArray(driveDraft.driveVenues) ? driveDraft.driveVenues : []),
@@ -2248,7 +2248,7 @@ export default function CreateJob({ onCreated }) {
                         />
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic mb-2">Drive date will show as &quot;To be announced&quot;. You can set it later when decided.</p>
+                      <p className="text-sm text-gray-500 italic mb-2">Drive date will show as &quot;TBD&quot;. You can set it later when decided.</p>
                     )}
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input

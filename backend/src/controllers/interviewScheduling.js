@@ -306,9 +306,9 @@ export const getOrCreateSession = async (req, res) => {
             const parsed = JSON.parse(job.interviewRounds);
             if (Array.isArray(parsed) && parsed.length > 0) {
               jobRounds = parsed.map((r, i) => {
-                // Be permissive about possible keys coming from various editors/clients.
-                // Prefer explicit round name fields in this order, then fallback to generic label.
-                const rawName = (r.name || r.title || r.roundName || r.label || r.titleName || r.round || '');
+                // Use actual round name from job creation: detail = user-entered name (e.g. "Aptitude", "Technical", "HR");
+                // title is often "I Round", "II Round" — prefer detail so session/rounds show real names.
+                const rawName = (r.detail || r.name || r.title || r.roundName || r.label || r.titleName || r.round || '');
                 const cleanName = (typeof rawName === 'string' ? rawName.trim() : '');
                 return {
                   roundNumber: i + 1,
@@ -394,10 +394,12 @@ export const getOrCreateSession = async (req, res) => {
         try {
           const parsed = JSON.parse(job.interviewRounds);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            suggestedRounds = parsed.map((r, i) => ({
-              roundNumber: i + 1,
-              name: (r.title || r.name || `Round ${i + 1}`).trim() || `Round ${i + 1}`,
-            }));
+            suggestedRounds = parsed.map((r, i) => {
+              // Use actual round name from job creation (detail = user-entered name); title is often "I Round", "II Round"
+              const rawName = (r.detail || r.name || r.title || `Round ${i + 1}`);
+              const name = (typeof rawName === 'string' ? rawName.trim() : '') || `Round ${i + 1}`;
+              return { roundNumber: i + 1, name };
+            });
           }
         } catch (e) {
           // fall through to description parsing
@@ -439,6 +441,20 @@ export const getOrCreateSession = async (req, res) => {
       }
     }
 
+    // Build round display names from job creation (so "I Round" / "II Round" show as actual names e.g. "Aptitude", "Technical", "HR")
+    const jobRoundNamesByNumber = {};
+    if (job.interviewRounds) {
+      try {
+        const parsed = JSON.parse(job.interviewRounds);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((r, i) => {
+            const rawName = (r.detail || r.name || r.title || '').trim();
+            if (rawName) jobRoundNamesByNumber[i + 1] = rawName;
+          });
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     // Calculate if drive date has been reached (for frontend display)
     const now = new Date();
     const driveDateCheck = new Date(job.driveDate);
@@ -466,7 +482,7 @@ export const getOrCreateSession = async (req, res) => {
         rounds: (Array.isArray(session.rounds) ? session.rounds : []).map(r => ({
           id: r.id,
           roundNumber: r.roundNumber,
-          name: r.name,
+          name: jobRoundNamesByNumber[r.roundNumber] || r.name,
           status: r.status,
           startedAt: r.startedAt,
           endedAt: r.endedAt,
@@ -890,6 +906,21 @@ export const getSession = async (req, res) => {
       });
     }
 
+    // Overlay round names from job creation (detail = actual name; title is often "I Round", "II Round")
+    const jobRoundNamesByNumber = {};
+    const jobRounds = session.job?.interviewRounds;
+    if (jobRounds) {
+      try {
+        const parsed = JSON.parse(jobRounds);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((r, i) => {
+            const rawName = (r.detail || r.name || r.title || '').trim();
+            if (rawName) jobRoundNamesByNumber[i + 1] = rawName;
+          });
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     res.json({
       id: session.id,
       jobId: session.jobId,
@@ -902,7 +933,7 @@ export const getSession = async (req, res) => {
       rounds: session.rounds.map(r => ({
         id: r.id,
         roundNumber: r.roundNumber,
-        name: r.name,
+        name: jobRoundNamesByNumber[r.roundNumber] || r.name,
         status: r.status,
         startedAt: r.startedAt,
         endedAt: r.endedAt,
@@ -1469,38 +1500,9 @@ export const startRound = async (req, res) => {
       }
     }
 
-    // CRITICAL SAFEGUARD: Prevent starting a round if there are no candidates assigned to it.
-    // For round 1: ensure there are eligible applications (INTERVIEW_ELIGIBLE or TEST_SELECTED).
-    // For later rounds: ensure there are SELECTED candidates from previous round.
-    let candidateCount = 0;
-    if (round.roundNumber === 1) {
-      candidateCount = await prisma.application.count({
-        where: {
-          jobId: round.session.jobId,
-          screeningStatus: { in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] },
-        },
-      });
-    } else {
-      // Count SELECTED evaluations from previous round
-      const previousRound = round.session.rounds.find(r => r.roundNumber === round.roundNumber - 1);
-      if (previousRound) {
-        candidateCount = await prisma.roundEvaluation.count({
-          where: {
-            roundId: previousRound.id,
-            status: 'SELECTED',
-          },
-        });
-      } else {
-        candidateCount = 0;
-      }
-    }
-
-    if (!candidateCount || candidateCount === 0) {
-      return res.status(409).json({
-        error: 'No candidates assigned for this round',
-        message: 'Cannot start the round because there are zero candidates assigned. Assign candidates before starting the round.',
-      });
-    }
+    // Allow starting a round even with 0 candidates so the session can be progressed and ended.
+    // For round 1: eligible applications (INTERVIEW_ELIGIBLE or TEST_SELECTED). For later rounds: SELECTED from previous round.
+    // No block on zero candidates — interviewer can start and end empty rounds, then end the session.
 
     // Use transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {

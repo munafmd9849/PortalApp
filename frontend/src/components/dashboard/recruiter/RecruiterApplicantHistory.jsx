@@ -306,7 +306,7 @@ export default function RecruiterApplicantHistory() {
               </div>
               <div className="flex items-center gap-2">
                 <Calendar size={16} />
-                <span>Drive Date: {selectedJob.driveDate ? new Date(selectedJob.driveDate).toLocaleDateString() : 'To be announced'}</span>
+                <span>Drive Date: {selectedJob.driveDate ? new Date(selectedJob.driveDate).toLocaleDateString() : 'TBD'}</span>
               </div>
             </div>
           </div>
