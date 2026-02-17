@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiHome, FiBriefcase, FiUsers, FiCalendar, FiMessageSquare, FiBarChart2, FiSettings, FiLogOut } from 'react-icons/fi';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { useAuth } from '../../../hooks/useAuth';
+import showLogoutConfirm from '../../../utils/logoutConfirm';
 
 const RecruiterDashboardLayout = ({ children }) => {
   const [sidebarWidth, setSidebarWidth] = useState(15); // Sidebar width in percentage
@@ -63,19 +64,19 @@ const RecruiterDashboardLayout = ({ children }) => {
       e.stopPropagation();
     }
     
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to logout?');
+    // Show confirmation dialog (custom modal)
+    const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
     if (!confirmed) {
       return; // User cancelled, don't proceed with logout
     }
-    
+
     console.log('Recruiter logout - starting...');
-    
+
     // Call logout (this clears tokens and state immediately)
     await logout();
-    
+
     console.log('Recruiter logout - state cleared, navigating to home');
-    
+
     // Navigate immediately - state is already cleared
     navigate('/', { replace: true });
   };

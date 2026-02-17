@@ -3,6 +3,7 @@ import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
 import ProfileCompletionModal from '../../components/dashboard/student/ProfileCompletionModal';
 import { useAuth } from '../../hooks/useAuth';
+import showLogoutConfirm from '../../utils/logoutConfirm';
 import { 
   getStudentProfile, 
   updateCompleteStudentProfile, 
@@ -1977,8 +1978,8 @@ useEffect(() => {
   };
 
   const handleLogout = async () => {
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to logout?');
+    // Show confirmation dialog (custom modal)
+    const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
     if (!confirmed) {
       return; // User cancelled, don't proceed with logout
     }

@@ -122,8 +122,20 @@ export default function PlacementRecords({ onLoginOpen }) {
       <section ref={sectionRef} className="py-12 sm:py-16 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 flex flex-col justify-center items-center lg:relative">
+<<<<<<< HEAD
+            <h2 className="text-balance mt-4 text-4xl sm:text-5xl font-bold text-[var(--pl-text)] mb-3 tracking-tight leading-tight flex flex-wrap items-center justify-center gap-x-2">
+              Hear How They{' '}
+              <span className="inline-block h-[0.95em] w-[4em] sm:w-[5em] overflow-hidden align-middle -ml-1.5">
+                <img
+                  src="/Untitled_Artwork_4.gif"
+                  alt="Cracked It"
+                  className="w-full h-full object-contain object-center"
+                />
+              </span>
+=======
             <h2 className="text-4xl font-bold text-blue-900 mb-4 tracking-tight font-heading">
               Hear how they <CrackText text="Cracked it!" />
+>>>>>>> irfan
             </h2>
             <p className="text-lg sm:text-xl text-[var(--pl-text-secondary)] font-normal">
               Success stories from our placed students

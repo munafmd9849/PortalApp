@@ -115,7 +115,9 @@ const InterviewerDashboard = () => {
       loadSession(); // Reload to show updated status
     } catch (error) {
       console.error('Error starting round:', error);
-      alert('Failed to start round');
+      const msg = error?.response?.data?.error || error?.message || 'Failed to start round';
+      // Show backend-provided reason (e.g., "No candidates assigned for this round")
+      alert(msg);
     }
   };
 
@@ -374,13 +376,21 @@ const InterviewerDashboard = () => {
                       {/* Right Side - Action Button */}
                       <div className="flex-shrink-0 max-w-[40%]">
                         {round.status === 'LOCKED' && (
-                          <button
-                            onClick={() => handleStartRound(round.id)}
-                            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md text-sm"
-                          >
-                            <PlayCircle className="w-4 h-4" />
-                            Start Round
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStartRound(round.id)}
+                              disabled={round.roundNumber === 1 && session?.eligibleApplications === 0}
+                              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${round.roundNumber === 1 && session?.eligibleApplications === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md'} text-sm`}
+                            >
+                              <PlayCircle className="w-4 h-4" />
+                              Start Round
+                            </button>
+                            {round.roundNumber === 1 && session?.eligibleApplications === 0 && (
+                              <p className="mt-2 text-xs text-gray-500">
+                                No candidates assigned for Round 1. Assign candidates before starting.
+                              </p>
+                            )}
+                          </>
                         )}
                         {round.status === 'ACTIVE' && (
                           <button

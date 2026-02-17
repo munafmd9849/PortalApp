@@ -19,6 +19,7 @@ import AdminAnnouncements from '../../components/dashboard/admin/AdminAnnounceme
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import showLogoutConfirm from '../../utils/logoutConfirm';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import RequireRole from '../../components/RequireRole';
 
@@ -200,8 +201,8 @@ export default function AdminDashboard() {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const handleLogout = async () => {
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to logout?');
+    // Show confirmation dialog (custom modal)
+    const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
     if (!confirmed) {
       return; // User cancelled, don't proceed with logout
     }

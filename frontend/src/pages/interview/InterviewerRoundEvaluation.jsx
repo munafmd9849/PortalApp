@@ -81,11 +81,14 @@ const InterviewerRoundEvaluation = () => {
       });
       setEvaluations(evalMap);
 
-      // Round can only end when every candidate is SELECTED or REJECTED (no PENDING, no ON_HOLD)
+      // Round can end when:
+      // - there are no candidates (allow admin to end empty rounds), OR
+      // - all candidates have been evaluated as SELECTED or REJECTED (no PENDING/ON_HOLD)
       const allDecided = list.length > 0 && list.every(
         (c) => c.evaluation && c.evaluation.status && ['SELECTED', 'REJECTED'].includes(c.evaluation.status)
       );
-      setCanEndRound(allDecided);
+      const allowEndWhenNoCandidates = list.length === 0;
+      setCanEndRound(allDecided || allowEndWhenNoCandidates);
 
       setLoading(false);
     } catch (err) {
