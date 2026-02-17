@@ -60,12 +60,11 @@ const InterviewerRoundEvaluation = () => {
       setCandidates(list);
       setRound(candidatesData.round || null);
 
-      // Build evaluations map and ensure profile URLs
+      // Build evaluations map and ensure profile URLs (use public profile so interviewer sees profile without login)
       const evalMap = {};
       list.forEach((candidate) => {
-        // Add profile URL if student ID is available
-        if (candidate.student && candidate.student.id && !candidate.student.profileUrl) {
-          candidate.student.profileUrl = `/student/profile/${candidate.student.id}`;
+        if (candidate.student && candidate.student.publicProfileId && !candidate.student.profileUrl) {
+          candidate.student.profileUrl = `/profile/${candidate.student.publicProfileId}`;
         }
         
         if (candidate.evaluation) {
@@ -498,12 +497,12 @@ const InterviewerRoundEvaluation = () => {
                             )}
                           </td>
 
-                          {/* Profile Link Column */}
+                          {/* Profile Link Column - uses public profile URL so interviewer sees student profile without login */}
                           <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {(candidate.student.profileUrl || candidate.student.id) && (
+                            {(candidate.student.profileUrl || candidate.student.publicProfileId) && (
                               <button
                                 onClick={() => {
-                                  const profileUrl = candidate.student.profileUrl || `/student/profile/${candidate.student.id}`;
+                                  const profileUrl = candidate.student.profileUrl || `/profile/${candidate.student.publicProfileId}`;
                                   window.open(profileUrl, '_blank');
                                 }}
                                 className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center gap-1 transition-colors"
