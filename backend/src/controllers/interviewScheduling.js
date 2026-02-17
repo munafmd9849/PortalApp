@@ -1154,6 +1154,7 @@ export const getRoundCandidates = async (req, res) => {
           batch: app.student.batch,
           resumeUrl: resumeUrl, // Use new Cloudinary URL if available, fallback to old
           skills: skillsMap.get(app.student.id) || [],
+          publicProfileId: app.student.publicProfileId || null, // For interviewer profile link (public, no auth)
         },
         evaluation: evaluation ? {
           status: evaluation.status,
