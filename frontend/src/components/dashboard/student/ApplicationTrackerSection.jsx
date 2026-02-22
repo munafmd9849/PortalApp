@@ -1,7 +1,7 @@
 import React from 'react';
-import { Clock, AlertCircle, CheckCircle, XCircle, FileText, IndianRupee } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, XCircle, IndianRupee } from 'lucide-react';
 
-const ApplicationTrackerSection = ({ applications, onTrackAll, onViewJD }) => {
+const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => {
   const formatSalary = (salary) => {
     if (!salary || (typeof salary === 'string' && salary.trim() === '')) return '—';
     if (salary === 'As per industry standards' || String(salary).toLowerCase().includes('as per')) return 'As per industry';
@@ -71,6 +71,11 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onViewJD }) => {
     return colors[index];
   };
 
+  // Equal column widths so the same column-gap looks equal between every column (Company, Job Title, Salary, Date Applied, Status)
+  const gridCols = 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)';
+  const columnGap = '1.25rem';
+  const rowGap = '0.75rem';
+
   return (
     <div className="w-full min-w-0">
       <fieldset className="bg-white rounded-lg md:rounded-xl border-2 border-[#65a1e1] py-3 px-3 md:py-5 md:px-6 transition-all duration-200 shadow-lg hover:shadow-xl min-w-0 overflow-hidden">
@@ -86,14 +91,13 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onViewJD }) => {
             </div>
           ) : (
             <div className="space-y-2 md:space-y-3">
-              {/* Column Headers - Hidden on mobile */}
-              <div className="hidden md:grid grid-cols-[1fr_1fr_0.9fr_0.8fr_auto_100px] gap-3 mb-3 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg">
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide">Company</div>
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide">Job Title</div>
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide">Salary</div>
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide">Date Applied</div>
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide">Status</div>
-                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide text-right">JD</div>
+              {/* Column Headers - Hidden on mobile; equal column-gap between all columns */}
+              <div className="hidden md:grid mb-0 p-4 pb-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg min-w-0 items-center" style={{ gridTemplateColumns: gridCols, columnGap, rowGap }}>
+                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide min-w-0">Company</div>
+                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide min-w-0">Job Title</div>
+                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide text-left min-w-0">Salary</div>
+                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide text-left min-w-0">Date Applied</div>
+                <div className="text-gray-700 font-bold text-sm lg:text-base uppercase tracking-wide text-left min-w-0">Status</div>
               </div>
 
               {/* Rows - show first 3 as preview on dashboard */}
@@ -103,7 +107,12 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onViewJD }) => {
                 return (
                 <div
                   key={application.id}
-                  className={`flex flex-col md:grid md:grid-cols-[1fr_1fr_0.9fr_0.8fr_auto_100px] gap-2 md:gap-3 p-3 md:p-5 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(application.currentStage || application.status)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onRowClick?.()}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(); } }}
+                  className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(application.currentStage || application.status)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
+                  style={{ gridTemplateColumns: gridCols, columnGap, rowGap }}
                 >
                   {/* Mobile Layout */}
                   <div className="md:hidden space-y-2">
@@ -136,59 +145,44 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onViewJD }) => {
                           ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
                           : 'Unknown'}
                       </span>
-                      {onViewJD && job && (
-                        <button
-                          type="button"
-                          onClick={() => onViewJD(job)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-medium transition-colors touch-manipulation"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          View JD
-                        </button>
-                      )}
                     </div>
                   </div>
 
-                  {/* Desktop Layout */}
+                  {/* Desktop Layout - same grid + equal gap; company and status clamped so they never disturb layout */}
                   <>
-                    <div className="hidden md:flex items-center min-w-0">
-                      <div className={`${getCompanyColor(application.company?.name)} w-10 h-10 rounded-xl mr-3 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                    <div className="hidden md:flex items-center min-w-0 max-w-full overflow-hidden">
+                      <div className={`${getCompanyColor(application.company?.name)} w-10 h-10 rounded-xl mr-3 flex-shrink-0 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300`}>
                         <span className="text-white font-bold text-sm">
                           {getCompanyInitial(application.company?.name)}
                         </span>
                       </div>
-                      <div className="text-sm lg:text-base font-bold text-gray-900 truncate">
-                        {application.company?.name || 'Unknown Company'}
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <span className="text-sm lg:text-base font-bold text-gray-900 truncate block" title={application.company?.name || 'Unknown Company'}>
+                          {application.company?.name || 'Unknown Company'}
+                        </span>
                       </div>
                     </div>
-                    <div className="hidden md:block text-sm font-semibold text-gray-800 flex items-center truncate min-w-0">
-                      {application.job?.jobTitle || 'Unknown Position'}
+                    <div className="hidden md:block text-sm font-semibold text-gray-800 min-w-0 overflow-hidden">
+                      <span className="truncate block" title={application.job?.jobTitle || 'Unknown Position'}>{application.job?.jobTitle || 'Unknown Position'}</span>
                     </div>
-                    <div className="hidden md:flex items-center text-sm font-medium text-gray-700 min-w-0">
+                    <div className="hidden md:flex items-center text-sm font-medium text-gray-700 min-w-0 overflow-hidden">
                       <span className="truncate" title={salaryStr}>{salaryStr}</span>
                     </div>
-                    <div className="hidden md:block text-sm font-medium text-gray-700 flex items-center">
+                    <div className="hidden md:flex items-center text-sm font-medium text-gray-700 min-w-0 overflow-hidden">
                       {formatDate(application.appliedDate)}
                     </div>
-                    <div className="hidden md:flex justify-end items-center">
-                      <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(application.currentStage || application.status)}`}>
+                    <div className="hidden md:flex items-center min-w-0 overflow-hidden">
+                      <span
+                        className={`inline-flex items-center gap-1 min-w-0 max-w-full px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm overflow-hidden ${getStatusColor(application.currentStage || application.status)}`}
+                        title={application.currentStage || application.status ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1) : 'Unknown'}
+                      >
                         {getStatusIcon(application.currentStage || application.status)}
-                        {application.currentStage || application.status
-                          ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
-                          : 'Unknown'}
+                        <span className="truncate min-w-0">
+                          {application.currentStage || application.status
+                            ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
+                            : 'Unknown'}
+                        </span>
                       </span>
-                    </div>
-                    <div className="hidden md:flex justify-end items-center">
-                      {onViewJD && job && (
-                        <button
-                          type="button"
-                          onClick={() => onViewJD(job)}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-medium transition-colors whitespace-nowrap"
-                        >
-                          <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                          View JD
-                        </button>
-                      )}
                     </div>
                   </>
                 </div>

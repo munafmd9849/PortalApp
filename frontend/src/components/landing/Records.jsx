@@ -85,7 +85,6 @@ export default function PlacementRecords({ onLoginOpen }) {
     return () => obs.disconnect();
   }, []);
 
-
   useEffect(() => {
     if (!isRotating) return;
     if (!isSectionInView) return;

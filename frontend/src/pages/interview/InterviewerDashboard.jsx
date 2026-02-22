@@ -379,15 +379,14 @@ const InterviewerDashboard = () => {
                           <>
                             <button
                               onClick={() => handleStartRound(round.id)}
-                              disabled={round.roundNumber === 1 && session?.eligibleApplications === 0}
-                              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${round.roundNumber === 1 && session?.eligibleApplications === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md'} text-sm`}
+                              className="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md text-sm"
                             >
                               <PlayCircle className="w-4 h-4" />
                               Start Round
                             </button>
                             {round.roundNumber === 1 && session?.eligibleApplications === 0 && (
                               <p className="mt-2 text-xs text-gray-500">
-                                No candidates assigned for Round 1. Assign candidates before starting.
+                                This round has 0 candidates. You can start and end it to complete the session.
                               </p>
                             )}
                           </>

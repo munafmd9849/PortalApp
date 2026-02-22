@@ -218,7 +218,7 @@ export default function ScheduleInterview() {
                           job.driveDate.toDate ?
                             job.driveDate.toDate().toLocaleDateString('en-GB') :
                             new Date(job.driveDate).toLocaleDateString('en-GB')
-                        ) : 'To be announced'}
+                        ) : 'TBD'}
                       </div>
                     </div>
 

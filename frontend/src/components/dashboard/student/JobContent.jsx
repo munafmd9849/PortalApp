@@ -127,12 +127,12 @@ function formatSalary(salary) {
  * Format date for display
  */
 function formatDriveDate(driveDate) {
-  if (!driveDate) return "To be announced";
+  if (!driveDate) return "TBD";
   try {
     const date = new Date(driveDate);
     return date.toLocaleDateString('en-GB');
   } catch (err) {
-    return "To be announced";
+    return "TBD";
   }
 }
 

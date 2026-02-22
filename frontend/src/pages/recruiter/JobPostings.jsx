@@ -202,7 +202,7 @@ export default function JobPostings() {
                         {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {job.driveDate ? new Date(job.driveDate).toLocaleDateString() : 'To be announced'}
+                        {job.driveDate ? new Date(job.driveDate).toLocaleDateString() : 'TBD'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {isJobPosted(job) && (

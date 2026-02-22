@@ -163,15 +163,13 @@ export default function JobPostingsSection({
             </div>
           ) : (
             <div className="space-y-2 sm:space-y-3">
-              {/* Column Headers - Hidden on mobile */}
-              <div className="hidden md:grid grid-cols-5 gap-4 lg:gap-6 mb-3 py-3 px-4 lg:px-6">
-                <div className="text-black font-bold text-sm lg:text-lg col-span-1 flex items-center space-x-3">
-                  Company
-                </div>
-                <div className="text-black font-bold text-sm lg:text-lg">Job Title</div>
-                <div className="text-black font-bold text-sm lg:text-lg">Drive Date</div>
-                <div className="text-black font-bold text-sm lg:text-lg">Salary (CTC)</div>
-                <div></div>
+              {/* Column Headers - Hidden on mobile; equal spacing */}
+              <div className="hidden md:grid mb-3 py-3 px-4 lg:px-6 min-w-0 items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                <div className="text-black font-bold text-sm lg:text-lg min-w-0">Company</div>
+                <div className="text-black font-bold text-sm lg:text-lg min-w-0">Job Title</div>
+                <div className="text-black font-bold text-sm lg:text-lg min-w-0">Salary (CTC)</div>
+                <div className="text-black font-bold text-sm lg:text-lg min-w-0">Drive Date</div>
+                <div className="text-black font-bold text-sm lg:text-lg min-w-0">Status</div>
               </div>
 
               {/* Job Listings - 3 on mobile, 5 on desktop */}
@@ -192,7 +190,8 @@ export default function JobPostingsSection({
                 return (
                   <div
                     key={job.id}
-                    className="flex flex-col md:grid md:grid-cols-5 gap-2 md:gap-4 lg:gap-6 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200"
+                    className="flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200 min-w-0 overflow-hidden md:items-center"
+                    style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
                   >
                     {/* Mobile Layout */}
                     <div className="md:hidden space-y-2">
@@ -210,20 +209,14 @@ export default function JobPostingsSection({
                       <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
                         <div className="min-w-0">
                           <span className="text-gray-500">Drive:</span>
-                          <span className="ml-1 text-gray-800 truncate block">{job.driveDate ? formatDate(job.driveDate) : 'To be announced'}</span>
+                          <span className="ml-1 text-gray-800 truncate block">{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
                         </div>
                         <div className="min-w-0">
                           <span className="text-gray-500">CTC:</span>
                           <span className="ml-1 text-gray-800 font-medium truncate block">{formatSalary(job.salary || job.ctc)}</span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                        <button
-                          onClick={() => onKnowMore && onKnowMore(job)}
-                          className="w-full min-h-[36px] sm:min-h-[40px] px-2.5 sm:px-3 py-1.5 sm:py-2 border border-blue-200 sm:border-2 bg-blue-50 text-blue-700 font-medium rounded-md sm:rounded-lg hover:bg-blue-100 transition-all duration-200 shadow-sm text-[11px] sm:text-xs text-center flex items-center justify-center gap-1 touch-manipulation"
-                        >
-                          Know More
-                        </button>
+                      <div className="flex gap-1.5 sm:gap-2">
                         <button
                           onClick={() => onApply && onApply(job)}
                           disabled={
@@ -280,40 +273,34 @@ export default function JobPostingsSection({
                               YOP Not Eligible
                             </>
                           ) : (
-                            'Apply'
+                            'Apply Now'
                           )}
                         </button>
                       </div>
                     </div>
 
-                    {/* Desktop Layout */}
+                    {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
                     <>
-                      <div className="hidden md:flex items-center space-x-3">
+                      <div className="hidden md:flex items-center min-w-0 overflow-hidden space-x-3">
                         {renderCompanyLogo(companyName)}
-                        <span className="text-sm lg:text-base font-semibold text-black truncate">
+                        <span className="text-sm lg:text-base font-semibold text-black truncate min-w-0">
                           {companyName}
                         </span>
                       </div>
 
-                      <div className="hidden md:block text-sm font-medium text-gray-800 flex items-center truncate">
-                        {job.jobTitle || job.title || 'Position Available'}
+                      <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">
+                        <span className="truncate block">{job.jobTitle || job.title || 'Position Available'}</span>
                       </div>
 
-                      <div className="hidden md:block text-sm text-gray-600 flex items-center">
-                        {job.driveDate ? formatDate(job.driveDate) : 'To be announced'}
-                      </div>
-
-                      <div className="hidden md:block text-sm font-medium text-gray-800 flex items-center">
+                      <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">
                         {formatSalary(job.salary || job.ctc)}
                       </div>
 
-                      <div className="hidden md:flex justify-end space-x-2">
-                        <button
-                          onClick={() => onKnowMore && onKnowMore(job)}
-                          className="px-4 py-2 border-2 border-blue-200 bg-blue-50 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition-all duration-200 shadow-sm text-xs whitespace-nowrap"
-                        >
-                          Know More
-                        </button>
+                      <div className="hidden md:block text-sm text-gray-600 min-w-0 overflow-hidden">
+                        {job.driveDate ? formatDate(job.driveDate) : 'TBD'}
+                      </div>
+
+                      <div className="hidden md:flex items-center min-w-0 overflow-hidden">
                         <button
                           onClick={() => onApply && onApply(job)}
                           disabled={
@@ -347,7 +334,7 @@ export default function JobPostingsSection({
                           {hasApplied && hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied!
+                              Applied
                             </>
                           ) : applying && applying[job.id] ? (
                             <>
@@ -358,6 +345,16 @@ export default function JobPostingsSection({
                             <>
                               <XCircle className="h-3 w-3 inline mr-1" />
                               CGPA Not Met
+                            </>
+                          ) : (isDeadlinePassed && isDeadlinePassed(job)) ? (
+                            <>
+                              <XCircle className="h-3 w-3 inline mr-1" />
+                              Deadline Passed
+                            </>
+                          ) : yopNotEligible ? (
+                            <>
+                              <XCircle className="h-3 w-3 inline mr-1" />
+                              YOP Not Eligible
                             </>
                           ) : (
                             'Apply Now'
