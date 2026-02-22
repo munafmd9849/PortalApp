@@ -379,6 +379,7 @@ useEffect(() => {
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
   const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application details
+  const [pendingApplicationJobId, setPendingApplicationJobId] = useState(null);
   const [currentApplicationsPage, setCurrentApplicationsPage] = useState(1);
   const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
   const APPLICATIONS_LIST_PER_PAGE = 10;
@@ -388,6 +389,25 @@ useEffect(() => {
     setCurrentApplicationsPage(1);
     setPastApplicationsPage(1);
   }, [applicationsView]);
+
+  useEffect(() => {
+    if (!pendingApplicationJobId || !applications.length) return;
+    const matchIndex = applications.findIndex((app) => {
+      const jobId = app.jobId || app.job?.id;
+      return String(jobId) === String(pendingApplicationJobId);
+    });
+    if (matchIndex === -1) return;
+    const match = applications[matchIndex];
+    setExpandedApplications((prev) => {
+      const next = new Set(prev);
+      next.add(match.id);
+      return next;
+    });
+    const targetPage = Math.floor(matchIndex / APPLICATIONS_LIST_PER_PAGE) + 1;
+    setCurrentApplicationsPage(targetPage);
+    setApplicationsView('current');
+    setPendingApplicationJobId(null);
+  }, [pendingApplicationJobId, applications, APPLICATIONS_LIST_PER_PAGE]);
 
   // Jobs state
   const [jobs, setJobs] = useState([]);
@@ -1250,7 +1270,9 @@ useEffect(() => {
     const handleNavigateToApplications = (e) => {
       setActiveTab('applications');
       const view = e?.detail?.view || 'current';
+      const jobId = e?.detail?.jobId || null;
       setApplicationsView(view);
+      setPendingApplicationJobId(jobId);
       if (tab !== 'applications') {
         navigate('/student?tab=applications', { replace: true });
       }
