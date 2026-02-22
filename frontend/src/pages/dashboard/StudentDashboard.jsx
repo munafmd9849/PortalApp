@@ -2973,9 +2973,7 @@ export default function StudentDashboard() {
                 <div className="bg-gradient-to-r from-slate-100 via-white to-blue-50 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
                   <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 truncate">Current Applications</h2>
                   <p className="text-sm sm:text-base text-gray-600">Track ongoing applications, statuses, and upcoming interviews</p>
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-100 text-sm text-blue-800 rounded-md">
-                    <strong>Note:</strong> For current applications, check status & upcoming interviews here.
-                  </div>
+                  
                 </div>
                 {loadingApplications ? (
                   <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
