@@ -18,7 +18,7 @@ export const getGoogleLoginUrl = async (req, res) => {
   try {
     // Get role from query parameter (optional, defaults to STUDENT)
     const role = (req.query.role || 'STUDENT').toUpperCase();
-    
+
     // Validate role
     if (!['STUDENT', 'RECRUITER', 'ADMIN'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role. Must be STUDENT, RECRUITER, or ADMIN' });
@@ -40,7 +40,7 @@ export const getGoogleLoginUrl = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error generating Google login URL:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate Google login URL',
       message: error.message,
     });
@@ -122,8 +122,8 @@ export const handleGoogleLoginCallback = async (req, res) => {
         },
       });
 
-      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
-      const accessToken = generateAccessToken(user.id);
+      // Generate JWT tokens (pass user object so role and status are included)
+      const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens
@@ -132,7 +132,7 @@ export const handleGoogleLoginCallback = async (req, res) => {
       // New user - create account
       // Validate email domain based on role
       const emailLower = email.toLowerCase();
-      
+
       if (role === 'STUDENT' && !emailLower.endsWith('@pwioi.com')) {
         return res.redirect(redirectLoginError(frontendUrl, 'google_login_invalid_domain', 'Student sign-up requires a @pwioi.com email address.'));
       }
@@ -188,8 +188,8 @@ export const handleGoogleLoginCallback = async (req, res) => {
 
       logger.info(`New user created via Google login: ${email} (${role})`);
 
-      // Generate JWT tokens (pass user.id only; middleware expects decoded.userId to be a string)
-      const accessToken = generateAccessToken(user.id);
+      // Generate JWT tokens (pass user object so role and status are included)
+      const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user.id);
 
       // Redirect to frontend with tokens

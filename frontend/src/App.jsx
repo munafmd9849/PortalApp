@@ -34,6 +34,7 @@ import ResetPassword from './pages/ResetPassword'
 import Endorsement from './pages/Endorsement'
 import PublicProfile from './pages/PublicProfile'
 import GoogleAuthCallback from './pages/GoogleAuthCallback'
+import StudentOnboarding from './pages/StudentOnboarding'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
@@ -158,8 +159,8 @@ function LandingPage() {
 
           {/* Footer - Odd component #F2F0EA */}
           <div>
-            <PWIOIFooter 
-              onLoginOpen={openLoginModal} 
+            <PWIOIFooter
+              onLoginOpen={openLoginModal}
               onContactTeam={handleContactTeam}
               onMeetDevTeam={handleMeetDevTeam}
               onPlacementPolicy={handlePlacementPolicy}
@@ -208,6 +209,7 @@ function AppContent() {
         {/* Protected routes */}
         <Route element={<ProtectedRoute allowRoles={['student']} />}>
           <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/student/onboarding" element={<StudentOnboarding />} />
         </Route>
 
         <Route element={<ProtectedRoute allowRoles={['recruiter']} />}>
@@ -231,7 +233,7 @@ function AppContent() {
           <Route path="/super-admin/jobs/:jobId/applications" element={<SuperAdminDashboard />} />
           <Route path="/super-admin" element={<SuperAdminDashboard />} />
         </Route>
-        
+
         {/* Admin-only routes - Only ADMIN can access */}
         <Route element={<ProtectedRoute allowRoles={['admin']} />}>
           {/* Add admin-only routes here if needed */}

@@ -36,24 +36,24 @@ export default function AuthRedirect() {
     // User is authenticated with a role
     if (user && role) {
       const roleLower = role.toLowerCase();
-      
+
       // Determine target dashboard based on role
-      const targetDashboard = roleLower === 'student' ? '/student' 
+      const targetDashboard = roleLower === 'student' ? '/student'
         : roleLower === 'recruiter' ? '/recruiter'
-        : roleLower === 'admin' ? '/admin'
-        : roleLower === 'super_admin' ? '/super-admin'
-        : null;
+          : roleLower === 'admin' ? '/admin'
+            : roleLower === 'super_admin' ? '/super-admin'
+              : null;
 
       // Public paths that authenticated users can visit without redirect
-      const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
-      const isPublicPath = publicPaths.includes(currentPath) 
+      const publicPaths = ['/dev-team', '/test', '/unsubscribe', '/student/onboarding'];
+      const isPublicPath = publicPaths.includes(currentPath)
         || currentPath.startsWith('/job/')
         || currentPath.startsWith('/profile/') // Public profile sharing (no auth required)
         || currentPath.startsWith('/endorse/')
         || currentPath.startsWith('/endorsement/')
         || currentPath.startsWith('/interview/')
         || currentPath.startsWith('/recruiter/screening');
-      
+
       // Admin / Super Admin sub-routes that should not redirect
       const isAdminSubRoute = (roleLower === 'admin' || roleLower === 'super_admin') && (
         currentPath.startsWith('/admin/interview-session/') ||
@@ -88,7 +88,7 @@ export default function AuthRedirect() {
       // Not authenticated - reset flag
       hasRedirectedRef.current = false;
     }
-    
+
     // Note: We intentionally do NOT include location in dependencies
     // to prevent infinite loops. The effect only re-runs when user, role, or loading changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps

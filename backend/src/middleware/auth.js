@@ -14,7 +14,7 @@ export async function authenticate(req, res, next) {
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'No token provided' });
     }
@@ -23,7 +23,7 @@ export async function authenticate(req, res, next) {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -45,7 +45,7 @@ export async function authenticate(req, res, next) {
     // Attach user to request
     req.user = user;
     req.userId = user.id;
-    
+
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -54,7 +54,7 @@ export async function authenticate(req, res, next) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
-    
+
     console.error('Auth middleware error:', error);
     return res.status(500).json({ error: 'Authentication error' });
   }
@@ -96,9 +96,14 @@ export async function verifyRefreshToken(req, res, next) {
 /**
  * Generate JWT access token
  */
-export function generateAccessToken(userId) {
+export function generateAccessToken(user) {
+  // Backwards compatibility: if a string or number is passed instead of an object, use it as userId
+  const payload = typeof user === 'object' && user !== null
+    ? { userId: user.id, type: 'access', role: user.role, status: user.status }
+    : { userId: user, type: 'access' };
+
   return jwt.sign(
-    { userId, type: 'access' },
+    payload,
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
   );

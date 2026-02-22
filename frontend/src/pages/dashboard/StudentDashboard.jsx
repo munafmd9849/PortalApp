@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
-import ProfileCompletionModal from '../../components/dashboard/student/ProfileCompletionModal';
+
 import { useAuth } from '../../hooks/useAuth';
 import showLogoutConfirm from '../../utils/logoutConfirm';
-import { 
-  getStudentProfile, 
-  updateCompleteStudentProfile, 
+import {
+  getStudentProfile,
+  updateCompleteStudentProfile,
   createCompleteStudentProfile,
   getStudentSkills,
   getEducationalBackground,
@@ -115,17 +115,17 @@ const normalizeProfileSnapshot = (profile = {}) => ({
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { logout, user, profileCompleted } = useAuth();
-  const [showProfileCompletionModal, setShowProfileCompletionModal] = useState(false);
+
 
   // Data caching to avoid reloading on tab switches
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(null);
-  
+
   // Scroll to top when activeTab changes
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
-  
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(15);
   const [isDragging, setIsDragging] = useState(false);
@@ -137,10 +137,10 @@ export default function StudentDashboard() {
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
-  
+
   // PERSISTENT CACHE: Use localStorage to cache data across page navigation
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
-  
+
   // Helper functions for caching (defined after user is available)
   const getCachedData = useCallback((key) => {
     try {
@@ -157,7 +157,7 @@ export default function StudentDashboard() {
       return null;
     }
   }, []);
-  
+
   const setCachedData = useCallback((key, data) => {
     try {
       localStorage.setItem(key, JSON.stringify({
@@ -168,7 +168,7 @@ export default function StudentDashboard() {
       console.warn('Failed to cache data:', e);
     }
   }, []);
-  
+
   const clearCache = useCallback(() => {
     if (!user?.id) return;
     const cacheKeys = [
@@ -182,7 +182,7 @@ export default function StudentDashboard() {
       localStorage.removeItem(key);
     });
   }, [user?.id]);
-  
+
   // Get cache key for current user
   const getCacheKey = useCallback((type) => {
     if (!user?.id) return null;
@@ -198,12 +198,12 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dragRef = useRef(null);
-  
+
   // UPDATED: Remove static profile data - students must have complete profiles
   const [batch, setBatch] = useState('');
   const [center, setCenter] = useState('');
   const [school, setSchool] = useState('');
-  
+
   // Other profile states
   const [isChecked, setIsChecked] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
@@ -255,19 +255,12 @@ export default function StudentDashboard() {
     setProfileSectionsOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-// Show mandatory profile completion modal when needed
-useEffect(() => {
-  if (user?.role === 'STUDENT' && profileCompleted === false) {
-    setShowProfileCompletionModal(true);
-    document.body.style.overflow = 'hidden';
-  } else {
-    setShowProfileCompletionModal(false);
-    document.body.style.overflow = '';
-  }
-  return () => {
-    document.body.style.overflow = '';
-  };
-}, [user?.role, profileCompleted]);
+  // Show mandatory profile completion modal when needed
+  useEffect(() => {
+    if (user?.role === 'STUDENT' && profileCompleted === false) {
+      navigate('/student/onboarding', { replace: true });
+    }
+  }, [user?.role, profileCompleted, navigate]);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
@@ -349,20 +342,20 @@ useEffect(() => {
     setJobFlexibility(snapshot.jobFlexibility);
     setOtherProfiles(snapshot.otherProfiles || []);
   }, []);
-  
-  
+
+
   // Skills state
   const [skillsEntries, setSkillsEntries] = useState([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [newSkill, setNewSkill] = useState({ skillName: '', rating: 1 });
-  
+
   // Career stats from backend (Shortlisted, Interviewed, Offers - used in dashboard)
   const [studentStats, setStudentStats] = useState({ applied: 0, shortlisted: 0, interviewed: 0, offers: 0 });
 
   // Applications state
   const [applications, setApplications] = useState([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
-  
+
   // Debug: Monitor applications state changes
   useEffect(() => {
     console.log('📊 [applications state changed]', {
@@ -395,8 +388,8 @@ useEffect(() => {
   const [applying, setApplying] = useState({});
   const [jobsPage, setJobsPage] = useState(1);
   const JOBS_PER_PAGE = 10;
-  
-  
+
+
   // Resume Selection Modal state
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [pendingJob, setPendingJob] = useState(null);
@@ -419,14 +412,14 @@ useEffect(() => {
   // All fields marked with * (red asterisk) in editProfile section are required
   const isProfileComplete = useCallback(() => {
     return fullName && fullName.trim() &&
-           email && email.trim() && 
-           phone && phone.trim() &&
-           enrollmentId && enrollmentId.trim() &&
-           school && school.trim() &&
-           center && center.trim() &&
-           batch && batch.trim();
+      email && email.trim() &&
+      phone && phone.trim() &&
+      enrollmentId && enrollmentId.trim() &&
+      school && school.trim() &&
+      center && center.trim() &&
+      batch && batch.trim();
   }, [fullName, email, phone, enrollmentId, school, center, batch]);
-  
+
   // Memoized profile completeness status to prevent infinite loops
   const profileComplete = useMemo(() => {
     return fullName && email && phone && enrollmentId && school && center && batch;
@@ -531,7 +524,7 @@ useEffect(() => {
   // Job loading with proper targeting logic
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
-    
+
     // OPTIMIZED: Check cache first
     if (!forceRefresh) {
       const cacheKey = getCacheKey('jobs');
@@ -546,25 +539,25 @@ useEffect(() => {
         }
       }
     }
-    
+
     setLoadingJobs(true);
-    
+
     try {
       // Get targeted jobs from backend API
       const jobs = await getTargetedJobsForStudent(user.id);
-      
+
       // Apply job targeting logic with proper "ALL" handling
       if (profileComplete && school && center && batch) {
         const targetedJobs = jobs.filter(job => {
           const targetCenters = job.targetCenters || [];
           const targetSchools = job.targetSchools || [];
           const targetBatches = job.targetBatches || [];
-          
+
           // If no targeting specified, show to all students
           if (targetCenters.length === 0 && targetSchools.length === 0 && targetBatches.length === 0) {
             return true;
           }
-          
+
           // CENTER MATCH LOGIC:
           let centerMatch = false;
           if (targetCenters.length === 0) {
@@ -573,11 +566,11 @@ useEffect(() => {
             centerMatch = true; // "ALL" means every student
           } else {
             // Exact match required (case-insensitive)
-            centerMatch = targetCenters.some(targetCenter => 
+            centerMatch = targetCenters.some(targetCenter =>
               targetCenter.toLowerCase().trim() === center.toLowerCase().trim()
             );
           }
-          
+
           // SCHOOL MATCH LOGIC:
           let schoolMatch = false;
           if (targetSchools.length === 0) {
@@ -586,11 +579,11 @@ useEffect(() => {
             schoolMatch = true; // "ALL" means every student
           } else {
             // Exact match required (case-insensitive)
-            schoolMatch = targetSchools.some(targetSchool => 
+            schoolMatch = targetSchools.some(targetSchool =>
               targetSchool.toLowerCase().trim() === school.toLowerCase().trim()
             );
           }
-          
+
           // BATCH MATCH LOGIC:
           let batchMatch = false;
           if (targetBatches.length === 0) {
@@ -599,15 +592,15 @@ useEffect(() => {
             batchMatch = true; // "ALL" means every student
           } else {
             // Exact match required (case-insensitive)
-            batchMatch = targetBatches.some(targetBatch => 
+            batchMatch = targetBatches.some(targetBatch =>
               targetBatch.toLowerCase().trim() === batch.toLowerCase().trim()
             );
           }
-          
+
           // Job is eligible only if ALL three criteria match
           return centerMatch && schoolMatch && batchMatch;
         });
-        
+
         setJobs(targetedJobs);
         setJobsPage(1);
         // CACHE: Store filtered jobs in localStorage
@@ -624,7 +617,7 @@ useEffect(() => {
           setCachedData(jobsCacheKey, jobs);
         }
       }
-      
+
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
@@ -632,15 +625,15 @@ useEffect(() => {
     } finally {
       setLoadingJobs(false);
     }
-    }, [school, center, batch, profileComplete, user?.id]); // Cache functions are stable, no need in deps
+  }, [school, center, batch, profileComplete, user?.id]); // Cache functions are stable, no need in deps
 
   // UPDATED: Load profile data function without defaults
   // Use ref to track loading state to prevent infinite loops
   const loadingProfileRef = useRef(false);
-  
+
   const loadProfile = useCallback(async (forceRefresh = false) => {
     if (!user?.id || loadingProfileRef.current) return;
-    
+
     // OPTIMIZED: Check persistent cache first
     if (!forceRefresh) {
       const cacheKey = getCacheKey('profile');
@@ -674,8 +667,8 @@ useEffect(() => {
           setJobFlexibility(cachedProfile.jobFlexibility || '');
           if (cachedProfile.otherProfiles) {
             try {
-              const parsed = typeof cachedProfile.otherProfiles === 'string' 
-                ? JSON.parse(cachedProfile.otherProfiles) 
+              const parsed = typeof cachedProfile.otherProfiles === 'string'
+                ? JSON.parse(cachedProfile.otherProfiles)
                 : cachedProfile.otherProfiles;
               setOtherProfiles(Array.isArray(parsed) ? parsed : []);
             } catch (e) {
@@ -685,7 +678,7 @@ useEffect(() => {
             setOtherProfiles([]);
           }
           setSkillsEntries(Array.isArray(cachedProfile.skills) ? cachedProfile.skills : []);
-          
+
           // Set initial snapshot
           initialProfileRef.current = normalizeProfileSnapshot(cachedProfile);
           setIsFormDirty(false);
@@ -695,17 +688,17 @@ useEffect(() => {
         }
       }
     }
-    
+
     loadingProfileRef.current = true;
-    
+
     try {
       if (process.env.NODE_ENV === 'development') {
         console.log('📖 Loading student profile from backend...');
       }
       const profileData = await getStudentProfile(user.id);
-      
+
       if (profileData) {
-        
+
         // Update all profile states - REMOVED DEFAULT VALUES
         setFullName(profileData.fullName || '');
         setEmail(profileData.email || '');
@@ -732,12 +725,12 @@ useEffect(() => {
         const profileImg = profileData.profileImageUrl || profileData.profilePhoto || '';
         setProfilePhoto(profileImg);
         setJobFlexibility(profileData.jobFlexibility || '');
-        
+
         // Parse otherProfiles from JSON string if it exists
         if (profileData.otherProfiles) {
           try {
-            const parsed = typeof profileData.otherProfiles === 'string' 
-              ? JSON.parse(profileData.otherProfiles) 
+            const parsed = typeof profileData.otherProfiles === 'string'
+              ? JSON.parse(profileData.otherProfiles)
               : profileData.otherProfiles;
             setOtherProfiles(Array.isArray(parsed) ? parsed : []);
           } catch (e) {
@@ -781,12 +774,12 @@ useEffect(() => {
           gfg: profileData.gfg || '',
           hackerrank: profileData.hackerrank || '',
           profilePhoto: profileData.profilePhoto || '',
-            jobFlexibility: profileData.jobFlexibility || '',
-            otherProfiles: profileData.otherProfiles ? (typeof profileData.otherProfiles === 'string' ? JSON.parse(profileData.otherProfiles) : profileData.otherProfiles) : [],
+          jobFlexibility: profileData.jobFlexibility || '',
+          otherProfiles: profileData.otherProfiles ? (typeof profileData.otherProfiles === 'string' ? JSON.parse(profileData.otherProfiles) : profileData.otherProfiles) : [],
         };
         initialProfileRef.current = normalizeProfileSnapshot(sanitizedProfile);
         setIsFormDirty(false);
-        
+
         // CACHE: Store profile data in localStorage
         const profileCacheKey = getCacheKey('profile');
         if (profileCacheKey) {
@@ -801,11 +794,11 @@ useEffect(() => {
         initialProfileRef.current = normalizeProfileSnapshot({});
         setIsFormDirty(false);
       }
-      
+
       const now = Date.now();
       setDataLoaded(true);
       setLastLoadTime(now);
-      
+
     } catch (err) {
       console.error('❌ Failed to load profile data:', err);
       setDataLoaded(true); // Still mark as loaded to prevent infinite retries
@@ -832,7 +825,7 @@ useEffect(() => {
       console.warn('⚠️ [loadApplicationsData] No user ID, skipping');
       return;
     }
-    
+
     // OPTIMIZED: Check cache first (but verify it's not empty)
     if (!forceRefresh) {
       const cacheKey = getCacheKey('applications');
@@ -851,7 +844,7 @@ useEffect(() => {
         }
       }
     }
-    
+
     console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
@@ -861,11 +854,11 @@ useEffect(() => {
         length: applicationsData?.length || 0,
         data: applicationsData
       });
-      
+
       if (applicationsData && applicationsData.length > 0) {
-        console.log('📋 [loadApplicationsData] Application details:', applicationsData.map(app => ({ 
-          appId: app.id, 
-          jobId: app.jobId, 
+        console.log('📋 [loadApplicationsData] Application details:', applicationsData.map(app => ({
+          appId: app.id,
+          jobId: app.jobId,
           jobTitle: app.job?.jobTitle,
           status: app.status,
           companyName: app.company?.name || app.job?.company?.name
@@ -873,7 +866,7 @@ useEffect(() => {
       } else {
         console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
-      
+
       console.log('📋 [loadApplicationsData] About to set applications state:', {
         applicationsDataLength: applicationsData?.length || 0,
         isArray: Array.isArray(applicationsData),
@@ -883,9 +876,9 @@ useEffect(() => {
           jobTitle: applicationsData[0].job?.jobTitle
         } : null
       });
-      
+
       setApplications(applicationsData || []);
-      
+
       // Verify state was set correctly
       setTimeout(() => {
         console.log('📋 [loadApplicationsData] State verification after setApplications:', {
@@ -893,9 +886,9 @@ useEffect(() => {
           setValue: applicationsData?.length || 0
         });
       }, 100);
-      
+
       console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
-      
+
       // CACHE: Store applications data in localStorage
       const appsCacheKey = getCacheKey('applications');
       if (appsCacheKey) {
@@ -917,7 +910,7 @@ useEffect(() => {
   // Load interview history
   const loadInterviewHistory = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
-    
+
     // OPTIMIZED: Check cache first
     if (!forceRefresh) {
       const cacheKey = getCacheKey('interviewHistory');
@@ -931,18 +924,18 @@ useEffect(() => {
         }
       }
     }
-    
+
     setLoadingInterviewHistory(true);
     try {
       const historyData = await getStudentInterviewHistory(user.id);
       setInterviewHistory(historyData || []);
-      
+
       // CACHE: Store interview history in localStorage
       const historyCacheKey = getCacheKey('interviewHistory');
       if (historyCacheKey) {
         setCachedData(historyCacheKey, historyData || []);
       }
-      
+
       // CACHE: Store interview history in localStorage
       setCachedData(CACHE_KEYS.interviewHistory, historyData || []);
     } catch (err) {
@@ -956,7 +949,7 @@ useEffect(() => {
   // Load resumes from API
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
-    
+
     try {
       setLoadingResumes(true);
       const data = await api.getResumes();
@@ -994,12 +987,12 @@ useEffect(() => {
 
   const handleResumeSelection = async (resumeId = null) => {
     if (!pendingJob) return;
-    
+
     setIsResumeModalOpen(false);
-    
+
     try {
       setApplying(prev => ({ ...prev, [pendingJob.id]: true }));
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log('📝 Applying to job:', {
           jobId: pendingJob.id,
@@ -1010,7 +1003,7 @@ useEffect(() => {
           studentId: user.id
         });
       }
-      
+
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       // Pass resumeId in applicationData if backend supports it
       let applicationResult;
@@ -1021,7 +1014,7 @@ useEffect(() => {
         console.error('❌ [handleResumeSelection] applyToJob error:', applyError);
         throw applyError;
       }
-      
+
       // Immediately add to applications state for instant UI update
       if (applicationResult && pendingJob.id) {
         const newApplication = {
@@ -1044,13 +1037,13 @@ useEffect(() => {
           return [newApplication, ...prev];
         });
       }
-      
+
       // Show success toast
       showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
-      
+
       // Clear applying state immediately
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
-      
+
       // Force refresh applications list to get complete data from backend (including the new application)
       // Clear applications cache before reloading
       const appsCacheKey = getCacheKey('applications');
@@ -1061,25 +1054,25 @@ useEffect(() => {
       dataLoadingRef.current.applications = false;
       // Reload immediately (forceRefresh=true bypasses cache)
       await loadApplicationsData(true); // Force refresh after applying
-      
+
     } catch (error) {
       console.error('❌ [handleApplyToJob] Full error:', error);
       console.error('❌ [handleApplyToJob] Error response:', error.response);
       console.error('❌ [handleApplyToJob] Error data:', error.response?.data);
-      
+
       // Handle "Already applied" gracefully - just refresh and update button, no error shown
       const errorData = error.response?.data || error.response || {};
       const errorMessage = errorData.error || errorData.message || error.message;
-      
+
       if (errorMessage === 'Already applied to this job' || errorData.error === 'Already applied to this job') {
         // Silently refresh applications to update button state
         await loadApplicationsData(true); // Force refresh after applying
         return; // Exit early, no error message needed
       }
-      
+
       // Handle CGPA requirement error with precise message
-      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
-          errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
+      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' ||
+        errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
         // Clean and precise error message
         const yourCgpa = errorData.yourCgpa || 'Not set';
         const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
@@ -1123,7 +1116,7 @@ useEffect(() => {
     if (!job) return false;
     const deadline = job.applicationDeadline || job.deadline;
     if (!deadline) return false; // No deadline set, allow application
-    
+
     const deadlineDate = new Date(deadline);
     const now = new Date();
     return now > deadlineDate;
@@ -1313,33 +1306,33 @@ useEffect(() => {
 
   // Track if jobs/applications have been loaded to prevent repeated calls
   const dataLoadingRef = useRef({ jobs: false, applications: false });
-  
+
   // OPTIMIZED: Load jobs and applications in parallel for faster loading
   useEffect(() => {
     if (!user?.id) return;
-    
+
     const loadDashboardData = async () => {
       // Load applications and interview history in parallel (both are independent)
       const promises = [];
-      
+
       if (!dataLoadingRef.current.applications) {
         dataLoadingRef.current.applications = true;
         promises.push(loadApplicationsData());
       }
-      
+
       // Load interview history in parallel with applications (same data source)
       promises.push(loadInterviewHistory());
-      
+
       // Wait for both to complete
       await Promise.all(promises);
-      
+
       // Load jobs when profile is complete (requires profile data for filtering)
       if (profileComplete && !dataLoadingRef.current.jobs) {
         dataLoadingRef.current.jobs = true;
         loadJobsData();
       }
     };
-    
+
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
@@ -1372,7 +1365,7 @@ useEffect(() => {
     window.addEventListener('profileUpdated', handleProfileUpdated);
     return () => window.removeEventListener('profileUpdated', handleProfileUpdated);
   }, [user?.id, loadProfile, loadJobsData]);
-  
+
   // OPTIMIZED: Interview history is now loaded on mount with applications (no need to reload on tab switch)
   // Track last active tab for other potential use cases
   const lastActiveTabRef = useRef(null);
@@ -1405,7 +1398,7 @@ useEffect(() => {
   const validateCGPA = (cgpa, allowPartial = false) => {
     if (!cgpa || cgpa.trim() === '') return false;
     const cgpaStr = String(cgpa).trim();
-    
+
     // If allowPartial is true, accept integers and partial decimals during typing
     if (allowPartial) {
       // Accept integers (0-10)
@@ -1422,7 +1415,7 @@ useEffect(() => {
       }
       return false;
     }
-    
+
     // Strict validation: must be in format 0.00 to 10.00 with exactly 2 decimal places
     const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
     if (!cgpaRegex.test(cgpaStr)) {
@@ -1470,7 +1463,7 @@ useEffect(() => {
       errors.push('Please enter a valid email address');
       missingFields.push({ field: 'email', section: 'basic' });
     }
-    
+
     if (!phone.trim()) {
       errors.push('Phone number is required');
       missingFields.push({ field: 'phone', section: 'basic' });
@@ -1520,7 +1513,7 @@ useEffect(() => {
 
     // Optional field validations
     if (cgpa && !validateCGPA(cgpa)) errors.push('CGPA must be between 0 and 10');
-    
+
     // URL validations for other social profiles (optional)
     if (githubUrl && !validateURL(githubUrl)) errors.push('Please enter a valid GitHub URL');
     if (youtubeUrl && !validateURL(youtubeUrl)) errors.push('Please enter a valid YouTube URL');
@@ -1531,7 +1524,7 @@ useEffect(() => {
   // Real-time field validation
   const validateField = (fieldName, value) => {
     const errors = { ...validationErrors };
-    
+
     switch (fieldName) {
       case 'fullName':
         if (!value.trim()) {
@@ -1647,7 +1640,7 @@ useEffect(() => {
       default:
         break;
     }
-    
+
     setValidationErrors(errors);
   };
 
@@ -1676,12 +1669,12 @@ useEffect(() => {
 
     try {
       setSaving(true);
-      
+
       // Format CGPA to exactly 2 decimal places if provided - NO ROUNDING
       let formattedCgpa = null;
       if (cgpa && cgpa.trim() !== '') {
         const cgpaStr = String(cgpa).trim();
-        
+
         // If already in correct format (e.g., 9.00, 8.75), use as-is
         if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
           formattedCgpa = cgpaStr;
@@ -1696,7 +1689,7 @@ useEffect(() => {
           const parts = cgpaStr.split('.');
           const integerPart = parseInt(parts[0], 10);
           const decimalPart = parts[1].substring(0, 2).padEnd(2, '0');
-          
+
           // Validate range
           if (integerPart >= 0 && integerPart <= 10) {
             if (integerPart === 10 && parseInt(decimalPart, 10) > 0) {
@@ -1752,7 +1745,7 @@ useEffect(() => {
       // Show success immediately for better UX (optimistic update)
       showSuccess('Profile details updated successfully');
       setIsChecked(false);
-      
+
       // Save to database in background
       const existing = await getStudentProfile(user.id);
       if (existing) {
@@ -1760,7 +1753,7 @@ useEffect(() => {
       } else {
         await createCompleteStudentProfile(user.id, profileData, []);
       }
-      
+
       // Reload profile from server to get the latest data
       const updatedProfile = await getStudentProfile(user.id);
       if (updatedProfile) {
@@ -1789,12 +1782,12 @@ useEffect(() => {
         // Profile photo can be from user.profilePhoto (old) or student.profileImageUrl (new Cloudinary)
         setProfilePhoto(updatedProfile.profileImageUrl || updatedProfile.profilePhoto || '');
         setJobFlexibility(updatedProfile.jobFlexibility || '');
-        
+
         // Parse otherProfiles
         if (updatedProfile.otherProfiles) {
           try {
-            const parsed = typeof updatedProfile.otherProfiles === 'string' 
-              ? JSON.parse(updatedProfile.otherProfiles) 
+            const parsed = typeof updatedProfile.otherProfiles === 'string'
+              ? JSON.parse(updatedProfile.otherProfiles)
               : updatedProfile.otherProfiles;
             setOtherProfiles(Array.isArray(parsed) ? parsed : []);
           } catch (e) {
@@ -1804,7 +1797,7 @@ useEffect(() => {
         } else {
           setOtherProfiles([]);
         }
-        
+
         // Update initial snapshot
         const sanitizedProfile = {
           fullName: updatedProfile.fullName || '',
@@ -1838,19 +1831,19 @@ useEffect(() => {
         initialProfileRef.current = normalizeProfileSnapshot(profileData);
       }
       setIsFormDirty(false);
-      
+
       // Clear ALL cache when profile is updated (profile changes affect jobs/applications visibility)
       clearCache();
-      
+
       // Dispatch custom event to notify DashboardLayout to reload profile
-      window.dispatchEvent(new CustomEvent('profileUpdated', { 
-        detail: { userId: user.id } 
+      window.dispatchEvent(new CustomEvent('profileUpdated', {
+        detail: { userId: user.id }
       }));
-      
+
       // Force reload profile to update header immediately (without cache)
       loadingProfileRef.current = false;
       await loadProfile(true);
-      
+
       // Reload jobs since profile changes (school/center/batch) affect job visibility
       const jobsCacheKey = getCacheKey('jobs');
       if (jobsCacheKey) {
@@ -1858,7 +1851,7 @@ useEffect(() => {
       }
       dataLoadingRef.current.jobs = false;
       await loadJobsData(true); // Force refresh jobs
-      
+
       setTimeout(() => {
         // Alert removed - using toast notifications
         setActiveTab('dashboard');
@@ -1872,10 +1865,10 @@ useEffect(() => {
         response: err.response,
         code: err.code,
       });
-      
+
       // More specific error messages
       let errorMessage = 'Failed to save profile. ';
-      
+
       // Check for backend error response
       if (err.response?.error) {
         errorMessage += err.response.error;
@@ -1892,7 +1885,7 @@ useEffect(() => {
       } else {
         errorMessage += 'Please try again.';
       }
-      
+
       showError(errorMessage);
     } finally {
       setSaving(false);
@@ -2125,12 +2118,12 @@ useEffect(() => {
       } else {
         date = new Date(dateValue);
       }
-      
+
       // Check if date is valid
       if (isNaN(date.getTime())) {
         return 'TBD';
       }
-      
+
       return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -2145,7 +2138,7 @@ useEffect(() => {
   const formatSalary = (salary) => {
     if (!salary || (typeof salary === 'string' && salary.trim() === '')) return 'As per industry standards';
     if (salary === 'As per industry standards') return 'As per industry standards';
-    
+
     // Handle number format
     if (typeof salary === 'number') {
       if (salary >= 100000) {
@@ -2154,7 +2147,7 @@ useEffect(() => {
         return `₹${salary.toLocaleString()}`;
       }
     }
-    
+
     // Handle string format
     if (typeof salary === 'string') {
       // Try to parse if it's a number string
@@ -2171,14 +2164,14 @@ useEffect(() => {
       }
       return salary.replace(/\$/g, '₹');
     }
-    
+
     return 'As per industry standards';
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardHome 
+        return <DashboardHome
           studentData={{
             fullName,
             email,
@@ -2220,7 +2213,7 @@ useEffect(() => {
           <div className="space-y-4 md:space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">Explore Job Opportunities</h2>
-              
+
               {/* Profile completion check */}
               {!profileComplete ? (
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-6 rounded-lg mb-6">
@@ -2322,227 +2315,225 @@ useEffect(() => {
                     const paginatedJobs = jobs.slice(start, start + JOBS_PER_PAGE);
                     return (
                       <>
-                  <div className="grid grid-cols-1 md:grid-cols-1 gap-3 sm:gap-4">
-                    {paginatedJobs.map((job) => {
-                      const companyName = job.company?.name || job.company || 'Company';
-                      const isApplied = hasApplied(job.id);
-                      const isApplying = applying[job.id];
-                      const cgpaNotMet = !meetsCgpaRequirement(job);
-                      const deadlinePassed = isDeadlinePassed(job);
-                      const yopNotEligible = !meetsYopRequirement(job);
-                      
-                      return (
-                        <div
-                          key={job.id}
-                          className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden"
-                        >
-                          {/* Mobile Layout */}
-                          <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
-                            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
-                              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 shadow-md ${getCompanyColor(companyName)}`}>
-                                {getCompanyInitial(companyName)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
-                                <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
-                                <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
+                        <div className="grid grid-cols-1 md:grid-cols-1 gap-3 sm:gap-4">
+                          {paginatedJobs.map((job) => {
+                            const companyName = job.company?.name || job.company || 'Company';
+                            const isApplied = hasApplied(job.id);
+                            const isApplying = applying[job.id];
+                            const cgpaNotMet = !meetsCgpaRequirement(job);
+                            const deadlinePassed = isDeadlinePassed(job);
+                            const yopNotEligible = !meetsYopRequirement(job);
+
+                            return (
+                              <div
+                                key={job.id}
+                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden"
+                              >
+                                {/* Mobile Layout */}
+                                <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
+                                  <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 shadow-md ${getCompanyColor(companyName)}`}>
+                                      {getCompanyInitial(companyName)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
+                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
+                                      <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
+                                        <div className="flex items-center gap-1">
+                                          <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                                          <span>{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
-                                    <span>{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
+                                  <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
+                                    <button
+                                      onClick={() => handleApplyToJob(job)}
+                                      disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
+                                      title={
+                                        deadlinePassed
+                                          ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                          : cgpaNotMet ? (() => {
+                                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                            }
+                                            return "CGPA requirement not met. Please check the job requirements.";
+                                          })()
+                                            : yopNotEligible
+                                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                              : ''
+                                      }
+                                      className={`flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
+                                        ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
+                                        : isApplying
+                                          ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
+                                          : cgpaNotMet || deadlinePassed || yopNotEligible
+                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
+                                            : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
+                                        }`}
+                                    >
+                                      {isApplied ? (
+                                        <>
+                                          <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                          <span className="truncate">Applied!</span>
+                                        </>
+                                      ) : isApplying ? (
+                                        <>
+                                          <Loader className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 animate-spin" />
+                                          <span className="truncate">Applying...</span>
+                                        </>
+                                      ) : cgpaNotMet ? (
+                                        <>
+                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                          <span className="truncate">CGPA Not Met</span>
+                                        </>
+                                      ) : deadlinePassed ? (
+                                        <>
+                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                          <span className="truncate">Deadline Passed</span>
+                                        </>
+                                      ) : yopNotEligible ? (
+                                        <>
+                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                          <span className="truncate">YOP Not Eligible</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Briefcase className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                          <span className="truncate">Apply Now</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
+                                <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                                  <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+                                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
+                                      {getCompanyInitial(companyName)}
+                                    </div>
+                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                      <h3 className="text-base font-bold text-gray-900 truncate">{companyName}</h3>
+                                    </div>
+                                  </div>
+
+                                  <div className="min-w-0 overflow-hidden flex items-center">
+                                    <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                                  </div>
+
+                                  <div className="flex items-center min-w-0 overflow-hidden">
+                                    <span className="text-sm font-bold text-green-600 truncate">{formatSalary(job.salary || job.ctc)}</span>
+                                  </div>
+
+                                  <div className="flex items-center min-w-0 overflow-hidden">
+                                    <div className="flex items-center gap-2 text-gray-700 min-w-0">
+                                      <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                      <span className="text-sm font-medium truncate">{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center min-w-0 overflow-hidden">
+                                    <button
+                                      onClick={() => handleApplyToJob(job)}
+                                      disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
+                                      title={
+                                        deadlinePassed
+                                          ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                          : cgpaNotMet ? (() => {
+                                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
+                                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
+                                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
+                                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
+                                            }
+                                            return "CGPA requirement not met. Please check the job requirements.";
+                                          })()
+                                            : yopNotEligible
+                                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
+                                              : ''
+                                      }
+                                      className={`px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
+                                        ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
+                                        : isApplying
+                                          ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
+                                          : cgpaNotMet || deadlinePassed || yopNotEligible
+                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
+                                            : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
+                                        }`}
+                                    >
+                                      {isApplied ? (
+                                        <>
+                                          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                                          Applied!
+                                        </>
+                                      ) : isApplying ? (
+                                        <>
+                                          <Loader className="h-4 w-4 flex-shrink-0 animate-spin" />
+                                          Applying...
+                                        </>
+                                      ) : cgpaNotMet ? (
+                                        <>
+                                          <XCircle className="h-4 w-4 flex-shrink-0" />
+                                          CGPA Not Met
+                                        </>
+                                      ) : deadlinePassed ? (
+                                        <>
+                                          <XCircle className="h-4 w-4 flex-shrink-0" />
+                                          Deadline Passed
+                                        </>
+                                      ) : yopNotEligible ? (
+                                        <>
+                                          <XCircle className="h-4 w-4 flex-shrink-0" />
+                                          YOP Not Eligible
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Briefcase className="h-4 w-4 flex-shrink-0" />
+                                          Apply Now
+                                        </>
+                                      )}
+                                    </button>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
-                              <button
-                                onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
-                                title={
-                                  deadlinePassed 
-                                    ? 'Application deadline has passed. Applications are no longer being accepted.'
-                                    : cgpaNotMet ? (() => {
-                                      const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                      const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                      if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                        return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                      }
-                                      return "CGPA requirement not met. Please check the job requirements.";
-                                    })()
-                                    : yopNotEligible
-                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
-                                    : ''
-                                }
-                                className={`flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${
-                                  isApplied
-                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
-                                    : isApplying
-                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                    : cgpaNotMet || deadlinePassed || yopNotEligible
-                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
-                                }`}
-                              >
-                                {isApplied ? (
-                                  <>
-                                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">Applied!</span>
-                                  </>
-                                ) : isApplying ? (
-                                  <>
-                                    <Loader className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 animate-spin" />
-                                    <span className="truncate">Applying...</span>
-                                  </>
-                                ) : cgpaNotMet ? (
-                                  <>
-                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">CGPA Not Met</span>
-                                  </>
-                                ) : deadlinePassed ? (
-                                  <>
-                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">Deadline Passed</span>
-                                  </>
-                                ) : yopNotEligible ? (
-                                  <>
-                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">YOP Not Eligible</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Briefcase className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">Apply Now</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
-                          <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
-                            <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-                              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
-                                {getCompanyInitial(companyName)}
-                              </div>
-                              <div className="min-w-0 flex-1 overflow-hidden">
-                                <h3 className="text-base font-bold text-gray-900 truncate">{companyName}</h3>
-                              </div>
-                            </div>
-
-                            <div className="min-w-0 overflow-hidden flex items-center">
-                              <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
-                            </div>
-
-                            <div className="flex items-center min-w-0 overflow-hidden">
-                              <span className="text-sm font-bold text-green-600 truncate">{formatSalary(job.salary || job.ctc)}</span>
-                            </div>
-
-                            <div className="flex items-center min-w-0 overflow-hidden">
-                              <div className="flex items-center gap-2 text-gray-700 min-w-0">
-                                <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm font-medium truncate">{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center min-w-0 overflow-hidden">
-                              <button
-                                onClick={() => handleApplyToJob(job)}
-                                disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
-                                title={
-                                  deadlinePassed 
-                                    ? 'Application deadline has passed. Applications are no longer being accepted.'
-                                    : cgpaNotMet ? (() => {
-                                      const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                      const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                      if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                        return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                      }
-                                      return "CGPA requirement not met. Please check the job requirements.";
-                                    })()
-                                    : yopNotEligible
-                                    ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
-                                    : ''
-                                }
-                                className={`px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${
-                                  isApplied
-                                    ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
-                                    : isApplying
-                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                    : cgpaNotMet || deadlinePassed || yopNotEligible
-                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
-                                }`}
-                              >
-                                {isApplied ? (
-                                  <>
-                                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                                    Applied!
-                                  </>
-                                ) : isApplying ? (
-                                  <>
-                                    <Loader className="h-4 w-4 flex-shrink-0 animate-spin" />
-                                    Applying...
-                                  </>
-                                ) : cgpaNotMet ? (
-                                  <>
-                                    <XCircle className="h-4 w-4 flex-shrink-0" />
-                                    CGPA Not Met
-                                  </>
-                                ) : deadlinePassed ? (
-                                  <>
-                                    <XCircle className="h-4 w-4 flex-shrink-0" />
-                                    Deadline Passed
-                                  </>
-                                ) : yopNotEligible ? (
-                                  <>
-                                    <XCircle className="h-4 w-4 flex-shrink-0" />
-                                    YOP Not Eligible
-                                  </>
-                                ) : (
-                                  <>
-                                    <Briefcase className="h-4 w-4 flex-shrink-0" />
-                                    Apply Now
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
 
-                  {/* Pagination */}
-                  {totalJobs > JOBS_PER_PAGE && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
-                      <p className="text-sm text-gray-600">
-                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
-                          disabled={currentPage <= 1}
-                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Previous
-                        </button>
-                        <span className="px-3 py-2 text-sm text-gray-700">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={currentPage >= totalPages}
-                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                        {/* Pagination */}
+                        {totalJobs > JOBS_PER_PAGE && (
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+                            <p className="text-sm text-gray-600">
+                              Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage <= 1}
+                                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Previous
+                              </button>
+                              <span className="px-3 py-2 text-sm text-gray-700">
+                                Page {currentPage} of {totalPages}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setJobsPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={currentPage >= totalPages}
+                                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -2581,7 +2572,7 @@ useEffect(() => {
             jobTitle: applications[0].job?.jobTitle
           } : null
         });
-        
+
         // Use same pipeline stats as Career Insights (screening → shortlisted, test → interviewed, offer)
         const { applied: totalApplied, shortlisted, interviewed, offers } = displayStats;
 
@@ -2649,22 +2640,20 @@ useEffect(() => {
               <div className="bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-2 shadow-xl border border-gray-200/50 w-full max-w-md sm:max-w-none sm:w-auto inline-flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={() => setApplicationsView('current')}
-                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${
-                    applicationsView === 'current' 
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg sm:scale-105' 
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
+                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${applicationsView === 'current'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg sm:scale-105'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
                 >
                   <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   Current Applications
                 </button>
                 <button
                   onClick={() => setApplicationsView('past')}
-                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${
-                    applicationsView === 'past' 
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105' 
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
+                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${applicationsView === 'past'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
                 >
                   <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   Past Applications
@@ -2679,7 +2668,7 @@ useEffect(() => {
                   <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 truncate">Past Applications</h2>
                   <p className="text-sm sm:text-base text-gray-600">Your interview history and results</p>
                 </div>
-                
+
                 {loadingInterviewHistory ? (
                   <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
                     <Loader className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-purple-600 mb-4" />
@@ -2705,262 +2694,255 @@ useEffect(() => {
                       return (
                         <>
                           {paginatedPastRecords.map((record, index) => {
-                      const history = record.interviewHistory;
-                      const isCracked = history.isCracked;
-                      const isRejected = history.isRejected;
-                      
-                      return (
-                        <div
-                          key={record.id}
-                          className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
-                          style={{ animationDelay: `${index * 100}ms` }}
-                        >
-                          <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
-                            isCracked ? 'from-green-500 to-emerald-500' :
-                            isRejected ? 'from-red-500 to-rose-500' :
-                            'from-gray-400 to-gray-500'
-                          }`}></div>
-                          
-                          <div className="p-4 sm:p-6 lg:p-8">
-                            {/* Header: stack on mobile, row on desktop */}
-                            <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                                  <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                    <span className="text-white font-bold text-lg sm:text-2xl">
-                                      {getCompanyInitial(record.company?.name)}
-                                    </span>
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-purple-600 transition-colors">
-                                      {record.job?.jobTitle || 'Unknown Position'}
-                                    </h3>
-                                    <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
-                                      <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                                      {record.company?.name || 'Unknown Company'}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setExpandedApplications(prev => {
-                                      const newSet = new Set(prev);
-                                      if (newSet.has(record.id)) newSet.delete(record.id);
-                                      else newSet.add(record.id);
-                                      return newSet;
-                                    });
-                                  }}
-                                  className="self-start sm:self-center flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
-                                >
-                                  <span>View Details</span>
-                                  {expandedApplications.has(record.id) ? (
-                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                  ) : (
-                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
+                            const history = record.interviewHistory;
+                            const isCracked = history.isCracked;
+                            const isRejected = history.isRejected;
 
-                            {expandedApplications.has(record.id) && (
-                              <div className="mb-4 sm:mb-6 space-y-4 sm:space-y-6 border-t border-gray-200 pt-4 sm:pt-6">
-                                {record.screeningStatusText && (
-                                  <div className={`p-3 sm:p-4 border rounded-lg ${
-                                    record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
-                                      ? 'bg-red-50 border-red-200'
-                                      : record.screeningStatus === 'TEST_SELECTED'
-                                      ? 'bg-green-50 border-green-200'
-                                      : 'bg-yellow-50 border-yellow-200'
-                                  }`}>
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <Info className={`w-5 h-5 ${
-                                        record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
-                                          ? 'text-red-600'
+                            return (
+                              <div
+                                key={record.id}
+                                className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                                style={{ animationDelay: `${index * 100}ms` }}
+                              >
+                                <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${isCracked ? 'from-green-500 to-emerald-500' :
+                                  isRejected ? 'from-red-500 to-rose-500' :
+                                    'from-gray-400 to-gray-500'
+                                  }`}></div>
+
+                                <div className="p-4 sm:p-6 lg:p-8">
+                                  {/* Header: stack on mobile, row on desktop */}
+                                  <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                      <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                                        <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                          <span className="text-white font-bold text-lg sm:text-2xl">
+                                            {getCompanyInitial(record.company?.name)}
+                                          </span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-purple-600 transition-colors">
+                                            {record.job?.jobTitle || 'Unknown Position'}
+                                          </h3>
+                                          <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
+                                            <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                            {record.company?.name || 'Unknown Company'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setExpandedApplications(prev => {
+                                            const newSet = new Set(prev);
+                                            if (newSet.has(record.id)) newSet.delete(record.id);
+                                            else newSet.add(record.id);
+                                            return newSet;
+                                          });
+                                        }}
+                                        className="self-start sm:self-center flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
+                                      >
+                                        <span>View Details</span>
+                                        {expandedApplications.has(record.id) ? (
+                                          <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                        ) : (
+                                          <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {expandedApplications.has(record.id) && (
+                                    <div className="mb-4 sm:mb-6 space-y-4 sm:space-y-6 border-t border-gray-200 pt-4 sm:pt-6">
+                                      {record.screeningStatusText && (
+                                        <div className={`p-3 sm:p-4 border rounded-lg ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                          ? 'bg-red-50 border-red-200'
                                           : record.screeningStatus === 'TEST_SELECTED'
-                                          ? 'text-green-600'
-                                          : 'text-yellow-600'
-                                      }`} />
-                                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
-                                    </div>
-                                    <p className={`text-base font-bold ${
-                                      record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
-                                        ? 'text-red-800'
-                                        : record.screeningStatus === 'TEST_SELECTED'
-                                        ? 'text-green-800'
-                                        : 'text-yellow-800'
-                                    }`}>
-                                      {record.screeningStatusText}
-                                    </p>
-                                  </div>
-                                )}
-                                
-                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                  {isCracked && (
-                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
-                                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                      Cracked
-                                    </span>
-                                  )}
-                                  {isRejected && (
-                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
-                                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                      Rejected
-                                    </span>
-                                  )}
-                                  {!isCracked && !isRejected && (
-                                    <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
-                                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                      Pending
-                                    </span>
-                                  )}
-                                </div>
+                                            ? 'bg-green-50 border-green-200'
+                                            : 'bg-yellow-50 border-yellow-200'
+                                          }`}>
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <Info className={`w-5 h-5 ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                              ? 'text-red-600'
+                                              : record.screeningStatus === 'TEST_SELECTED'
+                                                ? 'text-green-600'
+                                                : 'text-yellow-600'
+                                              }`} />
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
+                                          </div>
+                                          <p className={`text-base font-bold ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                            ? 'text-red-800'
+                                            : record.screeningStatus === 'TEST_SELECTED'
+                                              ? 'text-green-800'
+                                              : 'text-yellow-800'
+                                            }`}>
+                                            {record.screeningStatusText}
+                                          </p>
+                                        </div>
+                                      )}
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <Trophy className="w-5 h-5 text-blue-600" />
-                                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
-                                    </div>
-                                    <p className="text-sm sm:text-lg font-bold text-gray-800 break-words">
-                                      {history.lastRoundReached || 'Not evaluated'}
-                                    </p>
-                                  </div>
-                                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <ClipboardList className="w-5 h-5 text-purple-600" />
-                                      <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
-                                    </div>
-                                    <p className="text-lg font-bold text-gray-800">
-                                      {history.rounds?.length || 0} rounds
-                                    </p>
-                                  </div>
-                                </div>
+                                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                        {isCracked && (
+                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
+                                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                            Cracked
+                                          </span>
+                                        )}
+                                        {isRejected && (
+                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
+                                            <XCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                            Rejected
+                                          </span>
+                                        )}
+                                        {!isCracked && !isRejected && (
+                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
+                                            <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                            Pending
+                                          </span>
+                                        )}
+                                      </div>
 
-                                {/* Enhanced Rounds Progress */}
-                                {history.rounds && history.rounds.length > 0 && (
-                                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 rounded-lg sm:rounded-xl border border-gray-200 overflow-x-hidden">
-                                    <div className="flex items-center gap-2 mb-4">
-                                      <ClipboardList className="w-5 h-5 text-indigo-600" />
-                                      <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
-                                    </div>
-                                    <div className="space-y-3">
-                                      {history.rounds.map((round, index) => {
-                                        const wasReached = history.roundsReached?.includes(round.name);
-                                        const evaluation = history.evaluations?.find(e => e.roundName === round.name);
-                                        
-                                        return (
-                                          <div
-                                            key={index}
-                                            className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
-                                              wasReached 
-                                                ? evaluation?.status === 'SELECTED'
-                                                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
-                                                  : evaluation?.status === 'REJECTED'
-                                                  ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
-                                                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
-                                                : 'bg-white border-gray-200'
-                                            }`}
-                                          >
-                                            <div className="flex items-center gap-3 mb-3">
-                                              {(() => {
-                                                // Different colors for each round number - always show colors
-                                                const roundColors = [
-                                                  'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
-                                                  'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
-                                                  'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
-                                                  'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
-                                                  'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
-                                                  'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
-                                                  'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
-                                                  'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
-                                                ];
-                                                const roundNotReachedColors = [
-                                                  'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
-                                                  'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
-                                                  'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
-                                                  'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
-                                                  'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
-                                                  'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
-                                                  'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
-                                                  'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
-                                                ];
-                                                const roundNumber = index + 1;
-                                                const colorIndex = (roundNumber - 1) % roundColors.length;
-                                                const baseColor = roundColors[colorIndex];
-                                                const mutedColor = roundNotReachedColors[colorIndex];
-                                                
-                                                return (
-                                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${
-                                                    wasReached ? baseColor : mutedColor + ' opacity-75'
-                                                  }`}>
-                                                    <span className="text-lg">{roundNumber}</span>
-                                                  </div>
-                                                );
-                                              })()}
-                                              <div>
-                                                <span className="font-semibold text-base text-gray-800 block">
-                                                  {round.name || `Round ${index + 1}`}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            
-                                            <div className="space-y-2 pl-0 sm:pl-16">
-                                              {wasReached ? (
-                                                <>
-                                                  {evaluation?.marks !== null && (
-                                                    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
-                                                      <span className="text-sm font-semibold text-gray-700">Score:</span>
-                                                      <span className="text-base font-bold text-indigo-700">{evaluation.marks}/100</span>
-                                                    </div>
-                                                  )}
-                                                  {evaluation?.status && (
-                                                    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-                                                      <span className="text-sm font-semibold text-gray-700">Status:</span>
-                                                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
-                                                        evaluation.status === 'SELECTED'
-                                                          ? 'bg-green-200 text-green-800'
-                                                          : evaluation.status === 'REJECTED'
-                                                          ? 'bg-red-200 text-red-800'
-                                                          : 'bg-blue-200 text-blue-800'
-                                                      }`}>
-                                                        {evaluation.status}
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Trophy className="w-5 h-5 text-blue-600" />
+                                            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
+                                          </div>
+                                          <p className="text-sm sm:text-lg font-bold text-gray-800 break-words">
+                                            {history.lastRoundReached || 'Not evaluated'}
+                                          </p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <ClipboardList className="w-5 h-5 text-purple-600" />
+                                            <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
+                                          </div>
+                                          <p className="text-lg font-bold text-gray-800">
+                                            {history.rounds?.length || 0} rounds
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      {/* Enhanced Rounds Progress */}
+                                      {history.rounds && history.rounds.length > 0 && (
+                                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 rounded-lg sm:rounded-xl border border-gray-200 overflow-x-hidden">
+                                          <div className="flex items-center gap-2 mb-4">
+                                            <ClipboardList className="w-5 h-5 text-indigo-600" />
+                                            <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
+                                          </div>
+                                          <div className="space-y-3">
+                                            {history.rounds.map((round, index) => {
+                                              const wasReached = history.roundsReached?.includes(round.name);
+                                              const evaluation = history.evaluations?.find(e => e.roundName === round.name);
+
+                                              return (
+                                                <div
+                                                  key={index}
+                                                  className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${wasReached
+                                                    ? evaluation?.status === 'SELECTED'
+                                                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
+                                                      : evaluation?.status === 'REJECTED'
+                                                        ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
+                                                        : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
+                                                    : 'bg-white border-gray-200'
+                                                    }`}
+                                                >
+                                                  <div className="flex items-center gap-3 mb-3">
+                                                    {(() => {
+                                                      // Different colors for each round number - always show colors
+                                                      const roundColors = [
+                                                        'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
+                                                        'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
+                                                        'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
+                                                        'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
+                                                        'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
+                                                        'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
+                                                        'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
+                                                        'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
+                                                      ];
+                                                      const roundNotReachedColors = [
+                                                        'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
+                                                        'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
+                                                        'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
+                                                        'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
+                                                        'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
+                                                        'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
+                                                        'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
+                                                        'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
+                                                      ];
+                                                      const roundNumber = index + 1;
+                                                      const colorIndex = (roundNumber - 1) % roundColors.length;
+                                                      const baseColor = roundColors[colorIndex];
+                                                      const mutedColor = roundNotReachedColors[colorIndex];
+
+                                                      return (
+                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${wasReached ? baseColor : mutedColor + ' opacity-75'
+                                                          }`}>
+                                                          <span className="text-lg">{roundNumber}</span>
+                                                        </div>
+                                                      );
+                                                    })()}
+                                                    <div>
+                                                      <span className="font-semibold text-base text-gray-800 block">
+                                                        {round.name || `Round ${index + 1}`}
                                                       </span>
                                                     </div>
-                                                  )}
-                                                  {evaluation?.remarks && (
-                                                    <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                                                      <span className="text-sm font-semibold text-gray-700 block mb-1">Remarks:</span>
-                                                      <p className="text-sm text-gray-600">{evaluation.remarks}</p>
-                                                    </div>
-                                                  )}
-                                                </>
-                                              ) : (
-                                                <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg text-center">
-                                                  <span className="text-sm font-medium text-gray-500">Not reached</span>
+                                                  </div>
+
+                                                  <div className="space-y-2 pl-0 sm:pl-16">
+                                                    {wasReached ? (
+                                                      <>
+                                                        {evaluation?.marks !== null && (
+                                                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                                                            <span className="text-sm font-semibold text-gray-700">Score:</span>
+                                                            <span className="text-base font-bold text-indigo-700">{evaluation.marks}/100</span>
+                                                          </div>
+                                                        )}
+                                                        {evaluation?.status && (
+                                                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                                                            <span className="text-sm font-semibold text-gray-700">Status:</span>
+                                                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${evaluation.status === 'SELECTED'
+                                                              ? 'bg-green-200 text-green-800'
+                                                              : evaluation.status === 'REJECTED'
+                                                                ? 'bg-red-200 text-red-800'
+                                                                : 'bg-blue-200 text-blue-800'
+                                                              }`}>
+                                                              {evaluation.status}
+                                                            </span>
+                                                          </div>
+                                                        )}
+                                                        {evaluation?.remarks && (
+                                                          <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
+                                                            <span className="text-sm font-semibold text-gray-700 block mb-1">Remarks:</span>
+                                                            <p className="text-sm text-gray-600">{evaluation.remarks}</p>
+                                                          </div>
+                                                        )}
+                                                      </>
+                                                    ) : (
+                                                      <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg text-center">
+                                                        <span className="text-sm font-medium text-gray-500">Not reached</span>
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                              )}
-                                            </div>
+                                              );
+                                            })}
                                           </div>
-                                        );
-                                      })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-gray-200 flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                      <Calendar className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-gray-500 font-medium">Applied Date</p>
+                                      <p className="font-semibold text-gray-800">{formatDate(record.appliedDate)}</p>
                                     </div>
                                   </div>
-                                )}
+                                </div>
                               </div>
-                            )}
-
-                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-gray-200 flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded-lg">
-                                <Calendar className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500 font-medium">Applied Date</p>
-                                <p className="font-semibold text-gray-800">{formatDate(record.appliedDate)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
+                            );
                           })}
                           {totalPast > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
@@ -3012,273 +2994,269 @@ useEffect(() => {
                       return (
                         <>
                           {paginatedApplications.map((application, index) => (
-                      <div
-                        key={application.id}
-                        className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                        <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${
-                          (() => {
-                            const status = (application.currentStage || application.status)?.toLowerCase() || '';
-                            if (status === 'applied') return 'from-blue-500 to-cyan-500';
-                            if (status === 'shortlisted' || status === 'screening qualified') return 'from-yellow-500 to-amber-500';
-                            if (status.includes('interview round') || status === 'qualified for interview' || status === 'interview completed') return 'from-purple-500 to-pink-500';
-                            if (status === 'offered' || status === 'selected' || status === 'selected (final)') return 'from-green-500 to-emerald-500';
-                            if (status.includes('rejected')) return 'from-red-500 to-rose-500';
-                            return 'from-gray-400 to-gray-500';
-                          })()
-                        }`}></div>
-                        
-                        <div className="p-4 sm:p-6 lg:p-8">
-                          <div className="flex flex-col gap-3 sm:gap-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                                <div className={`${getCompanyColor(application.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                  <span className="text-white font-bold text-lg sm:text-2xl">
-                                    {getCompanyInitial(application.company?.name)}
-                                  </span>
+                            <div
+                              key={application.id}
+                              className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
+                              style={{ animationDelay: `${index * 100}ms` }}
+                            >
+                              <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${(() => {
+                                const status = (application.currentStage || application.status)?.toLowerCase() || '';
+                                if (status === 'applied') return 'from-blue-500 to-cyan-500';
+                                if (status === 'shortlisted' || status === 'screening qualified') return 'from-yellow-500 to-amber-500';
+                                if (status.includes('interview round') || status === 'qualified for interview' || status === 'interview completed') return 'from-purple-500 to-pink-500';
+                                if (status === 'offered' || status === 'selected' || status === 'selected (final)') return 'from-green-500 to-emerald-500';
+                                if (status.includes('rejected')) return 'from-red-500 to-rose-500';
+                                return 'from-gray-400 to-gray-500';
+                              })()
+                                }`}></div>
+
+                              <div className="p-4 sm:p-6 lg:p-8">
+                                <div className="flex flex-col gap-3 sm:gap-4">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                                      <div className={`${getCompanyColor(application.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                        <span className="text-white font-bold text-lg sm:text-2xl">
+                                          {getCompanyInitial(application.company?.name)}
+                                        </span>
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-indigo-600 transition-colors">
+                                          {application.job?.jobTitle || 'Unknown Position'}
+                                        </h3>
+                                        <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
+                                          <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                          {application.company?.name || 'Unknown Company'}
+                                        </p>
+                                        {application.screeningStatusText && (
+                                          <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{application.screeningStatusText}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
+                                      <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
+                                        {getStatusIcon(application.currentStage || application.status)}
+                                        <span className="truncate max-w-[120px] sm:max-w-none">
+                                          {(() => {
+                                            const status = application.currentStage || application.status;
+                                            if (status === 'job_removed') return 'Job Removed';
+                                            if (status) return status.charAt(0).toUpperCase() + status.slice(1);
+                                            return 'Unknown';
+                                          })()}
+                                        </span>
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          setExpandedApplications(prev => {
+                                            const newSet = new Set(prev);
+                                            if (newSet.has(application.id)) newSet.delete(application.id);
+                                            else newSet.add(application.id);
+                                            return newSet;
+                                          });
+                                        }}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
+                                      >
+                                        <span>View Details</span>
+                                        {expandedApplications.has(application.id) ? (
+                                          <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                        ) : (
+                                          <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-indigo-600 transition-colors">
-                                    {application.job?.jobTitle || 'Unknown Position'}
-                                  </h3>
-                                  <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
-                                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                                    {application.company?.name || 'Unknown Company'}
-                                  </p>
-                                  {application.screeningStatusText && (
-                                    <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{application.screeningStatusText}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
-                                <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
-                                  {getStatusIcon(application.currentStage || application.status)}
-                                  <span className="truncate max-w-[120px] sm:max-w-none">
+
+                                {expandedApplications.has(application.id) && (
+                                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200 space-y-4 sm:space-y-6">
                                     {(() => {
-                                      const status = application.currentStage || application.status;
-                                      if (status === 'job_removed') return 'Job Removed';
-                                      if (status) return status.charAt(0).toUpperCase() + status.slice(1);
-                                      return 'Unknown';
+                                      // Don't show screening status badge if already selected or completed
+                                      const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
+                                      const isFinal = currentStage === 'selected (final)' || currentStage === 'interview completed';
+
+                                      // Only show screening status if not in final state
+                                      if (isFinal || !application.screeningStatusText) return null;
+
+                                      return (
+                                        <div className={`p-3 sm:p-3 border rounded-lg ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                          ? 'bg-red-50 border-red-200'
+                                          : application.screeningStatus === 'TEST_SELECTED'
+                                            ? 'bg-green-50 border-green-200'
+                                            : 'bg-yellow-50 border-yellow-200'
+                                          }`}>
+                                          <div className="flex items-center gap-2">
+                                            <Info className={`w-4 h-4 ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                              ? 'text-red-600'
+                                              : application.screeningStatus === 'TEST_SELECTED'
+                                                ? 'text-green-600'
+                                                : 'text-yellow-600'
+                                              }`} />
+                                            <span className={`text-sm font-medium ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
+                                              ? 'text-red-800'
+                                              : application.screeningStatus === 'TEST_SELECTED'
+                                                ? 'text-green-800'
+                                                : 'text-yellow-800'
+                                              }`}>
+                                              {application.screeningStatusText}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
                                     })()}
-                                  </span>
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setExpandedApplications(prev => {
-                                      const newSet = new Set(prev);
-                                      if (newSet.has(application.id)) newSet.delete(application.id);
-                                      else newSet.add(application.id);
-                                      return newSet;
-                                    });
-                                  }}
-                                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
-                                >
-                                  <span>View Details</span>
-                                  {expandedApplications.has(application.id) ? (
-                                    <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                  ) : (
-                                    <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
 
-                          {expandedApplications.has(application.id) && (
-                            <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200 space-y-4 sm:space-y-6">
-                          {(() => {
-                            // Don't show screening status badge if already selected or completed
-                            const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
-                            const isFinal = currentStage === 'selected (final)' || currentStage === 'interview completed';
-                            
-                            // Only show screening status if not in final state
-                            if (isFinal || !application.screeningStatusText) return null;
-                            
-                            return (
-                              <div className={`p-3 sm:p-3 border rounded-lg ${
-                                application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                  ? 'bg-red-50 border-red-200'
-                                  : application.screeningStatus === 'TEST_SELECTED'
-                                  ? 'bg-green-50 border-green-200'
-                                  : 'bg-yellow-50 border-yellow-200'
-                              }`}>
-                                <div className="flex items-center gap-2">
-                                  <Info className={`w-4 h-4 ${
-                                    application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                      ? 'text-red-600'
-                                      : application.screeningStatus === 'TEST_SELECTED'
-                                      ? 'text-green-600'
-                                      : 'text-yellow-600'
-                                  }`} />
-                                  <span className={`text-sm font-medium ${
-                                    application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                      ? 'text-red-800'
-                                      : application.screeningStatus === 'TEST_SELECTED'
-                                      ? 'text-green-800'
-                                      : 'text-yellow-800'
-                                  }`}>
-                                    {application.screeningStatusText}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                          
-                          {/* Interview Status Badge (only if passed screening) */}
-                          {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
-                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <Info className="w-4 h-4 text-blue-600" />
-                                <span className="text-sm font-medium text-blue-800">
-                                  {application.interviewStatus.statusText || 'Interview Status'}
-                                </span>
-                              </div>
-                              {application.interviewStatus.lastRoundReached > 0 && (
-                                <p className="text-xs text-blue-600 mt-1 ml-6">
-                                  Last Round Reached: Round {application.interviewStatus.lastRoundReached}
-                                </p>
-                              )}
-                            </div>
-                          )}
+                                    {/* Interview Status Badge (only if passed screening) */}
+                                    {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
+                                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                          <Info className="w-4 h-4 text-blue-600" />
+                                          <span className="text-sm font-medium text-blue-800">
+                                            {application.interviewStatus.statusText || 'Interview Status'}
+                                          </span>
+                                        </div>
+                                        {application.interviewStatus.lastRoundReached > 0 && (
+                                          <p className="text-xs text-blue-600 mt-1 ml-6">
+                                            Last Round Reached: Round {application.interviewStatus.lastRoundReached}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-                            <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <MapPin className="w-4 h-4 text-blue-600" />
-                                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Location</p>
-                              </div>
-                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                {application.job?.location || 'Not specified'}
-                              </p>
-                            </div>
-                            <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Briefcase className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                                <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Experience</p>
-                              </div>
-                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                {application.job?.experienceLevel || 'Not specified'}
-                              </p>
-                            </div>
-                            <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Job Type</p>
-                              </div>
-                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                {application.job?.jobType || 'Not specified'}
-                              </p>
-                            </div>
-                            <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Award className="w-4 h-4 text-amber-600" />
-                                <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Salary</p>
-                              </div>
-                              <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                {application.job?.salaryRange || 'Not disclosed'}
-                              </p>
-                            </div>
-                          </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                      <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <MapPin className="w-4 h-4 text-blue-600" />
+                                          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Location</p>
+                                        </div>
+                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
+                                          {application.job?.location || 'Not specified'}
+                                        </p>
+                                      </div>
+                                      <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Briefcase className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                                          <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Experience</p>
+                                        </div>
+                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
+                                          {application.job?.experienceLevel || 'Not specified'}
+                                        </p>
+                                      </div>
+                                      <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Job Type</p>
+                                        </div>
+                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
+                                          {application.job?.jobType || 'Not specified'}
+                                        </p>
+                                      </div>
+                                      <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Award className="w-4 h-4 text-amber-600" />
+                                          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Salary</p>
+                                        </div>
+                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
+                                          {application.job?.salaryRange || 'Not disclosed'}
+                                        </p>
+                                      </div>
+                                    </div>
 
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 mb-4 sm:mb-6">
-                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <div className="p-2 bg-blue-100 rounded-lg">
-                                  <Calendar className="w-4 h-4 text-blue-600" />
-                                </div>
-                                <div>
-                                  <p className="text-xs text-gray-500 font-medium">Applied</p>
-                                  <p className="font-semibold text-gray-800">{formatDate(application.appliedDate)}</p>
-                                </div>
-                              </div>
-                              {application.interviewDate && (
-                                <div className="flex items-center gap-2 text-gray-700">
-                                  <div className="p-2 bg-purple-100 rounded-lg">
-                                    <Clock className="w-4 h-4 text-purple-600" />
+                                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 mb-4 sm:mb-6">
+                                      <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
+                                        <div className="flex items-center gap-2 text-gray-700">
+                                          <div className="p-2 bg-blue-100 rounded-lg">
+                                            <Calendar className="w-4 h-4 text-blue-600" />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs text-gray-500 font-medium">Applied</p>
+                                            <p className="font-semibold text-gray-800">{formatDate(application.appliedDate)}</p>
+                                          </div>
+                                        </div>
+                                        {application.interviewDate && (
+                                          <div className="flex items-center gap-2 text-gray-700">
+                                            <div className="p-2 bg-purple-100 rounded-lg">
+                                              <Clock className="w-4 h-4 text-purple-600" />
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-gray-500 font-medium">Interview</p>
+                                              <p className="font-semibold text-gray-800">{formatDate(application.interviewDate)}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {application.job?.deadline && (
+                                          <div className="flex items-center gap-2 text-gray-700">
+                                            <div className="p-2 bg-red-100 rounded-lg">
+                                              <AlertCircle className="w-4 h-4 text-red-600" />
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-gray-500 font-medium">Deadline</p>
+                                              <p className="font-semibold text-gray-800">{formatDate(application.job.deadline)}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {application.job?.description && (
+                                      <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
+                                        <div className="flex items-center gap-2 mb-3">
+                                          <FileText className="w-5 h-5 text-indigo-600" />
+                                          <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
+                                        </div>
+                                        <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
+                                          {application.job.description.length > 200
+                                            ? `${application.job.description.substring(0, 200)}...`
+                                            : application.job.description}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Enhanced Skills Required */}
+                                    {(() => {
+                                      // Parse requiredSkills - it might be a JSON string or array
+                                      let skills = [];
+                                      if (application.job?.requiredSkills) {
+                                        try {
+                                          if (typeof application.job.requiredSkills === 'string') {
+                                            skills = JSON.parse(application.job.requiredSkills);
+                                          } else if (Array.isArray(application.job.requiredSkills)) {
+                                            skills = application.job.requiredSkills;
+                                          }
+                                        } catch (e) {
+                                          // If parsing fails, try to split by comma or treat as single skill
+                                          if (typeof application.job.requiredSkills === 'string') {
+                                            skills = application.job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
+                                          }
+                                        }
+                                      }
+
+                                      return skills.length > 0 ? (
+                                        <div className="mb-4">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <Code2 className="w-5 h-5 text-indigo-600" />
+                                            <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Required Skills</p>
+                                          </div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {skills.slice(0, 8).map((skill, index) => (
+                                              <span
+                                                key={index}
+                                                className="px-4 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-sm font-semibold rounded-full border border-indigo-200 hover:from-indigo-200 hover:to-purple-200 transition-all duration-200 shadow-sm"
+                                              >
+                                                {skill}
+                                              </span>
+                                            ))}
+                                            {skills.length > 8 && (
+                                              <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-semibold rounded-full border border-gray-200">
+                                                +{skills.length - 8} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ) : null;
+                                    })()}
                                   </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500 font-medium">Interview</p>
-                                    <p className="font-semibold text-gray-800">{formatDate(application.interviewDate)}</p>
-                                  </div>
-                                </div>
-                              )}
-                              {application.job?.deadline && (
-                                <div className="flex items-center gap-2 text-gray-700">
-                                  <div className="p-2 bg-red-100 rounded-lg">
-                                    <AlertCircle className="w-4 h-4 text-red-600" />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500 font-medium">Deadline</p>
-                                    <p className="font-semibold text-gray-800">{formatDate(application.job.deadline)}</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {application.job?.description && (
-                            <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
-                              <div className="flex items-center gap-2 mb-3">
-                                <FileText className="w-5 h-5 text-indigo-600" />
-                                <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
+                                )}
                               </div>
-                              <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
-                                {application.job.description.length > 200
-                                  ? `${application.job.description.substring(0, 200)}...`
-                                  : application.job.description}
-                              </p>
                             </div>
-                          )}
-
-                          {/* Enhanced Skills Required */}
-                          {(() => {
-                            // Parse requiredSkills - it might be a JSON string or array
-                            let skills = [];
-                            if (application.job?.requiredSkills) {
-                              try {
-                                if (typeof application.job.requiredSkills === 'string') {
-                                  skills = JSON.parse(application.job.requiredSkills);
-                                } else if (Array.isArray(application.job.requiredSkills)) {
-                                  skills = application.job.requiredSkills;
-                                }
-                              } catch (e) {
-                                // If parsing fails, try to split by comma or treat as single skill
-                                if (typeof application.job.requiredSkills === 'string') {
-                                  skills = application.job.requiredSkills.split(',').map(s => s.trim()).filter(s => s);
-                                }
-                              }
-                            }
-                            
-                            return skills.length > 0 ? (
-                              <div className="mb-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Code2 className="w-5 h-5 text-indigo-600" />
-                                  <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Required Skills</p>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {skills.slice(0, 8).map((skill, index) => (
-                                    <span
-                                      key={index}
-                                      className="px-4 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-sm font-semibold rounded-full border border-indigo-200 hover:from-indigo-200 hover:to-purple-200 transition-all duration-200 shadow-sm"
-                                    >
-                                      {skill}
-                                    </span>
-                                  ))}
-                                  {skills.length > 8 && (
-                                    <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-semibold rounded-full border border-gray-200">
-                                      +{skills.length - 8} more
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : null;
-                          })()}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                          ))}
                           {totalCurrent > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
                               <p className="text-sm text-gray-600">
@@ -3298,9 +3276,9 @@ useEffect(() => {
                         </>
                       );
                     })()}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         );
@@ -3341,102 +3319,102 @@ useEffect(() => {
                     {profileSectionsOpen.photo ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.photo ? 'block' : 'hidden'} md:block`}>
-                <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border border-blue-100">
-                  <div className="flex items-start gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <ImageIcon size={16} className="text-blue-600" />
-                        Profile Photo
-                      </label>
-                    </div>
-                    <div className="relative group flex-shrink-0">
-                      <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-200 shadow-lg bg-gray-100 flex items-center justify-center">
-                        {profilePhoto ? (
-                          <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                          <User size={48} className="text-gray-400" />
-                        )}
+                    <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border border-blue-100">
+                      <div className="flex items-start gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <ImageIcon size={16} className="text-blue-600" />
+                            Profile Photo
+                          </label>
+                        </div>
+                        <div className="relative group flex-shrink-0">
+                          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-200 shadow-lg bg-gray-100 flex items-center justify-center">
+                            {profilePhoto ? (
+                              <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                              <User size={48} className="text-gray-400" />
+                            )}
+                          </div>
+                          {profilePhoto && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm('Are you sure you want to remove your profile photo? It will revert to the default photo.')) {
+                                  return;
+                                }
+
+                                try {
+                                  await api.deleteProfileImage();
+                                  setProfilePhoto('');
+                                  showSuccess('Profile photo removed successfully!');
+                                } catch (err) {
+                                  console.error('Error deleting profile image:', err);
+                                  let errorMessage = 'Failed to remove profile photo';
+                                  if (err.response?.data?.error) {
+                                    errorMessage = err.response.data.error;
+                                  } else if (err.message) {
+                                    errorMessage = err.message;
+                                  }
+                                  showError(errorMessage);
+                                }
+                              }}
+                              className="absolute top-2.5 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 -translate-x-1/2"
+                              title="Remove profile photo"
+                            >
+                              <XCircle size={14} className="text-white" />
+                            </button>
+                          )}
+                          <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                            <Camera size={24} className="text-white" />
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png,image/webp"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+
+                                // Validate file
+                                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                                const maxSize = 2 * 1024 * 1024; // 2MB
+
+                                if (!allowedTypes.includes(file.type)) {
+                                  showError('Only JPG, PNG, and WebP images are allowed');
+                                  return;
+                                }
+
+                                if (file.size > maxSize) {
+                                  showError('File size must be less than 2MB');
+                                  return;
+                                }
+
+                                try {
+                                  // Upload to Cloudinary
+                                  const response = await api.uploadProfileImage(file);
+
+                                  // Update profile photo state with Cloudinary URL
+                                  setProfilePhoto(response.profileImage.url);
+
+                                  showSuccess('Profile image uploaded successfully!');
+                                } catch (err) {
+                                  console.error('Error uploading profile image:', err);
+                                  // Extract error message from various error formats
+                                  let errorMessage = 'Failed to upload profile image';
+                                  if (err.message) {
+                                    errorMessage = err.message;
+                                  } else if (err.response?.data?.error) {
+                                    errorMessage = err.response.data.error;
+                                  } else if (err.response?.error) {
+                                    errorMessage = err.response.error;
+                                  }
+                                  showError(errorMessage);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
                       </div>
-                      {profilePhoto && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!window.confirm('Are you sure you want to remove your profile photo? It will revert to the default photo.')) {
-                              return;
-                            }
-
-                            try {
-                              await api.deleteProfileImage();
-                              setProfilePhoto('');
-                              showSuccess('Profile photo removed successfully!');
-                            } catch (err) {
-                              console.error('Error deleting profile image:', err);
-                              let errorMessage = 'Failed to remove profile photo';
-                              if (err.response?.data?.error) {
-                                errorMessage = err.response.data.error;
-                              } else if (err.message) {
-                                errorMessage = err.message;
-                              }
-                              showError(errorMessage);
-                            }
-                          }}
-                          className="absolute top-2.5 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 -translate-x-1/2"
-                          title="Remove profile photo"
-                        >
-                          <XCircle size={14} className="text-white" />
-                        </button>
-                      )}
-                      <label className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                        <Camera size={24} className="text-white" />
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/webp"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={async (e) => {
-                            const file = e.target.files[0];
-                            if (!file) return;
-
-                            // Validate file
-                            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                            const maxSize = 2 * 1024 * 1024; // 2MB
-
-                            if (!allowedTypes.includes(file.type)) {
-                              showError('Only JPG, PNG, and WebP images are allowed');
-                              return;
-                            }
-
-                            if (file.size > maxSize) {
-                              showError('File size must be less than 2MB');
-                              return;
-                            }
-
-                            try {
-                              // Upload to Cloudinary
-                              const response = await api.uploadProfileImage(file);
-                              
-                              // Update profile photo state with Cloudinary URL
-                              setProfilePhoto(response.profileImage.url);
-                              
-                              showSuccess('Profile image uploaded successfully!');
-                            } catch (err) {
-                              console.error('Error uploading profile image:', err);
-                              // Extract error message from various error formats
-                              let errorMessage = 'Failed to upload profile image';
-                              if (err.message) {
-                                errorMessage = err.message;
-                              } else if (err.response?.data?.error) {
-                                errorMessage = err.response.data.error;
-                              } else if (err.response?.error) {
-                                errorMessage = err.response.error;
-                              }
-                              showError(errorMessage);
-                            }
-                          }}
-                        />
-                      </label>
                     </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -3454,100 +3432,99 @@ useEffect(() => {
                     {profileSectionsOpen.personal ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.personal ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                    <User size={20} className="text-blue-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Personal Information</h3>
-                  </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                        <User size={20} className="text-blue-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Personal Information</h3>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <User size={16} className="text-gray-500" />
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="fullName"
-                        type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your full name"
-                        value={fullName}
-                        onChange={(e) => {
-                          setFullName(e.target.value);
-                          validateField('fullName', e.target.value);
-                        }}
-                      />
-                      {validationErrors.fullName && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.fullName}</p>
-                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <User size={16} className="text-gray-500" />
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="fullName"
+                            type="text"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="Enter your full name"
+                            value={fullName}
+                            onChange={(e) => {
+                              setFullName(e.target.value);
+                              validateField('fullName', e.target.value);
+                            }}
+                          />
+                          {validationErrors.fullName && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.fullName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Mail size={16} className="text-gray-500" />
+                            Email <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="email"
+                            type="email"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="Enter your email"
+                            value={email}
+                            onChange={(e) => {
+                              setEmail(e.target.value);
+                              validateField('email', e.target.value);
+                            }}
+                          />
+                          {validationErrors.email && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Phone size={16} className="text-gray-500" />
+                            Phone Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="phone"
+                            type="tel"
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            placeholder="Enter your 10-digit phone number (starting with 6, 7, 8, or 9)"
+                            value={phone}
+                            maxLength={10}
+                            onChange={(e) => {
+                              // Only allow digits
+                              const digitsOnly = e.target.value.replace(/\D/g, '');
+                              setPhone(digitsOnly);
+                              validateField('phone', digitsOnly);
+                            }}
+                          />
+                          {validationErrors.phone && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Hash size={16} className="text-gray-500" />
+                            Enrollment ID <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="enrollmentId"
+                            type="text"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="Enter your enrollment ID"
+                            value={enrollmentId}
+                            onChange={(e) => {
+                              setEnrollmentId(e.target.value);
+                              validateField('enrollmentId', e.target.value);
+                            }}
+                          />
+                          {validationErrors.enrollmentId && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.enrollmentId}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Mail size={16} className="text-gray-500" />
-                        Email <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="email"
-                        type="email"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your email"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          validateField('email', e.target.value);
-                        }}
-                      />
-                      {validationErrors.email && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Phone size={16} className="text-gray-500" />
-                        Phone Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="phone"
-                        type="tel"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter your 10-digit phone number (starting with 6, 7, 8, or 9)"
-                        value={phone}
-                        maxLength={10}
-                        onChange={(e) => {
-                          // Only allow digits
-                          const digitsOnly = e.target.value.replace(/\D/g, '');
-                          setPhone(digitsOnly);
-                          validateField('phone', digitsOnly);
-                        }}
-                      />
-                      {validationErrors.phone && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Hash size={16} className="text-gray-500" />
-                        Enrollment ID <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="enrollmentId"
-                        type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your enrollment ID"
-                        value={enrollmentId}
-                        onChange={(e) => {
-                          setEnrollmentId(e.target.value);
-                          validateField('enrollmentId', e.target.value);
-                        }}
-                      />
-                      {validationErrors.enrollmentId && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.enrollmentId}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -3565,197 +3542,197 @@ useEffect(() => {
                     {profileSectionsOpen.academic ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.academic ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                    <FaGraduationCap size={20} className="text-purple-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Academic Information</h3>
-                  </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                        <FaGraduationCap size={20} className="text-purple-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Academic Information</h3>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Trophy size={16} className="text-yellow-500" />
-                        CGPA
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Enter your CGPA (e.g., 9.00, 8.75)"
-                        value={cgpa}
-                        onChange={(e) => {
-                          let value = e.target.value;
-                          // Allow only numbers and one decimal point
-                          value = value.replace(/[^0-9.]/g, '');
-                          // Ensure only one decimal point
-                          const parts = value.split('.');
-                          if (parts.length > 2) {
-                            value = parts[0] + '.' + parts.slice(1).join('');
-                          }
-                          // Limit to 5 characters (e.g., 10.00)
-                          if (value.length > 5) {
-                            value = value.substring(0, 5);
-                          }
-                          setCgpa(value);
-                          // Only validate if value is clearly invalid (out of range)
-                          // Allow partial input during typing (e.g., "8", "8.", "8.0")
-                          if (value) {
-                            const numValue = parseFloat(value);
-                            if (!isNaN(numValue) && (numValue < 0 || numValue > 10)) {
-                              validateField('cgpa', value);
-                            } else {
-                              // Clear error if value is valid or partial
-                              setValidationErrors(prev => {
-                                const newErrors = { ...prev };
-                                delete newErrors.cgpa;
-                                return newErrors;
-                              });
-                            }
-                          } else {
-                            // Clear error if empty
-                            setValidationErrors(prev => {
-                              const newErrors = { ...prev };
-                              delete newErrors.cgpa;
-                              return newErrors;
-                            });
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // On blur, format to exactly 2 decimal places and validate
-                          const value = e.target.value.trim();
-                          if (value) {
-                            let formattedValue = value;
-                            if (/^\d+$/.test(value)) {
-                              // Integer like "9" -> "9.00"
-                              formattedValue = value + '.00';
-                            } else if (/^\d+\.\d*$/.test(value)) {
-                              // Has decimal point
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Trophy size={16} className="text-yellow-500" />
+                            CGPA
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="Enter your CGPA (e.g., 9.00, 8.75)"
+                            value={cgpa}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Allow only numbers and one decimal point
+                              value = value.replace(/[^0-9.]/g, '');
+                              // Ensure only one decimal point
                               const parts = value.split('.');
-                              const integerPart = parts[0];
-                              const decimalPart = (parts[1] || '').substring(0, 2).padEnd(2, '0');
-                              formattedValue = integerPart + '.' + decimalPart;
+                              if (parts.length > 2) {
+                                value = parts[0] + '.' + parts.slice(1).join('');
+                              }
+                              // Limit to 5 characters (e.g., 10.00)
+                              if (value.length > 5) {
+                                value = value.substring(0, 5);
+                              }
+                              setCgpa(value);
+                              // Only validate if value is clearly invalid (out of range)
+                              // Allow partial input during typing (e.g., "8", "8.", "8.0")
+                              if (value) {
+                                const numValue = parseFloat(value);
+                                if (!isNaN(numValue) && (numValue < 0 || numValue > 10)) {
+                                  validateField('cgpa', value);
+                                } else {
+                                  // Clear error if value is valid or partial
+                                  setValidationErrors(prev => {
+                                    const newErrors = { ...prev };
+                                    delete newErrors.cgpa;
+                                    return newErrors;
+                                  });
+                                }
+                              } else {
+                                // Clear error if empty
+                                setValidationErrors(prev => {
+                                  const newErrors = { ...prev };
+                                  delete newErrors.cgpa;
+                                  return newErrors;
+                                });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // On blur, format to exactly 2 decimal places and validate
+                              const value = e.target.value.trim();
+                              if (value) {
+                                let formattedValue = value;
+                                if (/^\d+$/.test(value)) {
+                                  // Integer like "9" -> "9.00"
+                                  formattedValue = value + '.00';
+                                } else if (/^\d+\.\d*$/.test(value)) {
+                                  // Has decimal point
+                                  const parts = value.split('.');
+                                  const integerPart = parts[0];
+                                  const decimalPart = (parts[1] || '').substring(0, 2).padEnd(2, '0');
+                                  formattedValue = integerPart + '.' + decimalPart;
+                                }
+                                setCgpa(formattedValue);
+                                // Validate the formatted value
+                                validateField('cgpa', formattedValue);
+                              }
+                            }}
+                            pattern="^(10\.00|[0-9]\.[0-9]{2})$"
+                            maxLength="5"
+                          />
+                          {validationErrors.cgpa && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Trophy size={16} className="text-orange-500" />
+                            Active Backlogs
+                          </label>
+                          <input
+                            type="text"
+                            className={`w-full border ${validationErrors.backlogs ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text`}
+                            placeholder="Enter backlogs (e.g., 0, 1, 2, 3+)"
+                            value={backlogs}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Allow numbers and + sign (for "3+" format)
+                              value = value.replace(/[^0-9+]/g, '');
+                              // Limit length
+                              if (value.length > 5) {
+                                value = value.substring(0, 5);
+                              }
+                              setBacklogs(value);
+                              // Validate the value
+                              validateField('backlogs', value);
+                            }}
+                          />
+                          {validationErrors.backlogs && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.backlogs}</p>
+                          )}
+                        </div>
+                        <div>
+                          <CustomDropdown
+                            label={
+                              <>
+                                Batch <span className="text-red-500">*</span>
+                              </>
                             }
-                            setCgpa(formattedValue);
-                            // Validate the formatted value
-                            validateField('cgpa', formattedValue);
-                          }
-                        }}
-                        pattern="^(10\.00|[0-9]\.[0-9]{2})$"
-                        maxLength="5"
-                      />
-                      {validationErrors.cgpa && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.cgpa}</p>
-                      )}
+                            icon={FaUsers}
+                            iconColor="text-indigo-600"
+                            options={[
+                              { value: '', label: 'Select Batch' },
+                              { value: '25-29', label: '25-29' },
+                              { value: '24-28', label: '24-28' },
+                              { value: '23-27', label: '23-27' }
+                            ]}
+                            value={batch}
+                            onChange={(value) => {
+                              setBatch(value);
+                              validateField('batch', value);
+                            }}
+                            placeholder="Select Batch"
+                          />
+                          {validationErrors.batch && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
+                          )}
+                        </div>
+                        <div>
+                          <CustomDropdown
+                            label={
+                              <>
+                                School <span className="text-red-500">*</span>
+                              </>
+                            }
+                            icon={FaGraduationCap}
+                            iconColor="text-purple-600"
+                            options={[
+                              { value: '', label: 'Select School' },
+                              { value: 'SOT', label: 'School of Technology' },
+                              { value: 'SOM', label: 'School of Management' },
+                              { value: 'SOH', label: 'School of HealthCare' }
+                            ]}
+                            value={school}
+                            onChange={(value) => {
+                              setSchool(value);
+                              validateField('school', value);
+                            }}
+                            placeholder="Select School"
+                          />
+                          {validationErrors.school && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
+                          )}
+                        </div>
+                        <div>
+                          <CustomDropdown
+                            label={
+                              <>
+                                Center <span className="text-red-500">*</span>
+                              </>
+                            }
+                            icon={FaMapMarkerAlt}
+                            iconColor="text-blue-600"
+                            options={[
+                              { value: '', label: 'Select Center' },
+                              { value: 'BANGALORE', label: 'Bangalore' },
+                              { value: 'NOIDA', label: 'Noida' },
+                              { value: 'LUCKNOW', label: 'Lucknow' },
+                              { value: 'PUNE', label: 'Pune' },
+                              { value: 'PATNA', label: 'Patna' },
+                              { value: 'INDORE', label: 'Indore' }
+                            ]}
+                            value={center}
+                            onChange={(value) => {
+                              setCenter(value);
+                              validateField('center', value);
+                            }}
+                            placeholder="Select Center"
+                          />
+                          {validationErrors.center && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Trophy size={16} className="text-orange-500" />
-                        Active Backlogs
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full border ${validationErrors.backlogs ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text`}
-                        placeholder="Enter backlogs (e.g., 0, 1, 2, 3+)"
-                        value={backlogs}
-                        onChange={(e) => {
-                          let value = e.target.value;
-                          // Allow numbers and + sign (for "3+" format)
-                          value = value.replace(/[^0-9+]/g, '');
-                          // Limit length
-                          if (value.length > 5) {
-                            value = value.substring(0, 5);
-                          }
-                          setBacklogs(value);
-                          // Validate the value
-                          validateField('backlogs', value);
-                        }}
-                      />
-                      {validationErrors.backlogs && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.backlogs}</p>
-                      )}
-                    </div>
-                    <div>
-                      <CustomDropdown
-                        label={
-                          <>
-                            Batch <span className="text-red-500">*</span>
-                          </>
-                        }
-                        icon={FaUsers}
-                        iconColor="text-indigo-600"
-                        options={[
-                          { value: '', label: 'Select Batch' },
-                          { value: '25-29', label: '25-29' },
-                          { value: '24-28', label: '24-28' },
-                          { value: '23-27', label: '23-27' }
-                        ]}
-                        value={batch}
-                        onChange={(value) => {
-                          setBatch(value);
-                          validateField('batch', value);
-                        }}
-                        placeholder="Select Batch"
-                      />
-                      {validationErrors.batch && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.batch}</p>
-                      )}
-                    </div>
-                    <div>
-                      <CustomDropdown
-                        label={
-                          <>
-                            School <span className="text-red-500">*</span>
-                          </>
-                        }
-                        icon={FaGraduationCap}
-                        iconColor="text-purple-600"
-                        options={[
-                          { value: '', label: 'Select School' },
-                          { value: 'SOT', label: 'School of Technology' },
-                          { value: 'SOM', label: 'School of Management' },
-                          { value: 'SOH', label: 'School of HealthCare' }
-                        ]}
-                        value={school}
-                        onChange={(value) => {
-                          setSchool(value);
-                          validateField('school', value);
-                        }}
-                        placeholder="Select School"
-                      />
-                      {validationErrors.school && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
-                      )}
-                    </div>
-                    <div>
-                      <CustomDropdown
-                        label={
-                          <>
-                            Center <span className="text-red-500">*</span>
-                          </>
-                        }
-                        icon={FaMapMarkerAlt}
-                        iconColor="text-blue-600"
-                        options={[
-                          { value: '', label: 'Select Center' },
-                          { value: 'BANGALORE', label: 'Bangalore' },
-                          { value: 'NOIDA', label: 'Noida' },
-                          { value: 'LUCKNOW', label: 'Lucknow' },
-                          { value: 'PUNE', label: 'Pune' },
-                          { value: 'PATNA', label: 'Patna' },
-                          { value: 'INDORE', label: 'Indore' }
-                        ]}
-                        value={center}
-                        onChange={(value) => {
-                          setCenter(value);
-                          validateField('center', value);
-                        }}
-                        placeholder="Select Center"
-                      />
-                      {validationErrors.center && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -3773,67 +3750,65 @@ useEffect(() => {
                     {profileSectionsOpen.location ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.location ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                    <MapPin size={20} className="text-green-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Location</h3>
-                  </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                        <MapPin size={20} className="text-green-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Location</h3>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <MapPin size={16} className="text-gray-500" />
-                        City <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          validationErrors.city ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter your city"
-                        value={city}
-                        onChange={(e) => {
-                          setCity(e.target.value);
-                          validateField('city', e.target.value);
-                        }}
-                        onBlur={(e) => {
-                          const capitalized = capitalizeFirstLetter(e.target.value);
-                          setCity(capitalized);
-                          validateField('city', capitalized);
-                        }}
-                      />
-                      {validationErrors.city && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.city}</p>
-                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <MapPin size={16} className="text-gray-500" />
+                            City <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${validationErrors.city ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            placeholder="Enter your city"
+                            value={city}
+                            onChange={(e) => {
+                              setCity(e.target.value);
+                              validateField('city', e.target.value);
+                            }}
+                            onBlur={(e) => {
+                              const capitalized = capitalizeFirstLetter(e.target.value);
+                              setCity(capitalized);
+                              validateField('city', capitalized);
+                            }}
+                          />
+                          {validationErrors.city && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.city}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Building2 size={16} className="text-gray-500" />
+                            State/Region <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${validationErrors.stateRegion ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            placeholder="Enter your state or region"
+                            value={stateRegion}
+                            onChange={(e) => {
+                              setStateRegion(e.target.value);
+                              validateField('stateRegion', e.target.value);
+                            }}
+                            onBlur={(e) => {
+                              const capitalized = capitalizeFirstLetter(e.target.value);
+                              setStateRegion(capitalized);
+                              validateField('stateRegion', capitalized);
+                            }}
+                          />
+                          {validationErrors.stateRegion && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.stateRegion}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Building2 size={16} className="text-gray-500" />
-                        State/Region <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          validationErrors.stateRegion ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter your state or region"
-                        value={stateRegion}
-                        onChange={(e) => {
-                          setStateRegion(e.target.value);
-                          validateField('stateRegion', e.target.value);
-                        }}
-                        onBlur={(e) => {
-                          const capitalized = capitalizeFirstLetter(e.target.value);
-                          setStateRegion(capitalized);
-                          validateField('stateRegion', capitalized);
-                        }}
-                      />
-                      {validationErrors.stateRegion && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.stateRegion}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -3851,48 +3826,47 @@ useEffect(() => {
                     {profileSectionsOpen.professional ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.professional ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                    <Briefcase size={20} className="text-indigo-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Professional Profile</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Type size={16} className="text-gray-500" />
-                        Headline <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                        placeholder="Your professional headline"
-                        value={Headline}
-                        onChange={(e) => setHeadline(e.target.value)}
-                      />
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                        <Briefcase size={20} className="text-indigo-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Professional Profile</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Type size={16} className="text-gray-500" />
+                            Headline <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                            placeholder="Your professional headline"
+                            value={Headline}
+                            onChange={(e) => setHeadline(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Linkedin size={16} className="text-blue-600" />
+                            LinkedIn <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="url"
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${validationErrors.linkedin ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            placeholder="https://linkedin.com/in/username"
+                            value={linkedin}
+                            onChange={(e) => {
+                              setLinkedin(e.target.value);
+                              validateField('linkedin', e.target.value);
+                            }}
+                          />
+                          {validationErrors.linkedin && (
+                            <p className="text-red-500 text-sm mt-1">{validationErrors.linkedin}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                        <Linkedin size={16} className="text-blue-600" />
-                        LinkedIn <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="url"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          validationErrors.linkedin ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="https://linkedin.com/in/username"
-                        value={linkedin}
-                        onChange={(e) => {
-                          setLinkedin(e.target.value);
-                          validateField('linkedin', e.target.value);
-                        }}
-                      />
-                      {validationErrors.linkedin && (
-                        <p className="text-red-500 text-sm mt-1">{validationErrors.linkedin}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -3911,58 +3885,58 @@ useEffect(() => {
                       {profileSectionsOpen.social ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                     </button>
                     <div className={`${profileSectionsOpen.social ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                      <Globe size={20} className="text-blue-600 hidden md:block" />
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Social Media & Coding Profiles</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <Youtube size={16} className="text-red-600" />
-                          YouTube
-                        </label>
-                        <input
-                          type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                          placeholder="https://youtube.com/@channel"
-                          value={youtubeUrl}
-                          onChange={(e) => setYoutubeUrl(e.target.value)}
-                        />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                          <Globe size={20} className="text-blue-600 hidden md:block" />
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Social Media & Coding Profiles</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <Youtube size={16} className="text-red-600" />
+                              YouTube
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                              placeholder="https://youtube.com/@channel"
+                              value={youtubeUrl}
+                              onChange={(e) => setYoutubeUrl(e.target.value)}
+                            />
+                          </div>
+                          {school === 'SOT' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                                <Github size={16} className="text-gray-700" />
+                                GitHub
+                              </label>
+                              <input
+                                type="url"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                                placeholder="https://github.com/username"
+                                value={githubUrl}
+                                onChange={(e) => setGithubUrl(e.target.value)}
+                              />
+                            </div>
+                          )}
+                          {(school === 'SOM' || school === 'SOH') && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                                <FaInstagram size={16} className="text-pink-500" />
+                                Instagram
+                              </label>
+                              <input
+                                type="url"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                                placeholder="https://instagram.com/username"
+                                value={instagramUrl}
+                                onChange={(e) => setInstagramUrl(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {school === 'SOT' && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                            <Github size={16} className="text-gray-700" />
-                            GitHub
-                          </label>
-                          <input
-                            type="url"
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                            placeholder="https://github.com/username"
-                            value={githubUrl}
-                            onChange={(e) => setGithubUrl(e.target.value)}
-                          />
-                        </div>
-                      )}
-                      {(school === 'SOM' || school === 'SOH') && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                            <FaInstagram size={16} className="text-pink-500" />
-                            Instagram
-                          </label>
-                          <input
-                            type="url"
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                            placeholder="https://instagram.com/username"
-                            value={instagramUrl}
-                            onChange={(e) => setInstagramUrl(e.target.value)}
-                          />
-                        </div>
-                      )}
                     </div>
-                  </div>
-                  </div>
                   </div>
                 )}
 
@@ -3981,68 +3955,68 @@ useEffect(() => {
                       {profileSectionsOpen.coding ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                     </button>
                     <div className={`${profileSectionsOpen.coding ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                      <Code2 size={20} className="text-orange-600 hidden md:block" />
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Coding Platforms</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
-                          LeetCode
-                        </label>
-                        <input
-                          type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                          placeholder="https://leetcode.com/u/username"
-                          value={leetcode}
-                          onChange={(e) => setLeetcode(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <SiCodeforces size={16} className="text-blue-600" />
-                          Codeforces
-                        </label>
-                        <input
-                          type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                          placeholder="https://codeforces.com/profile/username"
-                          value={codeforces}
-                          onChange={(e) => setCodeforces(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <SiGeeksforgeeks size={16} className="text-green-600" />
-                          GeeksforGeeks
-                        </label>
-                        <input
-                          type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                          placeholder="https://auth.geeksforgeeks.org/user/username"
-                          value={gfg}
-                          onChange={(e) => setGfg(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <FaHackerrank size={16} className="text-emerald-600" />
-                          HackerRank
-                        </label>
-                        <input
-                          type="url"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
-                          placeholder="https://www.hackerrank.com/profile/username"
-                          value={hackerrank}
-                          onChange={(e) => setHackerrank(e.target.value)}
-                        />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                          <Code2 size={20} className="text-orange-600 hidden md:block" />
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Coding Platforms</h3>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <LeetCodeIcon className="h-4 w-4 text-orange-600" size={16} />
+                              LeetCode
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                              placeholder="https://leetcode.com/u/username"
+                              value={leetcode}
+                              onChange={(e) => setLeetcode(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <SiCodeforces size={16} className="text-blue-600" />
+                              Codeforces
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                              placeholder="https://codeforces.com/profile/username"
+                              value={codeforces}
+                              onChange={(e) => setCodeforces(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <SiGeeksforgeeks size={16} className="text-green-600" />
+                              GeeksforGeeks
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                              placeholder="https://auth.geeksforgeeks.org/user/username"
+                              value={gfg}
+                              onChange={(e) => setGfg(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <FaHackerrank size={16} className="text-emerald-600" />
+                              HackerRank
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text"
+                              placeholder="https://www.hackerrank.com/profile/username"
+                              value={hackerrank}
+                              onChange={(e) => setHackerrank(e.target.value)}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  </div>
-                </div>
                 )}
 
                 {/* Other Profiles Section - collapsible on mobile */}
@@ -4060,159 +4034,158 @@ useEffect(() => {
                       {profileSectionsOpen.otherProfiles ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                     </button>
                     <div className={`${profileSectionsOpen.otherProfiles ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                      <LinkIcon size={20} className="text-purple-600 hidden md:block" />
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Other Profiles</h3>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Add additional profiles (e.g., Kaggle, CodeChef, or any other platform)
-                    </p>
-                    
-                    {/* List of existing profiles */}
-                    {otherProfiles.length > 0 && (
-                      <div className="space-y-3">
-                        {otherProfiles.map((profile, index) => (
-                          <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Platform Name</label>
-                                <input
-                                  type="text"
-                                  value={profile.platformName || ''}
-                                  onChange={(e) => {
-                                    const updated = [...otherProfiles];
-                                    updated[index] = { ...updated[index], platformName: e.target.value };
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                          <LinkIcon size={20} className="text-purple-600 hidden md:block" />
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Other Profiles</h3>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Add additional profiles (e.g., Kaggle, CodeChef, or any other platform)
+                        </p>
+
+                        {/* List of existing profiles */}
+                        {otherProfiles.length > 0 && (
+                          <div className="space-y-3">
+                            {otherProfiles.map((profile, index) => (
+                              <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Platform Name</label>
+                                    <input
+                                      type="text"
+                                      value={profile.platformName || ''}
+                                      onChange={(e) => {
+                                        const updated = [...otherProfiles];
+                                        updated[index] = { ...updated[index], platformName: e.target.value };
+                                        setOtherProfiles(updated);
+                                      }}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      placeholder="e.g., Kaggle"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Profile ID/URL</label>
+                                    <input
+                                      type="text"
+                                      value={profile.profileId || ''}
+                                      onChange={(e) => {
+                                        const updated = [...otherProfiles];
+                                        updated[index] = { ...updated[index], profileId: e.target.value };
+                                        setOtherProfiles(updated);
+                                      }}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      placeholder="username or URL"
+                                    />
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = otherProfiles.filter((_, i) => i !== index);
                                     setOtherProfiles(updated);
                                   }}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="e.g., Kaggle"
+                                  className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Remove profile"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Inline Add Profile Form */}
+                        {showAddProfileForm && (
+                          <div
+                            ref={addProfileFormRef}
+                            className="mb-4 p-4 border border-gray-300 rounded bg-gray-50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Platform Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newProfile.platformName}
+                                  onChange={(e) => setNewProfile({ ...newProfile, platformName: e.target.value })}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="e.g., Kaggle, CodeChef"
+                                  autoFocus
                                 />
                               </div>
+
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Profile ID/URL</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Profile ID/URL <span className="text-red-500">*</span>
+                                </label>
                                 <input
                                   type="text"
-                                  value={profile.profileId || ''}
-                                  onChange={(e) => {
-                                    const updated = [...otherProfiles];
-                                    updated[index] = { ...updated[index], profileId: e.target.value };
-                                    setOtherProfiles(updated);
-                                  }}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="username or URL"
+                                  value={newProfile.profileId}
+                                  onChange={(e) => setNewProfile({ ...newProfile, profileId: e.target.value })}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="username or full URL"
                                 />
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = otherProfiles.filter((_, i) => i !== index);
-                                setOtherProfiles(updated);
-                              }}
-                              className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remove profile"
-                            >
-                              <X size={18} />
-                            </button>
+
+                            <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowAddProfileForm(false);
+                                  setNewProfile({ platformName: '', profileId: '' });
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newProfile.platformName.trim() && newProfile.profileId.trim()) {
+                                    setOtherProfiles([...otherProfiles, {
+                                      platformName: newProfile.platformName.trim(),
+                                      profileId: newProfile.profileId.trim()
+                                    }]);
+                                    setShowAddProfileForm(false);
+                                    setNewProfile({ platformName: '', profileId: '' });
+                                  }
+                                }}
+                                disabled={!newProfile.platformName.trim() || !newProfile.profileId.trim()}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Add
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Inline Add Profile Form */}
-                    {showAddProfileForm && (
-                      <div 
-                        ref={addProfileFormRef}
-                        className="mb-4 p-4 border border-gray-300 rounded bg-gray-50"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Platform Name <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={newProfile.platformName}
-                              onChange={(e) => setNewProfile({ ...newProfile, platformName: e.target.value })}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="e.g., Kaggle, CodeChef"
-                              autoFocus
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Profile ID/URL <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={newProfile.profileId}
-                              onChange={(e) => setNewProfile({ ...newProfile, profileId: e.target.value })}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="username or full URL"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
-                          <button
-                            type="button"
-                            onClick={() => {
+                        )}
+
+                        {/* Add new profile button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (showAddProfileForm) {
+                              // Cancel adding if form is already shown
                               setShowAddProfileForm(false);
                               setNewProfile({ platformName: '', profileId: '' });
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (newProfile.platformName.trim() && newProfile.profileId.trim()) {
-                                setOtherProfiles([...otherProfiles, { 
-                                  platformName: newProfile.platformName.trim(), 
-                                  profileId: newProfile.profileId.trim() 
-                                }]);
-                                setShowAddProfileForm(false);
-                                setNewProfile({ platformName: '', profileId: '' });
-                              }
-                            }}
-                            disabled={!newProfile.platformName.trim() || !newProfile.profileId.trim()}
-                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Add
-                          </button>
-                        </div>
+                            } else {
+                              // Show form
+                              setNewProfile({ platformName: '', profileId: '' });
+                              setShowAddProfileForm(true);
+                            }
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${showAddProfileForm
+                            ? 'text-white bg-blue-600 hover:bg-blue-700'
+                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                            }`}
+                        >
+                          <Plus size={16} />
+                          Add Profile
+                        </button>
                       </div>
-                    )}
-                    
-                    {/* Add new profile button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (showAddProfileForm) {
-                          // Cancel adding if form is already shown
-                          setShowAddProfileForm(false);
-                          setNewProfile({ platformName: '', profileId: '' });
-                        } else {
-                          // Show form
-                          setNewProfile({ platformName: '', profileId: '' });
-                          setShowAddProfileForm(true);
-                        }
-                      }}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        showAddProfileForm 
-                          ? 'text-white bg-blue-600 hover:bg-blue-700' 
-                          : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                      }`}
-                    >
-                      <Plus size={16} />
-                      Add Profile
-                    </button>
-                  </div>
-                  </div>
+                    </div>
                   </div>
                 )}
 
@@ -4230,25 +4203,25 @@ useEffect(() => {
                     {profileSectionsOpen.bio ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.bio ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
-                    <FileText size={20} className="text-gray-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">About Me</h3>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <FileText size={16} className="text-gray-500" />
-                      Bio <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none cursor-text"
-                      rows="4"
-                      placeholder="Write a brief bio about yourself"
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                    ></textarea>
-                  </div>
-                </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-200 md:mt-0 mt-2">
+                        <FileText size={20} className="text-gray-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">About Me</h3>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <FileText size={16} className="text-gray-500" />
+                          Bio <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none cursor-text"
+                          rows="4"
+                          placeholder="Write a brief bio about yourself"
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                        ></textarea>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -4263,54 +4236,53 @@ useEffect(() => {
                     {profileSectionsOpen.terms ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.terms ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="bg-gray-50 rounded-lg p-4 sm:p-6 border border-gray-200">
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        id="editCheckbox"
-                        checked={isChecked}
-                        onChange={() => setIsChecked(!isChecked)}
-                        className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                      />
-                      <label htmlFor="editCheckbox" className="text-sm text-gray-700 cursor-pointer">
-                        I acknowledge that the information provided on this dashboard is accurate to the best of the institution's knowledge. I understand that the institution shall not be held liable for any errors, omissions, or discrepancies.
-                      </label>
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6 border border-gray-200">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            id="editCheckbox"
+                            checked={isChecked}
+                            onChange={() => setIsChecked(!isChecked)}
+                            className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                          />
+                          <label htmlFor="editCheckbox" className="text-sm text-gray-700 cursor-pointer">
+                            I acknowledge that the information provided on this dashboard is accurate to the best of the institution's knowledge. I understand that the institution shall not be held liable for any errors, omissions, or discrepancies.
+                          </label>
+                        </div>
+                        <div className="hidden md:flex md:flex-nowrap gap-4 justify-end pt-4 border-t border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              resetProfileForm();
+                              setIsChecked(false);
+                              setValidationErrors({});
+                            }}
+                            className="flex-shrink-0 px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-medium cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                          <button
+                            type="submit"
+                            id='editSaveBtn'
+                            disabled={!isChecked || saving}
+                            className={`flex-shrink-0 px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${(!isChecked || saving)
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
+                              }`}
+                          >
+                            {saving ? (
+                              <span className="flex items-center gap-2">
+                                <Loader className="animate-spin" size={16} />
+                                Saving...
+                              </span>
+                            ) : (
+                              'Save Changes'
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="hidden md:flex md:flex-nowrap gap-4 justify-end pt-4 border-t border-gray-200">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetProfileForm();
-                          setIsChecked(false);
-                          setValidationErrors({});
-                        }}
-                        className="flex-shrink-0 px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-medium cursor-pointer"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="submit"
-                        id='editSaveBtn'
-                        disabled={!isChecked || saving}
-                        className={`flex-shrink-0 px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
-                          (!isChecked || saving) 
-                            ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
-                        }`}
-                      >
-                        {saving ? (
-                          <span className="flex items-center gap-2">
-                            <Loader className="animate-spin" size={16} />
-                            Saving...
-                          </span>
-                        ) : (
-                          'Save Changes'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
                   </div>
                 </div>
 
@@ -4328,232 +4300,146 @@ useEffect(() => {
                     {profileSectionsOpen.publicProfile ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                   </button>
                   <div className={`${profileSectionsOpen.publicProfile ? 'block' : 'hidden'} md:block p-3 sm:p-0 md:p-0`}>
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4 sm:p-6 border border-indigo-200">
-                  <div className="flex items-center gap-2 pb-3 border-b border-indigo-200 mb-4">
-                    <LinkIcon size={20} className="text-indigo-600 hidden md:block" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Public Profile Sharing</h3>
-                  </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-6 shadow-sm">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
+                        <LinkIcon size={20} className="text-slate-600 hidden md:block" />
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-800">Public Profile Sharing</h3>
+                      </div>
 
-                  <div className="space-y-4">
-                    {/* Share Button */}
-                    <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            setLoadingPublicProfile(true);
-                            let profileId = publicProfileId;
-                            
-                            // Generate if doesn't exist
-                            if (!profileId) {
-                              console.log('📝 [Share Profile] Generating public profile ID...');
+                      <div className="space-y-4">
+                        {/* Share Button */}
+                        <div className="flex flex-col gap-3">
+                          <button
+                            type="button"
+                            onClick={async () => {
                               try {
-                                const response = await api.generatePublicProfileId();
-                                console.log('✅ [Share Profile] Response received:', response);
-                                  
-                                // Handle both direct response and wrapped response
-                                profileId = response?.publicProfileId || response?.data?.publicProfileId;
-                                  
-                                if (!profileId || typeof profileId !== 'string') {
-                                  console.error('❌ [Share Profile] Invalid response format:', {
-                                    response,
-                                    type: typeof response,
-                                    keys: response ? Object.keys(response) : null
-                                  });
-                                  throw new Error('Invalid response: publicProfileId not found or invalid');
+                                setLoadingPublicProfile(true);
+                                let profileId = publicProfileId;
+
+                                // Generate if doesn't exist
+                                if (!profileId) {
+                                  try {
+                                    const response = await api.generatePublicProfileId();
+                                    profileId = response?.publicProfileId || response?.data?.publicProfileId;
+
+                                    if (!profileId || typeof profileId !== 'string') {
+                                      throw new Error('Invalid response: publicProfileId not found or invalid');
+                                    }
+
+                                    setPublicProfileId(profileId);
+                                  } catch (generateError) {
+                                    throw generateError;
+                                  }
                                 }
-                                  
-                                console.log('✅ [Share Profile] Profile ID extracted:', profileId);
-                                setPublicProfileId(profileId);
-                              } catch (generateError) {
-                                console.error('❌ [Share Profile] Error generating profile ID:', generateError);
-                                throw generateError; // Re-throw to be caught by outer catch
-                              }
-                            }
-                            
-                            // Build public profile URL
-                            const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
-                            const publicUrl = `${frontendUrl}/profile/${profileId}`;
-                            
-                            console.log('Public profile URL:', publicUrl);
-                            
-                            // Copy to clipboard
-                            await navigator.clipboard.writeText(publicUrl);
-                            showSuccess('Profile link copied. Anyone with this link can view your profile.');
-                          } catch (err) {
-                            console.error('❌ [Share Profile] Failed to generate/copy profile link:', err);
-                            console.error('❌ [Share Profile] Error details:', {
-                              message: err.message,
-                              response: err.response,
-                              status: err.status,
-                              error: err.error,
-                              stack: err.stack
-                            });
-                            
-                            // Extract error message from various possible formats
-                            let errorMessage = 'Failed to generate profile link. Please try again.';
-                            if (err.response?.data) {
-                              errorMessage = err.response.data.message || err.response.data.error || errorMessage;
-                            } else if (err.message) {
-                              errorMessage = err.message;
-                            } else if (err.error) {
-                              errorMessage = err.error;
-                            }
-                            
-                            showError(errorMessage);
-                          } finally {
-                            setLoadingPublicProfile(false);
-                          }
-                        }}
-                        disabled={loadingPublicProfile}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loadingPublicProfile ? (
-                          <>
-                            <Loader className="animate-spin" size={16} />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <LinkIcon size={16} />
-                            Share Profile
-                          </>
-                        )}
-                      </button>
-                      
-                      {publicProfileId && (
-                        <div className="px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-                          <p className="text-xs text-indigo-700 font-medium">
-                            ✓ Your profile link is permanent and will always stay the same
-                          </p>
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Visibility Toggles */}
-                    <div className="space-y-3 pt-4 border-t border-indigo-200">
-                      <p className="text-sm font-medium text-gray-700 mb-3">Profile Visibility Settings</p>
-                      
-                      <label className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <Mail size={16} className="text-gray-500" />
-                          <div>
-                            <span className="text-sm font-medium text-gray-900">Show Email</span>
-                            <p className="text-xs text-gray-500">Display your email on public profile</p>
-                          </div>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={publicProfileShowEmail}
-                          onChange={async (e) => {
-                            const newValue = e.target.checked;
-                            const oldValue = publicProfileShowEmail;
-                            setPublicProfileShowEmail(newValue);
-                            try {
-                              console.log('📝 [Email Visibility] Updating to:', newValue);
-                              const response = await api.updatePublicProfileSettings({ showEmail: newValue });
-                              console.log('✅ [Email Visibility] Update successful:', response);
-                              // Update state from response if provided
-                              if (response?.showEmail !== undefined) {
-                                setPublicProfileShowEmail(response.showEmail);
-                              }
-                            } catch (err) {
-                              console.error('❌ [Email Visibility] Failed to update:', err);
-                              console.error('❌ [Email Visibility] Error details:', {
-                                message: err.message,
-                                response: err.response,
-                                status: err.status,
-                                error: err.error,
-                              });
-                              setPublicProfileShowEmail(oldValue); // Revert on error
-                              const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update email visibility. Please try again.';
-                              showError(errorMessage);
-                            }
-                          }}
-                          className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                        />
-                      </label>
+                                // Build public profile URL
+                                const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+                                const publicUrl = `${frontendUrl}/profile/${profileId}`;
 
-                      <label className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <Phone size={16} className="text-gray-500" />
-                          <div>
-                            <span className="text-sm font-medium text-gray-900">Show Phone</span>
-                            <p className="text-xs text-gray-500">Display your phone number on public profile</p>
-                          </div>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={publicProfileShowPhone}
-                          onChange={async (e) => {
-                            const newValue = e.target.checked;
-                            const oldValue = publicProfileShowPhone;
-                            setPublicProfileShowPhone(newValue);
-                            try {
-                              console.log('📝 [Phone Visibility] Updating to:', newValue);
-                              const response = await api.updatePublicProfileSettings({ showPhone: newValue });
-                              console.log('✅ [Phone Visibility] Update successful:', response);
-                              // Update state from response if provided
-                              if (response?.showPhone !== undefined) {
-                                setPublicProfileShowPhone(response.showPhone);
+                                // Copy to clipboard
+                                await navigator.clipboard.writeText(publicUrl);
+                                showSuccess('Profile link copied. Anyone with this link can view your profile.');
+                              } catch (err) {
+                                let errorMessage = 'Failed to generate profile link. Please try again.';
+                                if (err.response?.data) {
+                                  errorMessage = err.response.data.message || err.response.data.error || errorMessage;
+                                } else if (err.message) {
+                                  errorMessage = err.message;
+                                }
+                                showError(errorMessage);
+                              } finally {
+                                setLoadingPublicProfile(false);
                               }
-                            } catch (err) {
-                              console.error('❌ [Phone Visibility] Failed to update:', err);
-                              console.error('❌ [Phone Visibility] Error details:', {
-                                message: err.message,
-                                response: err.response,
-                                status: err.status,
-                                error: err.error,
-                              });
-                              setPublicProfileShowPhone(oldValue); // Revert on error
-                              const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update phone visibility. Please try again.';
-                              showError(errorMessage);
-                            }
-                          }}
-                          className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                        />
-                      </label>
+                            }}
+                            disabled={loadingPublicProfile}
+                            className="w-fit flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          >
+                            {loadingPublicProfile ? (
+                              <>
+                                <Loader className="animate-spin" size={16} />
+                                Generating...
+                              </>
+                            ) : (
+                              'Copy Public Profile Link'
+                            )}
+                          </button>
+
+                          {publicProfileId && (
+                            <p className="text-xs text-gray-500">
+                              Your profile link is permanent and will always stay the same.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Visibility Toggles */}
+                        <div className="space-y-3 pt-4 mt-2">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Visibility Settings</p>
+
+                          <label className="flex items-center justify-between p-3 bg-gray-50 rounded border border-transparent hover:border-gray-200 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <Mail size={16} className="text-gray-500" />
+                              <div>
+                                <span className="text-sm font-medium text-gray-900">Show Email</span>
+                                <p className="text-xs text-gray-500">Allow visitors to see your email address</p>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={publicProfileShowEmail}
+                              onChange={async (e) => {
+                                const newValue = e.target.checked;
+                                const oldValue = publicProfileShowEmail;
+                                setPublicProfileShowEmail(newValue);
+                                try {
+                                  const response = await api.updatePublicProfileSettings({ showEmail: newValue });
+                                  if (response?.showEmail !== undefined) {
+                                    setPublicProfileShowEmail(response.showEmail);
+                                  }
+                                } catch (err) {
+                                  setPublicProfileShowEmail(oldValue); // Revert on error
+                                  const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update email visibility.';
+                                  showError(errorMessage);
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </label>
+
+                          <label className="flex items-center justify-between p-3 bg-gray-50 rounded border border-transparent hover:border-gray-200 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <Phone size={16} className="text-gray-500" />
+                              <div>
+                                <span className="text-sm font-medium text-gray-900">Show Phone</span>
+                                <p className="text-xs text-gray-500">Allow visitors to see your phone number</p>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={publicProfileShowPhone}
+                              onChange={async (e) => {
+                                const newValue = e.target.checked;
+                                const oldValue = publicProfileShowPhone;
+                                setPublicProfileShowPhone(newValue);
+                                try {
+                                  const response = await api.updatePublicProfileSettings({ showPhone: newValue });
+                                  if (response?.showPhone !== undefined) {
+                                    setPublicProfileShowPhone(response.showPhone);
+                                  }
+                                } catch (err) {
+                                  setPublicProfileShowPhone(oldValue); // Revert on error
+                                  const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update phone visibility.';
+                                  showError(errorMessage);
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                  </div>
-                </div>
 
-                {/* Save Button - hidden on mobile (sticky bar used instead) */}
-                <div className="hidden md:flex justify-end pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => setIsChecked(e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">
-                        I confirm that all information provided is accurate
-                      </span>
-                    </label>
-                    <button
-                      type="submit"
-                      id='editSaveBtn'
-                      disabled={!isChecked || saving}
-                      className={`px-8 py-2 rounded-md text-white transition-colors font-medium shadow-md ${
-                        (!isChecked || saving) 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl cursor-pointer'
-                      }`}
-                    >
-                      {saving ? (
-                        <span className="flex items-center gap-2">
-                          <Loader className="animate-spin" size={16} />
-                          Saving...
-                        </span>
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </button>
-                  </div>
-                </div>
               </form>
 
               {/* Sticky Save bar - mobile only */}
@@ -4584,11 +4470,10 @@ useEffect(() => {
                       type="submit"
                       form="editProfileForm"
                       disabled={!isChecked || saving}
-                      className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors ${
-                        (!isChecked || saving)
-                          ? 'bg-gray-400 cursor-not-allowed text-white'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
+                      className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors ${(!isChecked || saving)
+                        ? 'bg-gray-400 cursor-not-allowed text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
                     >
                       {saving ? (
                         <span className="flex items-center justify-center gap-2">
@@ -4610,7 +4495,7 @@ useEffect(() => {
         return <Query />;
 
       default:
-        return <DashboardHome 
+        return <DashboardHome
           studentData={{
             fullName,
             email,
@@ -4651,10 +4536,7 @@ useEffect(() => {
 
   return (
     <StudentMobileMenuContext.Provider value={{ mobileMenuOpen, setMobileMenuOpen }}>
-      <ProfileCompletionModal
-        isOpen={showProfileCompletionModal}
-        onSaved={() => setShowProfileCompletionModal(false)}
-      />
+
       <DashboardLayout
         studentProfile={{
           fullName,
@@ -4715,16 +4597,16 @@ useEffect(() => {
                       const Icon = skill.icon;
                       const raw = skill.id === 'leetcode' ? leetcode
                         : skill.id === 'codeforces' ? codeforces
-                        : skill.id === 'gfg' ? gfg
-                        : skill.id === 'hackerrank' ? hackerrank
-                        : skill.id === 'github' ? githubUrl
-                        : skill.id === 'instagram' ? instagramUrl
-                        : skill.id === 'youtube' ? youtubeUrl
-                        : skill.id === 'linkedin' ? linkedin
-                        : '';
+                          : skill.id === 'gfg' ? gfg
+                            : skill.id === 'hackerrank' ? hackerrank
+                              : skill.id === 'github' ? githubUrl
+                                : skill.id === 'instagram' ? instagramUrl
+                                  : skill.id === 'youtube' ? youtubeUrl
+                                    : skill.id === 'linkedin' ? linkedin
+                                      : '';
                       const profileUrl = (raw && typeof raw === 'string') ? raw.trim() : '';
                       if (!profileUrl) return null;
-                      
+
                       return (
                         <div key={skill.id} className="mb-1">
                           <button
@@ -4744,11 +4626,11 @@ useEffect(() => {
                         </div>
                       );
                     })}
-                    
+
                     {/* Display Other Profiles */}
                     {otherProfiles && otherProfiles.length > 0 && otherProfiles.map((profile, index) => {
                       if (!profile.platformName || !profile.profileId) return null;
-                      
+
                       // Build URL - if profileId looks like a URL, use it directly, otherwise try common patterns
                       let profileUrl = profile.profileId;
                       if (!profileUrl.startsWith('http')) {
@@ -4767,7 +4649,7 @@ useEffect(() => {
                           profileUrl = profile.profileId;
                         }
                       }
-                      
+
                       return (
                         <div key={`other-${index}`} className="mb-1">
                           <button
@@ -4822,9 +4704,8 @@ useEffect(() => {
           )}
           {/* Mobile drawer sidebar */}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${
-              mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+              }`}
             aria-modal
             aria-label="Navigation menu"
           >
@@ -4847,11 +4728,10 @@ useEffect(() => {
                     <div key={tab.id} className="mb-1">
                       <button
                         onClick={() => handleTabClick(tab.id)}
-                        className={`w-full flex items-center rounded-lg text-sm font-medium transition-all px-3 py-3 cursor-pointer ${
-                          activeTab === tab.id
-                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                            : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                        }`}
+                        className={`w-full flex items-center rounded-lg text-sm font-medium transition-all px-3 py-3 cursor-pointer ${activeTab === tab.id
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                          }`}
                       >
                         <Icon className="h-4 w-4 mr-2" />
                         {tab.label}
@@ -4933,7 +4813,7 @@ useEffect(() => {
           </main>
         </div>
       </DashboardLayout>
-      
+
       {/* Old floating alert removed - using toast notifications instead */}
 
 
@@ -4956,7 +4836,7 @@ useEffect(() => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             {pendingJob && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                 <p className="text-xs font-medium text-blue-800 mb-1">Applying to:</p>
@@ -4964,7 +4844,7 @@ useEffect(() => {
                 <p className="text-xs text-gray-600">{pendingJob.companyName || pendingJob.company?.name}</p>
               </div>
             )}
-            
+
             <p className="text-sm text-gray-600 mb-6">
               Choose how you want to submit your resume for this application.
             </p>

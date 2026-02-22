@@ -14,17 +14,17 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
     setLoading(true);
     try {
       const result = await login(email, password, role);
-      
+
       if (result.status === 'pending' && result.role === 'admin') {
         showError('Your admin access is pending approval from the Super Admin.');
         return;
       }
-      
+
       if (result.status === 'rejected') {
         showError('Admin access denied.');
         return;
       }
-      
+
       onSuccess?.(result.user);
     } catch (err) {
       showError(err.message || 'Login failed');
@@ -36,7 +36,8 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const loggedInUser = await loginWithGoogle();
+      // Pass the selected role to loginWithGoogle so the backend registers the user correctly
+      const loggedInUser = await loginWithGoogle(role);
       onSuccess?.(loggedInUser);
     } catch (err) {
       showError(err.message || 'Google sign-in failed');
@@ -63,9 +64,9 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
       {/* Role Selection */}
       <div>
         <label className="block text-sm font-medium mb-1">Login as:</label>
-        <select 
-          className="w-full border px-3 py-2 rounded cursor-pointer" 
-          value={role} 
+        <select
+          className="w-full border px-3 py-2 rounded cursor-pointer"
+          value={role}
           onChange={(e) => setRole(e.target.value)}
         >
           <option value="student">Student</option>
@@ -74,41 +75,41 @@ export default function LoginForm({ onSuccess, enableGoogle = false, defaultRole
         </select>
         <p className="text-xs text-gray-500 mt-1">{getDomainHint(role)}</p>
       </div>
-      
+
       {/* Email Input */}
-      <input 
-        className="w-full border px-3 py-2 rounded cursor-text" 
+      <input
+        className="w-full border px-3 py-2 rounded cursor-text"
         placeholder={role === 'student' ? 'yourname@pwioi.com' : role === 'admin' ? 'yourname@pwioi.live' : 'your.email@company.com'}
-        type="email" 
-        value={email} 
-        onChange={(e) => setEmail(e.target.value)} 
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         required
       />
-      
+
       {/* Password Input */}
-      <input 
-        className="w-full border px-3 py-2 rounded cursor-text" 
-        placeholder="Password" 
-        type="password" 
-        value={password} 
-        onChange={(e) => setPassword(e.target.value)} 
+      <input
+        className="w-full border px-3 py-2 rounded cursor-text"
+        placeholder="Password"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
         required
       />
-      
+
       {/* Submit Button */}
-      <button 
-        disabled={loading} 
+      <button
+        disabled={loading}
         className={`w-full bg-black text-white py-2 rounded ${loading ? 'cursor-not-allowed disabled:opacity-60' : 'cursor-pointer'}`}
       >
         {loading ? 'Signing in...' : 'Sign in'}
       </button>
-      
+
       {/* Google Login (if enabled) */}
       {enableGoogle && (
-        <button 
-          type="button" 
-          onClick={handleGoogle} 
-          disabled={loading} 
+        <button
+          type="button"
+          onClick={handleGoogle}
+          disabled={loading}
           className={`w-full bg-white border mt-2 py-2 rounded ${loading ? 'cursor-not-allowed disabled:opacity-60' : 'cursor-pointer'}`}
         >
           {loading ? 'Please wait...' : 'Continue with Google'}

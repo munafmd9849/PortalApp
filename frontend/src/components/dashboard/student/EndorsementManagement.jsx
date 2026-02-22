@@ -4,12 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Mail, 
-  Plus, 
-  Trash2, 
-  CheckCircle, 
-  Clock, 
+import {
+  Mail,
+  Plus,
+  Trash2,
+  CheckCircle,
+  Clock,
   XCircle,
   Star,
   Loader,
@@ -31,7 +31,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showRequestForm, setShowRequestForm] = useState(true); // Show form by default
+  const [showRequestForm, setShowRequestForm] = useState(false); // Hide form by default
   const [requesting, setRequesting] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [monthlyRequestCount, setMonthlyRequestCount] = useState(0);
@@ -80,7 +80,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
       ...prev,
       [name]: value,
     }));
-    
+
     // Clear error for this field
     if (formErrors[name]) {
       setFormErrors(prev => ({
@@ -88,7 +88,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
         [name]: '',
       }));
     }
-    
+
     // Clear general error when user makes changes
     if (error) {
       setError('');
@@ -181,7 +181,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
     try {
       await api.deleteEndorsementRequest(tokenId);
       setSuccess('Endorsement request cancelled successfully');
-      
+
       // Reload endorsements
       await loadEndorsements();
 
@@ -236,19 +236,18 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-          <button
-            onClick={() => setShowRequestForm(true)}
-            disabled={!canRequestMore}
-              className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium ${
-                canRequestMore
+            <button
+              onClick={() => setShowRequestForm(true)}
+              disabled={!canRequestMore}
+              className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium ${canRequestMore
                   ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
-              }`}
-            title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
-          >
-            <Plus className="w-4 h-4" />
-            Request Endorsement
-          </button>
+                }`}
+              title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
+            >
+              <Plus className="w-4 h-4" />
+              Request Endorsement
+            </button>
           </div>
         )}
       </div>
@@ -259,22 +258,22 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
           <div className="p-4 md:p-6">
             <div className="flex items-center justify-between mb-4 md:mb-6">
               <h4 className="text-base md:text-xl font-semibold text-gray-800">Request New Endorsement</h4>
-            <button
-              onClick={() => {
-                setShowRequestForm(false);
-                setRequestForm({
-                  teacherName: '',
-                  teacherEmail: '',
+              <button
+                onClick={() => {
+                  setShowRequestForm(false);
+                  setRequestForm({
+                    teacherName: '',
+                    teacherEmail: '',
                     endorsementMessage: '',
-                });
-                setFormErrors({});
-                setError('');
-              }}
+                  });
+                  setFormErrors({});
+                  setError('');
+                }}
                 className="text-gray-500 hover:text-gray-700 transition-colors p-1"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-          </div>
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
             <form onSubmit={handleRequestEndorsement} className="space-y-4 md:space-y-6">
               <div className="mb-4 md:mb-6">
                 <label className="block text-sm md:text-base text-gray-700 font-medium mb-1.5 md:mb-2 flex items-center">
@@ -283,15 +282,15 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:left-4 md:w-5 md:h-5" />
-                <input
-                  type="text"
-                  name="teacherName"
-                  value={requestForm.teacherName}
-                  onChange={handleInputChange}
+                  <input
+                    type="text"
+                    name="teacherName"
+                    value={requestForm.teacherName}
+                    onChange={handleInputChange}
                     placeholder="Enter teacher's full name"
                     className={`w-full pl-9 md:pl-12 pr-3 md:pr-4 py-2.5 md:py-3 text-sm md:text-base border ${formErrors.teacherName ? 'border-red-500' : 'border-gray-300'} rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200`}
-                  required
-                />
+                    required
+                  />
                 </div>
                 {formErrors.teacherName && <p className="text-red-500 text-xs md:text-sm mt-1">{formErrors.teacherName}</p>}
               </div>
@@ -303,15 +302,15 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                 </label>
                 <div className="relative">
                   <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:left-4 md:w-5 md:h-5" />
-                <input
-                  type="email"
-                  name="teacherEmail"
-                  value={requestForm.teacherEmail}
-                  onChange={handleInputChange}
+                  <input
+                    type="email"
+                    name="teacherEmail"
+                    value={requestForm.teacherEmail}
+                    onChange={handleInputChange}
                     placeholder="teacher@example.com"
                     className={`w-full pl-9 md:pl-12 pr-3 md:pr-4 py-2.5 md:py-3 text-sm md:text-base border ${formErrors.teacherEmail ? 'border-red-500' : 'border-gray-300'} rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200`}
-                  required
-                />
+                    required
+                  />
                 </div>
                 {formErrors.teacherEmail && <p className="text-red-500 text-xs md:text-sm mt-1">{formErrors.teacherEmail}</p>}
               </div>
@@ -330,7 +329,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                 />
                 {formErrors.endorsementMessage && <p className="text-red-500 text-xs md:text-sm mt-1">{formErrors.endorsementMessage}</p>}
               </div>
-              
+
               <div className="bg-orange-50 rounded-lg md:rounded-xl p-3 md:p-4 mb-4 md:mb-6 border border-orange-200">
                 <div className="flex items-start gap-2 md:gap-3">
                   <FaInfoCircle className="text-orange-600 mt-0.5 flex-shrink-0 w-4 h-4 md:w-5 md:h-5" />
@@ -365,29 +364,28 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                 >
                   Cancel
                 </button>
-              <button
-                type="submit"
-                disabled={requesting || !canRequestMore}
-                  className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base font-medium rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 ${
-                    requesting || !canRequestMore
-                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
+                <button
+                  type="submit"
+                  disabled={requesting || !canRequestMore}
+                  className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base font-medium rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 ${requesting || !canRequestMore
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
                       : 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
-                  }`}
-              >
-                {requesting ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Send Request
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+                    }`}
+                >
+                  {requesting ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Send Request
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -398,7 +396,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
           <AlertCircle className="w-4 h-4 md:w-5 md:h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h4 className="text-red-800 font-medium text-sm md:text-base mb-0.5 md:mb-1">Error</h4>
-          <p className="text-xs md:text-sm text-red-700 break-words">{error}</p>
+            <p className="text-xs md:text-sm text-red-700 break-words">{error}</p>
           </div>
         </div>
       )}
@@ -409,7 +407,7 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
           <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h4 className="text-green-800 font-medium text-sm md:text-base mb-0.5 md:mb-1">Success</h4>
-          <p className="text-xs md:text-sm text-green-700 break-words">{success}</p>
+            <p className="text-xs md:text-sm text-green-700 break-words">{success}</p>
           </div>
         </div>
       )}
@@ -434,36 +432,35 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                       <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm md:text-lg flex-shrink-0">
                         {endorsement.endorserName?.charAt(0)?.toUpperCase() || 'T'}
                       </div>
-                  <div className="min-w-0">
+                      <div className="min-w-0">
                         <h5 className="font-semibold text-gray-800 text-base md:text-lg truncate" title={endorsement.endorserName}>
-                      {endorsement.endorserName}
-                    </h5>
-                      {endorsement.endorserRole && (
+                          {endorsement.endorserName}
+                        </h5>
+                        {endorsement.endorserRole && (
                           <p className="text-xs md:text-sm text-gray-600 flex items-center gap-1 mt-0.5 truncate" title={endorsement.endorserRole + (endorsement.organization ? ` at ${endorsement.organization}` : '')}>
-                          <Building2 className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{endorsement.endorserRole}{endorsement.organization && ` at ${endorsement.organization}`}</span>
-                        </p>
-                      )}
+                            <Building2 className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{endorsement.endorserRole}{endorsement.organization && ` at ${endorsement.organization}`}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="ml-0 md:ml-12 space-y-1 md:space-y-1.5">
                       {endorsement.endorserEmail && (
                         <p className="text-xs md:text-sm text-gray-600 flex items-center gap-2 min-w-0 truncate" title={endorsement.endorserEmail}>
                           <Mail className="w-3 h-3 md:w-4 md:h-4 text-gray-400 flex-shrink-0" />
-                        <span className="truncate">{endorsement.endorserEmail}</span>
-                      </p>
+                          <span className="truncate">{endorsement.endorserEmail}</span>
+                        </p>
                       )}
                       {endorsement.strengthRating && (
                         <div className="flex items-center gap-1.5 md:gap-2">
-                        <div className="flex items-center gap-0.5">
+                          <div className="flex items-center gap-0.5">
                             {[...Array(5)].map((_, i) => (
                               <Star
                                 key={i}
-                                className={`w-3 h-3 md:w-4 md:h-4 ${
-                                  i < endorsement.strengthRating
+                                className={`w-3 h-3 md:w-4 md:h-4 ${i < endorsement.strengthRating
                                     ? 'text-yellow-500 fill-current'
                                     : 'text-gray-300'
-                                }`}
+                                  }`}
                               />
                             ))}
                           </div>
@@ -476,8 +473,8 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                   </div>
                   {endorsement.submittedAt && (
                     <span className="text-[10px] md:text-xs text-gray-500 whitespace-nowrap flex-shrink-0" title={formatDate(endorsement.submittedAt)}>
-                    {formatDate(endorsement.submittedAt)}
-                  </span>
+                      {formatDate(endorsement.submittedAt)}
+                    </span>
                   )}
                 </div>
 
@@ -495,15 +492,15 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
                   <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100">
                     <p className="text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Related Skills:</p>
                     <div className="flex flex-wrap gap-1.5 md:gap-2">
-                    {endorsement.relatedSkills.map((skill, idx) => (
-                      <span
-                        key={idx}
+                      {endorsement.relatedSkills.map((skill, idx) => (
+                        <span
+                          key={idx}
                           className="px-2 py-1 md:px-3 md:py-1.5 bg-blue-100 text-blue-800 text-xs md:text-sm rounded-full font-medium truncate max-w-[140px] md:max-w-none"
-                        title={skill}
-                      >
-                        {skill}
-                      </span>
-                    ))}
+                          title={skill}
+                        >
+                          {skill}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -601,32 +598,31 @@ export default function EndorsementManagement({ onEndorsementUpdate }) {
       )}
 
       {/* Empty State - Only show if form is closed and no requests/endorsements */}
-      {endorsements.received.length === 0 && 
-       endorsements.pending.length === 0 && 
-       endorsements.expired.length === 0 && !showRequestForm && (
-        <div className="text-center py-8 md:py-12 px-2">
-          <div className="bg-orange-50 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 border-2 border-orange-200">
-            <Mail className="w-8 h-8 md:w-10 md:h-10 text-orange-600" />
+      {endorsements.received.length === 0 &&
+        endorsements.pending.length === 0 &&
+        endorsements.expired.length === 0 && !showRequestForm && (
+          <div className="text-center py-8 md:py-12 px-2">
+            <div className="bg-orange-50 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 border-2 border-orange-200">
+              <Mail className="w-8 h-8 md:w-10 md:h-10 text-orange-600" />
+            </div>
+            <h4 className="text-base md:text-xl font-semibold text-gray-800 mb-1.5 md:mb-2">No endorsements yet</h4>
+            <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6 max-w-md mx-auto">
+              Get started by requesting an endorsement from your teacher. They'll receive an email with a secure link to complete the endorsement.
+            </p>
+            <button
+              onClick={() => setShowRequestForm(true)}
+              disabled={!canRequestMore}
+              className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium mx-auto ${canRequestMore
+                  ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                }`}
+              title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
+            >
+              <Plus className="w-4 h-4" />
+              Request Endorsement
+            </button>
           </div>
-          <h4 className="text-base md:text-xl font-semibold text-gray-800 mb-1.5 md:mb-2">No endorsements yet</h4>
-          <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6 max-w-md mx-auto">
-            Get started by requesting an endorsement from your teacher. They'll receive an email with a secure link to complete the endorsement.
-          </p>
-          <button
-            onClick={() => setShowRequestForm(true)}
-            disabled={!canRequestMore}
-            className={`px-4 py-2.5 md:px-6 md:py-3 text-sm md:text-base rounded-lg md:rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium mx-auto ${
-              canRequestMore
-                ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white hover:from-orange-700 hover:to-orange-800'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
-            }`}
-            title={!canRequestMore ? `Monthly limit reached (${monthlyRequestCount}/${monthlyLimit} requests)` : ''}
-          >
-            <Plus className="w-4 h-4" />
-            Request Endorsement
-          </button>
-        </div>
-      )}
+        )}
     </div>
   );
 }

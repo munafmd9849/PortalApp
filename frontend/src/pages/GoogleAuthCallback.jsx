@@ -13,47 +13,33 @@ export default function GoogleAuthCallback() {
   const message = searchParams.get('message');
 
   useEffect(() => {
-    const origin = window.location.origin;
-
-    if (window.opener) {
-      // Popup with opener: send tokens to parent, then close this popup (try several times – some browsers need it)
-      if (accessToken && refreshToken) {
-        const payload = {
-          type: 'GOOGLE_LOGIN_SUCCESS',
-          accessToken,
-          refreshToken,
-        };
-        window.opener.postMessage(payload, origin);
-        window.opener.postMessage(payload, origin);
-        const tryClose = () => { try { window.close(); } catch (_) {} };
-        tryClose();
-        setTimeout(tryClose, 50);
-        setTimeout(tryClose, 150);
-        setTimeout(tryClose, 300);
-        setTimeout(() => { window.opener?.postMessage(payload, origin); tryClose(); }, 100);
-      } else if (error) {
-        window.opener.postMessage({
-          type: 'GOOGLE_LOGIN_ERROR',
-          error: message || error,
-        }, origin);
-        setTimeout(() => { try { window.close(); } catch (_) {} }, 300);
-      }
-    } else if (accessToken && refreshToken) {
+    // If we have successful tokens from Google
+    if (accessToken && refreshToken) {
+      // Store the tokens directly in localStorage
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
-      // Popup that lost opener (we open with name 'Google Login'): close so opener finds tokens in localStorage. Try multiple times.
-      if (window.name === 'Google Login') {
-        const tryClose = () => { try { window.close(); } catch (_) {} };
-        tryClose();
-        setTimeout(tryClose, 100);
-        setTimeout(tryClose, 300);
-      } else {
-        window.location.replace('/');
+
+      try {
+        // Decode the JWT payload to check role and status
+        const payload = JSON.parse(atob(accessToken.split('.')[1]));
+
+        if (payload.role === 'ADMIN' && payload.status === 'PENDING') {
+          // Redirect back to home with a specific message for pending admins
+          window.location.replace('/?error=' + encodeURIComponent('Your admin access is pending approval from the Super Admin.'));
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to parse token in GoogleAuthCallback', e);
       }
-    } else if (error) {
+
+      // Redirect back to the main app where AuthContext will load the user
+      window.location.replace('/');
+    } else if (error || message) {
+      // If there was an error, redirect back to home with the error message
       window.location.replace(`/?error=${encodeURIComponent(message || error || 'Google login failed')}`);
     } else {
-      window.location.replace(`/?error=${encodeURIComponent(message || error || 'Google login failed')}`);
+      // Fallback redirect
+      window.location.replace('/');
     }
   }, [accessToken, refreshToken, error, message]);
 

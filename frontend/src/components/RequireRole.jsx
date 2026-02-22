@@ -44,9 +44,9 @@ export default function RequireRole({ children, allowedRoles, redirectTo = null 
       // Determine redirect target
       const redirectPath = redirectTo || (
         userRole === 'STUDENT' ? '/student' :
-        userRole === 'RECRUITER' ? '/recruiter' :
-        userRole === 'ADMIN' ? '/admin' :
-        '/'
+          userRole === 'RECRUITER' ? '/recruiter' :
+            userRole === 'ADMIN' ? '/admin' :
+              '/'
       );
 
       navigate(redirectPath, { replace: true });
