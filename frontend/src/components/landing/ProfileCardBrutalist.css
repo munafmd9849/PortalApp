@@ -1,0 +1,120 @@
+/* Typographic Brutalist card: bold type + offset shadow */
+.pcbr-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.pcbr-frame {
+  position: relative;
+}
+
+.pcbr-shadow {
+  position: absolute;
+  inset: 0;
+  transform: translate(8px, 8px);
+  background: #0b0b0b;
+  z-index: 0;
+}
+
+.pcbr-body {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  border: 2px solid #0b0b0b;
+  padding: 1.3rem 1.4rem 1.5rem;
+  min-height: 320px;
+  max-height: 360px;
+  height: 52svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.pcbr-package {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #111111;
+  margin: 0 0 0.55rem 0;
+  line-height: 1.1;
+}
+
+.pcbr-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #111111;
+  margin: 0 0 0.2rem 0;
+  line-height: 1.2;
+}
+
+.pcbr-role {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin: 0 0 0.6rem 0;
+}
+
+.pcbr-testimonial {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #111111;
+  margin: 0;
+  font-family: "Caveat", cursive;
+  font-style: italic;
+  letter-spacing: 0.01em;
+}
+
+.pcbr-social {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.pcbr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pcbr-icon:hover {
+  opacity: 0.9;
+  transform: scale(1.06);
+}
+
+.pcbr-icon-svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.pcbr-icon-linkedin {
+  background: #0a66c2;
+  color: #fff;
+}
+
+.pcbr-icon-email {
+  background: #fff;
+  color: #dc2626;
+  border: 1.5px solid #dc2626;
+}
+
+@media (max-width: 1024px) {
+  .pcbr-body {
+    height: 48svh;
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .pcbr-body {
+    height: 52svh;
+    max-height: 320px;
+    min-height: 260px;
+  }
+}

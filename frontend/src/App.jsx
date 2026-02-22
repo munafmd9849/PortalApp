@@ -114,7 +114,7 @@ function LandingPage() {
           <Header onLoginOpen={openLoginModal} onScrollToContact={scrollToContact} />
 
           {/* Banner - Odd component #F2F0EA */}
-          <div className='bg-gradient-to-b from-gray-50 to-[#FFEECE]'>
+          <div className='bg-gradient-to-b from-gray-50 to-[#FFEECE] overflow-hidden'>
             <Banner />
           </div>
 
@@ -138,8 +138,8 @@ function LandingPage() {
             <Records onLoginOpen={openLoginModal} />
           </div>
 
-          {/* PlacementTimeline - #A8D5E3 background */}
-          <div className='bg-[#FFEECE]'>
+          {/* PlacementTimeline - #A8D5E3 background (overflow-x-clip only so sticky image works) */}
+          <div className='bg-[#FFEECE] overflow-x-clip'>
             <PlacementTimeline autoplay={timelineAutoplay} />
           </div>
 

@@ -105,7 +105,7 @@ const Banner = () => {
   return (
     <div
       ref={containerRef}
-      className="relative w-full min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-6 sm:pb-12 pt-24 sm:pt-28 lg:pt-12 overflow-x-hidden"
+      className="relative w-full min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-6 sm:pb-12 pt-24 sm:pt-28 lg:pt-12 overflow-x-hidden scrollbar-hide"
     >
       {/* Laptop and up: original layout (Map + overlay facts) */}
       <div className="hidden lg:grid max-w-7xl mx-auto grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-center w-full">

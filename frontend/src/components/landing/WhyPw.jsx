@@ -37,7 +37,7 @@ const WhyPw = () => {
   return (
     <section className="py-16 px-4 max-w-6xl mx-auto text-center font-sans">
       <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[var(--pl-text)] mb-8 tracking-tight">
-        Why Do Recruiters Keep Coming Back to Us ?
+        Why Do <span className="text-blue-900">Recruiters</span> Keep Coming Back to Us ?
       </h2>
 
       {/* Skills Section */}

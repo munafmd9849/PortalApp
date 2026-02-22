@@ -35,8 +35,8 @@ export default function SidebarCard() {
   }, [charIndex, selectedQuoteIndex, quotes]);
 
   return (
-    <div className="hidden lg:block lg:w-[30%] bg-neutral-50 dark:bg-neutral-900">
-      <div className="sticky top-0 h-screen p-8 flex flex-col items-center justify-center">
+    <div className="hidden lg:block lg:w-[30%] lg:self-stretch bg-neutral-50 dark:bg-neutral-900">
+      <div className="sticky top-24 h-[calc(100vh-6rem)] p-8 flex flex-col items-center justify-center">
         <div
           className="bg-white rounded-lg shadow-lg p-6 flex flex-col items-center justify-center"
           style={{ minHeight: "400px" }}
