@@ -1247,8 +1247,10 @@ useEffect(() => {
         navigate('/student?tab=jobs', { replace: true });
       }
     };
-    const handleNavigateToApplications = () => {
+    const handleNavigateToApplications = (e) => {
       setActiveTab('applications');
+      const view = e?.detail?.view || 'current';
+      setApplicationsView(view);
       if (tab !== 'applications') {
         navigate('/student?tab=applications', { replace: true });
       }
@@ -2296,22 +2298,19 @@ useEffect(() => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Column Headers - Desktop Only */}
-                  <div className="hidden md:grid grid-cols-12 gap-4 mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                    <div className="col-span-3 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
-                      <Briefcase className="h-4 w-4 mr-2 text-blue-600" />
-                      Company & Role
+                  {/* Column Headers - Desktop Only; equal spacing between Company, Job Title, Drive Date, Salary (CTC), Status */}
+                  <div className="hidden md:grid mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 min-w-0 items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
+                      <Briefcase className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
+                      Company
                     </div>
-                    <div className="col-span-2 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-blue-600" />
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Job Title</div>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Salary (CTC)</div>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
+                      <Calendar className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
                       Drive Date
                     </div>
-                    <div className="col-span-2 text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center">
-                      Salary (CTC)
-                    </div>
-                    <div className="col-span-5 text-right text-gray-700 font-bold text-sm uppercase tracking-wide">
-                      Actions
-                    </div>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Status</div>
                   </div>
 
                   {/* Job Listings - paginated (10 per page) */}
@@ -2348,23 +2347,16 @@ useEffect(() => {
                                 <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
                                 <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
-                                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
-                                    <span>{job.driveDate ? formatDate(job.driveDate) : 'To be announced'}</span>
+                                    <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
+                                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                                    <span>{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
                                   </div>
                                 </div>
                               </div>
                             </div>
                             <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
-                              <button
-                                onClick={() => handleKnowMore(job)}
-                                className="flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm hover:shadow-md touch-manipulation"
-                              >
-                                <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                <span className="truncate">Know More</span>
-                              </button>
                               <button
                                 onClick={() => handleApplyToJob(job)}
                                 disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
@@ -2421,44 +2413,40 @@ useEffect(() => {
                                 ) : (
                                   <>
                                     <Briefcase className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="truncate">Apply</span>
+                                    <span className="truncate">Apply Now</span>
                                   </>
                                 )}
                               </button>
                             </div>
                           </div>
 
-                          {/* Desktop Layout */}
-                          <div className="hidden md:grid md:grid-cols-12 gap-4 p-6 items-center">
-                            <div className="col-span-3 flex items-center gap-4">
+                          {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
+                          <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                            <div className="flex items-center gap-3 min-w-0 overflow-hidden">
                               <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
                                 {getCompanyInitial(companyName)}
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <h3 className="text-base font-bold text-gray-900 truncate mb-1">{companyName}</h3>
-                                <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <h3 className="text-base font-bold text-gray-900 truncate">{companyName}</h3>
                               </div>
                             </div>
 
-                            <div className="col-span-2 flex items-center">
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <Calendar className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm font-medium">{job.driveDate ? formatDate(job.driveDate) : 'To be announced'}</span>
+                            <div className="min-w-0 overflow-hidden flex items-center">
+                              <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                            </div>
+
+                            <div className="flex items-center min-w-0 overflow-hidden">
+                              <span className="text-sm font-bold text-green-600 truncate">{formatSalary(job.salary || job.ctc)}</span>
+                            </div>
+
+                            <div className="flex items-center min-w-0 overflow-hidden">
+                              <div className="flex items-center gap-2 text-gray-700 min-w-0">
+                                <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm font-medium truncate">{job.driveDate ? formatDate(job.driveDate) : 'TBD'}</span>
                               </div>
                             </div>
 
-                            <div className="col-span-2 flex items-center">
-                              <span className="text-sm font-bold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
-                            </div>
-
-                            <div className="col-span-5 flex items-center justify-end gap-3">
-                              <button
-                                onClick={() => handleKnowMore(job)}
-                                className="px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm hover:shadow-md"
-                              >
-                                <Eye className="h-4 w-4 flex-shrink-0" />
-                                Know More
-                              </button>
+                            <div className="flex items-center min-w-0 overflow-hidden">
                               <button
                                 onClick={() => handleApplyToJob(job)}
                                 disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}

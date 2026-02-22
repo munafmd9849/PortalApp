@@ -243,8 +243,8 @@ const DashboardHome = ({
       {!hideApplicationTracker && (
         <ApplicationTrackerSection 
           applications={displayApplications} 
-          onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications'))}
-          onViewJD={handleKnowMore}
+          onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current' } }))}
+          onRowClick={() => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current' } }))}
         />
       )}
 

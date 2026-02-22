@@ -406,7 +406,7 @@ model Job {
   // Location & Dates
   location            String?
   companyLocation     String?
-  driveDate           DateTime? // Optional: Interview drive date when decided; null = "To be announced"
+  driveDate           DateTime? // Optional: Interview drive date when decided; null = "TBD"
   applicationDeadline DateTime // REQUIRED: Last date/time students can apply - applications are permanently closed after this
 
   // Job Details
