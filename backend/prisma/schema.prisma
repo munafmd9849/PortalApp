@@ -1,7 +1,3 @@
-// Prisma Schema for PWIOI Placement Portal
-// Migrated from Firebase Firestore to PostgreSQL
-// This project uses PostgreSQL database (Render).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,56 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// AUTHENTICATION & USERS
-// ============================================================================
-
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  passwordHash      String // Hashed password (replaces Firebase Auth)
-  role              String    @default("STUDENT") // UserRole: STUDENT, RECRUITER, ADMIN, SUPER_ADMIN
-  status            String    @default("PENDING") // UserStatus: ACTIVE, PENDING, REJECTED, BLOCKED
-  emailVerified     Boolean   @default(false)
-  emailVerifiedAt   DateTime?
-  recruiterVerified Boolean   @default(false) // For recruiter role
-
-  // Profile fields (varies by role)
-  displayName  String?
-  profilePhoto String? // S3 URL
-
-  // Block info (stored as JSON string)
-  blockInfo String? // { type, endDate, reason, notes, blockedBy, blockedAt } as JSON string
-
-  // Google Calendar integration
-  googleCalendarConnected Boolean @default(false)
-  connectedGoogleEmail    String? // Email of the connected Google Calendar account (must match user.email)
-
-  // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
-
-  // Relations
-  student   Student?
-  recruiter Recruiter?
-  admin     Admin?
-
-  // Auth relations
-  refreshTokens       RefreshToken[]
-  notifications       Notification[]
-  queries             StudentQuery[]
-  adminRequests       AdminRequest[]
-  googleCalendarToken GoogleCalendarToken?
+  id                      String               @id @default(uuid())
+  email                   String               @unique
+  passwordHash            String
+  role                    String               @default("STUDENT")
+  status                  String               @default("PENDING")
+  emailVerified           Boolean              @default(false)
+  emailVerifiedAt         DateTime?
+  recruiterVerified       Boolean              @default(false)
+  displayName             String?
+  profilePhoto            String?
+  blockInfo               String?
+  googleCalendarConnected Boolean              @default(false)
+  connectedGoogleEmail    String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  lastLoginAt             DateTime?
+  adminRequests           AdminRequest[]
+  admin                   Admin?
+  googleCalendarToken     GoogleCalendarToken?
+  notifications           Notification[]
+  recruiter               Recruiter?
+  refreshTokens           RefreshToken[]
+  queries                 StudentQuery[]
+  student                 Student?
 
   @@index([email])
   @@index([role, status])
   @@map("users")
 }
-
-// Enums stored as String for simplicity
-// UserRole: "STUDENT", "RECRUITER", "ADMIN", "SUPER_ADMIN"
-// UserStatus: "ACTIVE", "PENDING", "REJECTED", "BLOCKED"
 
 model RefreshToken {
   id        String   @id @default(uuid())
@@ -68,8 +44,7 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
@@ -79,8 +54,8 @@ model RefreshToken {
 model OTP {
   id        String   @id @default(uuid())
   email     String
-  otp       String // 6-digit OTP
-  purpose   String   @default("VERIFY_EMAIL") // VERIFY_EMAIL, RESET_PASSWORD, etc.
+  otp       String
+  purpose   String   @default("VERIFY_EMAIL")
   expiresAt DateTime
   isUsed    Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -90,92 +65,64 @@ model OTP {
   @@map("otps")
 }
 
-// ============================================================================
-// STUDENT PROFILES
-// ============================================================================
-
 model Student {
-  id     String @id @default(uuid())
-  userId String @unique
-
-  // Basic Info
-  fullName     String
-  email        String   @unique
-  phone        String
-  enrollmentId String?  @unique // Optional during registration, user provides it later
+  id                         String                @id @default(uuid())
+  userId                     String                @unique
+  fullName                   String
+  email                      String                @unique
+  phone                      String
+  enrollmentId               String?               @unique
   /// Indicates whether student has completed mandatory profile fields at least once
-  profileCompleted Boolean @default(false) @map("profile_completed")
-  cgpa         Decimal?
-  backlogs     String? // Number of backlogs (e.g., "0", "1", "2", "3+")
-
-  // Academic Info
-  batch  String // e.g., "25-29"
-  center String // e.g., "BANGALORE", "NOIDA"
-  school String // e.g., "SOT", "SOM", "SOH"
-
-  // Profile
-  bio            String?
-  headline       String?
-  summary        String? // Professional summary for resume
-  city           String?
-  stateRegion    String?
-  jobFlexibility String?
-
-  // Profile Image (Cloudinary)
-  profileImageUrl      String? // Cloudinary URL
-  profileImagePublicId String? // Cloudinary public_id for deletion
-
-  // Social Profiles
-  linkedin      String?
-  githubUrl     String?
-  youtubeUrl    String?
-  leetcode      String?
-  codeforces    String?
-  gfg           String?
-  hackerrank    String?
-  otherProfiles String? // JSON string: [{platformName: string, profileId: string}]
-
-  // Resume
-  resumeUrl        String? // S3 URL
-  resumeFileName   String?
-  resumeUploadedAt DateTime?
-
-  // Statistics
-  statsApplied     Int @default(0)
-  statsShortlisted Int @default(0)
-  statsInterviewed Int @default(0)
-  statsOffers      Int @default(0)
-
-  // Email preferences
-  emailNotificationsDisabled Boolean @default(false)
-
-  // Public Profile Sharing
-  publicProfileId String? @unique // UUID for public profile access (non-guessable)
-  publicProfileShowEmail Boolean @default(true) // Toggle for email visibility in public profile
-  publicProfileShowPhone Boolean @default(false) // Toggle for phone visibility in public profile
-
-  // Endorsements (stored as JSON string - magic link system)
-  endorsementsData String? // JSON array: [{ endorserName, endorserEmail, endorserRole, organization, message, relatedSkills, verified, submittedAt }]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications         Application[]
-  skills               Skill[]
-  education            Education[]
-  projects             Project[]
-  experiences          Experience[]
-  achievements         Achievement[]
-  certifications       Certification[]
-  jobTracking          JobTracking[]
-  codingProfiles       CodingProfile[]
-  interviewEvaluations InterviewEvaluation[]
-  resumeFiles          StudentResumeFile[]
-  endorsements         Endorsement[] // Legacy endorsement system (query-based)
-  endorsementTokens    EndorsementToken[]
+  profileCompleted           Boolean               @default(false) @map("profile_completed")
+  cgpa                       Decimal?
+  backlogs                   String?
+  batch                      String
+  center                     String
+  school                     String
+  bio                        String?
+  headline                   String?
+  summary                    String?
+  city                       String?
+  stateRegion                String?
+  jobFlexibility             String?
+  profileImageUrl            String?
+  profileImagePublicId       String?
+  linkedin                   String?
+  githubUrl                  String?
+  youtubeUrl                 String?
+  leetcode                   String?
+  codeforces                 String?
+  gfg                        String?
+  hackerrank                 String?
+  otherProfiles              String?
+  resumeUrl                  String?
+  resumeFileName             String?
+  resumeUploadedAt           DateTime?
+  statsApplied               Int                   @default(0)
+  statsShortlisted           Int                   @default(0)
+  statsInterviewed           Int                   @default(0)
+  statsOffers                Int                   @default(0)
+  emailNotificationsDisabled Boolean               @default(false)
+  publicProfileId            String?               @unique
+  publicProfileShowEmail     Boolean               @default(true)
+  publicProfileShowPhone     Boolean               @default(false)
+  endorsementsData           String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  achievements               Achievement[]
+  applications               Application[]
+  certifications             Certification[]
+  codingProfiles             CodingProfile[]
+  education                  Education[]
+  endorsementTokens          EndorsementToken[]
+  endorsements               Endorsement[]
+  experiences                Experience[]
+  interviewEvaluations       InterviewEvaluation[]
+  jobTracking                JobTracking[]
+  projects                   Project[]
+  skills                     Skill[]
+  resumeFiles                StudentResumeFile[]
+  user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([center, batch])
   @@index([school, batch])
@@ -183,23 +130,20 @@ model Student {
   @@map("students")
 }
 
-// Student Skills (array-based, stored as separate table)
 model Skill {
   id        String   @id @default(uuid())
   studentId String
   skillName String
-  rating    Int      @default(1) // 1-5
+  rating    Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, skillName])
   @@index([studentId, skillName])
   @@map("skills")
 }
 
-// Educational Background
 model Education {
   id          String   @id @default(uuid())
   studentId   String
@@ -211,54 +155,47 @@ model Education {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, endYear(sort: Desc)])
   @@map("education")
 }
 
-// Work Experience
 model Experience {
   id          String   @id @default(uuid())
   studentId   String
   title       String
   company     String
-  start       String // Start date (e.g., "2023-01" or "Jan 2023")
-  end         String? // End date (null for current position)
+  start       String
+  end         String?
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, start(sort: Desc)])
   @@map("experiences")
 }
 
-// Projects
 model Project {
   id               String   @id @default(uuid())
   studentId        String
   title            String
   description      String?
-  technologies     String // Array of technologies (stored as JSON string)
+  technologies     String
   githubUrl        String?
   liveUrl          String?
-  // AI-generated fields
-  ai_summary       String? // AI-generated professional summary
-  ai_bullets       String? // AI-generated bullet points (stored as JSON array string)
-  skills_extracted String? // AI-extracted skills (stored as JSON array string)
+  ai_summary       String?
+  ai_bullets       String?
+  skills_extracted String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, createdAt(sort: Desc)])
   @@map("projects")
 }
 
-// Achievements
 model Achievement {
   id             String    @id @default(uuid())
   studentId      String
@@ -269,14 +206,12 @@ model Achievement {
   certificateUrl String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, createdAt(sort: Desc)])
   @@map("achievements")
 }
 
-// Certifications (separate from achievements for clarity)
 model Certification {
   id             String    @id @default(uuid())
   studentId      String
@@ -288,209 +223,150 @@ model Certification {
   issuer         String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, issuedDate(sort: Desc)])
   @@map("certifications")
 }
 
-// Coding Profiles
 model CodingProfile {
   id         String   @id @default(uuid())
   studentId  String
-  platform   String // 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'github', 'linkedin', 'youtube'
+  platform   String
   profileUrl String
   username   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, platform])
   @@index([studentId, platform])
   @@map("coding_profiles")
 }
 
-// ============================================================================
-// COMPANIES
-// ============================================================================
-
 model Company {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  logo        String? // S3 URL
+  id          String      @id @default(uuid())
+  name        String      @unique
+  logo        String?
   website     String?
   location    String?
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  jobs       Job[]
-  recruiters Recruiter[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  jobs        Job[]
+  recruiters  Recruiter[]
 
   @@index([name])
   @@map("companies")
 }
 
-// ============================================================================
-// RECRUITERS
-// ============================================================================
-
 model Recruiter {
-  id     String @id @default(uuid())
-  userId String @unique
-
-  // Company info (can be null if not linked to company)
-  companyId   String?
-  companyName String? // If not in companies table
-  location    String?
-
-  // Additional info
-  relationshipType String? // 'Partner Company', etc.
-  zone             String? // 'North Zone', etc.
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company Company? @relation(fields: [companyId], references: [id])
-  jobs    Job[]
-  mouDocuments RecruiterMouDocument[]
+  id               String                 @id @default(uuid())
+  userId           String                 @unique
+  companyId        String?
+  companyName      String?
+  location         String?
+  relationshipType String?
+  zone             String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  jobs             Job[]
+  mouDocuments     RecruiterMouDocument[]
+  company          Company?               @relation(fields: [companyId], references: [id])
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("recruiters")
 }
 
 model RecruiterMouDocument {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   recruiterId String
-  fileUrl     String   // Cloudinary URL
-  publicId    String?  // Cloudinary public_id for deletion
-  fileName    String?  // original filename
-  createdAt   DateTime @default(now())
-
-  recruiter Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  fileUrl     String
+  publicId    String?
+  fileName    String?
+  createdAt   DateTime  @default(now())
+  recruiter   Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
 
   @@index([recruiterId])
   @@map("recruiter_mou_documents")
 }
 
-// ============================================================================
-// JOBS
-// ============================================================================
-
 model Job {
-  id String @id @default(uuid())
-
-  // Basic Info
-  jobTitle       String
-  description    String
-  requirements   String // Array of requirements (stored as JSON string)
-  requiredSkills String // Array of skills (stored as JSON string)
-
-  // Company & Recruiter
-  companyId   String?
-  recruiterId String?
-  companyName String? // Fallback if companyId is null
-  recruiterEmail String? // REQUIRED for new jobs: Primary email for recruiter/HR screening access (token-based) - kept for backward compatibility
-  recruiterName  String? // Optional: Name of primary recruiter/HR contact - kept for backward compatibility
-  recruiterEmails String? // JSON string: Array of recruiter/HR contacts [{email: string, name: string|null}] - supports multiple emails
-
-  // Compensation
-  salary      String? // Can be number or range string
-  ctc         String?
-  salaryRange String?
-
-  // Location & Dates
-  location            String?
-  companyLocation     String?
-  driveDate           DateTime? // Optional: Interview drive date when decided; null = "TBD"
-  applicationDeadline DateTime // REQUIRED: Last date/time students can apply - applications are permanently closed after this
-
-  // Job Details
-  jobType         String? // 'Full-time', 'Internship', etc.
-  workMode        String? // 'Remote', 'Hybrid', 'On-site', etc.
-  experienceLevel String?
-  driveVenues     String // Array of venue strings (stored as JSON string)
-  reportingTime   String? // e.g. "9:00 AM" - when candidates should report on drive date
-  
-  // Eligibility Requirements
-  qualification   String? // Required qualification (e.g., "B.Tech", "M.Tech")
-  specialization  String? // Specialization (e.g., "Computer Science", "Electronics")
-  yop             String? // Year of Passing (e.g., "2024", "2025")
-  minCgpa         String? // Minimum CGPA requirement (e.g., "7.00", "8.50", "70%")
-  gapAllowed      String? // Gap allowed (e.g., "Yes", "No", "1 year")
-  gapYears        String? // Maximum gap years allowed
-  backlogs        String? // Backlogs allowed (e.g., "0", "1-2", "No")
-
-  // SPOCs (Single Point of Contact) (stored as JSON string)
-  spocs String // Array of { fullName, email, phone } as JSON string
-
-  // Status
-  status   String  @default("IN_REVIEW") // JobStatus: IN_REVIEW, APPROVED, REJECTED, POSTED
-  isActive Boolean @default(false)
-  isPosted Boolean @default(false)
-  
-  // Email trigger flags
-  applicationDeadlineMailSent Boolean @default(false) // Flag to prevent duplicate deadline emails
-  driveReminder7dSent         Boolean @default(false) // Reminder 7 days before drive (recruiter + admin)
-  driveReminder3dSent         Boolean @default(false) // Reminder 3 days before drive (recruiter + admin)
-  driveReminder24hSent        Boolean @default(false) // Reminder 24h before drive (recruiter + admin + applicants)
-
-  // Post-drive notes (after interview session ends)
-  adminNote    String? // Note from admin about the placement drive (visible in Applicants section)
-  recruiterNote String? // Note from recruiter about the drive (visible in Company History / Job Track)
-
-  // Interview rounds defined at job creation (JSON: [{ title, detail }]) — used for session/rounds
-  interviewRounds String? // JSON array of { title, detail } from Create Job form
-
-  // Pre-Interview Requirements
-  requiresScreening Boolean @default(false) // Resume screening required before interview
-  requiresTest      Boolean @default(false) // QA/Test required before interview
-
-  // Targeting (stored as JSON strings)
-  targetSchools String // Array of schools or ["ALL"] (stored as JSON string)
-  targetCenters String // Array of centers or ["ALL"] (stored as JSON string)
-  targetBatches String // Array of batches or ["ALL"] (stored as JSON string)
-
-  // Approval/Rejection
-  submittedAt     DateTime?
-  postedAt        DateTime?
-  postedBy        String? // Admin user ID
-  approvedAt      DateTime?
-  approvedBy      String? // Admin user ID
-  rejectedAt      DateTime?
-  rejectedBy      String? // Admin user ID
-  rejectionReason String?
-  archivedAt      DateTime?
-  archivedBy      String? // Admin user ID
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  company          Company?          @relation(fields: [companyId], references: [id])
-  recruiter        Recruiter?        @relation(fields: [recruiterId], references: [id])
-  applications     Application[]
-  jobTracking      JobTracking[]
-  interviews       Interview[]
-  interviewSession InterviewSession?
-  screeningSession RecruiterScreeningSession?
+  id                          String                     @id @default(uuid())
+  jobTitle                    String
+  description                 String
+  requirements                String
+  requiredSkills              String
+  companyId                   String?
+  recruiterId                 String?
+  companyName                 String?
+  recruiterEmail              String?
+  recruiterName               String?
+  recruiterEmails             String?
+  salary                      String?
+  ctc                         String?
+  salaryRange                 String?
+  location                    String?
+  companyLocation             String?
+  driveDate                   DateTime?
+  applicationDeadline         DateTime
+  jobType                     String?
+  workMode                    String?
+  experienceLevel             String?
+  driveVenues                 String
+  reportingTime               String?
+  qualification               String?
+  specialization              String?
+  yop                         String?
+  minCgpa                     String?
+  gapAllowed                  String?
+  gapYears                    String?
+  backlogs                    String?
+  spocs                       String
+  status                      String                     @default("IN_REVIEW")
+  isActive                    Boolean                    @default(false)
+  isPosted                    Boolean                    @default(false)
+  applicationDeadlineMailSent Boolean                    @default(false)
+  driveReminder7dSent         Boolean                    @default(false)
+  driveReminder3dSent         Boolean                    @default(false)
+  driveReminder24hSent        Boolean                    @default(false)
+  adminNote                   String?
+  recruiterNote               String?
+  interviewRounds             String?
+  requiresScreening           Boolean                    @default(false)
+  requiresTest                Boolean                    @default(false)
+  targetSchools               String
+  targetCenters               String
+  targetBatches               String
+  submittedAt                 DateTime?
+  postedAt                    DateTime?
+  postedBy                    String?
+  approvedAt                  DateTime?
+  approvedBy                  String?
+  rejectedAt                  DateTime?
+  rejectedBy                  String?
+  rejectionReason             String?
+  archivedAt                  DateTime?
+  archivedBy                  String?
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+  applications                Application[]
+  interviewSession            InterviewSession?
+  interviews                  Interview?
+  jobTracking                 JobTracking[]
+  company                     Company?                   @relation(fields: [companyId], references: [id])
+  recruiter                   Recruiter?                 @relation(fields: [recruiterId], references: [id])
+  screeningSession            RecruiterScreeningSession?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isActive, createdAt(sort: Desc)])
   @@index([recruiterId, createdAt(sort: Desc)])
   @@index([isPosted, createdAt(sort: Desc)])
-  @@index([applicationDeadline, applicationDeadlineMailSent, status]) // Index for deadline email trigger query
+  @@index([applicationDeadline, applicationDeadlineMailSent, status])
   @@map("jobs")
 }
 
-// JobStatus: "IN_REVIEW", "APPROVED", "REJECTED", "POSTED"
-
-// Job Tracking (tracks which students have seen/available jobs)
 model JobTracking {
   id        String    @id @default(uuid())
   studentId String
@@ -501,9 +377,8 @@ model JobTracking {
   applied   Boolean   @default(false)
   appliedAt DateTime?
   createdAt DateTime  @default(now())
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, jobId])
   @@index([studentId, createdAt(sort: Desc)])
@@ -512,42 +387,27 @@ model JobTracking {
   @@map("job_tracking")
 }
 
-// ============================================================================
-// APPLICATIONS
-// ============================================================================
-
 model Application {
-  id        String  @id @default(uuid())
-  studentId String
-  jobId     String
-  companyId String?
+  id                   String            @id @default(uuid())
+  studentId            String
+  jobId                String
+  companyId            String?
+  status               String            @default("APPLIED")
+  appliedDate          DateTime          @default(now())
+  interviewDate        DateTime?
+  screeningStatus      String?           @default("APPLIED")
+  screeningRemarks     String?
+  screeningCompletedAt DateTime?
+  interviewStatus      String?
+  lastRoundReached     Int?              @default(0)
+  notes                String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  job                  Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student              Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  roundEvaluations     RoundEvaluation[]
 
-  status        String    @default("APPLIED") // ApplicationStatus: APPLIED, SHORTLISTED, INTERVIEWED, OFFERED, SELECTED, REJECTED, JOB_REMOVED
-  appliedDate   DateTime  @default(now()) // Date only (YYYY-MM-DD)
-  interviewDate DateTime?
-
-  // Pre-interview screening status (REQUIRED before interview)
-  // Status progression: APPLIED -> SCREENING_SELECTED/SCREENING_REJECTED -> TEST_SELECTED/TEST_REJECTED -> INTERVIEW_ELIGIBLE
-  screeningStatus String? @default("APPLIED") // ScreeningStatus: APPLIED, SCREENING_SELECTED, SCREENING_REJECTED, TEST_SELECTED, TEST_REJECTED, INTERVIEW_ELIGIBLE
-  screeningRemarks String? // Optional remarks from recruiter during screening
-  screeningCompletedAt DateTime? // When screening was finalized
-
-  // Interview status tracking (for new interview system)
-  interviewStatus  String? // Final status: "SELECTED", "REJECTED_IN_ROUND_1", "REJECTED_IN_ROUND_2", etc.
-  lastRoundReached Int?    @default(0) // Last round number reached (0 = not started)
-
-  // Additional notes
-  notes String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  student          Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  job              Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  roundEvaluations RoundEvaluation[]
-
-  @@unique([studentId, jobId]) // One application per student per job
+  @@unique([studentId, jobId])
   @@index([studentId, appliedDate(sort: Desc)])
   @@index([studentId, createdAt(sort: Desc)])
   @@index([jobId, createdAt(sort: Desc)])
@@ -557,54 +417,35 @@ model Application {
   @@map("applications")
 }
 
-// ApplicationStatus: "APPLIED", "SHORTLISTED", "INTERVIEWED", "OFFERED", "SELECTED", "REJECTED", "JOB_REMOVED"
-
-// ============================================================================
-// RESUMES
-// ============================================================================
-
 model Resume {
-  id       String @id @default(uuid())
-  userId   String
-  resumeId String @default("default") // For multiple resumes
-
-  // Content
-  originalText String @default("")
-  enhancedText String @default("")
-  previewMode  String @default("original") // 'original' | 'enhanced'
-
-  // File info
-  fileUrl  String? // S3 URL
-  fileName String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  userId       String
+  resumeId     String   @default("default")
+  originalText String   @default("")
+  enhancedText String   @default("")
+  previewMode  String   @default("original")
+  fileUrl      String?
+  fileName     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([userId, resumeId])
   @@index([userId, resumeId])
   @@map("resumes")
 }
 
-// Student Resume Files - for storing multiple uploaded resume PDFs
 model StudentResumeFile {
-  id        String @id @default(uuid())
-  studentId String
-  userId    String // For easier querying
-
-  // File info (Cloudinary)
-  fileUrl  String // Cloudinary URL
-  fileName String
-  fileSize Int? // Size in bytes
-  publicId String // Cloudinary public_id for deletion
-  title    String? // Optional title for the resume
-
-  // Default resume flag (only ONE can be true per student)
-  isDefault Boolean @default(false)
-
+  id         String   @id @default(uuid())
+  studentId  String
+  userId     String
+  fileUrl    String
+  fileName   String
+  fileSize   Int?
+  publicId   String
+  title      String?
+  isDefault  Boolean  @default(false)
   uploadedAt DateTime @default(now())
-
-  // Relations
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, uploadedAt(sort: Desc)])
   @@index([studentId, isDefault])
@@ -612,34 +453,28 @@ model StudentResumeFile {
   @@map("student_resume_files")
 }
 
-// ============================================================================
-// NOTIFICATIONS
-// ============================================================================
-
 model Notification {
   id        String    @id @default(uuid())
   userId    String
   title     String
   body      String
-  data      String    @default("{}") // Type-specific data (stored as JSON string)
+  data      String    @default("{}")
   isRead    Boolean   @default(false)
   readAt    DateTime?
   createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@map("notifications")
 }
 
-// Email Notifications Queue
 model EmailNotification {
   id         String    @id @default(uuid())
   jobId      String?
   userId     String?
-  status     String    @default("PENDING") // EmailStatus: PENDING, SENT, FAILED
-  recipients String // Array of email addresses (stored as JSON string)
+  status     String    @default("PENDING")
+  recipients String
   subject    String?
   body       String?
   error      String?
@@ -651,73 +486,46 @@ model EmailNotification {
   @@map("email_notifications")
 }
 
-// EmailStatus: "PENDING", "SENT", "FAILED"
-
-// ============================================================================
-// STUDENT QUERIES (Support Tickets)
-// ============================================================================
-
 model StudentQuery {
   id          String    @id @default(uuid())
   studentId   String
   type        String    @default("question")
   subject     String
   message     String
-  status      String    @default("OPEN") // QueryStatus: OPEN, RESOLVED, CLOSED
+  status      String    @default("OPEN")
   metadata    String?   @default("{}")
   response    String?
-  respondedBy String? // Admin user ID
+  respondedBy String?
   respondedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  user User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
   @@map("student_queries")
 }
 
-// QueryStatus: "OPEN", "RESOLVED", "CLOSED"
-
-// ============================================================================
-// ENDORSEMENTS (Magic Link Based)
-// ============================================================================
-
 model Endorsement {
-  id        String  @id @default(uuid())
-  studentId String
-  tokenId   String? @unique // Link to EndorsementToken (for tracking) - unique for one-to-one relation
-
-  // Endorser Information (REQUIRED)
-  endorserName  String // REQUIRED - Name of endorser
-  endorserEmail String // FROM TOKEN (READ ONLY) - Email from token
-  endorserRole  String // REQUIRED - Professor, Manager, Mentor, etc.
-  organization  String // REQUIRED - Organization name
-
-  // Relationship & Context
-  relationship String // REQUIRED - Professor / Manager / Mentor / Guide
-  context      String? // OPTIONAL - Course / Project / Internship / etc.
-
-  // Endorsement Content
-  message      String // REQUIRED - Endorsement message (10-2000 chars)
-  skills       String  @default("[]") // JSON array of skills (stored as string)
-  skillRatings String? // JSON object: { skill: rating } (optional)
-
-  // Rating
-  overallRating Int? // OPTIONAL - Overall rating (1-5)
-
-  // Consent & Verification
-  consent  Boolean @default(false) // REQUIRED - Must be true
-  verified Boolean @default(true) // Verified via secure token
-
-  // Timestamps
-  createdAt   DateTime @default(now())
-  submittedAt DateTime @default(now())
-
-  // Relations
-  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  token   EndorsementToken? @relation(fields: [tokenId], references: [id])
+  id            String            @id @default(uuid())
+  studentId     String
+  tokenId       String?           @unique
+  endorserName  String
+  endorserEmail String
+  endorserRole  String
+  organization  String
+  relationship  String
+  context       String?
+  message       String
+  skills        String            @default("[]")
+  skillRatings  String?
+  overallRating Int?
+  consent       Boolean           @default(false)
+  verified      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  submittedAt   DateTime          @default(now())
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  token         EndorsementToken? @relation(fields: [tokenId], references: [id])
 
   @@index([studentId, createdAt(sort: Desc)])
   @@index([endorserEmail])
@@ -725,26 +533,21 @@ model Endorsement {
   @@map("endorsements")
 }
 
-// Endorsement Token Model (for magic link system)
 model EndorsementToken {
-  id        String    @id @default(uuid())
-  studentId String
-  email     String // Teacher/endorser email
-  token     String    @unique // Cryptographically secure token
-  expiresAt DateTime // 48 hours from creation
-  used      Boolean   @default(false) // Single-use token
-  usedAt    DateTime?
-  ipAddress String? // IP address when token was used (for security logging)
-  createdAt DateTime  @default(now())
-
-  // Request metadata
-  teacherName  String? // Optional: teacher name from request
-  teacherRole  String? // Optional: Professor, Mentor, Panelist, etc.
-  organization String? // Optional: organization name
-
-  // Relations
-  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  endorsement Endorsement? // One-to-one: token can create one endorsement
+  id           String       @id @default(uuid())
+  studentId    String
+  email        String
+  token        String       @unique
+  expiresAt    DateTime
+  used         Boolean      @default(false)
+  usedAt       DateTime?
+  ipAddress    String?
+  createdAt    DateTime     @default(now())
+  teacherName  String?
+  teacherRole  String?
+  organization String?
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  endorsement  Endorsement?
 
   @@index([token])
   @@index([studentId, createdAt(sort: Desc)])
@@ -753,57 +556,39 @@ model EndorsementToken {
   @@map("endorsement_tokens")
 }
 
-// EndorsementStatus: "PENDING", "COMPLETED", "EXPIRED"
-
-// ============================================================================
-// ADMIN REQUESTS
-// ============================================================================
-
 model AdminRequest {
   id          String    @id @default(uuid())
   userId      String
   email       String
   reason      String?
-  status      String    @default("PENDING") // RequestStatus: PENDING, APPROVED, REJECTED
+  status      String    @default("PENDING")
   requestedAt DateTime  @default(now())
   approvedAt  DateTime?
-  approvedBy  String? // Admin user ID
+  approvedBy  String?
   rejectedAt  DateTime?
-  rejectedBy  String? // Admin user ID
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rejectedBy  String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, requestedAt(sort: Desc)])
   @@map("admin_requests")
 }
 
-// RequestStatus: "PENDING", "APPROVED", "REJECTED"
-
-// ============================================================================
-// ANNOUNCEMENTS (Admin → Students)
-// ============================================================================
-
 model Announcement {
   id            String   @id @default(uuid())
   title         String
-  description   String   @db.Text
-  link          String?  // Optional URL (e.g. form, opportunity, guideline)
-  imageUrl      String?  // Cloudinary URL if admin uploads photo
-  imagePublicId String?  // Cloudinary public_id for deletion
-  // Targeting: JSON arrays e.g. ["SOT","SOM"] or ["ALL"] - which school/batch/center get the email
-  targetSchools String?  // JSON array of school names, or ["ALL"]
-  targetBatches String?  // JSON array of batch e.g. ["25-29"], or ["ALL"]
-  targetCenters String?  // JSON array of center e.g. ["BANGALORE"], or ["ALL"]
-  createdBy     String   // User ID of admin
+  description   String
+  link          String?
+  imageUrl      String?
+  imagePublicId String?
+  targetSchools String?
+  targetBatches String?
+  targetCenters String?
+  createdBy     String
   createdAt     DateTime @default(now())
 
   @@index([createdAt(sort: Desc)])
   @@map("announcements")
 }
-
-// ============================================================================
-// ADMIN MODEL (Additional admin-specific data)
-// ============================================================================
 
 model Admin {
   id        String   @id @default(uuid())
@@ -811,16 +596,11 @@ model Admin {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("admins")
 }
-
-// ============================================================================
-// GOOGLE CALENDAR TOKENS
-// ============================================================================
 
 model GoogleCalendarToken {
   id                   String    @id @default(uuid())
@@ -829,52 +609,36 @@ model GoogleCalendarToken {
   refreshToken         String?
   expiryDate           DateTime?
   scope                String?
-  connectedGoogleEmail String? // Email of the connected Google Calendar account (for verification)
+  connectedGoogleEmail String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([connectedGoogleEmail])
   @@map("google_calendar_tokens")
 }
 
-// ============================================================================
-// INTERVIEW SESSIONS
-// ============================================================================
-
 model Interview {
-  id           String  @id @default(uuid())
-  jobId        String
-  companyId    String?
-  status       String  @default("ONGOING") // InterviewStatus: ONGOING, COMPLETED, CANCELLED
-  currentRound String? // Name of the current round
-  rounds       String  @default("[]") // JSON array of rounds: [{ name, criteria, status, order }]
+  id                 String                @id @default(uuid())
+  jobId              String                @unique
+  companyId          String?
+  status             String                @default("ONGOING")
+  currentRound       String?
+  rounds             String                @default("[]")
+  totalCandidates    Int                   @default(0)
+  doneCandidates     Int                   @default(0)
+  pendingCandidates  Int                   @default(0)
+  selectedCandidates Int                   @default(0)
+  onHoldCandidates   Int                   @default(0)
+  createdBy          String?
+  sessionToken       String?               @unique
+  startedAt          DateTime              @default(now())
+  completedAt        DateTime?
+  activities         InterviewActivity[]
+  evaluations        InterviewEvaluation[]
+  job                Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  // Statistics
-  totalCandidates    Int @default(0)
-  doneCandidates     Int @default(0)
-  pendingCandidates  Int @default(0)
-  selectedCandidates Int @default(0)
-  onHoldCandidates   Int @default(0)
-
-  // Creator
-  createdBy String? // User ID of the admin who created the interview
-
-  // Session Token (for token-based access without login)
-  sessionToken String? @unique // Unique token for session access
-
-  // Timestamps
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-
-  // Relations
-  job         Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  evaluations InterviewEvaluation[]
-  activities  InterviewActivity[]
-
-  @@unique([jobId])
   @@index([status, startedAt(sort: Desc)])
   @@index([jobId])
   @@index([createdBy])
@@ -883,19 +647,17 @@ model Interview {
 }
 
 model InterviewEvaluation {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   interviewId String
   studentId   String
   roundName   String
   marks       Float?
   remarks     String?
-  status      String? // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
-  evaluatedBy String? // User ID of the evaluator
-  evaluatedAt DateTime @default(now())
-
-  // Relations
-  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status      String?
+  evaluatedBy String?
+  evaluatedAt DateTime  @default(now())
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([interviewId, studentId, roundName])
   @@index([interviewId, roundName])
@@ -904,47 +666,34 @@ model InterviewEvaluation {
 }
 
 model InterviewActivity {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   interviewId  String
   studentId    String?
   roundName    String?
-  activityType String // ActivityType: SESSION_STARTED, ROUND_STARTED, EVALUATION, SESSION_ENDED
+  activityType String
   message      String
-  metadata     String? // JSON string for additional data: { candidateId, roundName, status, etc. }
-  performedBy  String? // User ID
-  createdAt    DateTime @default(now())
-
-  // Relations
-  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  metadata     String?
+  performedBy  String?
+  createdAt    DateTime  @default(now())
+  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 
   @@index([interviewId, createdAt(sort: Desc)])
   @@index([activityType])
   @@map("interview_activities")
 }
 
-// ============================================================================
-// INTERVIEW SESSIONS (New Production System)
-// ============================================================================
-
 model InterviewSession {
-  id        String  @id @default(uuid())
-  jobId     String  @unique
-  companyId String?
-
-  status String @default("NOT_STARTED") // SessionStatus: NOT_STARTED, ONGOING, COMPLETED, INCOMPLETE, FROZEN
-
-  // Creator
-  createdBy String // Admin user ID
-
-  // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  startedAt   DateTime?
-  completedAt DateTime?
-
-  // Relations
-  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(uuid())
+  jobId              String              @unique
+  companyId          String?
+  status             String              @default("NOT_STARTED")
+  createdBy          String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  startedAt          DateTime?
+  completedAt        DateTime?
   rounds             InterviewRound[]
+  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
   interviewerInvites InterviewerInvite[]
 
   @@index([status, createdAt(sort: Desc)])
@@ -953,23 +702,16 @@ model InterviewSession {
   @@map("interview_sessions")
 }
 
-// SessionStatus: "NOT_STARTED", "ONGOING", "COMPLETED", "INCOMPLETE"
-
 model InterviewRound {
-  id          String @id @default(uuid())
+  id          String            @id @default(uuid())
   sessionId   String
-  roundNumber Int // 1, 2, 3, etc.
-  name        String // e.g., "Technical Round 1", "HR Round"
-
-  status String @default("LOCKED") // RoundStatus: LOCKED, ACTIVE, ENDED
-
-  // Timestamps
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  // Relations
+  roundNumber Int
+  name        String
+  status      String            @default("LOCKED")
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   session     InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   evaluations RoundEvaluation[]
 
@@ -980,20 +722,16 @@ model InterviewRound {
   @@map("interview_rounds")
 }
 
-// RoundStatus: "LOCKED", "ACTIVE", "ENDED"
-
 model InterviewerInvite {
-  id        String    @id @default(uuid())
+  id        String           @id @default(uuid())
   sessionId String
   email     String
-  token     String    @unique // JWT or signed random token
+  token     String           @unique
   expiresAt DateTime
-  used      Boolean   @default(false)
+  used      Boolean          @default(false)
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  // Relations
-  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, email])
   @@index([token])
@@ -1004,43 +742,31 @@ model InterviewerInvite {
 }
 
 model RoundEvaluation {
-  id               String @id @default(uuid())
+  id               String         @id @default(uuid())
   roundId          String
   applicationId    String
   interviewerEmail String
+  status           String?
+  remarks          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  application      Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  round            InterviewRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
-  status  String? // EvaluationStatus: SELECTED, REJECTED, ON_HOLD
-  remarks String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  round       InterviewRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  application Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@unique([roundId, applicationId]) // One evaluation per candidate per round
+  @@unique([roundId, applicationId])
   @@index([roundId])
   @@index([applicationId])
   @@index([status])
   @@map("round_evaluations")
 }
 
-// EvaluationStatus: "SELECTED", "REJECTED", "ON_HOLD"
-
-// ============================================================================
-// RECRUITER SCREENING SESSIONS
-// ============================================================================
-
 model RecruiterScreeningSession {
   id        String   @id @default(uuid())
   jobId     String   @unique
-  token     String   @unique // Secure random token or JWT for access
-  expiresAt DateTime // Token expiration (7-14 days)
+  token     String   @unique
+  expiresAt DateTime
   createdAt DateTime @default(now())
-
-  // Relations
-  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([jobId])

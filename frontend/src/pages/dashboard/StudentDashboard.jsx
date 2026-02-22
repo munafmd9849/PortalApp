@@ -4675,7 +4675,7 @@ useEffect(() => {
         <div className="flex min-h-screen relative">
           {/* Desktop sidebar: visible from md up */}
           <aside
-            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out z-40"
+            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
             <div className="p-3 h-full flex flex-col">
@@ -4822,7 +4822,7 @@ useEffect(() => {
           )}
           {/* Mobile drawer sidebar */}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto scrollbar-hide transition-transform duration-300 ease-out flex flex-col ${
               mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
             aria-modal

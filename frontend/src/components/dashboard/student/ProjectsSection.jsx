@@ -353,7 +353,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
             isArray: Array.isArray(projects),
           })}
           
-          <div className="space-y-2 pr-1 md:pr-2 custom-scrollbar" style={{ maxHeight: 'min(350px, 60vh)' }}>
+          <div className="space-y-2 pr-1 md:pr-2 custom-scrollbar overflow-y-auto" style={{ maxHeight: 'min(350px, 60vh)' }}>
             <style>{`
               .custom-scrollbar::-webkit-scrollbar {
                 width: 8px;

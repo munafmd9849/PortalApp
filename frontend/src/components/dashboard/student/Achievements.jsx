@@ -434,13 +434,7 @@ const Achievements = ({ isAdminView = false }) => {
             </button>
           </div>
 
-          <div
-            className={`space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 ${
-              awardsAndAchievements.length > 0
-                ? "max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar"
-                : ""
-            }`}
-          >
+          <div className="space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar">
             {/* Add new award form when editing */}
             {editingId === 'new' && !editedAchievement.hasCertificate && (
               <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-3 md:p-4">
@@ -506,13 +500,7 @@ const Achievements = ({ isAdminView = false }) => {
             </button>
           </div>
 
-          <div
-            className={`space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 ${
-              certificates.length > 0
-                ? "max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar"
-                : ""
-            }`}
-          >
+          <div className="space-y-2 md:space-y-3 pb-3 md:pb-4 pr-1 md:pr-2 max-h-[min(300px,60vh)] overflow-y-auto custom-scrollbar">
             {/* Add new certificate form when editing */}
             {editingId === 'new' && editedAchievement.hasCertificate && (
               <div className="bg-gradient-to-r from-[#f0f8fa] to-[#e6f3f8] rounded-lg p-3 md:p-4">
