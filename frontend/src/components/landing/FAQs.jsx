@@ -49,7 +49,7 @@ export default function PlacementFAQ() {
         className="text-2xl sm:text-3xl md:text-3xl font-bold mb-8 text-center text-gray-800"
       >
       {/* Frequently Asked Questions */}
-      Baar Baar Puche Gaye Sawaal (FAQs)
+      Baar Baar Puche Gaye Sawaal (<span className="text-blue-900">FAQs</span>)
       </h2>
 
       <div className="w-full  space-y-2 px-15">

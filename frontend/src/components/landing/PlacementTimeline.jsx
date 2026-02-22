@@ -293,13 +293,13 @@ export default function TimelineWithSidebar() {
   });
 
   return (
-    <div className="relative w-full overflow-x-hidden bg-[#FFEEC3]">
-      <div className="flex">
+    <div className="relative w-full overflow-x-clip bg-[#FFEEC3] scrollbar-hide">
+      <div className="flex items-stretch">
         {/* Timeline Section  */}
         <div className="relative w-full lg:w-[70%] font-inter md:px-10" ref={containerRef}>
           <div className="max-w-5xl mx-auto py-20 px-4 md:px-8 lg:px-10">
             <h2 className="text-lg font-semibold md:text-4xl mb-4 text-black max-w-4xl">
-              <span style={{ fontFamily: "Inter, sans-serif" }}>Walk Through Of Placement Process</span>
+              <span style={{ fontFamily: "Inter, sans-serif" }}>Walk Through Of <span className="text-blue-900">Placement Process</span></span>
             </h2>
             <p className="text-neutral-700 text-sm md:text-base max-w-lg">
               Navigate through the placement process from profile creation to final selection.

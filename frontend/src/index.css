@@ -14,41 +14,47 @@
   letter-spacing: 0.04em;
 }
 
-/* Hide scrollbar for the entire application */
+/* Smooth scrolling and lightweight scrollbar across the landing page */
 html {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-  scroll-behavior: smooth; /* Smooth scrolling */
+  scroll-behavior: smooth;
+  scrollbar-width: thin; /* Firefox: thin scrollbar */
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
 html::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-thumb:active {
+  background: rgba(0, 0, 0, 0.45);
 }
 
 body {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-  scroll-behavior: smooth; /* Smooth scrolling */
-  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
-body::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
-}
-
-/* Hide scrollbar for all elements */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-  scroll-behavior: smooth; /* Smooth scrolling */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
-}
-
-/* Smooth scrolling for all scrollable elements */
-html, body, div, section, main {
+/* Smooth scrolling for scrollable containers */
+div, section, main {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }

@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ProfileCard from './ProfileCard.jsx';
+import ProfileCardCompact from './ProfileCardCompact.jsx';
+import ProfileCardAngular from './ProfileCardAngular.jsx';
+import ProfileCardBrutalist from './ProfileCardBrutalist.jsx';
+import ProfileCardCareerStyle from './ProfileCardCareerStyle.jsx';
+import ProfileCardMinimal from './ProfileCardMinimal.jsx';
 import './Records.css';
 
 const STUDENT_RECORDS = [
@@ -59,7 +64,6 @@ export default function PlacementRecords({ onLoginOpen }) {
   const cardsToShow = 5;
   const sectionRef = useRef(null);
   const mobileScrollRef = useRef(null);
-
   const mobileCards = useMemo(() => STUDENT_RECORDS.flat(), []);
 
   useEffect(() => {
@@ -178,49 +182,102 @@ export default function PlacementRecords({ onLoginOpen }) {
           </div>
 
           <div className="relative">
-            {/* Laptop and up: 5-card grid using ProfileCard */}
+            {/* Laptop and up: 5-card grid — 5 options for comparison: Brutalist, Career, Compact, Minimal, ProfileCard */}
             <div
-              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full"
+              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full pt-9"
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
             >
-              {currentCards.map((student, index) => (
-                <div
-                  key={`${currentRow}-${index}`}
-                  className="w-full max-w-[230px] xl:max-w-[250px]"
-                  style={{
-                    animationDelay: `${index * 80}ms`,
-                    animation: 'slideInUp 0.6s ease-out forwards'
-                  }}
-                >
-                  <ProfileCard
-                    name={student.name}
-                    title={`${student.company} • ${student.role}`}
-                    batch={student.batch}
-                    handle={String(student.name || '')
-                      .toLowerCase()
-                      .replace(/\s+/g, '')}
-                    status={student.package}
-                    contactText="View Profile"
-                    avatarUrl={student.profileImg}
-                    showUserInfo={false}
-                    enableTilt={true}
-                    enableMobileTilt={false}
-                    showBehindGlow
-                    behindGlowColor="rgba(148,163,184,0.4)"
-                    customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
-                    testimonial={TESTIMONIALS[(currentRow * cardsToShow + index) % TESTIMONIALS.length]}
-                    linkedinUrl={student.linkedin}
-                    emailHref={`mailto:${String(student.name || '')
-                      .toLowerCase()
-                      .trim()
-                      .replace(/\s+/g, '.')}@${String(student.company || '')
-                      .toLowerCase()
-                      .trim()
-                      .replace(/\s+/g, '')}.com`}
-                  />
-                </div>
-              ))}
+              {currentCards.map((student, index) => {
+                const title = `${student.company} • ${student.role}`;
+                const emailHref = `mailto:${String(student.name || '').toLowerCase().trim().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().trim().replace(/\s+/g, '')}.com`;
+                const testimonial = TESTIMONIALS[(currentRow * cardsToShow + index) % TESTIMONIALS.length];
+                const wrapperClass = "w-full max-w-[230px] xl:max-w-[250px]";
+                const wrapperStyle = { animationDelay: `${index * 80}ms`, animation: 'slideInUp 0.6s ease-out forwards' };
+
+                if (index === 0) {
+                  return (
+                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
+                      <ProfileCardBrutalist
+                        name={student.name}
+                        role={student.role}
+                        company={student.company}
+                        status={student.package}
+                        testimonial={testimonial}
+                        linkedinUrl={student.linkedin}
+                        emailHref={emailHref}
+                      />
+                    </div>
+                  );
+                }
+                if (index === 1) {
+                  const careerTitle = `${student.company} • ${student.package}`;
+                  return (
+                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
+                      <ProfileCardCareerStyle
+                        name={student.name}
+                        title={careerTitle}
+                        avatarUrl={student.profileImg}
+                        testimonial={testimonial}
+                        linkedinUrl={student.linkedin}
+                        emailHref={emailHref}
+                      />
+                    </div>
+                  );
+                }
+                if (index === 2) {
+                  return (
+                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
+                      <ProfileCardAngular
+                        name={student.name}
+                        company={student.company}
+                        status={student.package}
+                        testimonial={testimonial}
+                        avatarUrl={student.profileImg}
+                        linkedinUrl={student.linkedin}
+                        emailHref={emailHref}
+                      />
+                    </div>
+                  );
+                }
+                if (index === 3) {
+                  return (
+                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
+                      <ProfileCardMinimal
+                        name={student.name}
+                        title={title}
+                        status={student.package}
+                        avatarUrl={student.profileImg}
+                        linkedinUrl={student.linkedin}
+                        emailHref={emailHref}
+                        batch={student.batch}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
+                    <ProfileCard
+                      name={student.name}
+                      title={title}
+                      batch={student.batch}
+                      handle={String(student.name || '').toLowerCase().replace(/\s+/g, '')}
+                      status={student.package}
+                      contactText="View Profile"
+                      avatarUrl={student.profileImg}
+                      showUserInfo={false}
+                      enableTilt={true}
+                      enableMobileTilt={false}
+                      showBehindGlow
+                      behindGlowColor="rgba(148,163,184,0.4)"
+                      customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
+                      testimonial={testimonial}
+                      linkedinUrl={student.linkedin}
+                      emailHref={emailHref}
+                    />
+                  </div>
+                );
+              })}
             </div>
             <div className="hidden lg:flex justify-center mt-8 gap-2">
               {STUDENT_RECORDS.map((_, index) => (
