@@ -11,6 +11,9 @@ export default function JobPostingsSection({
   meetsYopRequirement,
   onExploreMore,
   onKnowMore,
+  studentCgpa,
+  studentBatch,
+  studentBacklogs,
 }) {
   const [logoStates, setLogoStates] = useState({});
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
@@ -21,6 +24,9 @@ export default function JobPostingsSection({
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
+  // Shared button sizing for consistent appearance across statuses
+  // Mobile: full width; Desktop: fixed min-width so all statuses align
+  const BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
 
   // Function to get company logo URL from Clearbit API or other sources
   const getCompanyLogoUrl = (companyName) => {
@@ -187,10 +193,54 @@ export default function JobPostingsSection({
                     ? !meetsYopRequirement(job)
                     : false;
 
+                // Determine failed reasons for "Not eligible" tooltip
+                const failedReasons = [];
+                // CGPA check
+                if (typeof meetsCgpaRequirement === 'function' && !meetsCgpaRequirement(job)) {
+                  const minCgpa = job.minCgpa || job.cgpaRequirement || null;
+                  if (minCgpa) failedReasons.push(`CGPA requirement: ${minCgpa}`);
+                  else failedReasons.push('CGPA requirement not met');
+                }
+                // YOP check
+                if (yopNotEligible) {
+                  if (job.yop) failedReasons.push(`YOP requirement: up to ${job.yop}`);
+                  else failedReasons.push('YOP requirement not met');
+                }
+                // Deadline check
+                if (typeof isDeadlinePassed === 'function' && isDeadlinePassed(job)) {
+                  const dl = job.applicationDeadline || job.deadline;
+                  failedReasons.push(`Applications closed on ${dl ? new Date(dl).toLocaleDateString() : 'N/A'}`);
+                }
+                // Backlogs check (basic)
+                if (job.backlogs && studentBacklogs !== undefined && studentBacklogs !== null) {
+                  const requirementStr = String(job.backlogs).trim().toLowerCase();
+                  let allowed = true;
+                  const studentBacklogsNum = parseInt(String(studentBacklogs)) || 0;
+                  if (requirementStr === 'no' || requirementStr === '0' || requirementStr === 'none') {
+                    allowed = studentBacklogsNum === 0;
+                  } else if (requirementStr.includes('-')) {
+                    const [minStr, maxStr] = requirementStr.split('-').map(s => s.trim());
+                    const minB = parseInt(minStr) || 0;
+                    const maxB = parseInt(maxStr) || 0;
+                    allowed = studentBacklogsNum >= minB && studentBacklogsNum <= maxB;
+                  } else {
+                    const maxAllowed = parseInt(requirementStr) || 0;
+                    allowed = studentBacklogsNum <= maxAllowed;
+                  }
+                  if (!allowed) {
+                    failedReasons.push(`Backlogs requirement: ${job.backlogs}`);
+                  }
+                }
+
+                const notEligible = failedReasons.length > 0;
+
                 return (
                   <div
                     key={job.id}
-                    onClick={() => onKnowMore && onKnowMore(job)}
+                    onClick={() => {
+                      if (onKnowMore) onKnowMore(job);
+                      else window.location.href = `/job/${job.id}`;
+                    }}
                     className="flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200 min-w-0 overflow-hidden md:items-center cursor-pointer"
                     style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
                     role="button"
@@ -198,7 +248,8 @@ export default function JobPostingsSection({
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        onKnowMore && onKnowMore(job);
+                        if (onKnowMore) onKnowMore(job);
+                        else window.location.href = `/job/${job.id}`;
                       }
                     }}
                   >
@@ -234,20 +285,15 @@ export default function JobPostingsSection({
                           disabled={
                             (hasApplied && hasApplied(job.id)) ||
                             (applying && applying[job.id]) ||
-                            (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ||
                             (isDeadlinePassed && isDeadlinePassed(job)) ||
-                            yopNotEligible
+                            notEligible
                           }
-                          title={
-                            (meetsCgpaRequirement && !meetsCgpaRequirement(job))
-                              ? "Couldn't apply for Job as CGPA requirement not met."
-                              : (isDeadlinePassed && isDeadlinePassed(job))
+                          title={ (hasApplied && hasApplied(job.id)) ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (
+                            (isDeadlinePassed && isDeadlinePassed(job))
                               ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
-                              : yopNotEligible
-                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch is not eligible.`
                               : ''
-                          }
-                          className={`w-full min-h-[36px] sm:min-h-[40px] px-2.5 sm:px-3 py-1.5 sm:py-2 font-medium rounded-md sm:rounded-lg transition-all duration-200 shadow-sm text-[11px] sm:text-xs text-center flex items-center justify-center gap-1 border-2 touch-manipulation ${
+                          ))}
+                          className={`w-full ${BUTTON_SIZE} font-medium rounded-md sm:rounded-lg transition-all duration-200 shadow-sm text-[11px] sm:text-xs text-center flex items-center justify-center gap-1 border-2 touch-manipulation ${
                             hasApplied && hasApplied(job.id)
                               ? 'bg-green-100 text-green-800 cursor-not-allowed border-green-300'
                               : applying && applying[job.id]
@@ -262,27 +308,22 @@ export default function JobPostingsSection({
                           {hasApplied && hasApplied(job.id) ? (
                             <>
                               <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied!
+                              Applied
                             </>
                           ) : applying && applying[job.id] ? (
                             <>
                               <Loader className="h-3 w-3 inline mr-1 animate-spin" />
                               Applying...
                             </>
-                          ) : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              CGPA Not Met
-                            </>
                           ) : (isDeadlinePassed && isDeadlinePassed(job)) ? (
                             <>
                               <XCircle className="h-3 w-3 inline mr-1" />
                               Deadline Passed
                             </>
-                          ) : yopNotEligible ? (
+                          ) : notEligible ? (
                             <>
                               <XCircle className="h-3 w-3 inline mr-1" />
-                              YOP Not Eligible
+                              Not eligible
                             </>
                           ) : (
                             'Apply Now'
@@ -321,20 +362,15 @@ export default function JobPostingsSection({
                           disabled={
                             (hasApplied && hasApplied(job.id)) ||
                             (applying && applying[job.id]) ||
-                            (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ||
                             (isDeadlinePassed && isDeadlinePassed(job)) ||
-                            yopNotEligible
+                            notEligible
                           }
-                          title={
-                            (meetsCgpaRequirement && !meetsCgpaRequirement(job))
-                              ? "Couldn't apply for Job as CGPA requirement not met."
-                              : (isDeadlinePassed && isDeadlinePassed(job))
+                          title={ (hasApplied && hasApplied(job.id)) ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (
+                            (isDeadlinePassed && isDeadlinePassed(job))
                               ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
-                              : yopNotEligible
-                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch is not eligible.`
                               : ''
-                          }
-                          className={`px-4 py-2 font-medium rounded-lg transition-all duration-200 shadow-sm text-xs whitespace-nowrap border-2 ${
+                          ))}
+                          className={`${BUTTON_SIZE} font-medium rounded-lg transition-all duration-200 shadow-sm text-xs whitespace-nowrap border-2 ${
                             hasApplied && hasApplied(job.id)
                               ? 'bg-green-100 text-green-800 cursor-not-allowed border-green-300'
                               : applying && applying[job.id]
@@ -356,20 +392,15 @@ export default function JobPostingsSection({
                               <Loader className="h-3 w-3 inline mr-1 animate-spin" />
                               Applying...
                             </>
-                          ) : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              CGPA Not Met
-                            </>
                           ) : (isDeadlinePassed && isDeadlinePassed(job)) ? (
                             <>
                               <XCircle className="h-3 w-3 inline mr-1" />
                               Deadline Passed
                             </>
-                          ) : yopNotEligible ? (
+                          ) : notEligible ? (
                             <>
                               <XCircle className="h-3 w-3 inline mr-1" />
-                              YOP Not Eligible
+                              Not eligible
                             </>
                           ) : (
                             'Apply Now'

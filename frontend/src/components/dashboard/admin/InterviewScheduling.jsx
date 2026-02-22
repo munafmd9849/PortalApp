@@ -308,7 +308,8 @@ export default function InterviewScheduling() {
         { showSuccess: true }
       );
       
-      const invitesCount = Array.isArray(data.invites) ? data.invites.length : (data.invites ? 1 : 0);
+      const invites = data?.data?.invites ?? data?.invites;
+      const invitesCount = Array.isArray(invites) ? invites.length : (invites ? 1 : 0);
       showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
       // Reload session to get updated invites
       if (selectedJob) {

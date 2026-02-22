@@ -202,6 +202,38 @@ const DashboardHome = ({
     return studentYop <= jobYopInt;
   };
 
+  // ----------------------------
+  // Dashboard: live application mapping
+  // Only show non-terminal applications and map labels to Applied / Shortlisted
+  // ----------------------------
+  const isLiveApplication = (app) => {
+    // Exclude final terminal states
+    const finalStatus = (app.finalStatus || app.status || '').toString().toUpperCase();
+    if (finalStatus === 'SELECTED' || finalStatus === 'REJECTED') return false;
+
+    const interviewStatus = (app.interviewStatus || '').toString();
+    if (interviewStatus.startsWith('REJECTED_IN_ROUND_')) return false;
+
+    // Treat interview-in-progress as past (exclude). If you want to keep them, remove this check.
+    if (interviewStatus && interviewStatus.toUpperCase().includes('IN_PROGRESS')) return false;
+
+    return true;
+  };
+
+  const getTrackerLabel = (app) => {
+    const screening = (app.screeningStatus || '').toString().toUpperCase();
+    const requiresScreening = app.job?.requiresScreening !== false; // default true
+
+    const shortlistedStatuses = ['RESUME_SELECTED', 'SCREENING_SELECTED', 'TEST_SELECTED', 'INTERVIEW_ELIGIBLE'];
+    if (shortlistedStatuses.includes(screening)) return 'Shortlisted';
+    if (!requiresScreening && screening === 'APPLIED') return 'Shortlisted'; // auto-shortlist when no screening
+    return 'Applied';
+  };
+
+  const liveApplications = (displayApplications || [])
+    .filter(isLiveApplication)
+    .map(a => ({ ...a, trackerLabel: getTrackerLabel(a) }));
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'applied': return 'text-blue-600 bg-blue-100';
@@ -242,9 +274,9 @@ const DashboardHome = ({
       {/* Live Application Tracker Section */}
       {!hideApplicationTracker && (
         <ApplicationTrackerSection 
-          applications={displayApplications} 
+          applications={liveApplications} 
           onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current' } }))}
-          onRowClick={() => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current' } }))}
+          onRowClick={(application) => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current', applicationId: application?.id, jobId: application?.job?.id || application?.jobId } }))}
         />
       )}
 
@@ -260,6 +292,9 @@ const DashboardHome = ({
           meetsCgpaRequirement={meetsCgpaRequirement}
           isDeadlinePassed={isDeadlinePassed}
           meetsYopRequirement={meetsYopRequirement}
+          studentCgpa={formattedStudentData?.cgpa}
+          studentBatch={formattedStudentData?.batch}
+          studentBacklogs={formattedStudentData?.backlogs}
         />
       )}
 

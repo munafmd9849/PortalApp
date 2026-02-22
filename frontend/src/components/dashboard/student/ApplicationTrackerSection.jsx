@@ -104,14 +104,15 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
               {applications.slice(0, 3).map((application) => {
                 const job = application.job || application;
                 const salaryStr = formatSalary(job?.salary ?? job?.ctc ?? job?.salaryRange);
+                const displayLabel = application.trackerLabel || application.currentStage || application.status;
                 return (
                 <div
                   key={application.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onRowClick?.()}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(); } }}
-                  className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(application.currentStage || application.status)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
+                  onClick={() => onRowClick?.(application)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(application); } }}
+                  className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(displayLabel)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
                   style={{ gridTemplateColumns: gridCols, columnGap, rowGap }}
                 >
                   {/* Mobile Layout */}
@@ -139,11 +140,9 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                       <span>{formatDate(application.appliedDate)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-1.5 md:pt-2 border-t border-gray-300 gap-2">
-                      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-[10px] md:text-xs font-semibold shadow-sm ${getStatusColor(application.currentStage || application.status)}`}>
-                        {getStatusIcon(application.currentStage || application.status)}
-                        {application.currentStage || application.status
-                          ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
-                          : 'Unknown'}
+                      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-[10px] md:text-xs font-semibold shadow-sm ${getStatusColor(displayLabel)}`}>
+                        {getStatusIcon(displayLabel)}
+                        {displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
                       </span>
                     </div>
                   </div>
@@ -173,14 +172,12 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                     </div>
                     <div className="hidden md:flex items-center min-w-0 overflow-hidden">
                       <span
-                        className={`inline-flex items-center gap-1 min-w-0 max-w-full px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm overflow-hidden ${getStatusColor(application.currentStage || application.status)}`}
-                        title={application.currentStage || application.status ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1) : 'Unknown'}
+                        className={`inline-flex items-center gap-1 min-w-0 max-w-full px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm overflow-hidden ${getStatusColor(displayLabel)}`}
+                        title={displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
                       >
-                        {getStatusIcon(application.currentStage || application.status)}
+                        {getStatusIcon(displayLabel)}
                         <span className="truncate min-w-0">
-                          {application.currentStage || application.status
-                            ? (application.currentStage || application.status).charAt(0).toUpperCase() + (application.currentStage || application.status).slice(1)
-                            : 'Unknown'}
+                          {displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
                         </span>
                       </span>
                     </div>

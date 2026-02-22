@@ -47,7 +47,7 @@ export default function JobList() {
       <h1 className="text-2xl font-bold mb-4">Job Openings</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {jobs.map((job) => (
-          <Link key={job.id} to={`/jobs/${job.id}`} className="border rounded p-4 hover:shadow">
+          <Link key={job.id} to={`/job/${job.id}`} className="border rounded p-4 hover:shadow">
             <h2 className="font-semibold">{job.title}</h2>
             <p className="text-sm text-gray-600">{job.company}</p>
             <p className="text-sm">CTC: {job.ctc}</p>

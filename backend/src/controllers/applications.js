@@ -1369,12 +1369,9 @@ export async function applyToJob(req, res) {
       return res.status(404).json({ error: 'Student profile not found' });
     }
 
-    // -----------------------------------------------------------------------
     // Year of Passing (YOP) eligibility check
-    // Job.yop is the upper limit; student's year of passing is derived from batch.
-    // Example rule: job.yop = 2027 → students with YOP <= 2027 can apply.
-    // -----------------------------------------------------------------------
-    if (job.yop) {
+    // Validation is optional. To enable server-side YOP enforcement set ENFORCE_YOP=true in the env.
+    if (process.env.ENFORCE_YOP === 'true' && job.yop) {
       const jobYopStr = String(job.yop).trim();
       const jobYopInt = parseInt(jobYopStr, 10);
 

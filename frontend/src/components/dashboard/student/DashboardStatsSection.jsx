@@ -55,7 +55,7 @@ const DashboardStatsSection = ({ studentData }) => {
         </legend>
 
         <div className="mb-3 mt-2">
-          {/* Mobile: 2×2 grid, smaller cards. Desktop (lg+): 4 columns, original size */}
+          {/* Mobile: 2×2 grid, larger icons/text to match Track Applications */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
             {statsData.map((stat, index) => {
               const Icon = stat.icon;
@@ -68,11 +68,11 @@ const DashboardStatsSection = ({ studentData }) => {
                 >
                   <div className="flex items-start gap-2 lg:gap-4 min-w-0">
                     <div className={`p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 ${stat.iconBgColor} group-hover:scale-110 transition-transform duration-300`}>
-                      <Icon className={`h-3 w-3 lg:h-7 lg:w-7 ${stat.iconColor}`} />
+                      <Icon className={`h-8 w-8 lg:h-10 lg:w-10 ${stat.iconColor}`} />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className={`text-[10px] lg:text-xs font-bold uppercase tracking-wider ${stat.textColor} mb-0.5 lg:mb-2 truncate`}>{stat.label}</p>
-                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(displayValue)}>{displayValue}</p>
+                      <p className={`text-base lg:text-lg font-bold uppercase tracking-wider ${stat.textColor} mb-0.5 lg:mb-2 truncate`}>{stat.label}</p>
+                      <p className="text-3xl lg:text-5xl font-extrabold text-gray-900 truncate" title={String(displayValue)}>{displayValue}</p>
                     </div>
                   </div>
                 </div>

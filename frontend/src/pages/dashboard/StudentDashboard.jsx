@@ -375,6 +375,10 @@ export default function StudentDashboard() {
   const [currentApplicationsPage, setCurrentApplicationsPage] = useState(1);
   const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
   const APPLICATIONS_LIST_PER_PAGE = 10;
+  const [focusedJobId, setFocusedJobId] = useState(null); // when navigating from dashboard tracker
+  // Shared button sizing for consistent appearance across statuses
+  // Mobile: full width; Desktop: fixed min-width so all statuses align
+  const BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
 
   // Reset pagination to page 1 when switching between Current and Past applications
   useEffect(() => {
@@ -1244,6 +1248,10 @@ export default function StudentDashboard() {
       setActiveTab('applications');
       const view = e?.detail?.view || 'current';
       setApplicationsView(view);
+      const applicationId = e?.detail?.applicationId || null;
+      const jobId = e?.detail?.jobId || null;
+      if (applicationId) setFocusedJobId(applicationId);
+      else if (jobId) setFocusedJobId(jobId); // fallback to jobId (legacy)
       if (tab !== 'applications') {
         navigate('/student?tab=applications', { replace: true });
       }
@@ -1275,6 +1283,45 @@ export default function StudentDashboard() {
       window.removeEventListener('navigateToQuery', handleNavigateToQuery);
     };
   }, [searchParams, navigate]);
+
+  // When focusedJobId is set (via navigate event), expand and scroll to the matching application
+  useEffect(() => {
+    if (!focusedJobId) return;
+    if (!applications || applications.length === 0) return;
+    // Find matching application by application id or job id
+    const targetApp = applications.find(a => {
+      if (!a) return false;
+      if (String(a.id) === String(focusedJobId)) return true;
+      if (a.job && (String(a.job.id) === String(focusedJobId) || String(a.jobId) === String(focusedJobId))) return true;
+      if (String(a.jobId) === String(focusedJobId)) return true;
+      return false;
+    });
+    if (!targetApp) return;
+
+    // Expand the application
+    setExpandedApplications(prev => {
+      const newSet = new Set(prev);
+      newSet.add(targetApp.id);
+      return newSet;
+    });
+
+    // Scroll into view
+    setTimeout(() => {
+      const el = document.getElementById(`application-${targetApp.id}`);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add temporary highlight
+        el.classList.add('ring-4', 'ring-indigo-200');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-indigo-200');
+        }, 2500);
+      }
+    }, 200); // allow render/expand to complete
+
+    // Clear focusedJobId after a short delay to avoid re-triggering
+    const clearTimer = setTimeout(() => setFocusedJobId(null), 3000);
+    return () => clearTimeout(clearTimer);
+  }, [focusedJobId, applications]);
 
   // OPTIMIZED: Load profile and public profile settings in parallel for faster initial load
   useEffect(() => {
@@ -1511,6 +1558,11 @@ export default function StudentDashboard() {
       missingFields.push({ field: 'stateRegion', section: 'location' });
     }
 
+    if (!bio.trim()) {
+      errors.push('Bio is required');
+      missingFields.push({ field: 'bio', section: 'bio' });
+    }
+
     // Optional field validations
     if (cgpa && !validateCGPA(cgpa)) errors.push('CGPA must be between 0 and 10');
 
@@ -1572,6 +1624,13 @@ export default function StudentDashboard() {
           errors.center = 'Center selection is required';
         } else {
           delete errors.center;
+        }
+        break;
+      case 'bio':
+        if (!value.trim()) {
+          errors.bio = 'Bio is required';
+        } else {
+          delete errors.bio;
         }
         break;
       case 'batch':
@@ -2292,7 +2351,7 @@ export default function StudentDashboard() {
               ) : (
                 <div className="space-y-4">
                   {/* Column Headers - Desktop Only; equal spacing between Company, Job Title, Drive Date, Salary (CTC), Status */}
-                  <div className="hidden md:grid mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 min-w-0 items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                  <div className="hidden md:grid mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 min-w-0 items-center justify-items-stretch w-full" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', columnGap: '1.5rem' }}>
                     <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
                       <Briefcase className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
                       Company
@@ -2320,14 +2379,56 @@ export default function StudentDashboard() {
                             const companyName = job.company?.name || job.company || 'Company';
                             const isApplied = hasApplied(job.id);
                             const isApplying = applying[job.id];
-                            const cgpaNotMet = !meetsCgpaRequirement(job);
                             const deadlinePassed = isDeadlinePassed(job);
                             const yopNotEligible = !meetsYopRequirement(job);
+
+                            // Compute failed reasons (unified "Not eligible")
+                            const failedReasons = [];
+                            if (typeof meetsCgpaRequirement === 'function' && !meetsCgpaRequirement(job)) {
+                              const jobMinCgpa = job.minCgpa || job.cgpaRequirement || null;
+                              if (jobMinCgpa) failedReasons.push(`CGPA requirement: ${jobMinCgpa}`);
+                              else failedReasons.push('CGPA requirement not met');
+                            }
+                            if (yopNotEligible) {
+                              if (job.yop) failedReasons.push(`YOP requirement: up to ${job.yop}`);
+                              else failedReasons.push('YOP requirement not met');
+                            }
+                            if (deadlinePassed) {
+                              const dl = job.applicationDeadline || job.deadline;
+                              failedReasons.push(`Applications closed on ${dl ? new Date(dl).toLocaleDateString() : 'N/A'}`);
+                            }
+                            if (job.backlogs && batch !== undefined && batch !== null) {
+                              const requirementStr = String(job.backlogs).trim().toLowerCase();
+                              const studentBacklogsNum = parseInt(String(backlogs || 0)) || 0;
+                              let allowed = true;
+                              if (requirementStr === 'no' || requirementStr === '0' || requirementStr === 'none') {
+                                allowed = studentBacklogsNum === 0;
+                              } else if (requirementStr.includes('-')) {
+                                const [minStr, maxStr] = requirementStr.split('-').map(s => s.trim());
+                                const minB = parseInt(minStr) || 0;
+                                const maxB = parseInt(maxStr) || 0;
+                                allowed = studentBacklogsNum >= minB && studentBacklogsNum <= maxB;
+                              } else {
+                                const maxAllowed = parseInt(requirementStr) || 0;
+                                allowed = studentBacklogsNum <= maxAllowed;
+                              }
+                              if (!allowed) failedReasons.push(`Backlogs requirement: ${job.backlogs}`);
+                            }
+                            const notEligible = failedReasons.length > 0;
 
                             return (
                               <div
                                 key={job.id}
-                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => navigate(`/job/${job.id}`)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    navigate(`/job/${job.id}`);
+                                  }
+                                }}
+                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
                               >
                                 {/* Mobile Layout */}
                                 <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
@@ -2350,29 +2451,18 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
                                   <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
-                                    <button
-                                      onClick={() => handleApplyToJob(job)}
-                                      disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
-                                      title={
-                                        deadlinePassed
-                                          ? 'Application deadline has passed. Applications are no longer being accepted.'
-                                          : cgpaNotMet ? (() => {
-                                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                            }
-                                            return "CGPA requirement not met. Please check the job requirements.";
-                                          })()
-                                            : yopNotEligible
-                                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
-                                              : ''
-                                      }
-                                      className={`flex-1 min-w-0 min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
+                                      <button
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleApplyToJob(job);
+                                      }}
+                                      disabled={isApplied || isApplying || deadlinePassed || notEligible}
+                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
+                                      className={`flex-1 min-w-0 ${BUTTON_SIZE} rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
                                         ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                         : isApplying
                                           ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                          : cgpaNotMet || deadlinePassed || yopNotEligible
+                                          : deadlinePassed || notEligible
                                             ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
                                             : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
                                         }`}
@@ -2380,27 +2470,22 @@ export default function StudentDashboard() {
                                       {isApplied ? (
                                         <>
                                           <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">Applied!</span>
+                                          <span className="truncate">Applied</span>
                                         </>
                                       ) : isApplying ? (
                                         <>
                                           <Loader className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 animate-spin" />
                                           <span className="truncate">Applying...</span>
                                         </>
-                                      ) : cgpaNotMet ? (
-                                        <>
-                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">CGPA Not Met</span>
-                                        </>
                                       ) : deadlinePassed ? (
                                         <>
                                           <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                                           <span className="truncate">Deadline Passed</span>
                                         </>
-                                      ) : yopNotEligible ? (
+                                      ) : notEligible ? (
                                         <>
                                           <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">YOP Not Eligible</span>
+                                          <span className="truncate">Not eligible</span>
                                         </>
                                       ) : (
                                         <>
@@ -2413,7 +2498,7 @@ export default function StudentDashboard() {
                                 </div>
 
                                 {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
-                                <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+                                <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden justify-items-stretch w-full" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', columnGap: '1.5rem' }}>
                                   <div className="flex items-center gap-3 min-w-0 overflow-hidden">
                                     <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
                                       {getCompanyInitial(companyName)}
@@ -2440,28 +2525,17 @@ export default function StudentDashboard() {
 
                                   <div className="flex items-center min-w-0 overflow-hidden">
                                     <button
-                                      onClick={() => handleApplyToJob(job)}
-                                      disabled={isApplied || isApplying || cgpaNotMet || deadlinePassed || yopNotEligible}
-                                      title={
-                                        deadlinePassed
-                                          ? 'Application deadline has passed. Applications are no longer being accepted.'
-                                          : cgpaNotMet ? (() => {
-                                            const jobMinCgpa = job.minCgpa || job.cgpaRequirement;
-                                            const studentCgpa = cgpa ? parseFloat(cgpa) : null;
-                                            if (jobMinCgpa && studentCgpa !== null && !isNaN(studentCgpa)) {
-                                              return `Your CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement of ${jobMinCgpa} for this job.`;
-                                            }
-                                            return "CGPA requirement not met. Please check the job requirements.";
-                                          })()
-                                            : yopNotEligible
-                                              ? `This job is open for students passing out in ${job.yop} or earlier. Your batch (${batch}) is not eligible.`
-                                              : ''
-                                      }
-                                      className={`px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleApplyToJob(job);
+                                      }}
+                                      disabled={isApplied || isApplying || deadlinePassed || notEligible}
+                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
+                          className={`${BUTTON_SIZE} px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
                                         ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                         : isApplying
                                           ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                          : cgpaNotMet || deadlinePassed || yopNotEligible
+                                          : deadlinePassed || notEligible
                                             ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
                                             : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
                                         }`}
@@ -2469,27 +2543,22 @@ export default function StudentDashboard() {
                                       {isApplied ? (
                                         <>
                                           <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                                          Applied!
+                                          Applied
                                         </>
                                       ) : isApplying ? (
                                         <>
                                           <Loader className="h-4 w-4 flex-shrink-0 animate-spin" />
                                           Applying...
                                         </>
-                                      ) : cgpaNotMet ? (
-                                        <>
-                                          <XCircle className="h-4 w-4 flex-shrink-0" />
-                                          CGPA Not Met
-                                        </>
                                       ) : deadlinePassed ? (
                                         <>
                                           <XCircle className="h-4 w-4 flex-shrink-0" />
                                           Deadline Passed
                                         </>
-                                      ) : yopNotEligible ? (
+                                      ) : notEligible ? (
                                         <>
                                           <XCircle className="h-4 w-4 flex-shrink-0" />
-                                          YOP Not Eligible
+                                          Not eligible
                                         </>
                                       ) : (
                                         <>
@@ -2576,64 +2645,63 @@ export default function StudentDashboard() {
         // Use same pipeline stats as Career Insights (screening → shortlisted, test → interviewed, offer)
         const { applied: totalApplied, shortlisted, interviewed, offers } = displayStats;
 
-        // Filter applications with interview history (Past Records)
-        const pastRecords = interviewHistory.filter(app => app.interviewHistory?.hasInterview);
+        // Past Applications: only final outcomes (Selected/Rejected)
+        const pastRecords = interviewHistory.filter(app => {
+          const history = app.interviewHistory;
+          return history?.isCracked || history?.isRejected;
+        });
 
         return (
           <div className="space-y-5 sm:space-y-8 overflow-x-hidden">
             {/* Application Dashboard – same style as Career Insights (fieldset + gradient legend) */}
-            <fieldset className="bg-white rounded-xl border-2 border-[#8ec5ff] py-5 px-4 sm:px-6 transition-all duration-200 shadow-lg hover:shadow-xl">
-              <legend className="text-lg sm:text-xl font-bold px-3 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
-                Application Dashboard
-              </legend>
-              <p className="text-slate-600 mt-1 mb-3 text-sm">Track your job application journey</p>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
-                <div className="bg-gradient-to-br from-white to-red-100 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
-                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-red-600 group-hover:scale-110 transition-transform duration-300">
-                      <Briefcase className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
+            <div className="py-3 px-3 sm:px-4 bg-gradient-to-r from-slate-50 via-white to-blue-50 rounded-xl border border-gray-200 shadow-sm">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 w-full max-w-6xl mx-auto justify-items-stretch items-stretch">
+                <div className="bg-gradient-to-br from-white to-red-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-red-600 group-hover:scale-105 transition-transform duration-300">
+                      <Briefcase className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-red-700 mb-0.5 lg:mb-2 truncate">Applied</p>
-                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(totalApplied)}>{totalApplied}</p>
+                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-red-700 mb-0.5 truncate">Applied</p>
+                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(totalApplied)}>{totalApplied}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-blue-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
-                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-blue-600 group-hover:scale-110 transition-transform duration-300">
-                      <AlertCircle className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
+                <div className="bg-gradient-to-br from-white to-blue-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-blue-600 group-hover:scale-105 transition-transform duration-300">
+                      <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-blue-700 mb-0.5 lg:mb-2 truncate">Shortlisted</p>
-                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(shortlisted)}>{shortlisted}</p>
+                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-blue-700 mb-0.5 truncate">Shortlisted</p>
+                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(shortlisted)}>{shortlisted}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-green-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
-                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-green-600 group-hover:scale-110 transition-transform duration-300">
-                      <CheckCircle className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
+                <div className="bg-gradient-to-br from-white to-green-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-green-600 group-hover:scale-105 transition-transform duration-300">
+                      <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-green-700 mb-0.5 lg:mb-2 truncate">Interviewed</p>
-                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(interviewed)}>{interviewed}</p>
+                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-green-700 mb-0.5 truncate">Interviewed</p>
+                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(interviewed)}>{interviewed}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-purple-200 p-3 lg:p-6 rounded-lg lg:rounded-xl border-2 border-gray-200 hover:shadow-xl transition-all duration-300 min-h-[72px] lg:min-h-[140px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 lg:gap-4 min-w-0">
-                    <div className="p-1.5 lg:p-3.5 flex items-center justify-center shadow-lg rounded-lg lg:rounded-xl flex-shrink-0 bg-purple-600 group-hover:scale-110 transition-transform duration-300">
-                      <TrendingUp className="h-3 w-3 lg:h-7 lg:w-7 text-white" />
+                <div className="bg-gradient-to-br from-white to-purple-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
+                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-purple-600 group-hover:scale-105 transition-transform duration-300">
+                      <TrendingUp className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-[10px] lg:text-xs font-bold uppercase tracking-wider text-purple-700 mb-0.5 lg:mb-2 truncate">Offers</p>
-                      <p className="text-xl lg:text-4xl font-extrabold text-gray-900 truncate" title={String(offers)}>{offers}</p>
+                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-purple-700 mb-0.5 truncate">Offers</p>
+                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(offers)}>{offers}</p>
                     </div>
                   </div>
                 </div>
               </div>
-            </fieldset>
+            </div>
 
             {/* Enhanced View Toggle - responsive: stack on mobile, row on desktop */}
             <div className="flex justify-center px-1">
@@ -2992,11 +3060,26 @@ export default function StudentDashboard() {
                 ) : (
                   <div className="space-y-4 sm:space-y-6">
                     {(() => {
-                      const totalCurrent = applications.length;
+                      const isFinalOutcome = (app) => {
+                        const finalStatus = String(app?.finalStatus || '').toUpperCase();
+                        if (finalStatus === 'SELECTED' || finalStatus === 'REJECTED') return true;
+
+                        const interviewStatus = app?.interviewStatus;
+                        if (typeof interviewStatus === 'string') {
+                          if (interviewStatus === 'SELECTED') return true;
+                          if (interviewStatus.startsWith('REJECTED_IN_ROUND_')) return true;
+                        }
+
+                        const status = String(app?.status || '').toUpperCase();
+                        return status === 'SELECTED' || status === 'REJECTED';
+                      };
+
+                      const currentApplications = applications.filter(app => !isFinalOutcome(app));
+                      const totalCurrent = currentApplications.length;
                       const totalCurrentPages = Math.max(1, Math.ceil(totalCurrent / APPLICATIONS_LIST_PER_PAGE));
                       const currentPage = Math.min(Math.max(1, currentApplicationsPage), totalCurrentPages);
                       const startCurrent = (currentPage - 1) * APPLICATIONS_LIST_PER_PAGE;
-                      const paginatedApplications = applications.slice(startCurrent, startCurrent + APPLICATIONS_LIST_PER_PAGE);
+                      const paginatedApplications = currentApplications.slice(startCurrent, startCurrent + APPLICATIONS_LIST_PER_PAGE);
                       return (
                         <>
                           {paginatedApplications.map((application, index) => (
@@ -3004,6 +3087,7 @@ export default function StudentDashboard() {
                               key={application.id}
                               className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
                               style={{ animationDelay: `${index * 100}ms` }}
+                              data-application-id={application.id}
                             >
                               <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${(() => {
                                 const status = (application.currentStage || application.status)?.toLowerCase() || '';
@@ -3014,9 +3098,9 @@ export default function StudentDashboard() {
                                 if (status.includes('rejected')) return 'from-red-500 to-rose-500';
                                 return 'from-gray-400 to-gray-500';
                               })()
-                                }`}></div>
+                        }`}></div>
 
-                              <div className="p-4 sm:p-6 lg:p-8">
+                              <div id={`application-${application.id}`} className="p-4 sm:p-6 lg:p-8">
                                 <div className="flex flex-col gap-3 sm:gap-4">
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                     <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
@@ -3038,7 +3122,7 @@ export default function StudentDashboard() {
                                         )}
                                       </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
+                                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
                                       <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
                                         {getStatusIcon(application.currentStage || application.status)}
                                         <span className="truncate max-w-[120px] sm:max-w-none">
@@ -4220,12 +4304,19 @@ export default function StudentDashboard() {
                           Bio <span className="text-red-500">*</span>
                         </label>
                         <textarea
+                          id="bio"
                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none cursor-text"
                           rows="4"
                           placeholder="Write a brief bio about yourself"
                           value={bio}
-                          onChange={(e) => setBio(e.target.value)}
+                          onChange={(e) => {
+                            setBio(e.target.value);
+                            validateField('bio', e.target.value);
+                          }}
                         ></textarea>
+                        {validationErrors.bio && (
+                          <p className="text-red-500 text-sm mt-1">{validationErrors.bio}</p>
+                        )}
                       </div>
                     </div>
                   </div>
