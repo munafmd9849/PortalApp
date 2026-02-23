@@ -44,75 +44,69 @@ const ConnectGoogleCalendar = () => {
   const [errorMessage, setErrorMessage] = useState(null); // Error message state
   const popupTimeoutRef = useRef(null); // Store timeout reference for cleanup
 
-  // Check calendar connection status on mount
+  // Check calendar connection status on mount and listen for OAuth result
   useEffect(() => {
     checkCalendarStatus();
-    
-    // Listen for popup messages - HANDLE STRUCTURED RESPONSE
-    const handleMessage = (event) => {
-      // Verify message type
-      if (event.data.type !== 'GOOGLE_CALENDAR_RESULT') {
-        return; // Ignore other messages
-      }
 
-      const result = event.data;
-      
-      // Clear timeout when message is received
+    const handleOAuthResult = (result) => {
       if (popupTimeoutRef.current) {
         clearTimeout(popupTimeoutRef.current);
         popupTimeoutRef.current = null;
       }
-      
       setConnecting(false);
-
-      // Backend is SINGLE SOURCE OF TRUTH - only trust structured response
-      if (result.status === 'SUCCESS') {
-        // SUCCESS: Calendar connected
-        logger.info('Calendar connection successful', {
-          calendarEmail: result.calendarEmail,
-        });
-        
-        // Show success notification
-        if (toast) {
-          toast.success('Google Calendar connected successfully!', 'Success');
-        }
-        
-        // Refresh calendar status
+      if (result?.status === 'SUCCESS') {
+        logger.info('Calendar connection successful', { calendarEmail: result.calendarEmail });
+        if (toast) toast.success('Google Calendar connected successfully!', 'Success');
         checkCalendarStatus();
-        
-        // Clear any previous errors
         setErrorMessage(null);
-      } else if (result.status === 'FAILED') {
-        // FAILURE: Show exact error from backend
+      } else if (result?.status === 'FAILED') {
         let errorMsg = result.error || 'Failed to connect Google Calendar';
-        
         if (result.reason === 'EMAIL_MISMATCH') {
-          errorMsg = `Calendar connection failed. Use your registered email.\n\n` +
-            `Google Account Used: ${result.calendarEmail || 'N/A'}\n\n` +
-            `Please connect using the same email address you used to register.`;
+          errorMsg = `Calendar connection failed. Use your registered email.\n\nGoogle Account Used: ${result.calendarEmail || 'N/A'}\n\nPlease connect using the same email address you used to register.`;
         } else if (result.reason === 'EMAIL_NOT_VERIFIED') {
-          errorMsg = `Google account email is not verified. Please verify your email with Google and try again.`;
+          errorMsg = 'Google account email is not verified. Please verify your email with Google and try again.';
         } else if (result.reason === 'EMAIL_NOT_RETURNED') {
           errorMsg = result.error || 'Could not verify Google account email. Please try again.';
         }
-        
         setErrorMessage(errorMsg);
-        
-        // CRITICAL: DO NOT mark calendar as connected
         setConnected(false);
         setHasFullScope(null);
         setConnectedGoogleEmail(null);
-        
-        logger.warn('Calendar connection failed', {
-          reason: result.reason,
-          error: result.error,
-          calendarEmail: result.calendarEmail,
-        });
+        logger.warn('Calendar connection failed', { reason: result.reason, error: result.error, calendarEmail: result.calendarEmail });
+      }
+    };
+
+    // 1) Direct postMessage - receives when popup posts to this window (opener)
+    const handleMessage = (event) => {
+      if (event.data?.type === 'GOOGLE_CALENDAR_RESULT') {
+        handleOAuthResult(event.data);
+      }
+    };
+
+    // 2) Custom event - fallback when App dispatches (e.g. after tab switch)
+    const handleOAuthComplete = (e) => {
+      if (e.detail?.type === 'GOOGLE_CALENDAR_RESULT') {
+        handleOAuthResult(e.detail);
       }
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('calendar-oauth-complete', handleOAuthComplete);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('calendar-oauth-complete', handleOAuthComplete);
+    };
+  }, []);
+
+  // Refetch calendar status when tab becomes visible (handles case where user switched tabs during OAuth)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkCalendarStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // Fetch events when connected

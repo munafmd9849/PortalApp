@@ -386,6 +386,13 @@ export default function StudentDashboard() {
     setPastApplicationsPage(1);
   }, [applicationsView]);
 
+  // Collapse all cards when leaving Track Applications tab
+  useEffect(() => {
+    if (activeTab !== 'applications') {
+      setExpandedApplications(new Set());
+    }
+  }, [activeTab]);
+
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
