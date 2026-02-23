@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import './App.css'
 import Header from './components/landing/Header'
@@ -34,6 +34,7 @@ import ResetPassword from './pages/ResetPassword'
 import Endorsement from './pages/Endorsement'
 import PublicProfile from './pages/PublicProfile'
 import GoogleAuthCallback from './pages/GoogleAuthCallback'
+import CalendarOAuthCallback from './pages/CalendarOAuthCallback'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
@@ -175,6 +176,17 @@ function LandingPage() {
 function AppContent() {
   const { loading } = useAuth();
 
+  // Global listener for calendar OAuth popup - survives tab switches so we always receive the result
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data?.type === 'GOOGLE_CALENDAR_RESULT') {
+        window.dispatchEvent(new CustomEvent('calendar-oauth-complete', { detail: event.data }));
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
@@ -196,6 +208,7 @@ function AppContent() {
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/google-callback" element={<GoogleAuthCallback />} />
+        <Route path="/calendar/oauth-callback" element={<CalendarOAuthCallback />} />
         <Route path="/profile/:publicProfileId" element={<PublicProfile />} />
         <Route path="/endorse/:token" element={<Endorsement />} />
         <Route path="/endorsement/:token" element={<Endorsement />} /> {/* Legacy route support */}

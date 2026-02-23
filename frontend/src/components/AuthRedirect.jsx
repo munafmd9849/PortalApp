@@ -45,8 +45,8 @@ export default function AuthRedirect() {
         : null;
 
       // Public paths that authenticated users can visit without redirect
-      const publicPaths = ['/dev-team', '/test', '/unsubscribe'];
-      const isPublicPath = publicPaths.includes(currentPath) 
+      const publicPaths = ['/dev-team', '/test', '/unsubscribe', '/student/onboarding', '/calendar/oauth-callback'];
+      const isPublicPath = publicPaths.includes(currentPath)
         || currentPath.startsWith('/job/')
         || currentPath.startsWith('/profile/') // Public profile sharing (no auth required)
         || currentPath.startsWith('/endorse/')

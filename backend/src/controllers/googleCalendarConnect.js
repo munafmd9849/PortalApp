@@ -491,156 +491,24 @@ export const handleOAuthCallback = async (req, res) => {
 
 /**
  * Send structured OAuth response to frontend
- * ONLY called after ALL validation is complete
- * 
+ * Redirects to frontend callback page (same origin as opener) so window.close() works.
+ *
  * @param {Object} res - Express response object
  * @param {Object} result - { status: 'SUCCESS'|'FAILED', reason: string, calendarEmail: string, error: string }
  */
 function sendOAuthResponse(res, result) {
   const { status, reason, calendarEmail, error } = result;
 
-  // Get frontend origin for postMessage security
-  // FRONTEND_URL is validated at startup, so it's guaranteed to exist
-  const frontendOrigin = process.env.FRONTEND_URL;
-  const frontendOriginUrl = new URL(frontendOrigin);
-  const allowedOrigin = `${frontendOriginUrl.protocol}//${frontendOriginUrl.host}`;
+  const baseUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  const params = new URLSearchParams({
+    status: status || 'FAILED',
+    ...(reason && { reason }),
+    ...(calendarEmail && { calendarEmail }),
+    ...(error && { error: error }),
+  });
 
-  // Build structured message
-  const message = {
-    type: 'GOOGLE_CALENDAR_RESULT',
-    status, // 'SUCCESS' or 'FAILED'
-    reason, // 'EMAIL_MISMATCH' | 'EMAIL_NOT_VERIFIED' | 'EMAIL_NOT_RETURNED' | null
-    calendarEmail, // Google email (if available)
-    error, // Error message (if failed)
-  };
-
-  // Generate HTML response
-  // CRITICAL: Only send postMessage AFTER all validation
-  // CRITICAL: Only close popup AFTER postMessage is sent
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>${status === 'SUCCESS' ? 'Calendar Connected' : 'Connection Failed'}</title>
-        <meta charset="UTF-8">
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background: ${status === 'SUCCESS' ? '#f0f9ff' : '#fef2f2'};
-          }
-          .container {
-            text-align: center;
-            padding: 40px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            max-width: 500px;
-            margin: 20px;
-          }
-          .success { color: #10b981; }
-          .error { color: #ef4444; }
-          .warning { color: #f59e0b; }
-          h2 { margin: 0 0 20px 0; font-size: 24px; }
-          p { margin: 10px 0; color: #666; line-height: 1.6; }
-          .email-box {
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            text-align: left;
-            border-left: 4px solid ${status === 'SUCCESS' ? '#10b981' : '#ef4444'};
-          }
-          .email-box strong { color: #374151; }
-          .spinner {
-            border: 3px solid #f3f4f6;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          ${status === 'SUCCESS' ? `
-            <h2 class="success">✓ Google Calendar Connected!</h2>
-            <p>Your calendar has been successfully connected.</p>
-            ${calendarEmail ? `
-              <div class="email-box">
-                <p><strong>Connected Email:</strong> ${calendarEmail}</p>
-              </div>
-            ` : ''}
-            <p style="font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
-            <div class="spinner"></div>
-          ` : `
-            <h2 class="error">⚠️ Connection Failed</h2>
-            <p>${error || 'Failed to connect Google Calendar'}</p>
-            ${reason === 'EMAIL_MISMATCH' && calendarEmail ? `
-              <div class="email-box">
-                <p><strong>Google Account Used:</strong> ${calendarEmail}</p>
-                <p style="margin-top: 10px; font-size: 14px;">Please use the same email address you registered with.</p>
-              </div>
-            ` : ''}
-            <p style="font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
-            <div class="spinner"></div>
-          `}
-        </div>
-        <script>
-          (function() {
-            // CRITICAL: Only send postMessage AFTER page loads
-            // CRITICAL: Validate window.opener exists
-            if (!window.opener) {
-              console.error('OAuth callback: window.opener not available');
-              return;
-            }
-
-            // Wait for page to fully load before sending message
-            window.addEventListener('load', function() {
-              // Small delay to ensure message is received
-              setTimeout(function() {
-                try {
-                  // Send structured response
-                  const message = ${JSON.stringify(message)};
-                  
-                  // Use specific origin for security (fallback to * for development)
-                  const targetOrigin = '${allowedOrigin}';
-                  window.opener.postMessage(message, targetOrigin);
-                  
-                  console.log('OAuth callback: Message sent', message);
-                  
-                  // CRITICAL: Only close popup AFTER message is sent
-                  // Give frontend time to receive message
-                  setTimeout(function() {
-                    window.close();
-                  }, 500);
-                } catch (err) {
-                  console.error('OAuth callback: Error sending message', err);
-                  // Still try to close after error
-                  setTimeout(function() {
-                    window.close();
-                  }, 1000);
-                }
-              }, 100);
-            });
-          })();
-        </script>
-      </body>
-    </html>
-  `;
-
-  res.send(html);
+  const redirectUrl = `${baseUrl}/calendar/oauth-callback?${params.toString()}`;
+  res.redirect(302, redirectUrl);
 }
 
 /**
