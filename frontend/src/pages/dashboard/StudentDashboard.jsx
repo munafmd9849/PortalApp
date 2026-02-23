@@ -1104,14 +1104,14 @@ useEffect(() => {
         return; // Exit early, no error message needed
       }
       
-      // Handle CGPA requirement error with precise message
-      if (errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' || 
-          errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed') {
-        // Clean and precise error message
-        const yourCgpa = errorData.yourCgpa || 'Not set';
-        const requiredCgpa = errorData.requiredCgpa || errorData.requirement || 'Not specified';
-        const message = errorData.message || 'Your CGPA does not meet the minimum requirement for this job.';
-        showError(`${message}\n\nYour CGPA: ${yourCgpa}\nRequired CGPA: ${requiredCgpa}\n\nPlease update your profile with a higher CGPA or apply to jobs with lower requirements.`);
+      // Handle eligibility errors (CGPA, YOP, etc.) with consistent "E" toast
+      const isEligibilityError = 
+        errorMessage === 'CGPA requirement not met' || errorMessage === 'CGPA requirement check failed' ||
+        errorMessage?.toLowerCase?.().includes('eligibility') || errorMessage?.toLowerCase?.().includes('cgpa') ||
+        errorData.error === 'CGPA requirement not met' || errorData.error === 'CGPA requirement check failed' ||
+        errorData.error?.toLowerCase?.().includes('eligibility');
+      if (isEligibilityError) {
+        showError('Eligibility criteria not met', 'E');
       } else if (error.isNetworkError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
         // Network error - already handled by API layer, but show if not shown
         showError('Network error: Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
@@ -3092,6 +3092,16 @@ useEffect(() => {
                                     })()}
                                   </span>
                                 </span>
+                                {(application.jobId || application.job?.id) && (
+                                  <button
+                                    onClick={() => navigate(`/job/${application.jobId || application.job?.id}`)}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 transition-colors duration-200 text-sm font-medium"
+                                    title="View Job Description"
+                                  >
+                                    <FileText className="w-4 h-4 flex-shrink-0" />
+                                    <span>View JD</span>
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setExpandedApplications(prev => {
@@ -3246,19 +3256,34 @@ useEffect(() => {
                             </div>
                           </div>
 
-                          {application.job?.description && (
-                            <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
-                              <div className="flex items-center gap-2 mb-3">
-                                <FileText className="w-5 h-5 text-indigo-600" />
-                                <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
+                          {(() => {
+                            // Match JobContent mapping: jobDescription || description || responsibilities
+                            const jdText = application.job?.jobDescription || application.job?.description || application.job?.responsibilities || '';
+                            if (!jdText || typeof jdText !== 'string' || !jdText.trim()) return null;
+                            const jobId = application.jobId || application.job?.id;
+                            return (
+                              <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
+                                <div className="flex items-center justify-between gap-3 mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-indigo-600" />
+                                    <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
+                                  </div>
+                                  {jobId && (
+                                    <button
+                                      onClick={() => navigate(`/job/${jobId}`)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      View Full JD
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
+                                  {jdText.length > 200 ? `${jdText.substring(0, 200)}...` : jdText}
+                                </p>
                               </div>
-                              <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
-                                {application.job.description.length > 200
-                                  ? `${application.job.description.substring(0, 200)}...`
-                                  : application.job.description}
-                              </p>
-                            </div>
-                          )}
+                            );
+                          })()}
 
                           {/* Enhanced Skills Required */}
                           {(() => {

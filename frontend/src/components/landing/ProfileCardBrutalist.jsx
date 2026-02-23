@@ -10,20 +10,34 @@ export default function ProfileCardBrutalist({
   role = "Role",
   company = "Company",
   status = "",
+  batch = "",
   testimonial = "",
+  avatarUrl = "",
   linkedinUrl,
   emailHref,
 }) {
-  const packageText = [status, company].filter(Boolean).join(" @ ");
+  const roleCompany = [role, company].filter(Boolean).join(" • ");
+  const packageText = status || "";
 
   return (
     <article className="pcbr-card">
       <div className="pcbr-frame">
         <div className="pcbr-shadow" aria-hidden />
         <div className="pcbr-body">
-          {packageText && <p className="pcbr-package">{packageText}</p>}
-          <h3 className="pcbr-name">{name}</h3>
-          <p className="pcbr-role">{role}</p>
+          <div className="pcbr-body-inner">
+          <div className="pcbr-header">
+            {avatarUrl && (
+              <div className="pcbr-avatar-wrap">
+                <img className="pcbr-avatar" src={avatarUrl} alt="" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+            )}
+            <div className="pcbr-header-text">
+              <h3 className="pcbr-name">{name}</h3>
+              {roleCompany && <p className="pcbr-role">{roleCompany}</p>}
+              {packageText && <p className="pcbr-package">{packageText}</p>}
+              {batch && <p className="pcbr-batch">Batch {batch}</p>}
+            </div>
+          </div>
           {testimonial && (
             <p className="pcbr-testimonial">"{testimonial}"</p>
           )}
@@ -51,6 +65,7 @@ export default function ProfileCardBrutalist({
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </article>
