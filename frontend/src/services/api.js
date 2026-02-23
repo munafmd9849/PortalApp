@@ -100,7 +100,7 @@ async function refreshAccessToken() {
     if (!data.accessToken) {
       throw new Error('Invalid refresh response: missing accessToken');
     }
-    
+
     setAuthTokens(data.accessToken, refreshToken);
     return data.accessToken;
   } catch (error) {
@@ -133,7 +133,7 @@ async function apiRequest(endpoint, options = {}) {
 
   const url = `${API_BASE_URL}${endpoint}`;
   console.log(`API Request: ${options.method || 'GET'} ${url}`);
-  
+
   try {
     let response;
     try {
@@ -151,7 +151,7 @@ async function apiRequest(endpoint, options = {}) {
         error: fetchError.message,
         type: fetchError.name,
       });
-      
+
       // Provide helpful error message (production-safe, no localhost references)
       let errorMessage = 'Failed to connect to server. ';
       if (fetchError.name === 'AbortError' || fetchError.message.includes('timeout')) {
@@ -163,13 +163,13 @@ async function apiRequest(endpoint, options = {}) {
       } else {
         errorMessage += fetchError.message || 'Unknown network error.';
       }
-      
+
       const error = new Error(errorMessage);
       error.isNetworkError = true;
       error.originalError = fetchError;
       error.endpoint = endpoint;
       error.url = url;
-      
+
       // Automatically show network error toast unless silent
       if (!silent) {
         getToastUtils().then(utils => {
@@ -179,7 +179,7 @@ async function apiRequest(endpoint, options = {}) {
           console.error('Network Error:', error.message);
         });
       }
-      
+
       throw error;
     }
 
@@ -206,7 +206,7 @@ async function apiRequest(endpoint, options = {}) {
       } catch (e) {
         errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
       }
-      
+
       // Log full error details for debugging
       console.error(`API Error [${response.status}]:`, {
         endpoint,
@@ -214,10 +214,10 @@ async function apiRequest(endpoint, options = {}) {
         statusText: response.statusText,
         error: errorData,
       });
-      
+
       // Use exact backend error message (backend is source of truth)
       const errorMessage = errorData.error || errorData.message || errorData.details || `HTTP ${response.status}: ${response.statusText}`;
-      
+
       const error = new Error(errorMessage);
       error.response = {
         data: errorData,
@@ -225,7 +225,7 @@ async function apiRequest(endpoint, options = {}) {
         statusText: response.statusText,
       };
       error.status = response.status;
-      
+
       // Handle 403 specifically - permission denied
       if (response.status === 403) {
         error.isPermissionError = true;
@@ -234,7 +234,7 @@ async function apiRequest(endpoint, options = {}) {
           error.message = 'Access denied. You do not have permission to perform this action.';
         }
       }
-      
+
       // Automatically show error toast unless silent
       if (!silent) {
         getToastUtils().then(utils => {
@@ -244,12 +244,12 @@ async function apiRequest(endpoint, options = {}) {
           console.error('API Error:', error.message);
         });
       }
-      
+
       throw error;
     }
 
     const data = await response.json();
-    
+
     // CRITICAL: Log profile API responses for debugging
     if (endpoint.includes('/students/profile')) {
       console.log('📥 [API] Profile response received:', {
@@ -263,7 +263,7 @@ async function apiRequest(endpoint, options = {}) {
         fullResponse: data,
       });
     }
-    
+
     // CRITICAL: Log applications API responses for debugging
     if (endpoint.includes('/applications/student')) {
       console.log('📥 [API] Applications response received:', {
@@ -284,14 +284,14 @@ async function apiRequest(endpoint, options = {}) {
         // Toast not initialized, ignore
       });
     }
-    
+
     return data;
   } catch (error) {
     // Re-throw if it's already our custom error
     if (error.isNetworkError || error.response || error.status) {
       throw error;
     }
-    
+
     // Catch any other unexpected errors
     console.error('Unexpected API Error:', {
       endpoint,
@@ -299,7 +299,7 @@ async function apiRequest(endpoint, options = {}) {
       error: error.message,
       stack: error.stack,
     });
-    
+
     throw new Error(`API request failed: ${error.message || 'Unknown error'}`);
   }
 }
@@ -412,9 +412,9 @@ export const api = {
       // Try to call logout API, but don't fail if it errors
       try {
         await apiRequest('/auth/logout', {
-      method: 'POST',
+          method: 'POST',
           body: JSON.stringify({ refreshToken }),
-    });
+        });
       } catch (apiError) {
         console.warn('Logout API call failed, but clearing tokens anyway:', apiError);
       }
@@ -423,7 +423,7 @@ export const api = {
       return { success: true };
     } catch (error) {
       // Even if everything fails, clear tokens
-    clearAuthTokens();
+      clearAuthTokens();
       throw error;
     }
   },
@@ -455,7 +455,7 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(data),
   }),
-  
+
   // Public Profile (NO AUTH - public access)
   getPublicProfile: (publicProfileId) => {
     // Public endpoint - use apiRequest but without auth token
@@ -464,7 +464,7 @@ export const api = {
       silent: true, // Don't show error toasts for public endpoints
     });
   },
-  
+
   // Public Profile Management (AUTH REQUIRED - student only)
   generatePublicProfileId: () => apiRequest('/students/public-profile/generate', {
     method: 'POST',
@@ -489,7 +489,7 @@ export const api = {
   deleteSkill: (skillId) => apiRequest(`/students/skills/${skillId}`, {
     method: 'DELETE',
   }),
-  
+
   // Education (TODO: Backend needs to add these endpoints)
   addEducation: (education) => apiRequest('/students/education', {
     method: 'POST',
@@ -502,7 +502,7 @@ export const api = {
   deleteEducation: (educationId) => apiRequest(`/students/education/${educationId}`, {
     method: 'DELETE',
   }),
-  
+
   // Experience (for Resume System)
   addExperience: (experience) => apiRequest('/students/experience', {
     method: 'POST',
@@ -515,7 +515,7 @@ export const api = {
   deleteExperience: (experienceId) => apiRequest(`/students/experience/${experienceId}`, {
     method: 'DELETE',
   }),
-  
+
   // Projects (TODO: Backend needs to add these endpoints)
   addProject: (project) => apiRequest('/students/projects', {
     method: 'POST',
@@ -532,7 +532,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   // Achievements (TODO: Backend needs to add these endpoints)
   addAchievement: (achievement) => apiRequest('/students/achievements', {
     method: 'POST',
@@ -545,7 +545,7 @@ export const api = {
   deleteAchievement: (achievementId) => apiRequest(`/students/achievements/${achievementId}`, {
     method: 'DELETE',
   }),
-  
+
   // Cloudinary Uploads
   uploadProfileImage: (file, onProgress) => uploadFile('/students/profile-image', file, 'profileImage', onProgress),
   deleteProfileImage: () => apiRequest('/students/profile-image', {
@@ -692,7 +692,13 @@ export const api = {
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
   getStudentApplications: () => apiRequest('/applications/student'),
-  
+
+  exportApplications: (filters = {}) => apiRequest('/applications/export', {
+    method: 'POST',
+    body: JSON.stringify({ filters }),
+  }),
+  getExportStatus: (jobId) => apiRequest(`/applications/export/${jobId}`),
+
   getStudentInterviewHistory: () => apiRequest('/applications/student/interview-history'),
   applyToJob: (jobId, applicationData = {}) => apiRequest(`/applications/jobs/${jobId}`, {
     method: 'POST',
@@ -722,20 +728,20 @@ export const api = {
     if (proofDocument) {
       const token = getAuthToken();
       const formData = new FormData();
-      
+
       // Append all query data fields to FormData
       Object.keys(data).forEach(key => {
         if (data[key] !== null && data[key] !== undefined) {
           formData.append(key, data[key]);
         }
       });
-      
+
       // Append proof document with the correct field name
       formData.append('proofDocument', proofDocument);
-      
+
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        
+
         xhr.addEventListener('load', () => {
           if (xhr.status === 200 || xhr.status === 201) {
             try {
@@ -758,11 +764,11 @@ export const api = {
             reject(error);
           }
         });
-        
+
         xhr.addEventListener('error', () => {
           reject(new Error('Network error occurred'));
         });
-        
+
         xhr.open('POST', `${API_BASE_URL}/queries`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         // Don't set Content-Type - browser will set it with boundary for FormData
@@ -797,7 +803,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   // Admin Interview Management
   getInterviewSession: (interviewId) => apiRequest(`/admin/interview/${interviewId}`),
   getInterviewRound: (interviewId) => apiRequest(`/admin/interview/${interviewId}/round`),
@@ -817,7 +823,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   // Interviewer endpoints (token-based, no auth required)
   getInterviewSessionByToken: (sessionId, token) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true }),
   getActiveRound: (sessionId, token) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true }),
@@ -911,6 +917,7 @@ export const api = {
   disableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/disable`, { method: 'PATCH' }),
   enableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/enable`, { method: 'PATCH' }),
   getSuperAdminStats: () => apiRequest('/super-admin/stats'),
+  getStatsSummary: () => apiRequest('/super-admin/stats/summary'),
   freezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/freeze`, { method: 'PATCH' }),
   unfreezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/unfreeze`, { method: 'PATCH' }),
 

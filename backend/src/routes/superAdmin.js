@@ -13,6 +13,7 @@ import {
   disableAdmin,
   enableAdmin,
   getSuperAdminStats,
+  getStatsSummary,
 } from '../controllers/superAdmin.js';
 
 const router = express.Router({ mergeParams: true });
@@ -40,5 +41,6 @@ router.post(
 router.patch('/admins/:userId/disable', disableAdmin);
 router.patch('/admins/:userId/enable', enableAdmin);
 router.get('/stats', getSuperAdminStats);
+router.get('/stats/summary', getStatsSummary);
 
 export default router;

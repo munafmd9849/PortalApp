@@ -16,6 +16,12 @@ router.use(authenticate);
 // Get all applications (admin only) - must be before /:applicationId routes
 router.get('/', requireRole(['ADMIN']), applicationController.getAllApplications);
 
+// Export all applications to CSV (admin only)
+router.post('/export', requireRole(['ADMIN']), applicationController.exportApplications);
+
+// Check CSV export status (admin only)
+router.get('/export/:jobId', requireRole(['ADMIN']), applicationController.getExportStatus);
+
 // Get screening summary for a job (admin only)
 router.get('/job/:jobId/screening-summary', requireRole(['ADMIN']), applicationController.getJobScreeningSummary);
 

@@ -47,7 +47,22 @@ redis.on('ready', () => {
  */
 export async function isRedisAvailable() {
   try {
-    await redis.ping();
+    // We already have a redis instance. If it says it's ready, we are good.
+    if (redis.status === 'ready') return true;
+
+    // Instead of forcing the main connection to wake up (which causes race conditions),
+    // Use a temporary fast-failing connection to ping the server cleanly.
+    const tempRedis = new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
+      maxRetriesPerRequest: 0,
+      connectTimeout: 500,
+      lazyConnect: false
+    });
+
+    await tempRedis.ping();
+    tempRedis.disconnect();
     return true;
   } catch (error) {
     return false;

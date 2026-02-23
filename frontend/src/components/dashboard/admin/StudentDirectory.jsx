@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ImEye } from 'react-icons/im';
 import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaCheckCircle, FaUsers, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa';
 import { MdBlock } from 'react-icons/md';
@@ -67,7 +67,7 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
       const cgpaStr = formData.cgpa.trim();
       // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
       const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
-      
+
       if (!cgpaRegex.test(cgpaStr)) {
         // Check if user entered value without 2 decimals (e.g., 9, 9.0, 9.5)
         if (/^\d+$/.test(cgpaStr)) {
@@ -82,7 +82,7 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
         const parts = cgpaStr.split('.');
         const integerPart = parseInt(parts[0], 10);
         const decimalPart = parseInt(parts[1], 10);
-        
+
         if (isNaN(integerPart) || isNaN(decimalPart)) {
           newErrors.cgpa = 'Invalid CGPA format';
         } else if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
@@ -158,11 +158,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-                  errors.fullName 
-                    ? 'border-red-400 bg-red-50' 
+                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.fullName
+                    ? 'border-red-400 bg-red-50'
                     : 'border-gray-200 bg-white focus:border-green-500'
-                }`}
+                  } `}
                 placeholder="Enter student's full name"
               />
               {errors.fullName && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.fullName}</p>}
@@ -177,11 +176,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-                  errors.email 
-                    ? 'border-red-400 bg-red-50' 
+                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.email
+                    ? 'border-red-400 bg-red-50'
                     : 'border-gray-200 bg-white focus:border-green-500'
-                }`}
+                  } `}
                 placeholder="Enter student email"
               />
               {errors.email && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.email}</p>}
@@ -196,11 +194,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-                  errors.phone 
-                    ? 'border-red-400 bg-red-50' 
+                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.phone
+                    ? 'border-red-400 bg-red-50'
                     : 'border-gray-200 bg-white focus:border-green-500'
-                }`}
+                  } `}
                 placeholder="+91 12345 67890"
               />
               {errors.phone && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.phone}</p>}
@@ -219,11 +216,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 max="10"
                 step="0.01"
                 placeholder="Enter CGPA (0-10)"
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-                  errors.cgpa 
-                    ? 'border-red-400 bg-red-50' 
+                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.cgpa
+                    ? 'border-red-400 bg-red-50'
                     : 'border-gray-200 bg-white focus:border-green-500'
-                }`}
+                  } `}
               />
               {errors.cgpa && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.cgpa}</p>}
             </div>
@@ -294,7 +290,7 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
     const cgpaStr = String(cgpa).trim();
     if (cgpaStr) {
       const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
-      
+
       if (!cgpaRegex.test(cgpaStr)) {
         // Check if user entered value without 2 decimals (e.g., 9, 9.0, 9.5)
         if (/^\d+$/.test(cgpaStr)) {
@@ -306,12 +302,12 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
         }
         return;
       }
-      
+
       // Validate range without using parseFloat to avoid rounding errors
       const parts = cgpaStr.split('.');
       const integerPart = parseInt(parts[0], 10);
       const decimalPart = parseInt(parts[1], 10);
-      
+
       if (isNaN(integerPart) || isNaN(decimalPart)) {
         setError('Invalid CGPA format');
         return;
@@ -397,14 +393,14 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
                 const sanitized = value.replace(/[^0-9.]/g, '');
                 const parts = sanitized.split('.');
                 let finalValue = parts[0] || '';
-                
+
                 // If user has typed a decimal point, ensure we format to 2 decimal places
                 if (parts.length > 1) {
                   const decimals = parts.slice(1).join('').substring(0, 2);
                   // Always show 2 decimal places if decimal point is present
                   finalValue += '.' + decimals.padEnd(2, '0');
                 }
-                
+
                 // Ensure value doesn't exceed 10.00
                 if (finalValue) {
                   const numValue = parseFloat(finalValue);
@@ -414,7 +410,7 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
                     finalValue = '0.00';
                   }
                 }
-                
+
                 setCgpa(finalValue);
               }}
               onBlur={(e) => {
@@ -434,9 +430,8 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
               placeholder="Enter CGPA (e.g., 9.00, 8.75)"
               pattern="^(10\.00|[0-9]\.[0-9]{2})$"
               maxLength="5"
-              className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                error ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w - full p - 3 border rounded - lg focus: outline - none focus: ring - 2 focus: ring - blue - 500 ${error ? 'border-red-500' : 'border-gray-300'
+                } `}
               required
             />
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
@@ -515,21 +510,21 @@ export default function StudentDirectory() {
     try {
       isLoadingRef.current = true;
       setLoading(true);
-      
+
       // Only clear error on new attempt (not retries)
       if (loadAttemptsRef.current === 0) {
         setError(null);
       }
       loadAttemptsRef.current += 1;
-      
+
       console.log(`📡 Loading students... (attempt ${loadAttemptsRef.current})`);
 
       // Request a high limit to get all students (backend max is now 1000)
       const studentsData = await getAllStudents({ limit: 1000 }, { retries: 2, retryDelay: 1000 });
-      
+
       // Reset attempts on success
       loadAttemptsRef.current = 0;
-      
+
       // Handle error response object (from getAllStudents error handling)
       if (studentsData && typeof studentsData === 'object' && studentsData.error) {
         console.warn('⚠️ Received error response from getAllStudents:', studentsData);
@@ -541,7 +536,7 @@ export default function StudentDirectory() {
         isLoadingRef.current = false;
         return;
       }
-      
+
       // Handle both array response (backwards compatibility) and object with students array
       let studentsArray = [];
       if (Array.isArray(studentsData)) {
@@ -556,7 +551,7 @@ export default function StudentDirectory() {
         isLoadingRef.current = false;
         return;
       }
-      
+
       // Format students with safe defaults
       // Normalize status from uppercase (ACTIVE, BLOCKED) to title case (Active, Blocked)
       const normalizeStatus = (status) => {
@@ -569,20 +564,20 @@ export default function StudentDirectory() {
         if (statusUpper === 'INACTIVE') return 'Inactive';
         return 'Active'; // Default to Active for unknown statuses
       };
-      
+
       const formattedStudents = studentsArray.map(student => {
         // Parse blockInfo if it exists
         let blockInfo = null;
         if (student.user?.blockInfo) {
           try {
-            blockInfo = typeof student.user.blockInfo === 'string' 
-              ? JSON.parse(student.user.blockInfo) 
+            blockInfo = typeof student.user.blockInfo === 'string'
+              ? JSON.parse(student.user.blockInfo)
               : student.user.blockInfo;
           } catch (e) {
             console.warn('Failed to parse blockInfo for student:', student.id, e);
           }
         }
-        
+
         return {
           ...student,
           status: normalizeStatus(student.user?.status || 'ACTIVE'),
@@ -608,7 +603,7 @@ export default function StudentDirectory() {
       loadAttemptsRef.current = 0; // Reset attempts on success
     } catch (error) {
       console.error('❌ Error loading students:', error);
-      
+
       // Handle authentication/authorization errors differently
       if (error?.status === 401 || error?.status === 403) {
         setError('Access denied. Please log in again.');
@@ -618,14 +613,14 @@ export default function StudentDirectory() {
         isLoadingRef.current = false;
         return;
       }
-      
+
       // For other errors, show error but keep existing data
       const errorMessage = error?.response?.data?.error || error?.message || 'Failed to load students data';
-      setError(`Failed to load students data: ${errorMessage}`);
+      setError(`Failed to load students data: ${errorMessage} `);
       setLastErrorTime(new Date().toISOString());
       // Keep existing students array (graceful degradation)
       setLoading(false);
-      
+
       // Don't increment retryCount automatically - let polling handle retries
       // Only increment if this is a manual retry (handled by retry button)
     } finally {
@@ -637,10 +632,10 @@ export default function StudentDirectory() {
     clearPollingInterval();
     loadAttemptsRef.current = 0; // Reset attempts on new subscription setup
     setRetryCount(0); // Reset retry count
-    
+
     // Initial load
     loadStudents();
-    
+
     // Set up polling interval (30 seconds)
     // Will continue even if loadStudents fails
     pollIntervalRef.current = setInterval(() => {
@@ -649,7 +644,7 @@ export default function StudentDirectory() {
         loadStudents();
       }
     }, 30000);
-    
+
     return () => {
       clearPollingInterval();
     };
@@ -689,7 +684,7 @@ export default function StudentDirectory() {
     const fullName = (student.fullName || '').toLowerCase();
     const email = (student.email || '').toLowerCase();
     const enrollmentId = (student.enrollmentId || '').toLowerCase();
-    
+
     const matchesSearch =
       fullName.includes(searchLower) ||
       email.includes(searchLower) ||
@@ -799,7 +794,7 @@ export default function StudentDirectory() {
       link.click();
       document.body.removeChild(link);
 
-      console.log(`Downloaded ${filteredStudents.length} students (${mode})`);
+      console.log(`Downloaded ${filteredStudents.length} students(${mode})`);
     } catch (error) {
       console.error('Download error:', error);
       alert('Failed to prepare the CSV');
@@ -847,31 +842,31 @@ export default function StudentDirectory() {
   // Get status styling - matching job moderation style
   const getStatusChip = (status) => {
     const statusStyles = {
-      active: { 
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50', 
-        text: 'text-green-700', 
+      active: {
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+        text: 'text-green-700',
         border: 'border-green-200',
         label: 'Active'
       },
-      inactive: { 
-        bg: 'bg-gradient-to-r from-yellow-50 to-amber-50', 
-        text: 'text-yellow-700', 
+      inactive: {
+        bg: 'bg-gradient-to-r from-yellow-50 to-amber-50',
+        text: 'text-yellow-700',
         border: 'border-yellow-200',
         label: 'Inactive'
       },
-      blocked: { 
-        bg: 'bg-gradient-to-r from-red-50 to-rose-50', 
-        text: 'text-red-700', 
+      blocked: {
+        bg: 'bg-gradient-to-r from-red-50 to-rose-50',
+        text: 'text-red-700',
         border: 'border-red-200',
         label: 'Blocked'
       }
     };
-    
+
     const normalizedStatus = status?.toLowerCase();
     const style = statusStyles[normalizedStatus] || statusStyles.inactive;
-    
+
     return (
-      <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
+      <span className={`px - 3 py - 1 rounded - lg text - xs font - medium whitespace - nowrap ${style.bg} ${style.text} border ${style.border} inline - flex items - center shadow - sm`}>
         {style.label}
       </span>
     );
@@ -890,11 +885,11 @@ export default function StudentDirectory() {
   const handleViewProfile = async (student) => {
     setSelectedStudent(student);
     setShowProfile(true);
-    
+
     // Load dashboard data for the student
     try {
       setDashboardData({ loading: true, error: null, jobs: [], applications: [], skills: [] });
-      
+
       const [profile, education, skills, jobs, applications] = await Promise.all([
         getStudentProfile(student.id),
         getEducationalBackground(student.id),
@@ -920,7 +915,7 @@ export default function StudentDirectory() {
   const handleViewPublicProfile = (student) => {
     const publicProfileId = student.publicProfileId || student.user?.publicProfileId;
     if (publicProfileId) {
-      const publicProfileUrl = `${window.location.origin}/profile/${publicProfileId}`;
+      const publicProfileUrl = `${window.location.origin} /profile/${publicProfileId} `;
       window.open(publicProfileUrl, '_blank', 'noopener,noreferrer');
     } else {
       alert('This student has not generated a public profile link yet.');
@@ -965,14 +960,14 @@ export default function StudentDirectory() {
 
     try {
       // Update local state
-      setStudents(prevStudents => 
-        prevStudents.map(student => 
-          student.id === studentId 
+      setStudents(prevStudents =>
+        prevStudents.map(student =>
+          student.id === studentId
             ? { ...student, ...updatedData }
             : student
         )
       );
-      
+
       // Also update selectedStudent if it's the same student
       if (selectedStudent && selectedStudent.id === studentId) {
         setSelectedStudent(prev => ({ ...prev, ...updatedData }));
@@ -1133,7 +1128,7 @@ export default function StudentDirectory() {
             <h2 className="text-3xl font-bold text-gray-800 mb-2">Student Directory</h2>
             <p className="text-gray-600 text-lg">Manage and monitor all student accounts</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => downloadFilteredStudents('export')}
@@ -1413,7 +1408,7 @@ export default function StudentDirectory() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {displayedStudents.map((student) => (
+                  {useMemo(() => displayedStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
                       <td className="px-6 py-4 border-r border-gray-100">
                         <div className="space-y-2">
@@ -1462,20 +1457,20 @@ export default function StudentDirectory() {
                           </div>
                           <div>
                             <div className="text-sm font-semibold text-gray-900">
-                              {student.cgpa 
+                              {student.cgpa
                                 ? (() => {
-                                    // Ensure CGPA is displayed with exactly 2 decimal places
-                                    const cgpaStr = String(student.cgpa);
-                                    if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-                                      return cgpaStr;
-                                    } else if (/^\d+$/.test(cgpaStr)) {
-                                      return cgpaStr + '.00';
-                                    } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-                                      const parts = cgpaStr.split('.');
-                                      return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
-                                    }
+                                  // Ensure CGPA is displayed with exactly 2 decimal places
+                                  const cgpaStr = String(student.cgpa);
+                                  if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
                                     return cgpaStr;
-                                  })()
+                                  } else if (/^\d+$/.test(cgpaStr)) {
+                                    return cgpaStr + '.00';
+                                  } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                                    const parts = cgpaStr.split('.');
+                                    return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                                  }
+                                  return cgpaStr;
+                                })()
                                 : 'N/A'}
                             </div>
                           </div>
@@ -1513,17 +1508,16 @@ export default function StudentDirectory() {
                           <button
                             onClick={() => handleBlockClick(student)}
                             disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
-                            className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${
-                              student.status === 'Blocked' 
-                                ? 'bg-gray-500 hover:bg-gray-600 text-white' 
+                            className={`p - 2 rounded - lg transition - all duration - 200 disabled: opacity - 50 disabled: cursor - not - allowed shadow - sm hover: shadow - md ${student.status === 'Blocked'
+                                ? 'bg-gray-500 hover:bg-gray-600 text-white'
                                 : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
-                            }`}
+                              } `}
                             title={
                               student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
                                 ? 'Permanently blocked - cannot be unblocked'
                                 : student.status === 'Blocked'
-                                ? 'Unblock Student'
-                                : 'Block Student'
+                                  ? 'Unblock Student'
+                                  : 'Block Student'
                             }
                           >
                             {operationLoading ? (
@@ -1535,7 +1529,7 @@ export default function StudentDirectory() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )), [displayedStudents, operationLoading])}
                 </tbody>
               </table>
             </div>
@@ -1665,10 +1659,9 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black transition-opacity duration-300 z-[9998] ${
-          isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
-        }`}
-        style={{ 
+        className={`fixed inset - 0 bg - black transition - opacity duration - 300 z - [9998] ${isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
+          } `}
+        style={{
           backdropFilter: isOpen ? 'blur(4px)' : 'none',
           WebkitBackdropFilter: isOpen ? 'blur(4px)' : 'none'
         }}
@@ -1676,9 +1669,8 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
       />
 
       <div
-        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`fixed top - 0 right - 0 h - full w - full lg: w - [60 %] bg - gradient - to - br from - blue - 50 via - sky - 50 to - indigo - 50 shadow - 2xl z - [9999] transform transition - transform duration - 300 ease - out overflow - hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'
+          } `}
         onClick={(e) => e.stopPropagation()}
       >
         <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">

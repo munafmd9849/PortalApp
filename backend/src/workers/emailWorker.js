@@ -84,18 +84,21 @@ async function createWorker() {
   );
 }
 
-// Initialize worker (will be null if Redis unavailable)
-createWorker().then(w => {
-  worker = w;
-  if (worker) {
-    worker.on('completed', (job) => {
-      console.log(`✅ Email notification completed: ${job.id}`);
-    });
+// Export initialization function that returns the worker promise
+export function initEmailWorker() {
+  return createWorker().then(w => {
+    worker = w;
+    if (worker) {
+      worker.on('completed', (job) => {
+        console.log(`✅ Email notification completed: ${job.id}`);
+      });
 
-    worker.on('failed', (job, err) => {
-      console.error(`❌ Email notification failed: ${job?.id}`, err);
-    });
-  }
-});
+      worker.on('failed', (job, err) => {
+        console.error(`❌ Email notification failed: ${job?.id}`, err);
+      });
+    }
+    return worker;
+  });
+}
 
 export default worker;

@@ -90,7 +90,7 @@ function computeApplicationTrackingFields({
   const rejectedIn = finalStatus === 'REJECTED' ? getRejectedIn({ screeningStatus: screening, interviewStatus: interview }) : null;
 
   // Check if all rounds are completed
-  const allRoundsCompleted = sessionRounds && sessionRounds.length > 0 && 
+  const allRoundsCompleted = sessionRounds && sessionRounds.length > 0 &&
     sessionRounds.every(round => round.status === 'ENDED');
   const sessionCompleted = sessionStatus === 'COMPLETED';
 
@@ -158,12 +158,25 @@ function computeApplicationTrackingFields({
  */
 export async function getAllApplications(req, res) {
   try {
-    const { status, jobId, studentId, page = 1, limit = 100 } = req.query;
+    const {
+      status, jobId, studentId, companyId,
+      center, school, batch,
+      page = 1, limit = 100
+    } = req.query;
 
     const where = {};
     if (status) where.status = status;
     if (jobId) where.jobId = jobId;
     if (studentId) where.studentId = studentId;
+    if (companyId) where.companyId = companyId;
+
+    // Student attribute filters (nested)
+    if (center || school || batch) {
+      where.student = {};
+      if (center) where.student.center = { in: center.split(',').map(c => c.trim()) };
+      if (school) where.student.school = { in: school.split(',').map(s => s.trim()) };
+      if (batch) where.student.batch = { in: batch.split(',').map(b => b.trim()) };
+    }
 
     const [applications, total] = await Promise.all([
       prisma.application.findMany({
@@ -222,6 +235,69 @@ export async function getAllApplications(req, res) {
   } catch (error) {
     console.error('Get all applications error:', error);
     res.status(500).json({ error: 'Failed to get applications' });
+  }
+}
+
+/**
+ * Dispatch a background job to export applications as a CSV
+ */
+export async function exportApplications(req, res) {
+  try {
+    const filters = req.body.filters || {};
+
+    // Dynamic import to avoid circular queue dependencies at startup
+    const { addCsvExportJob } = await import('../workers/queues.js');
+
+    const jobId = await addCsvExportJob({
+      filters,
+      entityType: 'applications'
+    });
+
+    res.json({
+      success: true,
+      jobId,
+      message: 'Export background job started'
+    });
+  } catch (error) {
+    console.error('Export applications error:', error);
+    res.status(500).json({ error: 'Failed to start export job' });
+  }
+}
+
+/**
+ * Check the status of a CSV export job
+ */
+export async function getExportStatus(req, res) {
+  try {
+    const { jobId } = req.params;
+
+    // Dynamically retrieve the BullMQ queue instance
+    const { getCsvExportsQueue } = await import('../workers/queues.js');
+    const queue = getCsvExportsQueue();
+    if (!queue) {
+      return res.status(503).json({ error: 'Redis Export Queue unavailable' });
+    }
+
+    const job = await queue.getJob(jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Export job not found or expired' });
+    }
+
+    const state = await job.getState();
+    const result = job.returnvalue; // The return response from the worker
+    const failedReason = job.failedReason;
+
+    res.json({
+      success: true,
+      jobId,
+      status: state, // 'completed', 'failed', 'active', 'waiting', etc.
+      result, // e.g. { url: "cloudinary_url", rowsCount: 5000 }
+      error: failedReason
+    });
+  } catch (error) {
+    console.error('Check export status error:', error);
+    res.status(500).json({ error: 'Failed to check export status' });
   }
 }
 
@@ -384,9 +460,9 @@ export async function getStudentApplications(req, res) {
       const screeningStatus = app.screeningStatus || 'APPLIED';
       const hasInterviewSession = !!session;
       // Interview has started if: lastRoundReached > 0, OR has evaluations, OR session is completed/ongoing with rounds
-      const hasInterviewStarted = (app.lastRoundReached || 0) > 0 || 
-                                  evaluations.length > 0 || 
-                                  (session && (session.status === 'COMPLETED' || session.status === 'ONGOING') && session.rounds && session.rounds.length > 0);
+      const hasInterviewStarted = (app.lastRoundReached || 0) > 0 ||
+        evaluations.length > 0 ||
+        (session && (session.status === 'COMPLETED' || session.status === 'ONGOING') && session.rounds && session.rounds.length > 0);
 
       const tracking = computeApplicationTrackingFields({
         status: app.status,
@@ -519,7 +595,7 @@ export async function getStudentInterviewHistory(req, res) {
 
     // Create a map of jobId -> interviewSession
     const sessionMap = new Map(interviewSessions.map(session => [session.jobId, session]));
-    
+
     // Create a map of applicationId -> evaluations
     const evaluationMap = new Map();
     roundEvaluations.forEach(evaluation => {
@@ -533,11 +609,11 @@ export async function getStudentInterviewHistory(req, res) {
     const formatted = applications.map(app => {
       const session = sessionMap.get(app.jobId);
       const appEvaluations = evaluationMap.get(app.id) || [];
-      
+
       // Determine screening status text (PRIORITY: Screening status shown before interview status)
       let screeningStatusText = null;
       const screeningStatus = app.screeningStatus || 'APPLIED';
-      
+
       if (screeningStatus === 'RESUME_REJECTED' || screeningStatus === 'SCREENING_REJECTED') {
         screeningStatusText = 'Rejected in Resume Screening';
       } else if (screeningStatus === 'TEST_REJECTED') {
@@ -549,7 +625,7 @@ export async function getStudentInterviewHistory(req, res) {
       } else {
         screeningStatusText = 'Applied (Screening Pending)';
       }
-      
+
       // Get rounds from session
       const rounds = session?.rounds || [];
 
@@ -685,30 +761,30 @@ export async function getAdminJobApplications(req, res) {
 
     // Search query (name, email, phone, application ID)
     const q = (req.query.q || '').trim();
-    
+
     // Application Status filter
     const applicationStatus = (req.query.applicationStatus || '').trim();
-    
+
     // Interview Status filter
     const interviewStatus = (req.query.interviewStatus || '').trim();
-    
+
     // Drive Date filter
     const driveDateFilter = (req.query.driveDateFilter || '').trim();
-    
+
     // Application Date filter
     const applicationDateFilter = (req.query.applicationDateFilter || '').trim();
     const applicationDateStart = req.query.applicationDateStart ? new Date(req.query.applicationDateStart) : null;
     const applicationDateEnd = req.query.applicationDateEnd ? new Date(req.query.applicationDateEnd) : null;
-    
+
     // Education filters
     const degree = (req.query.degree || '').trim();
     const branch = (req.query.branch || '').trim(); // specialization in Education table
     const graduationYear = req.query.graduationYear ? parseInt(req.query.graduationYear, 10) : null;
-    
+
     // Location filter
     const city = (req.query.city || '').trim();
     const state = (req.query.state || '').trim();
-    
+
     // Legacy filters (keep for backward compatibility)
     const stage = (req.query.stage || '').trim();
     const finalStatusFilter = (req.query.finalStatus || '').trim().toUpperCase();
@@ -727,7 +803,7 @@ export async function getAdminJobApplications(req, res) {
     // Get job and check permissions
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      include: { 
+      include: {
         company: true,
         recruiter: {
           include: {
@@ -769,6 +845,20 @@ export async function getAdminJobApplications(req, res) {
     // Build student filter conditions
     const studentWhere = {};
     let hasStudentFilters = false;
+
+    if (schoolFilter) {
+      studentWhere.school = { in: schoolFilter.split(',').map(s => s.trim()) };
+      hasStudentFilters = true;
+    }
+    if (batchFilter) {
+      studentWhere.batch = { in: batchFilter.split(',').map(b => b.trim()) };
+      hasStudentFilters = true;
+    }
+
+    // Last Round reached filter
+    if (typeof lastRoundFilter === 'number' && !Number.isNaN(lastRoundFilter)) {
+      filterConditions.push({ lastRoundReached: lastRoundFilter });
+    }
 
     // Free-text search (name, email, phone, application ID)
     if (q) {
@@ -899,7 +989,7 @@ export async function getAdminJobApplications(req, res) {
     // Application Date filter
     if (applicationDateFilter || applicationDateStart || applicationDateEnd) {
       const dateWhere = {};
-      
+
       if (applicationDateFilter === 'today') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -927,7 +1017,7 @@ export async function getAdminJobApplications(req, res) {
           dateWhere.lte = applicationDateEnd;
         }
       }
-      
+
       if (Object.keys(dateWhere).length > 0) {
         filterConditions.push({ appliedDate: dateWhere });
       }
@@ -947,7 +1037,7 @@ export async function getAdminJobApplications(req, res) {
       if (graduationYear) {
         educationConditions.endYear = graduationYear;
       }
-      
+
       if (Object.keys(educationConditions).length > 0) {
         studentWhere.education = { some: educationConditions };
         hasStudentFilters = true;
@@ -1066,9 +1156,15 @@ export async function getAdminJobApplications(req, res) {
       where.AND = [...(where.AND || []), ...filterConditions];
     }
 
-    // Base orderBy (Prisma can't sort by computed stage; we'll sort in-memory for that)
+    // Base orderBy
     let orderByClause = { appliedDate: order };
-    if (sortBy === 'name') orderByClause = { student: { fullName: order } };
+    if (sortBy === 'name') {
+      orderByClause = { student: { fullName: order } };
+    } else if (sortBy === 'stage') {
+      // Sorting by stage in DB is tricky because it's computed. 
+      // We'll fallback to appliedDate for now, or use a specific field if we decide to store stage.
+      orderByClause = { appliedDate: order };
+    }
 
     const [applications, total] = await Promise.all([
       prisma.application.findMany({
@@ -1096,7 +1192,7 @@ export async function getAdminJobApplications(req, res) {
                   description: true,
                 },
                 orderBy: { endYear: 'desc' },
-                take: 1, // Get most recent education
+                take: 1,
               },
             },
           },
@@ -1113,7 +1209,7 @@ export async function getAdminJobApplications(req, res) {
     // Compute per-application stage fields
     const frontendUrl = process.env.FRONTEND_URL || '';
 
-    let mapped = applications.map(app => {
+    const mapped = applications.map(app => {
       const hasInterviewStarted = (app.lastRoundReached || 0) > 0 || (app.roundEvaluations && app.roundEvaluations.length > 0);
       const tracking = computeApplicationTrackingFields({
         status: app.status,
@@ -1140,37 +1236,21 @@ export async function getAdminJobApplications(req, res) {
           batch: app.student?.batch || null,
           center: app.student?.center || null,
           profileLink,
+          city: app.student?.city || null,
+          state: app.student?.stateRegion || null,
+          degree: app.student?.education?.[0]?.degree || null,
+          branch: app.student?.education?.[0]?.description || null,
+          graduationYear: app.student?.education?.[0]?.endYear || null,
         },
         currentStage: tracking.currentStage,
         lastRoundReached: tracking.lastRoundReached,
         finalStatus: tracking.finalStatus,
         rejectedIn: tracking.rejectedIn,
         appliedAt: app.appliedDate,
+        screeningStatus: app.screeningStatus,
+        interviewStatus: app.interviewStatus,
       };
     });
-
-    // Optional lastRound filter on derived output (post-processing)
-    if (typeof lastRoundFilter === 'number' && !Number.isNaN(lastRoundFilter)) {
-      mapped = mapped.filter(r => (r.lastRoundReached || 0) === lastRoundFilter);
-    }
-
-    // In-memory stage sort if requested
-    if (sortBy === 'stage') {
-      const orderFactor = order === 'asc' ? 1 : -1;
-      const stageRank = (s) => {
-        const v = String(s || '').toLowerCase();
-        if (v === 'applied') return 1;
-        if (v === 'screening qualified') return 2;
-        if (v === 'qualified for interview') return 3;
-        if (v.startsWith('interview round 1')) return 4;
-        if (v.startsWith('interview round 2')) return 5;
-        if (v.startsWith('interview round')) return 6;
-        if (v.startsWith('selected')) return 7;
-        if (v.startsWith('rejected')) return 8;
-        return 99;
-      };
-      mapped.sort((a, b) => (stageRank(a.currentStage) - stageRank(b.currentStage)) * orderFactor);
-    }
 
     // Job-level stats summary (for header counters)
     // Keep counts based on DB fields (fast) + relationship for interviewStarted.
@@ -1210,14 +1290,14 @@ export async function getAdminJobApplications(req, res) {
             jobId,
             screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] },
             roundEvaluations: { some: {} },
-              NOT: {
-                OR: [
-                  { interviewStatus: 'SELECTED' },
-                  { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
-                ],
-              },
+            NOT: {
+              OR: [
+                { interviewStatus: 'SELECTED' },
+                { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+              ],
             },
-          })
+          },
+        })
         : Promise.resolve(0),
     ]);
 
@@ -1340,10 +1420,10 @@ export async function applyToJob(req, res) {
         message: 'Application deadline is not set for this job. Please contact admin.'
       });
     }
-    
+
     const deadline = new Date(job.applicationDeadline);
     const now = new Date();
-    
+
     if (now > deadline) {
       return res.status(403).json({
         error: 'Applications closed',
@@ -1408,7 +1488,7 @@ export async function applyToJob(req, res) {
       const studentCgpa = studentProfile.cgpa ? parseFloat(String(studentProfile.cgpa)) : null;
 
       if (studentCgpa === null || isNaN(studentCgpa)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'CGPA requirement check failed',
           message: 'Your CGPA is not set in your profile. Please update your profile with your current CGPA to apply for this job.',
           requirement: `This job requires a minimum CGPA of ${jobMinCgpa}`,
@@ -1432,11 +1512,11 @@ export async function applyToJob(req, res) {
       }
 
       if (!isNaN(requiredCgpa) && studentCgpa < requiredCgpa) {
-        const requirementDisplay = requirementStr.endsWith('%') 
-          ? `${requirementStr} (${requiredCgpa.toFixed(2)} CGPA)` 
+        const requirementDisplay = requirementStr.endsWith('%')
+          ? `${requirementStr} (${requiredCgpa.toFixed(2)} CGPA)`
           : `${requiredCgpa.toFixed(2)}`;
-        
-        return res.status(400).json({ 
+
+        return res.status(400).json({
           error: 'CGPA requirement not met',
           message: `Your current CGPA (${studentCgpa.toFixed(2)}) does not meet the minimum requirement for this job.`,
           requirement: `This job requires a minimum CGPA of ${requirementDisplay}`,
@@ -1452,7 +1532,7 @@ export async function applyToJob(req, res) {
       const studentBacklogs = studentProfile.backlogs ? String(studentProfile.backlogs).trim() : null;
 
       if (studentBacklogs === null || studentBacklogs === '') {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Backlogs requirement check failed',
           message: 'Your backlogs count is not set in your profile. Please update your profile with your current backlogs count to apply for this job.',
           requirement: `This job allows: ${jobBacklogsRequirement}`,
@@ -1483,7 +1563,7 @@ export async function applyToJob(req, res) {
       }
 
       if (!isAllowed) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Backlogs requirement not met',
           message: `Your current backlogs count (${studentBacklogs}) does not meet the requirement for this job.`,
           requirement: `This job allows: ${jobBacklogsRequirement}`,
@@ -1588,7 +1668,7 @@ export async function applyToJob(req, res) {
       if (admins.length > 0) {
         const studentName = studentProfile?.fullName || 'A student';
         const companyName = job.company?.name || 'Unknown Company';
-        
+
         await Promise.all(
           admins.map((admin) =>
             createNotification({
@@ -1654,11 +1734,11 @@ export async function applyToJob(req, res) {
     console.error('❌ [applyToJob] Error stack:', error.stack);
     console.error('❌ [applyToJob] Error code:', error.code);
     console.error('❌ [applyToJob] Error meta:', error.meta);
-    
+
     // Provide more detailed error information
     let errorMessage = 'Failed to apply to job';
     let statusCode = 500;
-    
+
     // Handle Prisma-specific errors
     if (error.code === 'P2002') {
       // Unique constraint violation (likely already applied)
@@ -1676,7 +1756,7 @@ export async function applyToJob(req, res) {
       // Use the actual error message if available
       errorMessage = error.message;
     }
-    
+
     logger.error(`[applyToJob] Failed to apply to job:`, {
       error: errorMessage,
       code: error.code,
@@ -1684,8 +1764,8 @@ export async function applyToJob(req, res) {
       userId: req.userId,
       stack: error.stack,
     });
-    
-    res.status(statusCode).json({ 
+
+    res.status(statusCode).json({
       error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });

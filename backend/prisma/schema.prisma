@@ -35,6 +35,7 @@ model User {
 
   @@index([email])
   @@index([role, status])
+  @@index([status])
   @@map("users")
 }
 
@@ -124,8 +125,9 @@ model Student {
   resumeFiles                StudentResumeFile[]
   user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([center, batch])
-  @@index([school, batch])
+  @@index([center])
+  @@index([school])
+  @@index([batch])
   @@index([emailNotificationsDisabled, createdAt])
   @@map("students")
 }
@@ -364,6 +366,9 @@ model Job {
   @@index([recruiterId, createdAt(sort: Desc)])
   @@index([isPosted, createdAt(sort: Desc)])
   @@index([applicationDeadline, applicationDeadlineMailSent, status])
+  @@index([targetSchools])
+  @@index([targetCenters])
+  @@index([targetBatches])
   @@map("jobs")
 }
 

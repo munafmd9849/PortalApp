@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creative & Thematic Placement Cards</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Caveat:wght@400;700&family=Bangers&family=Playfair+Display:wght@700&family=Space+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --text: #ffffff;
+            --accent: #ff00ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 80px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 100px;
+        }
+
+        header h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #f43f5e, #fb923c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: #94a3b8;
+            margin-top: 15px;
+            font-size: 1.2rem;
+        }
+
+        section {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 60px;
+        }
+
+        .layout-wrap {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .label {
+            margin-bottom: 25px;
+            color: #64748b;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Shared Details */
+        .avatar {
+            width: 100%;
+            height: 280px;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .testimonial {
+            font-family: 'Caveat', cursive;
+            font-size: 1.2rem;
+        }
+
+        /* 1. SCIFI / CYBERPUNK HUD */
+        .card-scifi {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid #00f2ff;
+            padding: 20px;
+            position: relative;
+            clip-path: polygon(0% 0%, 90% 0%, 100% 10%, 100% 100%, 10% 100%, 0% 90%);
+            font-family: 'Space Mono', monospace;
+        }
+
+        .card-scifi::before {
+            content: 'IDENT_SEARCH: FOUND';
+            position: absolute;
+            top: 10px;
+            right: 40px;
+            font-size: 0.6rem;
+            color: #00f2ff;
+        }
+
+        .card-scifi .avatar {
+            filter: grayscale(1) sepia(1) hue-rotate(150deg);
+            border-radius: 0;
+            border: 1px solid #00f2ff33;
+        }
+
+        .card-scifi:hover .avatar {
+            filter: none;
+        }
+
+        .card-scifi .package {
+            color: #00f2ff;
+            font-weight: 700;
+            border-bottom: 1px dashed #00f2ff;
+            display: inline-block;
+            padding: 5px 0;
+        }
+
+        /* 2. REtro VINTAGE TICKET */
+        .card-retro {
+            background: #fdf6e3;
+            color: #2d2d2d;
+            padding: 0;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 10px 10px 0px #d4a373;
+            border: 2px solid #2d2d2d;
+        }
+
+        .retro-top {
+            height: 180px;
+            background: #d4a373;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .retro-top img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            mix-blend-mode: multiply;
+            opacity: 0.8;
+        }
+
+        .retro-content {
+            padding: 25px;
+            border-top: 2px dashed #2d2d2d;
+            position: relative;
+        }
+
+        .retro-content::before,
+        .retro-content::after {
+            content: '';
+            position: absolute;
+            top: -11px;
+            width: 22px;
+            height: 22px;
+            background: var(--bg);
+            border: 2px solid #2d2d2d;
+            border-radius: 50%;
+        }
+
+        .retro-content::before {
+            left: -12px;
+        }
+
+        .retro-content::after {
+            right: -12px;
+        }
+
+        /* 3. COMIC BOOK POP ART */
+        .card-comic {
+            background: #ffde03;
+            border: 4px solid #000;
+            padding: 25px;
+            color: #000;
+            position: relative;
+            transform: rotate(-1deg);
+            transition: 0.2s;
+        }
+
+        .card-comic:hover {
+            transform: rotate(1deg) scale(1.05);
+        }
+
+        .comic-burst {
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            background: #ff0000;
+            color: #fff;
+            font-family: 'Bangers', cursive;
+            font-size: 1.5rem;
+            padding: 10px 15px;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+
+        .card-comic .avatar {
+            border: 4px solid #000;
+            border-radius: 0;
+            box-shadow: 8px 8px 0 #000;
+        }
+
+        /* 4. LUXURY GOLD */
+        .card-luxury {
+            background: #111;
+            padding: 40px;
+            border-radius: 0;
+            border: 1px solid #333;
+            background-image: radial-gradient(circle at 50% -20%, #444, #111);
+            text-align: center;
+        }
+
+        .luxury-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            color: #d4af37;
+            letter-spacing: 1px;
+        }
+
+        .luxury-pkg {
+            border: 1px solid #d4af37;
+            display: inline-block;
+            padding: 5px 20px;
+            margin: 15px 0;
+            color: #d4af37;
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+        }
+
+        .card-luxury .avatar {
+            border-radius: 50%;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 25px;
+            border: 2px solid #d4af37;
+            padding: 5px;
+        }
+
+        /* 5. LIQUID MESH */
+        .card-liquid {
+            background: #fff;
+            border-radius: 40px;
+            padding: 10px;
+            color: #000;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .liquid-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: linear-gradient(45deg, #ff00cc, #3333ff);
+            opacity: 0;
+            transition: 0.5s;
+        }
+
+        .card-liquid:hover .liquid-bg {
+            opacity: 0.1;
+        }
+
+        .card-liquid .details {
+            position: relative;
+            z-index: 2;
+            border-radius: 35px;
+            background: white;
+            padding: 30px;
+        }
+
+        /* 6. INDUSTRIAL GRID */
+        .card-industrial {
+            background: #222;
+            border: 1px solid #444;
+            padding: 0;
+            display: grid;
+            grid-template-columns: 120px 1fr;
+        }
+
+        .ind-img {
+            background: #333;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        .ind-img img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            filter: grayscale(1);
+        }
+
+        .ind-main {
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: repeating-linear-gradient(45deg, #222, #222 10px, #252525 10px, #252525 20px);
+        }
+
+        .ind-main h3 {
+            font-size: 1.2rem;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .ind-main .package {
+            color: #eb4034;
+            font-weight: 800;
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+
+        /* 7. POLYSLICE GEOMETRIC */
+        .card-poly {
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            border-radius: 20px;
+        }
+
+        .poly-top {
+            height: 100%;
+            width: 100%;
+            background: #000;
+            clip-path: polygon(0 0, 100% 0, 100% 70%, 0 100%);
+            transition: 0.5s;
+        }
+
+        .poly-bottom {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: #fff;
+            color: #000;
+            padding: 30px;
+            clip-path: polygon(0 30%, 100% 0, 100% 100%, 0 100%);
+            transition: 0.5s;
+        }
+
+        .card-poly:hover .poly-top {
+            transform: scale(1.1);
+        }
+
+        .card-poly:hover .poly-bottom {
+            padding-top: 50px;
+        }
+
+        /* 8. PAPER STACK */
+        .card-stack {
+            background: #fff;
+            color: #000;
+            padding: 30px;
+            border: 1px solid #ddd;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .card-stack::before,
+        .card-stack::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border: 1px solid #ddd;
+            z-index: -1;
+            transition: 0.3s;
+        }
+
+        .card-stack:hover::before {
+            transform: rotate(3deg);
+        }
+
+        .card-stack:hover::after {
+            transform: rotate(6deg);
+        }
+
+        /* 9. MINIMALIST POLAROID */
+        .card-polaroid {
+            background: #fff;
+            padding: 15px 15px 60px 15px;
+            color: #000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transform: rotate(-2deg);
+            transition: 0.4s;
+        }
+
+        .card-polaroid:hover {
+            transform: rotate(0) scale(1.05);
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .card-polaroid .avatar {
+            border-radius: 0;
+            height: 250px;
+            margin-bottom: 15px;
+        }
+
+        .polaroid-caption {
+            font-family: 'Caveat', cursive;
+            font-size: 1.4rem;
+            text-align: center;
+        }
+
+        /* 10. NEON SKEUOMORPHIC BUTTON */
+        .card-button {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 50px;
+            box-shadow: 10px 10px 20px #0a0a0a, -10px -10px 20px #2a2a2a;
+            border: 2px solid transparent;
+            transition: 0.3s;
+        }
+
+        .card-button:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .package-badge {
+            background: #00ff88;
+            color: #000;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 800;
+        }
+
+        /* 11. FLOATING 3D GLASS */
+        .card-floating {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            perspective: 1000px;
+        }
+
+        .float-inner {
+            transition: 0.5s;
+            transform-style: preserve-3d;
+        }
+
+        .card-floating:hover .float-inner {
+            transform: rotateX(10deg) rotateY(-10deg) translateZ(50px);
+        }
+
+        .f-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            transform: translateZ(40px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Thematic & Creative Layouts</h1>
+        <p>11 Unique styles ranging from Sci-Fi HUDs to Vintage Tickets.</p>
+    </header>
+
+    <section>
+
+        <!-- 1. SCIFI HUD -->
+        <div class="layout-wrap">
+            <span class="label">01. Neural HUD (Cyber)</span>
+            <div class="card-scifi">
+                <img class="avatar"
+                    src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=300&h=400&fit=crop" alt="">
+                <div style="margin-top: 20px;">
+                    <h3 style="font-size: 1.1rem; color: #00f2ff;">PRIYA_SHARMA.EXE</h3>
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin: 5px 0;">SYSTEM: MICROSOFT // ROLE: SDE</p>
+                    <p class="package">18_LPA_ESTIMATED</p>
+                    <div
+                        style="margin-top: 15px; font-size: 0.75rem; color: #00f2ffcc; border-top: 1px solid #00f2ff22; padding-top: 10px;">
+                        "Neural networks are the future. I'm glad I mastered them here."
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. RETRO TICKET -->
+        <div class="layout-wrap">
+            <span class="label">02. Vintage Boarding Pass</span>
+            <div class="card-retro">
+                <div class="retro-top">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=400&fit=crop" alt="">
+                </div>
+                <div class="retro-content">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h3 style="font-size: 1.4rem; font-weight: 800;">RAHUL KUMAR</h3>
+                            <p style="font-size: 0.8rem; font-weight: 600;">CLASS: GOOGLE (DATA SCIENTIST)</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-weight: 900; font-size: 1.2rem;">22 LPA</p>
+                            <p style="font-size: 0.6rem;">GA NO. 9182</p>
+                        </div>
+                    </div>
+                    <p class="testimonial" style="margin-top: 15px; font-size: 1rem; color: #5a4a3a;">"The ticket to my
+                        success was printed with hard work and guidance."</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. COMIC BURST -->
+        <div class="layout-wrap">
+            <span class="label">03. Pop Art Burst</span>
+            <div class="card-comic">
+                <div class="comic-burst">CRACKED!</div>
+                <img class="avatar"
+                    src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=400&fit=crop" alt="">
+                <div style="margin-top: 20px;">
+                    <h3 style="font-family: 'Bangers', cursive; font-size: 2rem; letter-spacing: 1px;">ANJALI PATEL</h3>
+                    <p
+                        style="font-weight: 700; background: #000; color: #ffde03; display: inline-block; padding: 2px 10px; margin-bottom: 10px;">
+                        AMAZON • 20 LPA</p>
+                    <p class="testimonial" style="font-weight: 700;">"BAM! I didn't just find a job, I found a career
+                        path!"</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. LUXURY -->
+        <div class="layout-wrap">
+            <span class="label">04. Prestige Luxury</span>
+            <div class="card-luxury">
+                <img class="avatar"
+                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=400&fit=crop" alt="">
+                <h3 class="luxury-name">Vikram Singh</h3>
+                <p style="color: #666; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px;">Tesla •
+                    Specialist</p>
+                <div class="luxury-pkg">25 LPA</div>
+                <p class="testimonial" style="color: #999;">"Excellence is not an act, but a habit. Grateful for the
+                    mentorship."</p>
+            </div>
+        </div>
+
+        <!-- 5. LIQUID -->
+        <div class="layout-wrap">
+            <span class="label">05. Fluid Mesh Glow</span>
+            <div class="card-liquid">
+                <div class="liquid-bg"></div>
+                <div class="details">
+                    <img class="avatar" style="border-radius: 20px;"
+                        src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=400&fit=crop" alt="">
+                    <div style="margin-top: 20px;">
+                        <h3 style="font-size: 1.4rem;">Meera Reddy</h3>
+                        <p style="color: #6366f1; font-weight: 600;">Netflix • 19 LPA</p>
+                        <p class="testimonial" style="margin-top: 15px; color: #475569;">"Liquid layouts and fluid
+                            designs were my passion. Netflix loved them too."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. INDUSTRIAL -->
+        <div class="layout-wrap">
+            <span class="label">06. Industrial Grit</span>
+            <div class="card-industrial">
+                <div class="ind-img"><img
+                        src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=400&fit=crop" alt="">
+                </div>
+                <div class="ind-main">
+                    <div class="package">PKGE: 16.0</div>
+                    <h3>ARJUN MEHTA</h3>
+                    <p style="font-size: 0.75rem; color: #888;">CORP: ADOBE // UX_DESIGN</p>
+                    <p class="testimonial"
+                        style="font-family: inherit; font-size: 0.9rem; margin-top: 10px; opacity: 0.7;">"Hard work and
+                        determination over everything else."</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. POLYSLICE -->
+        <div class="layout-wrap">
+            <span class="label">07. Angular Geometry</span>
+            <div class="card-poly">
+                <div class="poly-top">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=400&fit=crop"
+                        style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div class="poly-bottom">
+                    <h3 style="font-size: 1.4rem; font-weight: 800;">Zara Khan</h3>
+                    <p style="color: #6366f1; font-size: 0.9rem;">Intel • 17 LPA</p>
+                    <p class="testimonial" style="margin-top: 10px;">"Precision in design, precision in logic."</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. PAPER STACK -->
+        <div class="layout-wrap">
+            <span class="label">08. Document Stack</span>
+            <div class="card-stack">
+                <img class="avatar"
+                    src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&h=400&fit=crop" alt="">
+                <div style="margin-top: 20px;">
+                    <h3 style="font-size: 1.3rem; font-weight: 700;">Aditya Verma</h3>
+                    <p style="color: #64748b;">IBM Cloud • 21 LPA</p>
+                    <p class="testimonial" style="margin-top: 15px;">"The stack of offers I had was thanks to the mock
+                        interviews here."</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. POLAROID -->
+        <div class="layout-wrap">
+            <span class="label">09. Moment Polaroid</span>
+            <div class="card-polaroid">
+                <img class="avatar"
+                    src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=400&fit=crop" alt="">
+                <div class="polaroid-caption">
+                    Kavya @ Oracle • 18 LPA
+                </div>
+                <p class="testimonial" style="font-size: 0.85rem; text-align: center; color: #666; margin-top: 5px;">"A
+                    moment captured in success."</p>
+            </div>
+        </div>
+
+        <!-- 10. NEON BUTTON -->
+        <div class="layout-wrap">
+            <span class="label">10. Soft Touch Console</span>
+            <div class="card-button">
+                <div style="display: flex; gap: 20px; align-items: center;">
+                    <img src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop"
+                        style="width: 70px; height: 70px; border-radius: 50%;">
+                    <div>
+                        <h3 style="font-size: 1.2rem;">Ishita Gupta</h3>
+                        <p style="color: #888; font-size: 0.8rem;">Microsoft SDE</p>
+                    </div>
+                </div>
+                <div style="margin-top: 25px; display: flex; justify-content: space-between; align-items: center;">
+                    <span class="package-badge">19 LPA</span>
+                    <span style="color: #00ff88; font-size: 0.8rem;">● ONLINE</span>
+                </div>
+                <p class="testimonial" style="margin-top: 20px; color: #ccc;">"Pushing buttons and pushing limits."</p>
+            </div>
+        </div>
+
+        <!-- 11. 3D FLOATING -->
+        <div class="layout-wrap">
+            <span class="label">11. Z-Space Floating</span>
+            <div class="card-floating">
+                <div class="float-inner">
+                    <img class="f-avatar"
+                        src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop" alt="">
+                    <div style="margin-top: 25px; transform: translateZ(20px);">
+                        <h3 style="font-size: 1.5rem;">Shaurya M.</h3>
+                        <p style="color: #fb923c; font-weight: 700;">Google • 23 LPA</p>
+                        <p class="testimonial" style="margin-top: 15px;">"Depth matters. In design and in data
+                            structures."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+</body>
+
+</html>

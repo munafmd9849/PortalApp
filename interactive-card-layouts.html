@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Interactive Placement Cards</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Caveat:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --accent: #f43f5e;
+            --bg: #0f172a;
+            --card-white: #ffffff;
+            --card-dark: #1e293b;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            padding: 60px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+        }
+
+        section {
+            max-width: 1400px;
+            margin: 0 auto 100px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: var(--primary-light);
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 50px;
+        }
+
+        .layout-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .label {
+            margin-bottom: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #818cf8;
+            display: block;
+        }
+
+        /* Shared Components */
+        .avatar {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+        }
+
+        .details {
+            padding: 25px;
+        }
+
+        .package-pill {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 99px;
+            background: #10b98122;
+            color: #34d399;
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .testimonial {
+            font-family: 'Caveat', cursive;
+            font-size: 1.2rem;
+            line-height: 1.3;
+            color: #cbd5e1;
+        }
+
+        /* 1. THE 3D FLIP CARD */
+        .flip-card {
+            perspective: 1000px;
+            height: 400px;
+            cursor: pointer;
+        }
+
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+
+        .flip-card:hover .flip-card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flip-front,
+        .flip-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--card-dark);
+            border: 1px solid #334155;
+        }
+
+        .flip-back {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 30px;
+        }
+
+        /* 2. THE SLIDING REVEAL */
+        .slide-reveal {
+            position: relative;
+            height: 400px;
+            border-radius: 24px;
+            overflow: hidden;
+            background: #000;
+            cursor: pointer;
+        }
+
+        .reveal-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .slide-reveal:hover .reveal-img {
+            transform: scale(1.1) translateY(-20px);
+            filter: brightness(0.5);
+        }
+
+        .reveal-panel {
+            position: absolute;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            background: white;
+            color: #1e293b;
+            padding: 30px;
+            transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .slide-reveal:hover .reveal-panel {
+            bottom: 0;
+        }
+
+        /* 3. MAGNETIC TILT (using JS) */
+        .magnetic-card {
+            background: var(--card-dark);
+            border-radius: 24px;
+            padding: 10px;
+            border: 1px solid #334155;
+            transition: box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .magnetic-card:hover {
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+        }
+
+        .magnetic-card .avatar {
+            border-radius: 18px;
+        }
+
+        /* 4. GLOW BORDER */
+        .glow-border {
+            position: relative;
+            background: #0f172a;
+            border-radius: 20px;
+            padding: 2px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .glow-border::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(transparent, transparent, transparent, #6366f1);
+            animation: rotate 4s linear infinite;
+        }
+
+        .glow-border-inner {
+            position: relative;
+            background: #1e293b;
+            border-radius: 18px;
+            padding: 25px;
+            height: 100%;
+        }
+
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 5. SPOTLIGHT EFFECT (using JS) */
+        .spotlight-card {
+            position: relative;
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 30px;
+            border: 1px solid #334155;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .spotlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), rgba(99, 102, 241, 0.15), transparent);
+            pointer-events: none;
+        }
+
+        /* 6. EXPANDING PILL */
+        .expanding-card {
+            background: var(--card-dark);
+            border-radius: 30px;
+            padding: 20px;
+            transition: all 0.4s ease;
+            cursor: pointer;
+            overflow: hidden;
+            height: 140px;
+        }
+
+        .expanding-card:hover {
+            height: 350px;
+            background: #334155;
+        }
+
+        .exp-head {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .exp-head .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+
+        .exp-body {
+            margin-top: 30px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: 0.3s;
+        }
+
+        .expanding-card:hover .exp-body {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 7. NEON DASHBOARD STYLE */
+        .neon-card {
+            background: transparent;
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+            padding: 25px;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .neon-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0%;
+            height: 2px;
+            background: #6366f1;
+            box-shadow: 0 0 15px #6366f1;
+            transition: 0.5s;
+        }
+
+        .neon-card:hover {
+            background: rgba(99, 102, 241, 0.05);
+            transform: scale(1.02);
+        }
+
+        .neon-card:hover::after {
+            width: 100%;
+        }
+
+        /* 8. ZOOM & FADE */
+        .zoom-card {
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+            height: 400px;
+            background: #000;
+        }
+
+        .zoom-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .zoom-card:hover img {
+            transform: scale(1.2);
+            opacity: 0.4;
+        }
+
+        .zoom-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px;
+            opacity: 0;
+            transition: 0.5s;
+        }
+
+        .zoom-card:hover .zoom-content {
+            opacity: 1;
+        }
+
+        /* 9. PARALLAX LAYERS */
+        .parallax-card {
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 30px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.1s;
+            border: 1px solid #334155;
+        }
+
+        .p-layer {
+            transition: transform 0.1s;
+        }
+
+        .p-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            transform: translateZ(50px);
+        }
+
+        .p-avatar {
+            border-radius: 20px;
+            transform: translateZ(30px);
+            margin-bottom: 20px;
+        }
+
+        /* 10. NEUMORPHIC DARK */
+        .neumorphic-dark {
+            background: #1e293b;
+            border-radius: 40px;
+            padding: 40px;
+            box-shadow: 10px 10px 20px #0f172a, -10px -10px 20px #2d3748;
+            transition: 0.3s;
+        }
+
+        .neumorphic-dark:hover {
+            box-shadow: inset 10px 10px 20px #0f172a, inset -10px -10px 20px #2d3748;
+        }
+
+        /* 11. SHARDS EFFECT */
+        .shards-card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .shard {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(to right, transparent, rgba(99, 102, 241, 0.1));
+            transform: rotate(45deg);
+            pointer-events: none;
+            transition: 0.8s;
+        }
+
+        .shards-card:hover .shard {
+            transform: rotate(45deg) translate(200px, 200px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Interactive Success Gallery</h1>
+        <p>11 Advanced templates with high-fidelity hover interactions.</p>
+    </header>
+
+    <section>
+        <div class="gallery">
+
+            <!-- 1. 3D FLIP -->
+            <div class="layout-item">
+                <span class="label">01. 3D Orientation Flip</span>
+                <div class="flip-card">
+                    <div class="flip-card-inner">
+                        <div class="flip-front">
+                            <img class="avatar"
+                                src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=300&h=400&fit=crop"
+                                alt="">
+                            <div class="details">
+                                <h3 style="font-size: 1.4rem;">Priya Sharma</h3>
+                                <p style="color: #94a3b8;">Microsoft • SDE</p>
+                                <p style="margin-top: 10px; color: #34d399; font-weight: 700;">18 LPA</p>
+                            </div>
+                        </div>
+                        <div class="flip-back">
+                            <h3 style="margin-bottom: 20px; font-size: 1.5rem;">Why Microsoft?</h3>
+                            <p class="testimonial">"The placement support team pushed me to my limits. Without the 10+
+                                mock rounds, I wouldn't be here."</p>
+                            <div style="margin-top: 30px; font-size: 0.9rem; opacity: 0.8;">Batch 2023-27</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. SLIDING REVEAL -->
+            <div class="layout-item">
+                <span class="label">02. Panel Sliding Reveal</span>
+                <div class="slide-reveal">
+                    <img class="reveal-img"
+                        src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=400&fit=crop" alt="">
+                    <div class="reveal-panel">
+                        <span class="package-pill">22 LPA</span>
+                        <h3 style="font-size: 1.5rem; margin-bottom: 5px;">Rahul Kumar</h3>
+                        <p style="color: #64748b; margin-bottom: 15px;">Google • Data Scientist</p>
+                        <p class="testimonial" style="color: #475569;">"Data structures were my weakness. This platform
+                            turned it into my biggest strength!"</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. MAGNETIC TILT -->
+            <div class="layout-item">
+                <span class="label">03. Magnetic Tilt & Glow</span>
+                <div class="magnetic-card" id="magnetic-1">
+                    <img class="avatar"
+                        src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=400&fit=crop" alt="">
+                    <div class="details">
+                        <h3 style="font-size: 1.3rem;">Anjali Patel</h3>
+                        <p class="title" style="margin-bottom: 10px;">Amazon • PM</p>
+                        <p class="testimonial">"Product Management roles are rare. I'm lucky I had the right mentors
+                            here."</p>
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                            <span style="color: #34d399; font-weight: 700;">20 LPA</span>
+                            <div style="display: flex; gap: 10px; color: #94a3b8;">🔗 📧</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. GLOW BORDER -->
+            <div class="layout-item">
+                <span class="label">04. Neon Border Rotation</span>
+                <div class="glow-border">
+                    <div class="glow-border-inner">
+                        <h3 style="font-size: 1.5rem; margin-bottom: 5px;">Vikram Singh</h3>
+                        <p class="package-pill" style="background: #6366f122; color: #818cf8;">Tesla • 25 LPA</p>
+                        <p class="testimonial" style="margin: 20px 0;">"Implementing self-driving algorithms in the
+                            training sessions helped me crack Tesla."</p>
+                        <div style="height: 120px; border-radius: 12px; overflow: hidden;">
+                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=400&fit=crop"
+                                style="width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. SPOTLIGHT -->
+            <div class="layout-item">
+                <span class="label">05. Dynamic Cursor Spotlight</span>
+                <div class="spotlight-card"
+                    onmousemove="this.style.setProperty('--mouse-x', event.offsetX + 'px'); this.style.setProperty('--mouse-y', event.offsetY + 'px')">
+                    <div class="spotlight"></div>
+                    <img class="avatar" style="border-radius: 50%; width: 100px; height: 100px; margin-bottom: 20px;"
+                        src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop" alt="">
+                    <h3 style="font-size: 1.4rem;">Meera Reddy</h3>
+                    <p style="color: #818cf8; margin-bottom: 15px;">Frontend @ Netflix • 19 LPA</p>
+                    <p class="testimonial">"I learned the art of pixel-perfection. Netflix noticed that in my
+                        portfolio."</p>
+                </div>
+            </div>
+
+            <!-- 6. EXPANDING PILL -->
+            <div class="layout-item">
+                <span class="label">06. Vertical Expansion</span>
+                <div class="expanding-card">
+                    <div class="exp-head">
+                        <img class="avatar"
+                            src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop"
+                            alt="">
+                        <div>
+                            <h3 style="font-size: 1.2rem;">Arjun Mehta</h3>
+                            <p style="color: #94a3b8;">Adobe • UX Designer</p>
+                        </div>
+                    </div>
+                    <div class="exp-body">
+                        <p class="package-pill">16 LPA</p>
+                        <p class="testimonial">"Hover over my card to see more! I loved every single design workshop
+                            session. The feedback loops were intense but fruitful."</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. NEON DASHBOARD -->
+            <div class="layout-item">
+                <span class="label">07. Cyberpunk Dashboard</span>
+                <div class="neon-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="font-size: 1.4rem;">Zara Khan</h3>
+                        <span
+                            style="color: #6366f1; border: 1px solid #6366f1; padding: 2px 10px; border-radius: 4px; font-size: 0.8rem;">PLACED</span>
+                    </div>
+                    <p style="color: #cbd5e1; margin: 15px 0;">Intel • Hardware Engineer</p>
+                    <p style="color: #10b981; font-weight: 700; font-size: 1.2rem; margin-bottom: 15px;">17 LPA</p>
+                    <p class="testimonial">"Intel was a tough nut to crack. The technical drills were precisely what I
+                        needed."</p>
+                </div>
+            </div>
+
+            <!-- 8. ZOOM & FADE -->
+            <div class="layout-item">
+                <span class="label">08. Full-Image Zoom</span>
+                <div class="zoom-card">
+                    <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop" alt="">
+                    <div class="zoom-content">
+                        <h3 style="font-size: 2rem; margin-bottom: 10px;">Aditya Verma</h3>
+                        <p style="font-weight: 500; letter-spacing: 1px;">IBM • CLOUD ARCHITECT</p>
+                        <p class="testimonial" style="margin-top: 20px;">"Success is a journey, not a destination. Thank
+                            you for the ride!"</p>
+                        <span class="package-pill" style="margin-top: 20px;">21 LPA</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 9. PARALLAX LAYERS -->
+            <div class="layout-item">
+                <span class="label">09. 3D Parallax Layers</span>
+                <div class="parallax-card" id="parallax-target" onmousemove="handleParallax(event, this)">
+                    <img class="avatar p-avatar p-layer"
+                        src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=400&fit=crop" alt="">
+                    <h3 class="p-name p-layer">Kavya Iyer</h3>
+                    <p class="title p-layer" style="color: #818cf8;">Oracle • DBA</p>
+                    <p class="package-pill p-layer" style="margin-top: 15px;">18 LPA</p>
+                </div>
+            </div>
+
+            <!-- 10. NEUMORPHIC DARK -->
+            <div class="layout-item">
+                <span class="label">10. Deep Neumorphic Press</span>
+                <div class="neumorphic-dark">
+                    <img class="avatar"
+                        style="border-radius: 50%; width: 120px; height: 120px; border: 5px solid #1e293b; margin-bottom: 25px;"
+                        src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop" alt="">
+                    <h3 style="font-size: 1.5rem; margin-bottom: 5px;">Ishita Gupta</h3>
+                    <p style="color: #6366f1; font-weight: 600;">Microsoft • 19 LPA</p>
+                    <p class="testimonial" style="margin-top: 20px;">"The interview preparation here is unparalleled.
+                        Felt like a pro in the real rounds."</p>
+                </div>
+            </div>
+
+            <!-- 11. SHARDS EFFECT -->
+            <div class="layout-item">
+                <span class="label">11. Light Shard Reveal</span>
+                <div class="shards-card">
+                    <div class="shard" style="top: -50px; left: -50px;"></div>
+                    <div class="shard" style="top: 100px; left: -30px; animation-delay: 0.2s;"></div>
+                    <h3 style="font-size: 1.4rem; color: #fff;">Shaurya Malhotra</h3>
+                    <p style="color: #94a3b8; font-size: 0.9rem;">Backend @ Google • 23 LPA</p>
+                    <p class="testimonial"
+                        style="margin-top: 20px; border-left: 3px solid #6366f1; padding-left: 15px;">"Cracking Google
+                        was a collaborative effort between me and the mentors here."</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <script>
+        // Magnetic Card Logic
+        const magneticCards = document.querySelectorAll('.magnetic-card');
+        magneticCards.forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width - 0.5;
+                const y = (e.clientY - rect.top) / rect.height - 0.5;
+                card.style.transform = `perspective(1000px) rotateX(${-y * 20}deg) rotateY(${x * 20}deg) scale3d(1.05, 1.05, 1.05)`;
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+            });
+        });
+
+        // Parallax Logic
+        function handleParallax(e, el) {
+            const rect = el.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const posX = e.clientX - centerX;
+            const posY = e.clientY - centerY;
+
+            const rotateX = (posY / rect.height) * -30;
+            const rotateY = (posX / rect.width) * 30;
+
+            el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+            const layers = el.querySelectorAll('.p-layer');
+            layers.forEach((layer, index) => {
+                const depth = (index + 1) * 10;
+                const moveX = (posX / rect.width) * depth;
+                const moveY = (posY / rect.height) * depth;
+                layer.style.transform = `translateX(${moveX}px) translateY(${moveY}px) translateZ(${depth * 2}px)`;
+            });
+        }
+
+        const parallaxCard = document.getElementById('parallax-target');
+        parallaxCard.addEventListener('mouseleave', () => {
+            parallaxCard.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg)`;
+            const layers = parallaxCard.querySelectorAll('.p-layer');
+            layers.forEach(layer => layer.style.transform = `translate(0,0,0)`);
+        });
+    </script>
+
+</body>
+
+</html>

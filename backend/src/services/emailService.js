@@ -33,7 +33,7 @@ export async function sendOTP(email, otp) {
     const text = `Your verification code is: ${otp}. This code will expire in 5 minutes.`;
 
     const result = await sendEmail({ to: email, subject, html, text });
-    
+
     logger.info(`OTP email sent to ${email}`);
     return { success: true, ...result };
   } catch (error) {
@@ -75,7 +75,7 @@ export async function sendJobPostedNotification(job, recruiter) {
     const text = `Your job posting "${job.jobTitle}" has been approved and posted. Students matching your criteria will be notified.`;
 
     const result = await sendEmail({ to: recruiterEmail, subject, html, text });
-    
+
     logger.info(`Job posted notification sent to ${recruiterEmail} for job ${job.id}`);
     return { success: true, ...result };
   } catch (error) {
@@ -116,11 +116,11 @@ export async function sendApplicationNotification(applicant, job, recruiter) {
       `;
       const recruiterText = `New application from ${applicant.fullName || applicant.email} for ${job.jobTitle}.`;
 
-      const recruiterResult = await sendEmail({ 
-        to: recruiterEmail, 
-        subject: recruiterSubject, 
-        html: recruiterHtml, 
-        text: recruiterText 
+      const recruiterResult = await sendEmail({
+        to: recruiterEmail,
+        subject: recruiterSubject,
+        html: recruiterHtml,
+        text: recruiterText
       });
       results.push({ type: 'recruiter', ...recruiterResult });
       logger.info(`Application notification sent to recruiter ${recruiterEmail}`);
@@ -147,11 +147,11 @@ export async function sendApplicationNotification(applicant, job, recruiter) {
       `;
       const applicantText = `Your application for ${job.jobTitle} at ${job.company?.name || 'Company'} has been received.`;
 
-      const applicantResult = await sendEmail({ 
-        to: applicantEmail, 
-        subject: applicantSubject, 
-        html: applicantHtml, 
-        text: applicantText 
+      const applicantResult = await sendEmail({
+        to: applicantEmail,
+        subject: applicantSubject,
+        html: applicantHtml,
+        text: applicantText
       });
       results.push({ type: 'applicant', ...applicantResult });
       logger.info(`Application confirmation sent to applicant ${applicantEmail}`);
@@ -183,26 +183,26 @@ export async function sendNewJobNotification(student, job) {
     const location = job.location || job.companyLocation || 'Not specified';
     const jobType = job.jobType || 'Full-time';
     const salary = job.salary || job.ctc || job.salaryRange || 'Competitive';
-    const driveDate = job.driveDate ? new Date(job.driveDate).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const driveDate = job.driveDate ? new Date(job.driveDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     }) : null;
-    const deadline = job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const deadline = job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     }) : null;
-    const postedDate = job.postedAt ? new Date(job.postedAt).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }) : new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const postedDate = job.postedAt ? new Date(job.postedAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }) : new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
-    
+
     // Clean description for email (remove HTML, limit length)
     let description = job.description || '';
     description = description.replace(/<[^>]*>/g, ''); // Remove HTML tags
@@ -213,7 +213,7 @@ export async function sendNewJobNotification(student, job) {
     const jobUrl = `${frontendUrl}/dashboard/student?tab=jobs&jobId=${job.id}`;
 
     const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
-    
+
     const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -379,7 +379,7 @@ export async function sendNewJobNotification(student, job) {
 </body>
 </html>
     `;
-    
+
     const text = `
 New Job Opportunity: ${jobTitle} at ${companyName}
 
@@ -406,7 +406,7 @@ This is an automated notification from PWIOI Placement Portal.
     `.trim();
 
     const result = await sendEmail({ to: studentEmail, subject, html, text });
-    
+
     logger.info(`New job notification sent to student ${studentEmail} for job ${job.id}`);
     return { success: true, ...result };
   } catch (error) {
@@ -443,6 +443,237 @@ export async function sendBulkJobNotifications(students, job) {
     throw error;
   }
 }
+
+/**
+ * Generate a generic un-personalized email template for bulk queue distribution
+ * @param {Object} job - Job object
+ * @returns {Object} { subject, html, text }
+ */
+export function generateGenericJobNotificationEmail(job) {
+  const jobTitle = job.jobTitle || 'New Position';
+  const companyName = job.company?.name || 'Partner Company';
+  const location = job.location || 'Not specified';
+  const jobType = job.jobType ? job.jobType.replace('_', ' ') : 'Not specified';
+
+  // Format salary
+  let salary = 'Not specified';
+  if (job.minSalary && job.maxSalary) {
+    salary = `₹${job.minSalary} - ₹${job.maxSalary} LPA`;
+  } else if (job.minSalary) {
+    salary = `₹${job.minSalary} LPA`;
+  } else if (job.maxSalary) {
+    salary = `Up to ₹${job.maxSalary} LPA`;
+  }
+
+  // Format dates
+  const driveDate = job.driveDate ? new Date(job.driveDate).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  }) : null;
+
+  const deadline = job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  }) : null;
+
+  const postedDate = job.postedAt ? new Date(job.postedAt).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  }) : new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  // Clean description for email (remove HTML, limit length)
+  let description = job.description || '';
+  description = description.replace(/<[^>]*>/g, ''); // Remove HTML tags
+  description = description.length > 300 ? description.substring(0, 300) + '...' : description;
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const jobUrl = `${frontendUrl}/dashboard/student?tab=jobs&jobId=${job.id}`;
+  const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Job Opportunity</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f7fa; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
+                New Job Opportunity
+              </h1>
+              <p style="margin: 10px 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">
+                A position matching your profile has been posted
+              </p>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding: 30px 40px 20px;">
+              <p style="margin: 0; color: #2d3748; font-size: 16px; line-height: 1.6;">
+                Hello <strong style="color: #1a202c;">Student</strong>,
+              </p>
+              <p style="margin: 15px 0 0; color: #4a5568; font-size: 15px; line-height: 1.6;">
+                We're excited to inform you that a new job opportunity matching your profile has been posted on the placement portal. This could be your next career step!
+              </p>
+            </td>
+          </tr>
+
+          <!-- Job Details Card -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 22px; font-weight: 600; line-height: 1.3;">
+                      ${jobTitle}
+                    </h2>
+                    
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; width: 140px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Company:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${companyName}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Location:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${location}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Job Type:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${jobType}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Compensation:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${salary}
+                        </td>
+                      </tr>
+                      ${driveDate ? `
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Drive Date:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
+                          ${driveDate}
+                        </td>
+                      </tr>
+                      ` : ''}
+                      ${deadline ? `
+                      <tr>
+                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
+                          <strong style="color: #2d3748;">Deadline:</strong>
+                        </td>
+                        <td style="padding: 8px 0; color: #e53e3e; font-size: 14px; font-weight: 600;">
+                          ${deadline}
+                        </td>
+                      </tr>
+                      ` : ''}
+                    </table>
+
+                    ${description ? `
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0; color: #4a5568; font-size: 14px; line-height: 1.6;">
+                        ${description}
+                      </p>
+                    </div>
+                    ` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Call to Action -->
+          <tr>
+            <td style="padding: 10px 40px 30px; text-align: center;">
+              <a href="${jobUrl}" style="display: inline-block; background-color: #5a67d8; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px; transition: background-color 0.2s;">
+                View Job & Apply
+              </a>
+            </td>
+          </tr>
+
+          <!-- Additional Info -->
+          <tr>
+            <td style="padding: 0 40px 25px;">
+              <p style="margin: 0; color: #718096; font-size: 13px; line-height: 1.6; text-align: center;">
+                Don't miss this opportunity! Log in to your dashboard to view complete details and submit your application.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f7fafc; border-top: 1px solid #e2e8f0; padding: 25px 40px; text-align: center;">
+              <p style="margin: 0 0 8px; color: #718096; font-size: 12px; line-height: 1.5;">
+                This is an automated notification from the <strong style="color: #4a5568;">PWIOI Placement Portal</strong>
+              </p>
+              <p style="margin: 0; color: #a0aec0; font-size: 11px;">
+                Posted on ${postedDate}
+              </p>
+              <p style="margin: 12px 0 0; color: #cbd5e0; font-size: 11px;">
+                If you believe this email was sent in error, please contact the placement office.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  const text = `
+New Job Opportunity: ${jobTitle} at ${companyName}
+
+Hello Student,
+
+A new job opportunity matching your profile has been posted on the placement portal.
+
+Job Details:
+- Position: ${jobTitle}
+- Company: ${companyName}
+- Location: ${location}
+- Job Type: ${jobType}
+- Compensation: ${salary}
+${driveDate ? `- Drive Date: ${driveDate}` : ''}
+${deadline ? `- Application Deadline: ${deadline}` : ''}
+
+${description ? `\nDescription:\n${description}\n` : ''}
+
+View full job details and apply: ${jobUrl}
+
+Posted on ${postedDate}
+
+This is an automated notification from PWIOI Placement Portal.
+  `.trim();
+
+  return { subject, html, text };
+}
+
 
 /**
  * Send application status update notification to student
@@ -526,7 +757,7 @@ export async function sendApplicationStatusUpdateNotification(student, job, appl
     const text = `${statusInfo.title}\n\nHello ${student.fullName || 'Student'},\n\n${statusInfo.message}\n\nJob: ${job.jobTitle}\nCompany: ${job.company?.name || 'N/A'}\nStatus: ${application.status}${application.interviewDate ? `\nInterview Date: ${new Date(application.interviewDate).toLocaleDateString()}` : ''}\n\nView your application status in your dashboard.`;
 
     const result = await sendEmail({ to: studentEmail, subject, html, text });
-    
+
     logger.info(`Application status update notification sent to ${studentEmail} for application ${application.id}`);
     return { success: true, ...result };
   } catch (error) {
@@ -546,7 +777,7 @@ export async function sendPasswordResetOTP(email, otp) {
     // FRONTEND_URL is validated at startup, so it's guaranteed to exist
     const frontendUrl = process.env.FRONTEND_URL;
     const resetPasswordUrl = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}`;
-    
+
     const subject = 'Password Reset - PWIOI Portal';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -573,7 +804,7 @@ export async function sendPasswordResetOTP(email, otp) {
     const text = `You requested to reset your password. Click here to reset: ${resetPasswordUrl}\n\nOr use this code: ${otp}. This code will expire in 10 minutes. If you didn't request a password reset, please ignore this email.`;
 
     const result = await sendEmail({ to: email, subject, html, text });
-    
+
     logger.info(`Password reset OTP email sent to ${email}`);
     return { success: true, ...result };
   } catch (error) {
@@ -602,7 +833,7 @@ export async function sendGenericNotification(email, subject, message) {
     `;
 
     const result = await sendEmail({ to: email, subject, html, text: message });
-    
+
     logger.info(`Generic notification sent to ${email}`);
     return { success: true, ...result };
   } catch (error) {
@@ -625,7 +856,7 @@ export async function sendGenericNotification(email, subject, message) {
 export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName, studentName, studentEnrollmentId, magicLink, expiresAt }) {
   try {
     const subject = `Endorsement Request from ${studentName}`;
-    
+
     // Format expiration date
     const expiresDate = new Date(expiresAt).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -635,7 +866,7 @@ export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName,
       hour: '2-digit',
       minute: '2-digit',
     });
-    
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -681,7 +912,7 @@ export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName,
         </div>
       </div>
     `;
-    
+
     const text = `
 Endorsement Request from ${studentName}
 
@@ -705,7 +936,7 @@ This is an automated email from PWIOI Placement Portal.
     `.trim();
 
     const result = await sendEmail({ to: teacherEmail, subject, html, text });
-    
+
     logger.info(`Endorsement magic link email sent to ${teacherEmail} for student ${studentName}`);
     return { success: true, ...result };
   } catch (error) {
@@ -727,7 +958,7 @@ export async function sendEndorsementRequestEmail(teacherEmail, studentName, end
     // FRONTEND_URL is validated at startup, so it's guaranteed to exist
     const frontendUrl = process.env.FRONTEND_URL;
     const fullLink = `${frontendUrl}${endorsementLink}`;
-    
+
     const subject = `Endorsement Request from ${studentName}`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -776,7 +1007,7 @@ export async function sendEndorsementRequestEmail(teacherEmail, studentName, end
         </div>
       </div>
     `;
-    
+
     const text = `
 Endorsement Request from ${studentName}
 
@@ -793,7 +1024,7 @@ This is an automated email from PWIOI Placement Portal.
     `.trim();
 
     const result = await sendEmail({ to: teacherEmail, subject, html, text });
-    
+
     logger.info(`Endorsement request email sent to ${teacherEmail} for student ${studentName}`);
     return { success: true, ...result };
   } catch (error) {
