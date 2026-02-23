@@ -15,7 +15,7 @@ export default function SuperAdminStats() {
     (async () => {
       try {
         setLoading(true);
-        const res = await api.getSuperAdminStats();
+        const res = await api.getStatsSummary();
         if (!cancelled) setStats(res);
       } catch (e) {
         console.error('Super Admin stats error:', e);
@@ -41,6 +41,9 @@ export default function SuperAdminStats() {
   const s = stats?.summary || {};
   const byCenter = stats?.byCenter || [];
   const bySchool = stats?.bySchool || [];
+  const byBatch = stats?.byBatch || [];
+  // For admins, we still use the old stats call if we need the full list, 
+  // or we can fetch them separately. For Phase 1, focus on the stats counters.
   const admins = stats?.admins || [];
 
   return (
@@ -135,9 +138,8 @@ export default function SuperAdminStats() {
                     <span className="text-sm text-gray-500 ml-2">({a.email})</span>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded text-sm ${
-                      a.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}
+                    className={`px-2 py-0.5 rounded text-sm ${a.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}
                   >
                     {a.status}
                   </span>

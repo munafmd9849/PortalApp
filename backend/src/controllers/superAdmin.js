@@ -251,3 +251,102 @@ export async function getSuperAdminStats(req, res) {
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 }
+
+/**
+ * High-performance Stats Summary (Phase 1 Optimization)
+ * Uses database aggregations instead of fetching full records.
+ */
+export async function getStatsSummary(req, res) {
+  try {
+    const [
+      totalStudents,
+      totalJobs,
+      totalApplications,
+      placedCount,
+      byCenter,
+      bySchool,
+      byBatch,
+      recruiterCount,
+      queryCount,
+      admins
+    ] = await Promise.all([
+      prisma.student.count(),
+      prisma.job.count(),
+      prisma.application.count(),
+      prisma.application.count({
+        where: {
+          OR: [
+            { status: 'SELECTED' },
+            { status: 'OFFERED' },
+            { status: 'ACCEPTED' },
+            { interviewStatus: 'SELECTED' }
+          ]
+        }
+      }),
+      prisma.student.groupBy({
+        by: ['center'],
+        _count: { _all: true }
+      }),
+      prisma.student.groupBy({
+        by: ['school'],
+        _count: { _all: true }
+      }),
+      prisma.student.groupBy({
+        by: ['batch'],
+        _count: { _all: true }
+      }),
+      prisma.user.count({
+        where: { role: 'RECRUITER', status: { in: ['ACTIVE', 'PENDING'] } }
+      }),
+      prisma.studentQuery.count({
+        where: { status: { in: ['pending', 'open', 'unresolved'] } }
+      }),
+      prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          status: true,
+          lastLoginAt: true,
+          createdAt: true,
+        }
+      })
+    ]);
+
+    res.json({
+      summary: {
+        totalStudents,
+        totalJobs,
+        totalApplications,
+        placedStudents: placedCount,
+        placementRate: totalStudents > 0 ? (placedCount / totalStudents) * 100 : 0,
+        activeRecruiters: recruiterCount,
+        pendingQueries: queryCount
+      },
+      admins: admins.map((a) => ({
+        id: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        status: a.status,
+        lastLoginAt: a.lastLoginAt,
+        createdAt: a.createdAt,
+      })),
+      byCenter: byCenter.map(c => ({
+        center: c.center || 'Unknown',
+        total: c._count._all
+      })),
+      bySchool: bySchool.map(s => ({
+        school: s.school || 'Unknown',
+        total: s._count._all
+      })),
+      byBatch: byBatch.map(b => ({
+        batch: b.batch || 'Unknown',
+        total: b._count._all
+      }))
+    });
+  } catch (error) {
+    logger.error('Get stats summary error:', error);
+    res.status(500).json({ error: 'Failed to fetch stats summary' });
+  }
+}

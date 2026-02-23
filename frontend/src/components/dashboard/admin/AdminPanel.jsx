@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,9 +15,9 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import { AgCharts } from 'ag-charts-react';
-import { 
-  FaBell, FaUserTie, FaUniversity, FaFilter, 
-  FaBuilding, FaUserGraduate, FaHandshake, 
+import {
+  FaBell, FaUserTie, FaUniversity, FaFilter,
+  FaBuilding, FaUserGraduate, FaHandshake,
   FaFileExcel, FaChartBar, FaChartLine, FaChartPie,
   FaSync, FaDownload, FaCog, FaSearch, FaUsers,
   FaIdCard, FaShare, FaCheckCircle, FaClock, FaEnvelope,
@@ -43,11 +43,11 @@ ChartJS.register(
   Filler
 );
 
-const CustomDropdown = ({ 
-  label, 
-  options, 
-  selectedValues, 
-  onSelectionChange, 
+const CustomDropdown = ({
+  label,
+  options,
+  selectedValues,
+  onSelectionChange,
   multiple = false,
   placeholder = "Select options"
 }) => {
@@ -102,11 +102,10 @@ const CustomDropdown = ({
       <div className="relative" ref={dropdownRef}>
         <button
           type="button"
-          className={`w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between transition-all duration-200 ${
-            selectedValues.length > 0 
-              ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-300' 
-              : 'bg-gray-50 border-slate-300'
-          } hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+          className={`w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between transition-all duration-200 ${selectedValues.length > 0
+            ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-300'
+            : 'bg-gray-50 border-slate-300'
+            } hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
           onClick={() => setIsOpen(prev => !prev)}
         >
           <span className="truncate flex-1">
@@ -121,7 +120,7 @@ const CustomDropdown = ({
             <FaChevronDown className={`w-3 h-3 text-slate-500 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </div>
         </button>
-        
+
         {isOpen && (
           <div className="absolute z-20 w-full bg-white border-2 border-slate-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
             {options.map((option) => {
@@ -130,9 +129,8 @@ const CustomDropdown = ({
                 <button
                   key={option.id}
                   type="button"
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-left transition-colors duration-150 ${
-                    isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                  }`}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-left transition-colors duration-150 ${isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
                   onClick={() => handleOptionClick(option)}
                 >
                   <span>{option.name}</span>
@@ -147,13 +145,13 @@ const CustomDropdown = ({
           </div>
         )}
       </div>
-      
+
       {multiple && selectedValues.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
           {selectedValues.map(value => {
             const option = options.find(opt => opt.id === value);
             return option ? (
-              <span 
+              <span
                 key={value}
                 className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs font-medium"
               >
@@ -178,7 +176,7 @@ const AdminPanel = () => {
   const { user, role } = useAuth();
   const userRole = (role || user?.role || '').toUpperCase();
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
-  
+
   const [filters, setFilters] = useState({
     campus: [],
     school: [],
@@ -197,7 +195,7 @@ const AdminPanel = () => {
     admins: []
   });
   const [loadingFilters, setLoadingFilters] = useState(true);
-  
+
   // Debounce timer for filter changes
   const debounceTimer = useRef(null);
 
@@ -206,13 +204,13 @@ const AdminPanel = () => {
     const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
-        
+
         // TODO: Replace with API call: admin API to get admin users
         // For now, use placeholder
         const admins = [];
         // Placeholder - will be replaced with actual API call
         // const admins = await api.getAdmins();
-        
+
         // Use only predefined options for schools, batches, centers
         setFilterOptions({
           campuses: [
@@ -239,11 +237,11 @@ const AdminPanel = () => {
             ...admins
           ]
         });
-        
+
         console.log('✅ AdminPanel filter options loaded (predefined only)');
       } catch (error) {
         console.error('❌ Error loading AdminPanel filter options:', error);
-        
+
         // Fallback to hardcoded options
         setFilterOptions({
           campuses: [
@@ -279,17 +277,17 @@ const AdminPanel = () => {
 
   const applyPanelData = useCallback((data) => {
     if (!data) return;
-    
+
     const placementStatus = data.chartData?.placementStatus || null;
     const monthlyTrend = data.chartData?.monthlyTrend || null;
     const adminPerformance = data.chartData?.adminPerformance || [];
-    
+
     setStatsData(data.statsData || {});
     setChartData({
       placementStatus,
       monthlyTrend
     });
-    
+
     const agChartData = adminPerformance.length ? {
       title: { text: "Admin Performance Metrics" },
       subtitle: { text: "Jobs Posted by Admin (Last 90 Days)" },
@@ -308,7 +306,7 @@ const AdminPanel = () => {
         yName: "Jobs Posted"
       }]
     } : { data: [] };
-    
+
     setAdminPerformanceData(agChartData);
     setLoading(false);
     setError(null);
@@ -330,10 +328,10 @@ const AdminPanel = () => {
   // Set up real-time data subscription
   useEffect(() => {
     console.log('🔄 Setting up real-time AdminPanel data subscription with filters:', filters);
-    
+
     setLoading(true);
     setError(null);
-    
+
     const unsubscribe = subscribeToAdminPanelData(
       (data) => {
         console.log('📊 Real-time AdminPanel data received:', data);
@@ -342,7 +340,7 @@ const AdminPanel = () => {
       filters,
       90
     );
-    
+
     // Cleanup subscription on unmount or filter change
     return () => {
       console.log('🧹 Cleaning up AdminPanel subscription');
@@ -392,12 +390,12 @@ const AdminPanel = () => {
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
-    
+
     // Set new timer
     debounceTimer.current = setTimeout(() => {
       loadAdminPanelData(filters);
     }, 300);
-    
+
     // Cleanup
     return () => {
       if (debounceTimer.current) {
@@ -406,10 +404,10 @@ const AdminPanel = () => {
     };
   }, [filters, loadAdminPanelData]);
 
-  
+
 
   // Chart options
-  const barOptions = {
+  const barOptions = useMemo(() => ({
     responsive: true,
     plugins: {
       legend: {
@@ -429,9 +427,9 @@ const AdminPanel = () => {
         }
       }
     },
-  };
+  }), []);
 
-  const lineOptions = {
+  const lineOptions = useMemo(() => ({
     responsive: true,
     plugins: {
       legend: {
@@ -451,12 +449,12 @@ const AdminPanel = () => {
         }
       }
     },
-  };
+  }), []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 overflow-x-hidden">
       <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
-        
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div className="min-w-0">
@@ -466,7 +464,7 @@ const AdminPanel = () => {
             </h1>
             <p className="text-slate-600 mt-1">Real-time placement analytics and performance metrics</p>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 md:mt-0">
             <button
               onClick={handleExportReport}
@@ -476,7 +474,7 @@ const AdminPanel = () => {
               <FaFileExcel className="w-4 h-4" />
               Export Report
             </button>
-            
+
             <button
               onClick={handleDownloadData}
               disabled={loading}
@@ -485,7 +483,7 @@ const AdminPanel = () => {
               <FaDownload className="w-4 h-4" />
               Download Data
             </button>
-            
+
             <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-400/20 to-slate-500/25 backdrop-blur-xl border border-slate-300/30 text-slate-700 rounded-lg hover:from-slate-400/30 hover:to-slate-500/35 hover:border-slate-400/40 transition-all duration-200 shadow-lg shadow-slate-200/20 hover:shadow-xl hover:shadow-slate-300/30 font-medium">
               <FaCog className="w-4 h-4" />
               Settings
@@ -517,7 +515,7 @@ const AdminPanel = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <CustomDropdown
                 label="Campus"
@@ -527,7 +525,7 @@ const AdminPanel = () => {
                 multiple={true}
                 placeholder="Select Center"
               />
-              
+
               <CustomDropdown
                 label="School"
                 options={filterOptions.schools}
@@ -536,7 +534,7 @@ const AdminPanel = () => {
                 multiple={true}
                 placeholder="Select schools"
               />
-              
+
               <CustomDropdown
                 label="Batch"
                 options={filterOptions.batches}
@@ -545,7 +543,7 @@ const AdminPanel = () => {
                 multiple={true}
                 placeholder="Select batches"
               />
-              
+
               <CustomDropdown
                 label="Admin"
                 options={filterOptions.admins}
@@ -555,7 +553,7 @@ const AdminPanel = () => {
                 placeholder="Select admins"
               />
             </div>
-            
+
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={resetFilters}
@@ -594,7 +592,7 @@ const AdminPanel = () => {
               <FaUserGraduate className="text-4xl text-blue-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-emerald-400/20 to-emerald-500/25 backdrop-blur-xl border border-emerald-300/30 rounded-xl shadow-lg shadow-emerald-200/20 p-6 hover:shadow-xl hover:shadow-emerald-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -604,7 +602,7 @@ const AdminPanel = () => {
               <FaCheckCircle className="text-4xl text-emerald-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-green-400/20 to-green-500/25 backdrop-blur-xl border border-green-300/30 rounded-xl shadow-lg shadow-green-200/20 p-6 hover:shadow-xl hover:shadow-green-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -614,7 +612,7 @@ const AdminPanel = () => {
               <FaCheckCircle className="text-4xl text-green-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-purple-400/20 to-purple-500/25 backdrop-blur-xl border border-purple-300/30 rounded-xl shadow-lg shadow-purple-200/20 p-6 hover:shadow-xl hover:shadow-purple-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -624,7 +622,7 @@ const AdminPanel = () => {
               <FaChartLine className="text-4xl text-purple-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-orange-400/20 to-orange-500/25 backdrop-blur-xl border border-orange-300/30 rounded-xl shadow-lg shadow-orange-200/20 p-6 hover:shadow-xl hover:shadow-orange-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -634,7 +632,7 @@ const AdminPanel = () => {
               <FaBriefcase className="text-4xl text-orange-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-teal-400/20 to-teal-500/25 backdrop-blur-xl border border-teal-300/30 rounded-xl shadow-lg shadow-teal-200/20 p-6 hover:shadow-xl hover:shadow-teal-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -644,7 +642,7 @@ const AdminPanel = () => {
               <FaUserTie className="text-4xl text-teal-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-red-400/20 to-red-500/25 backdrop-blur-xl border border-red-300/30 rounded-xl shadow-lg shadow-red-200/20 p-6 hover:shadow-xl hover:shadow-red-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -654,7 +652,7 @@ const AdminPanel = () => {
               <FaBell className="text-4xl text-red-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-indigo-400/20 to-indigo-500/25 backdrop-blur-xl border border-indigo-300/30 rounded-xl shadow-lg shadow-indigo-200/20 p-6 hover:shadow-xl hover:shadow-indigo-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -664,7 +662,7 @@ const AdminPanel = () => {
               <FaHandshake className="text-4xl text-indigo-500/70" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-pink-400/20 to-pink-500/25 backdrop-blur-xl border border-pink-300/30 rounded-xl shadow-lg shadow-pink-200/20 p-6 hover:shadow-xl hover:shadow-pink-300/30 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -678,7 +676,7 @@ const AdminPanel = () => {
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
+
           {/* Admin Performance Chart */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
             <div className="flex items-center gap-3 mb-6">
@@ -703,13 +701,15 @@ const AdminPanel = () => {
               <h3 className="text-xl font-semibold text-slate-800">Placement Status Distribution</h3>
             </div>
             <div className="h-80">
-              {chartData.placementStatus ? (
-                <Bar data={chartData.placementStatus} options={barOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-slate-500">
-                  {loading ? 'Loading chart data...' : 'No data available'}
-                </div>
-              )}
+              {useMemo(() => (
+                chartData.placementStatus ? (
+                  <Bar data={chartData.placementStatus} options={barOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-500">
+                    {loading ? 'Loading chart data...' : 'No data available'}
+                  </div>
+                )
+              ), [chartData.placementStatus, barOptions, loading])}
             </div>
           </div>
         </div>
@@ -721,13 +721,15 @@ const AdminPanel = () => {
             <h3 className="text-xl font-semibold text-slate-800">Monthly Placement Trend</h3>
           </div>
           <div className="h-80">
-            {chartData.monthlyTrend ? (
-              <Line data={chartData.monthlyTrend} options={lineOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-slate-500">
-                {loading ? 'Loading chart data...' : 'No data available'}
-              </div>
-            )}
+            {useMemo(() => (
+              chartData.monthlyTrend ? (
+                <Line data={chartData.monthlyTrend} options={lineOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-500">
+                  {loading ? 'Loading chart data...' : 'No data available'}
+                </div>
+              )
+            ), [chartData.monthlyTrend, lineOptions, loading])}
           </div>
         </div>
 

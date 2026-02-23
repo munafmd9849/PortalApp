@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleek Minimal Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcfcfc;
+            color: #111827;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 2rem 0;
+            width: 100%;
+        }
+
+        .badge {
+            background: #f3f4f6;
+            color: #374151;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen">
+    <main class="max-w-3xl mx-auto px-6 py-16 md:py-24">
+        <!-- Header -->
+        <header class="flex flex-col-reverse md:flex-row md:items-center justify-between gap-8 mb-12">
+            <div>
+                <h1 class="text-4xl font-bold tracking-tight mb-2">Charan Sai</h1>
+                <p class="text-xl text-gray-500 mb-6">Full Stack Developer & AI Enthusiast</p>
+                <div class="flex flex-wrap gap-4 text-sm text-gray-600">
+                    <span class="flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg> Bangalore, India</span>
+                    <a href="mailto:charansai82140@gmail.com"
+                        class="hover:text-black transition flex items-center gap-1"><svg class="w-4 h-4" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg> Email</a>
+                    <a href="#" class="hover:text-black transition flex items-center gap-1">LinkedIn</a>
+                    <a href="#" class="hover:text-black transition flex items-center gap-1">GitHub</a>
+                </div>
+            </div>
+            <img src="https://ui-avatars.com/api/?name=Charan+Sai&size=256&background=111827&color=fff" alt="Profile"
+                class="w-32 h-32 rounded-full object-cover">
+        </header>
+
+        <!-- About -->
+        <section class="mb-12">
+            <h2 class="text-xl font-semibold mb-4">About</h2>
+            <p class="text-gray-600 leading-relaxed text-lg">A comprehensive campus placement management system builder
+                and full-stack developer passionate about building scalable web applications. Focus on distributed
+                systems and machine learning.</p>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Experience / Projects -->
+        <section class="mb-12">
+            <h2 class="text-xl font-semibold mb-6">Selected Projects</h2>
+            <div class="space-y-8">
+                <div>
+                    <div class="flex justify-between items-baseline mb-2">
+                        <h3 class="text-lg font-medium">Portal App</h3>
+                        <a href="#" class="text-sm text-gray-500 hover:text-black">View Project ↗</a>
+                    </div>
+                    <p class="text-gray-600 mb-3">A comprehensive campus placement management system built with React
+                        and Node.js.</p>
+                    <div class="flex gap-2">
+                        <span class="badge">React</span><span class="badge">Node.js</span><span
+                            class="badge">PostgreSQL</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Skills -->
+        <section class="mb-12">
+            <h2 class="text-xl font-semibold mb-6">Skills</h2>
+            <div class="flex flex-wrap gap-2">
+                <span class="badge">React.js</span>
+                <span class="badge">Node.js</span>
+                <span class="badge">Python</span>
+                <span class="badge">Docker</span>
+                <span class="badge">PostgreSQL</span>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Education -->
+        <section>
+            <h2 class="text-xl font-semibold mb-6">Education</h2>
+            <div class="space-y-6">
+                <div>
+                    <div class="flex justify-between items-baseline mb-1">
+                        <h3 class="text-lg font-medium">National Institute of Technology, Warangal</h3>
+                        <span class="text-gray-500 text-sm">2020 - 2024</span>
+                    </div>
+                    <p class="text-gray-600">B.Tech CPU • 8.5 CGPA</p>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

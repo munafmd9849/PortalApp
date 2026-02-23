@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Floating Glass Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0d0f1a;
+            color: #ffffff;
+            overflow-x: hidden;
+            perspective: 1000px;
+        }
+
+        .bg-shapes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .shape-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50vw;
+            height: 50vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(60px);
+            animation: float 20s infinite alternate;
+        }
+
+        .shape-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 60vw;
+            height: 60vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(80px);
+            animation: float 25s infinite alternate-reverse;
+        }
+
+        .shape-3 {
+            position: absolute;
+            top: 30%;
+            left: 40%;
+            width: 40vw;
+            height: 40vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(100px);
+            animation: float 30s infinite alternate;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            100% {
+                transform: translate(100px, 50px);
+            }
+        }
+
+        .floating-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 1px 0 0 rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.5s;
+        }
+
+        .floating-card:hover {
+            transform: translateY(-10px) rotateX(5deg) rotateY(-5deg);
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 1px 0 0 rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .floating-orb {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            filter: blur(20px);
+            opacity: 0.6;
+            z-index: -1;
+            transition: all 0.5s;
+        }
+
+        .floating-card:hover .floating-orb {
+            transform: scale(1.2);
+            opacity: 0.8;
+        }
+
+        .text-glow {
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 999px;
+            transition: all 0.3s;
+        }
+
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen p-6 md:p-12 lg:p-24 pb-32">
+
+    <!-- Animated Bg -->
+    <div class="bg-shapes">
+        <div class="shape-1"></div>
+        <div class="shape-2"></div>
+        <div class="shape-3"></div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+        <!-- Hero Card (Spans full initially, wraps on large) -->
+        <div
+            class="lg:col-span-12 floating-card p-10 md:p-16 relative overflow-visible z-10 flex flex-col md:flex-row items-center md:items-start gap-10">
+            <div class="floating-orb"></div>
+
+            <div class="relative shrink-0 perspective-1000">
+                <div
+                    class="w-48 h-48 rounded-3xl p-1 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-2xl transform rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-500">
+                    <img src="https://ui-avatars.com/api/?name=Charan+Sai&size=512&background=0d0f1a&color=fff"
+                        alt="Profile" class="w-full h-full rounded-3xl object-cover border border-white/10 bg-black/50">
+                </div>
+            </div>
+
+            <div class="flex-1 text-center md:text-left z-10 mt-4 md:mt-0">
+                <div
+                    class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/80 text-sm font-semibold tracking-wide uppercase mb-6 backdrop-blur-md">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]"></span> Open to Work
+                </div>
+
+                <h1
+                    class="text-6xl md:text-8xl font-black tracking-tight mb-2 text-glow bg-clip-text text-transparent bg-gradient-to-r from-white to-white/50 pb-2">
+                    Charan.</h1>
+                <p class="text-2xl md:text-3xl font-medium text-white/70 mb-8 max-w-2xl leading-tight">Software Engineer
+                    building robust distributed systems and <span class="text-white">AI-driven</span> web platforms.</p>
+
+                <div class="flex flex-wrap justify-center md:justify-start gap-5">
+                    <a href="mailto:charansai82140@gmail.com"
+                        class="btn-glass px-8 py-4 font-bold tracking-wide flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg> Reach Out
+                    </a>
+                    <a href="https://github.com/charansai0108"
+                        class="btn-glass px-8 py-4 font-bold tracking-wide flex items-center gap-3 bg-white/5">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        </svg> GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meta info columns -->
+        <div class="lg:col-span-4 space-y-10">
+            <!-- Tech Stack -->
+            <div class="floating-card p-8 h-full">
+                <h3 class="text-xl font-bold mb-6 text-white/90">Tech Stack</h3>
+                <div class="flex flex-wrap gap-3">
+                    <span
+                        class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold backdrop-blur-md">React.js</span>
+                    <span
+                        class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold backdrop-blur-md">Node.js</span>
+                    <span
+                        class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold backdrop-blur-md">Python</span>
+                    <span
+                        class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold backdrop-blur-md">Docker</span>
+                    <span
+                        class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold backdrop-blur-md">PostgreSQL</span>
+                </div>
+
+                <h3 class="text-xl font-bold mt-10 mb-6 text-white/90">Education</h3>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+                    <h4 class="font-bold text-lg mb-1">NIT Warangal</h4>
+                    <p class="text-white/60 text-sm mb-3">B.Tech CPU (2020-2024)</p>
+                    <div
+                        class="px-3 py-1 bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 rounded inline-block text-sm">
+                        8.5 CGPA</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects Column -->
+        <div class="lg:col-span-8 space-y-10">
+            <!-- Projects Layout -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+                <!-- Card 1 -->
+                <div class="floating-card p-8 group relative overflow-hidden flex flex-col h-full">
+                    <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 z-0"></div>
+                    <div class="relative z-10 flex flex-col h-full">
+                        <div class="flex justify-between items-start mb-6">
+                            <h3 class="text-3xl font-bold tracking-tight">Portal <br>App.</h3>
+                            <a href="https://github.com/charansai0108/PORTAL"
+                                class="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-colors backdrop-blur-md transform group-hover:rotate-45 duration-300">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                </svg>
+                            </a>
+                        </div>
+                        <p class="text-white/60 mb-8 flex-1">A comprehensive campus placement management system scaling
+                            to thousands of concurrent student requests.</p>
+                        <div class="flex gap-4">
+                            <div class="text-xs uppercase tracking-widest font-bold text-white/40">React</div>
+                            <div class="text-xs uppercase tracking-widest font-bold text-white/40">Node.js</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="floating-card p-8 group relative overflow-hidden flex flex-col h-full">
+                    <div class="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-rose-500/10 z-0"></div>
+                    <div class="relative z-10 flex flex-col h-full">
+                        <div class="flex justify-between items-start mb-6">
+                            <h3 class="text-3xl font-bold tracking-tight">AI Image <br>Gen.</h3>
+                            <a href="https://github.com/example/ai-image"
+                                class="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-colors backdrop-blur-md transform group-hover:rotate-45 duration-300">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                </svg>
+                            </a>
+                        </div>
+                        <p class="text-white/60 mb-8 flex-1">A scalable web app leveraging the Stable Diffusion API to
+                            generate dynamic images from advanced text prompts.</p>
+                        <div class="flex gap-4">
+                            <div class="text-xs uppercase tracking-widest font-bold text-white/40">Python</div>
+                            <div class="text-xs uppercase tracking-widest font-bold text-white/40">Flask</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+</body>
+
+</html>

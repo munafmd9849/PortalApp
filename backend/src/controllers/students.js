@@ -186,7 +186,7 @@ export async function getStudentProfile(req, res) {
       meta: error.meta,
       stack: error.stack,
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to get student profile',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -202,7 +202,7 @@ export async function updateStudentProfile(req, res) {
     const userId = req.userId;
     const profileData = req.body;
     const userRole = req.user?.role;
-    
+
     // For admin users, allow updating other students' profiles if studentId is provided
     let targetUserId = userId;
     if (userRole === 'ADMIN' && profileData.studentId) {
@@ -218,7 +218,7 @@ export async function updateStudentProfile(req, res) {
       // Remove studentId from profileData as it's not a student field
       delete profileData.studentId;
     }
-    
+
     const hasProfilePhotoField = Object.prototype.hasOwnProperty.call(profileData, 'profilePhoto');
     const rawProfilePhoto = hasProfilePhotoField ? profileData.profilePhoto : undefined;
     const trimmedProfilePhoto =
@@ -278,7 +278,7 @@ export async function updateStudentProfile(req, res) {
         if (typeof value === 'string') {
           value = value.trim();
           const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 'backlogs',
-                                 'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
+            'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
           if (value === '' && optionalFields.includes(mappedKey)) {
             cleanData[mappedKey] = null;
             return;
@@ -286,7 +286,7 @@ export async function updateStudentProfile(req, res) {
           if (value === '') {
             return;
           }
-          
+
           // Special handling for CGPA: preserve exact decimal value without rounding
           if (mappedKey === 'cgpa') {
             // If value is empty string, set to null (optional field)
@@ -294,7 +294,7 @@ export async function updateStudentProfile(req, res) {
               cleanData[mappedKey] = null;
               return;
             }
-            
+
             // Validate CGPA format: 0.00 to 10.00 with EXACTLY 2 decimal places
             const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
             if (!cgpaRegex.test(value)) {
@@ -311,33 +311,33 @@ export async function updateStudentProfile(req, res) {
               console.warn(`Invalid CGPA format: ${value}. Expected format: 0.00-10.00 with exactly 2 decimal places (e.g., 9.00, 8.75).`);
               return; // Skip invalid CGPA values
             }
-            
+
             // Validate range without using parseFloat to avoid rounding errors
             const parts = value.split('.');
             const integerPart = parseInt(parts[0], 10);
             const decimalPart = parseInt(parts[1], 10);
-            
+
             if (isNaN(integerPart) || isNaN(decimalPart)) {
               console.warn(`Invalid CGPA format: ${value}. Expected format: 0.00-10.00 with exactly 2 decimal places.`);
               return;
             }
-            
+
             if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
               console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
               return; // Skip out-of-range values
             }
-            
+
             if (integerPart < 0) {
               console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
               return; // Skip out-of-range values
             }
-            
+
             // Store as Decimal (Prisma will handle conversion)
             // Use the exact string value to avoid floating point precision issues
             cleanData[mappedKey] = new Prisma.Decimal(value);
             return;
           }
-          
+
           if (urlFields.includes(mappedKey) && !value.startsWith('http://') && !value.startsWith('https://')) {
             value = 'https://' + value;
           }
@@ -345,34 +345,34 @@ export async function updateStudentProfile(req, res) {
         } else if (mappedKey === 'cgpa' && (typeof value === 'number' || value instanceof Number)) {
           // Handle CGPA as number: convert to string with exactly 2 decimal places, then to Decimal
           const cgpaStr = value.toFixed(2);
-          
+
           // Validate format has exactly 2 decimal places
           const cgpaRegex = /^(10\.00|[0-9]\.[0-9]{2})$/;
           if (!cgpaRegex.test(cgpaStr)) {
             console.warn(`Invalid CGPA format from number: ${value}. Converted to ${cgpaStr} but format is invalid.`);
             return;
           }
-          
+
           // Validate range without using parseFloat to avoid rounding errors
           const parts = cgpaStr.split('.');
           const integerPart = parseInt(parts[0], 10);
           const decimalPart = parseInt(parts[1], 10);
-          
+
           if (isNaN(integerPart) || isNaN(decimalPart)) {
             console.warn(`Invalid CGPA format from number: ${value}.`);
             return;
           }
-          
+
           if (integerPart > 10 || (integerPart === 10 && decimalPart > 0)) {
             console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
             return;
           }
-          
+
           if (integerPart < 0) {
             console.warn(`CGPA out of range: ${value}. Must be between 0.00 and 10.00.`);
             return;
           }
-          
+
           cleanData[mappedKey] = new Prisma.Decimal(cgpaStr);
         } else {
           cleanData[mappedKey] = value;
@@ -414,7 +414,7 @@ export async function updateStudentProfile(req, res) {
 
       // Sync coding profiles if any (don't fail creation if sync fails)
       if (cleanData.linkedin || cleanData.githubUrl || cleanData.youtubeUrl ||
-          cleanData.leetcode || cleanData.codeforces || cleanData.gfg || cleanData.hackerrank) {
+        cleanData.leetcode || cleanData.codeforces || cleanData.gfg || cleanData.hackerrank) {
         try {
           await syncCodingProfiles(targetUserId, cleanData);
         } catch (syncError) {
@@ -433,15 +433,15 @@ export async function updateStudentProfile(req, res) {
     };
 
     // List of allowed Student model fields (exclude relations, computed fields)
-      const allowedFields = [
-        'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
-        'batch', 'center', 'school',
-        'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
-        'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
-        'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
-        'statsApplied', 'statsShortlisted', 'statsInterviewed', 'statsOffers',
-        'emailNotificationsDisabled'
-      ];
+    const allowedFields = [
+      'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
+      'batch', 'center', 'school',
+      'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
+      'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
+      'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
+      'statsApplied', 'statsShortlisted', 'statsInterviewed', 'statsOffers',
+      'emailNotificationsDisabled'
+    ];
 
     // URL fields that need normalization
     const urlFields = ['linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank'];
@@ -452,42 +452,42 @@ export async function updateStudentProfile(req, res) {
     Object.keys(profileData).forEach(key => {
       // Map field name if needed
       const mappedKey = fieldMapping[key] !== undefined ? fieldMapping[key] : key;
-      
+
       // Skip if mapped to null (field not in Student model)
       if (mappedKey === null) {
         return;
       }
-      
+
       // Skip if field not in allowed list
       if (!allowedFields.includes(mappedKey)) {
         return;
       }
-      
+
       let value = profileData[key];
-      
+
       // Skip undefined/null values
       if (value === undefined || value === null) {
         return;
       }
-      
+
       // Handle string values
       if (typeof value === 'string') {
         value = value.trim();
-        
+
         // For empty strings in optional fields, set to null (skip for required fields)
         const optionalFields = ['bio', 'headline', 'city', 'stateRegion', 'jobFlexibility', 'backlogs',
-                               'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
-        
+          'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank', 'cgpa'];
+
         if (value === '' && optionalFields.includes(mappedKey)) {
           cleanData[mappedKey] = null;
           return;
         }
-        
+
         // Skip empty strings for required fields (don't update them)
         if (value === '') {
           return;
         }
-        
+
         // Special handling for CGPA: preserve exact decimal value without rounding
         if (mappedKey === 'cgpa') {
           // Validate CGPA format: 0.00 to 10.00 with exactly 2 decimal places
@@ -506,12 +506,12 @@ export async function updateStudentProfile(req, res) {
           cleanData[mappedKey] = new Prisma.Decimal(value);
           return;
         }
-        
+
         // Normalize URLs (only for URL fields with non-empty values)
         if (urlFields.includes(mappedKey) && !value.startsWith('http://') && !value.startsWith('https://')) {
           value = 'https://' + value;
         }
-        
+
         cleanData[mappedKey] = value;
       } else if (mappedKey === 'cgpa' && (typeof value === 'number' || value instanceof Number)) {
         // Handle CGPA as number: convert to string with 2 decimal places, then to Decimal
@@ -644,7 +644,7 @@ export async function updateStudentProfile(req, res) {
 
     // Sync coding profiles if any (don't fail update if sync fails)
     if (profileData.linkedin || profileData.githubUrl || profileData.youtubeUrl ||
-        profileData.leetcode || profileData.codeforces || profileData.gfg || profileData.hackerrank) {
+      profileData.leetcode || profileData.codeforces || profileData.gfg || profileData.hackerrank) {
       try {
         await syncCodingProfiles(targetUserId, profileData);
       } catch (syncError) {
@@ -664,14 +664,14 @@ export async function updateStudentProfile(req, res) {
       userId: req.userId,
       profileDataKeys: Object.keys(req.body || {}),
     });
-    
+
     // Provide more specific error messages
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Student profile not found for update' });
     }
     if (error.code === 'P2002') {
       const field = error.meta?.target?.join(', ') || 'field';
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Profile update failed: A student with this ${field} already exists`,
         field: error.meta?.target?.[0]
       });
@@ -679,12 +679,12 @@ export async function updateStudentProfile(req, res) {
     if (error.code === 'P2003') {
       return res.status(400).json({ error: 'Invalid data provided for a relationship field' });
     }
-    
+
     // Log the actual error for debugging
     const errorMessage = error.message || 'Unknown error';
     console.error('Profile update failed with error:', errorMessage);
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Failed to update profile',
       details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
@@ -774,11 +774,11 @@ export async function addOrUpdateSkill(req, res) {
 
     // Check if this is a new skill (not updating existing) - using in-memory check for limit validation
     const existingSkillInMemory = student.skills.find(s => s.skillName === normalizedSkillName);
-    
+
     // If adding a new skill (not updating), check the limit
     if (!existingSkillInMemory && student.skills.length >= 8) {
-      return res.status(400).json({ 
-        error: 'Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.' 
+      return res.status(400).json({
+        error: 'Maximum limit reached. You can only add up to 8 skills. Please delete a skill before adding a new one.'
       });
     }
 
@@ -827,24 +827,24 @@ export async function addOrUpdateSkill(req, res) {
       meta: error.meta,
       stack: error.stack?.substring(0, 500), // First 500 chars of stack
     });
-    
+
     // Handle Prisma unique constraint error (if skill already exists with different casing)
     if (error.code === 'P2002') {
       console.error('❌ [addOrUpdateSkill] Unique constraint violation');
       return res.status(400).json({ error: 'A skill with this name already exists.' });
     }
-    
+
     // Handle Prisma validation errors
     if (error.code && error.code.startsWith('P')) {
       console.error('❌ [addOrUpdateSkill] Prisma error:', error.code);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Database error occurred',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    
+
     console.error('❌ [addOrUpdateSkill] Unknown error, returning 500');
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to update skill',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -889,130 +889,62 @@ export async function getAllStudents(req, res) {
     const limitNum = Math.min(1000, Math.max(1, requestedLimit)); // Max 1000, min 1
 
     const where = {};
-    if (school) where.school = school;
-    if (center) where.center = center;
-    if (batch) where.batch = batch;
-    // Note: status filtering would require joining with User table
-    // For now, we'll filter in-memory after fetching
+    if (school) where.school = { in: school.split(',').map(s => s.trim()) };
+    if (center) where.center = { in: center.split(',').map(c => c.trim()) };
+    if (batch) where.batch = { in: batch.split(',').map(b => b.trim()) };
+
+    // MOVE: Status filtering from in-memory to Prisma JOIN
+    if (status) {
+      where.user = { status: status };
+    }
 
     console.log('📊 getAllStudents - Executing Prisma query...');
-    console.log('   Where clause:', where);
+    console.log('   Where clause:', JSON.stringify(where, null, 2));
     console.log('   Pagination:', { page: pageNum, limit: limitNum });
 
-    // FIX 1: Wrap Prisma query in try-catch for relation loading
-    // FIX 2: Use defensive approach - handle missing user relations gracefully
-    let students = [];
-    let totalCount = 0;
-
-    try {
-      // Try to fetch with include first
-      [students, totalCount] = await Promise.all([
-        prisma.student.findMany({
-          where,
-          skip: (pageNum - 1) * limitNum,
-          take: limitNum,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            user: {
-              select: {
-                status: true,
-                emailVerified: true,
-                createdAt: true,
-                blockInfo: true,
-              },
+    const [students, totalCount] = await Promise.all([
+      prisma.student.findMany({
+        where,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              status: true,
+              emailVerified: true,
+              createdAt: true,
+              blockInfo: true,
             },
           },
-        }),
-        prisma.student.count({ where }),
-      ]);
-    } catch (queryError) {
-      // FIX 3: If include fails (e.g., missing user records), try without include
-      console.warn('⚠️ Query with include failed, trying without include:', queryError.message);
-      
-      try {
-        [students, totalCount] = await Promise.all([
-          prisma.student.findMany({
-            where,
-            skip: (pageNum - 1) * limitNum,
-            take: limitNum,
-            orderBy: { createdAt: 'desc' },
-          }),
-          prisma.student.count({ where }),
-        ]);
-
-        // FIX 4: Manually load user data for students (if needed)
-        // Only load user data if status filter is requested
-        if (status && students.length > 0) {
-          const userIds = students.map(s => s.userId).filter(Boolean);
-          if (userIds.length > 0) {
-            const users = await prisma.user.findMany({
-              where: { id: { in: userIds } },
-              select: {
-                id: true,
-                status: true,
-                emailVerified: true,
-                createdAt: true,
-                blockInfo: true,
-              },
-            });
-
-            // Map users to students
-            const userMap = new Map(users.map(u => [u.id, u]));
-            students = students.map(student => ({
-              ...student,
-              user: userMap.get(student.userId) || null,
-            }));
-          } else {
-            // No userIds found, add null user to all students
-            students = students.map(student => ({
-              ...student,
-              user: null,
-            }));
-          }
-        } else {
-          // No status filter, add null user placeholder
-          students = students.map(student => ({
-            ...student,
-            user: null,
-          }));
-        }
-      } catch (fallbackError) {
-        console.error('❌ Fallback query also failed:', fallbackError);
-        throw fallbackError; // Re-throw to be caught by outer catch
-      }
-    }
+        },
+      }),
+      prisma.student.count({ where }),
+    ]);
 
     console.log('✅ getAllStudents - Query successful');
     console.log('   Found students:', students.length);
     console.log('   Total count:', totalCount);
 
-    // FIX 5: Filter by status if provided (in-memory filtering with null-safe check)
-    let filteredStudents = students;
-    if (status) {
-      filteredStudents = students.filter(s => s.user?.status === status);
-      console.log('   Filtered by status:', status, '->', filteredStudents.length, 'students');
-    }
-
     // FIX 6: Calculate total pages safely (prevent division by zero)
-    const total = status ? filteredStudents.length : totalCount;
-    const totalPages = limitNum > 0 ? Math.ceil(total / limitNum) : 0;
+    const totalPages = limitNum > 0 ? Math.ceil(totalCount / limitNum) : 0;
 
     // FIX 7: Ensure all students have safe default values for user relation
     // FIX 8: Ensure dates are serializable (convert to ISO strings)
-    const safeStudents = filteredStudents.map(student => {
+    const safeStudents = students.map(student => {
       // Prepare user object with safe defaults and serialized dates
       const user = student.user ? {
         status: student.user.status || 'ACTIVE',
         emailVerified: student.user.emailVerified || false,
-        createdAt: student.user.createdAt 
-          ? new Date(student.user.createdAt).toISOString() 
+        createdAt: student.user.createdAt
+          ? new Date(student.user.createdAt).toISOString()
           : (student.createdAt ? new Date(student.createdAt).toISOString() : new Date().toISOString()),
         blockInfo: student.user.blockInfo || null,
       } : {
         status: 'ACTIVE',
         emailVerified: false,
-        createdAt: student.createdAt 
-          ? new Date(student.createdAt).toISOString() 
+        createdAt: student.createdAt
+          ? new Date(student.createdAt).toISOString()
           : new Date().toISOString(),
         blockInfo: null,
       };
@@ -1021,11 +953,11 @@ export async function getAllStudents(req, res) {
       return {
         ...student,
         user,
-        createdAt: student.createdAt 
-          ? new Date(student.createdAt).toISOString() 
+        createdAt: student.createdAt
+          ? new Date(student.createdAt).toISOString()
           : new Date().toISOString(),
-        updatedAt: student.updatedAt 
-          ? new Date(student.updatedAt).toISOString() 
+        updatedAt: student.updatedAt
+          ? new Date(student.updatedAt).toISOString()
           : new Date().toISOString(),
       };
     });
@@ -1035,7 +967,7 @@ export async function getAllStudents(req, res) {
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total: total,
+        total: totalCount,
         totalPages: totalPages,
       },
     };
@@ -1057,13 +989,13 @@ export async function getAllStudents(req, res) {
       console.error('Error stack:', error.stack.split('\n').slice(0, 15).join('\n'));
     }
     console.error('========================================');
-    
+
     // Send detailed error in development, generic in production
     const isDev = process.env.NODE_ENV !== 'production';
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to get students',
       message: isDev ? error.message : 'An error occurred while fetching students',
-      ...(isDev && { 
+      ...(isDev && {
         details: error.stack?.split('\n').slice(0, 5),
         code: error.code,
         meta: error.meta,
@@ -1103,17 +1035,17 @@ export async function uploadResume(req, res) {
       console.error('S3 upload error:', s3Error);
       // Check for common S3 errors
       if (s3Error.name === 'CredentialsProviderError' || s3Error.message?.includes('credentials')) {
-        return res.status(500).json({ 
-          error: 'S3 configuration error: AWS credentials are missing or invalid. Please check server configuration.' 
+        return res.status(500).json({
+          error: 'S3 configuration error: AWS credentials are missing or invalid. Please check server configuration.'
         });
       }
       if (s3Error.name === 'NoSuchBucket' || s3Error.message?.includes('bucket')) {
-        return res.status(500).json({ 
-          error: 'S3 configuration error: Bucket not found. Please check S3_BUCKET_NAME configuration.' 
+        return res.status(500).json({
+          error: 'S3 configuration error: Bucket not found. Please check S3_BUCKET_NAME configuration.'
         });
       }
-      return res.status(500).json({ 
-        error: `Failed to upload to storage: ${s3Error.message || 'Unknown error'}` 
+      return res.status(500).json({
+        error: `Failed to upload to storage: ${s3Error.message || 'Unknown error'}`
       });
     }
 
@@ -1132,8 +1064,8 @@ export async function uploadResume(req, res) {
       });
     } catch (dbError) {
       console.error('Database error:', dbError);
-      return res.status(500).json({ 
-        error: `Failed to save resume record: ${dbError.message || 'Database error'}` 
+      return res.status(500).json({
+        error: `Failed to save resume record: ${dbError.message || 'Database error'}`
       });
     }
 
@@ -1146,8 +1078,8 @@ export async function uploadResume(req, res) {
     });
   } catch (error) {
     console.error('Upload resume error:', error);
-    res.status(500).json({ 
-      error: `Failed to upload resume: ${error.message || 'Unknown error'}` 
+    res.status(500).json({
+      error: `Failed to upload resume: ${error.message || 'Unknown error'}`
     });
   }
 }
@@ -1223,7 +1155,7 @@ export async function uploadProfileImage(req, res) {
     // Manual upload returns: secure_url, url, public_id, bytes, etc.
     const newImageUrl = file.secure_url || file.url;
     const newPublicId = file.public_id;
-    
+
     console.log('📥 [Controller] Cloudinary upload result:', {
       hasSecureUrl: !!file.secure_url,
       hasUrl: !!file.url,
@@ -1239,8 +1171,8 @@ export async function uploadProfileImage(req, res) {
         hasPublicId: !!file.public_id,
         fileKeys: Object.keys(file),
       });
-      return res.status(500).json({ 
-        error: 'File upload failed. Cloudinary did not return a valid URL or public ID. Please try again.' 
+      return res.status(500).json({
+        error: 'File upload failed. Cloudinary did not return a valid URL or public ID. Please try again.'
       });
     }
 
@@ -1272,8 +1204,8 @@ export async function uploadProfileImage(req, res) {
     });
   } catch (error) {
     console.error('Upload profile image error:', error);
-    res.status(500).json({ 
-      error: `Failed to upload profile image: ${error.message || 'Unknown error'}` 
+    res.status(500).json({
+      error: `Failed to upload profile image: ${error.message || 'Unknown error'}`
     });
   }
 }
@@ -1347,8 +1279,8 @@ export async function deleteProfileImage(req, res) {
     });
   } catch (error) {
     console.error('❌ [Controller] Delete profile image error:', error);
-    res.status(500).json({ 
-      error: `Failed to delete profile image: ${error.message || 'Unknown error'}` 
+    res.status(500).json({
+      error: `Failed to delete profile image: ${error.message || 'Unknown error'}`
     });
   }
 }
@@ -1388,8 +1320,8 @@ export async function uploadResumeCloudinary(req, res) {
         hasPath: !!file.path,
         fileKeys: Object.keys(file),
       });
-      return res.status(400).json({ 
-        error: 'File upload failed. Cloudinary upload did not complete successfully. Please try again.' 
+      return res.status(400).json({
+        error: 'File upload failed. Cloudinary upload did not complete successfully. Please try again.'
       });
     }
 
@@ -1437,8 +1369,8 @@ export async function uploadResumeCloudinary(req, res) {
     });
   } catch (error) {
     console.error('Upload resume error:', error);
-    res.status(500).json({ 
-      error: `Failed to upload resume: ${error.message || 'Unknown error'}` 
+    res.status(500).json({
+      error: `Failed to upload resume: ${error.message || 'Unknown error'}`
     });
   }
 }
@@ -1580,7 +1512,7 @@ export async function deleteResume(req, res) {
       errorMessage: error.message,
       errorStack: error.stack
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to delete resume',
       message: error.message || 'An unexpected error occurred while deleting the resume'
     });
@@ -2110,7 +2042,7 @@ export async function generateProjectContentEndpoint(req, res) {
     res.json(aiContent);
   } catch (error) {
     console.error('Generate project content error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate project content',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -2234,9 +2166,9 @@ export async function extractResumeText(req, res) {
       pdfBuffer = Buffer.from(arrayBuffer);
     } catch (fetchError) {
       console.error('Error fetching PDF:', fetchError);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Failed to fetch PDF from URL',
-        details: fetchError.message 
+        details: fetchError.message
       });
     }
 
@@ -2245,17 +2177,17 @@ export async function extractResumeText(req, res) {
     try {
       const pdfData = await pdfParse(pdfBuffer);
       resumeText = pdfData.text;
-      
+
       if (!resumeText || resumeText.trim().length === 0) {
-        return res.status(400).json({ 
-          error: 'No text could be extracted from PDF. The PDF might be image-based (scanned) or contain only images.' 
+        return res.status(400).json({
+          error: 'No text could be extracted from PDF. The PDF might be image-based (scanned) or contain only images.'
         });
       }
     } catch (parseError) {
       console.error('Error parsing PDF:', parseError);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Failed to parse PDF',
-        details: parseError.message 
+        details: parseError.message
       });
     }
 
@@ -2268,7 +2200,7 @@ export async function extractResumeText(req, res) {
     });
   } catch (error) {
     console.error('Extract resume text error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to extract text from resume',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -2322,7 +2254,7 @@ export async function analyzeATSResume(req, res) {
 
     // Check if this is AI-generated or fallback
     const isAI = analysis.isAI !== false; // Default to true if not specified, false only if explicitly set
-    
+
     // Return formatted response
     res.json({
       success: true,
@@ -2344,10 +2276,10 @@ export async function analyzeATSResume(req, res) {
     console.error('❌ [analyzeATSResume] Error:', error);
     console.error('❌ [analyzeATSResume] Error message:', error.message);
     console.error('❌ [analyzeATSResume] Error stack:', error.stack);
-    
+
     // Handle specific error types
     if (error.message.includes('not configured') || error.message.includes('not available')) {
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: 'ATS analysis service is temporarily unavailable. Please try again later.',
         details: 'AI service is not configured or unavailable'
       });
@@ -2358,7 +2290,7 @@ export async function analyzeATSResume(req, res) {
     }
 
     // Generic error response with more details in development
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to analyze resume. Please try again.',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined

@@ -448,7 +448,7 @@ export default function AdminJobApplications() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {clientFiltered.map((row) => (
+                {useMemo(() => clientFiltered.map((row) => (
                   <tr key={row.applicationId} className="hover:bg-indigo-50/50 transition-colors group">
                     <td className="px-4 py-4">
                       <div className="flex items-start gap-3">
@@ -502,18 +502,17 @@ export default function AdminJobApplications() {
                       <button
                         disabled={!row?.student?.profileLink}
                         onClick={() => row?.student?.profileLink && window.open(row.student.profileLink, '_blank')}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
-                          row?.student?.profileLink
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${row?.student?.profileLink
                             ? 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-md'
                             : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                        }`}
+                          }`}
                       >
                         View Profile
                         <ExternalLink className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
-                ))}
+                )), [clientFiltered])}
               </tbody>
             </table>
           </div>
@@ -525,9 +524,8 @@ export default function AdminJobApplications() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                page <= 1 ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
-              }`}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${page <= 1 ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
+                }`}
             >
               <ChevronLeft className="w-4 h-4" />
               Prev
@@ -541,9 +539,8 @@ export default function AdminJobApplications() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                page >= totalPages ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
-              }`}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${page >= totalPages ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
+                }`}
             >
               Next
               <ChevronRight className="w-4 h-4" />

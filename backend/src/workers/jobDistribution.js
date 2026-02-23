@@ -60,6 +60,11 @@ async function createWorker() {
             school: true,
             center: true,
             batch: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
           },
         });
 
@@ -91,6 +96,26 @@ async function createWorker() {
 
         console.log(`✅ Job ${jobId} distributed to ${students.length} students`);
 
+        // Dynamic import to avoid circular dependencies
+        const { generateGenericJobNotificationEmail } = await import('../services/emailService.js');
+        const { addEmailToQueue } = await import('./queues.js');
+
+        // Extract raw emails
+        const emails = students.map(s => s.user?.email).filter(Boolean);
+
+        if (emails.length > 0) {
+          const { subject, html, text } = generateGenericJobNotificationEmail(jobData);
+
+          await addEmailToQueue({
+            jobId: jobData.id,
+            recipients: emails,
+            subject,
+            html,
+            text
+          });
+          console.log(`📧 Dispatched ${emails.length} emails to the background sender queue.`);
+        }
+
         return {
           success: true,
           studentsCount: students.length,
@@ -108,18 +133,21 @@ async function createWorker() {
   );
 }
 
-// Initialize worker (will be null if Redis unavailable)
-createWorker().then(w => {
-  worker = w;
-  if (worker) {
-    worker.on('completed', (job) => {
-      console.log(`✅ Job distribution completed: ${job.id}`);
-    });
+// Export initialization function that returns the worker promise
+export function initJobDistributionWorker() {
+  return createWorker().then(w => {
+    worker = w;
+    if (worker) {
+      worker.on('completed', (job) => {
+        console.log(`✅ Job distribution completed: ${job.id}`);
+      });
 
-    worker.on('failed', (job, err) => {
-      console.error(`❌ Job distribution failed: ${job?.id}`, err);
-    });
-  }
-});
+      worker.on('failed', (job, err) => {
+        console.error(`❌ Job distribution failed: ${job?.id}`, err);
+      });
+    }
+    return worker;
+  });
+}
 
 export default worker;

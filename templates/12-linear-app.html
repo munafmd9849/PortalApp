@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear App Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#0e0e11',
+                        surface: '#18181b',
+                        border: '#27272a',
+                        textPrimary: '#f4f4f5',
+                        textSecondary: '#a1a1aa',
+                        accent: '#818cf8',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0e0e11;
+            color: #f4f4f5;
+        }
+
+        .linear-card {
+            background: linear-gradient(180deg, rgba(39, 39, 42, 0.4) 0%, rgba(24, 24, 27, 0.4) 100%);
+            border: 1px solid #27272a;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .linear-card:hover {
+            border-color: #3f3f46;
+            background: linear-gradient(180deg, rgba(63, 63, 70, 0.4) 0%, rgba(39, 39, 42, 0.4) 100%);
+        }
+
+        .linear-btn {
+            background: #f4f4f5;
+            color: #0e0e11;
+            font-weight: 500;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+            padding: 6px 16px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            transition: opacity 0.2s;
+        }
+
+        .linear-btn:hover {
+            opacity: 0.9;
+        }
+
+        .linear-btn-ghost {
+            background: transparent;
+            color: #f4f4f5;
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 6px 16px;
+            border: 1px solid transparent;
+            transition: background 0.2s;
+        }
+
+        .linear-btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .glow-line {
+            position: absolute;
+            height: 1px;
+            width: 100%;
+            top: 0;
+            background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.4), transparent);
+        }
+
+        .text-gradient {
+            background: linear-gradient(to right, #f4f4f5, #a1a1aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen py-16 px-6 relative overflow-x-hidden">
+
+    <!-- Top abstract glow -->
+    <div
+        class="fixed top-[-500px] left-1/2 transform -translate-x-1/2 w-[1000px] h-[1000px] rounded-full bg-indigo-500/5 blur-[150px] pointer-events-none">
+    </div>
+
+    <main class="max-w-4xl mx-auto space-y-12 relative z-10">
+
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div class="flex items-center gap-5">
+                <img src="https://ui-avatars.com/api/?name=Charan+Sai&size=128&background=27272a&color=f4f4f5"
+                    alt="Profile" class="w-16 h-16 rounded-lg object-cover border border-border">
+                <div>
+                    <h1 class="text-2xl font-semibold mb-1 text-gradient">Charan Sai</h1>
+                    <p class="text-textSecondary text-sm">Full Stack Developer & AI Enthusiast</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <a href="https://github.com/charansai0108" class="linear-btn-ghost text-sm">GitHub</a>
+                <a href="mailto:charansai82140@gmail.com" class="linear-btn text-sm">Contact</a>
+            </div>
+        </header>
+
+        <!-- Divider -->
+        <div class="h-px w-full bg-border"></div>
+
+        <!-- Issue-style Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Main Content -->
+            <div class="lg:col-span-2 space-y-8">
+
+                <section>
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4">Synopsis</h2>
+                    <p class="text-sm text-textPrimary leading-relaxed">
+                        A comprehensive campus placement management system builder and full-stack developer passionate
+                        about building scalable web applications. Focus on distributed systems and machine learning.
+                        First place winner at HackWarangal 2023 for IoT energy optimization.
+                    </p>
+                </section>
+
+                <section>
+                    <h2
+                        class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg> Active Projects
+                    </h2>
+
+                    <div class="space-y-3">
+                        <!-- Project item -->
+                        <a href="https://github.com/charansai0108/PORTAL"
+                            class="linear-card p-4 block relative overflow-hidden group">
+                            <div class="glow-line opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div class="flex justify-between items-start mb-2">
+                                <h3
+                                    class="text-sm font-semibold text-textPrimary group-hover:text-accent transition-colors">
+                                    Portal App — Campus Placement System</h3>
+                                <span
+                                    class="text-xs text-textSecondary font-mono border border-border px-1.5 py-0.5 rounded bg-surface">PRO-1</span>
+                            </div>
+                            <p class="text-sm text-textSecondary mb-3">A comprehensive campus placement management
+                                system built with React and Node.js.</p>
+                            <div class="flex gap-2">
+                                <span class="flex items-center gap-1.5 text-xs text-textSecondary font-medium">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#61DAFB]"></div> React
+                                </span>
+                                <span class="flex items-center gap-1.5 text-xs text-textSecondary font-medium">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#339933]"></div> Node.js
+                                </span>
+                            </div>
+                        </a>
+
+                        <!-- Project item -->
+                        <a href="https://github.com/example/ai-image"
+                            class="linear-card p-4 block relative overflow-hidden group">
+                            <div class="glow-line opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div class="flex justify-between items-start mb-2">
+                                <h3
+                                    class="text-sm font-semibold text-textPrimary group-hover:text-accent transition-colors">
+                                    AI Image Generator</h3>
+                                <span
+                                    class="text-xs text-textSecondary font-mono border border-border px-1.5 py-0.5 rounded bg-surface">PRO-2</span>
+                            </div>
+                            <p class="text-sm text-textSecondary mb-3">A web app that uses Stable Diffusion API to
+                                generate images from text prompts.</p>
+                            <div class="flex gap-2">
+                                <span class="flex items-center gap-1.5 text-xs text-textSecondary font-medium">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#3776AB]"></div> Python
+                                </span>
+                                <span class="flex items-center gap-1.5 text-xs text-textSecondary font-medium">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#ffffff]"></div> Flask
+                                </span>
+                            </div>
+                        </a>
+                    </div>
+                </section>
+
+                <section>
+                    <h2
+                        class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg> Education History
+                    </h2>
+                    <div class="linear-card p-4 border-l-2 border-l-accent">
+                        <div class="flex justify-between mb-1">
+                            <h3 class="text-sm font-semibold text-textPrimary">National Institute of Technology,
+                                Warangal</h3>
+                            <span class="text-xs text-textSecondary font-mono">2020—2024</span>
+                        </div>
+                        <p class="text-sm text-textSecondary">B.Tech CPU • 8.5 CGPA</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Sidebar Meta -->
+            <div class="lg:col-span-1 space-y-8">
+
+                <section>
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4">Properties</h2>
+                    <div class="linear-card p-1">
+                        <!-- Prop row -->
+                        <div class="flex justify-between items-center px-3 py-2 border-b border-border/50">
+                            <span class="text-xs text-textSecondary">Status</span>
+                            <span class="text-xs font-medium text-textPrimary flex items-center gap-1.5">
+                                <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Available
+                            </span>
+                        </div>
+                        <!-- Prop row -->
+                        <div class="flex justify-between items-center px-3 py-2 border-b border-border/50">
+                            <span class="text-xs text-textSecondary">Location</span>
+                            <span class="text-xs font-medium text-textPrimary">Bangalore, IN</span>
+                        </div>
+                        <!-- Prop row -->
+                        <div class="flex justify-between items-center px-3 py-2">
+                            <span class="text-xs text-textSecondary">Timezone</span>
+                            <span class="text-xs font-medium font-mono text-textSecondary">IST (UTC+5:30)</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4">Technologies</h2>
+                    <div class="linear-card p-1">
+                        <div
+                            class="flex items-center gap-2 px-3 py-2 border-b border-border/50 group hover:bg-surface cursor-pointer">
+                            <div
+                                class="w-4 h-4 rounded border border-border flex items-center justify-center bg-surface">
+                                <svg class="w-3 h-3 text-textSecondary" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg></div>
+                            <span class="text-sm text-textPrimary">React.js</span>
+                        </div>
+                        <div
+                            class="flex items-center gap-2 px-3 py-2 border-b border-border/50 group hover:bg-surface cursor-pointer">
+                            <div
+                                class="w-4 h-4 rounded border border-border flex items-center justify-center bg-surface">
+                                <svg class="w-3 h-3 text-textSecondary" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg></div>
+                            <span class="text-sm text-textPrimary">Node.js</span>
+                        </div>
+                        <div
+                            class="flex items-center gap-2 px-3 py-2 border-b border-border/50 group hover:bg-surface cursor-pointer">
+                            <div
+                                class="w-4 h-4 rounded border border-border flex items-center justify-center bg-surface">
+                                <svg class="w-3 h-3 text-textSecondary" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg></div>
+                            <span class="text-sm text-textPrimary">Python</span>
+                        </div>
+                        <div
+                            class="flex items-center gap-2 px-3 py-2 border-b border-border/50 group hover:bg-surface cursor-pointer">
+                            <div
+                                class="w-4 h-4 rounded border border-border flex items-center justify-center bg-surface">
+                                <svg class="w-3 h-3 text-textSecondary" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg></div>
+                            <span class="text-sm text-textPrimary">PostgreSQL</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-2 group hover:bg-surface cursor-pointer">
+                            <div
+                                class="w-4 h-4 rounded border border-border flex items-center justify-center bg-surface">
+                                <svg class="w-3 h-3 text-textSecondary" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg></div>
+                            <span class="text-sm text-textPrimary">Docker</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-textSecondary mb-4">Milestones</h2>
+                    <div class="border-l border-border ml-2 pl-4 py-1 space-y-4">
+                        <div class="relative">
+                            <div class="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-border"></div>
+                            <p class="text-sm text-textPrimary mb-0.5">1st Place, HackWarangal</p>
+                            <p class="text-xs text-textSecondary">NIT Warangal • 2023</p>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-border"></div>
+                            <p class="text-sm text-textPrimary mb-0.5">AWS Certified Solutions Architect</p>
+                            <p class="text-xs text-textSecondary">Amazon Web Services • 2023</p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+    </main>
+</body>
+
+</html>

@@ -11,6 +11,7 @@ import redis from '../config/redis.js';
 // Lazy queue initialization to prevent Redis connection on import
 let jobDistributionQueueInstance = null;
 let emailNotificationQueueInstance = null;
+let csvExportsQueueInstance = null;
 
 /**
  * Get or create job distribution queue (lazy initialization)
@@ -60,8 +61,30 @@ function getEmailNotificationQueue() {
   return emailNotificationQueueInstance;
 }
 
+/**
+ * Get or create csv exports queue (lazy initialization)
+ */
+function getCsvExportsQueue() {
+  if (!csvExportsQueueInstance) {
+    try {
+      csvExportsQueueInstance = new Queue('csv-exports', {
+        connection: redis,
+        defaultJobOptions: {
+          attempts: 1, // Only try once for heavy exports
+          removeOnComplete: true, // Don't hold up Redis memory
+          removeOnFail: false,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Failed to create csv exports queue:', error.message);
+      return null;
+    }
+  }
+  return csvExportsQueueInstance;
+}
+
 // Export getters for direct queue access (for workers)
-export { getJobDistributionQueue, getEmailNotificationQueue };
+export { getJobDistributionQueue, getEmailNotificationQueue, getCsvExportsQueue };
 
 // For backward compatibility, export queue-like objects
 export const jobDistributionQueue = {
@@ -129,6 +152,21 @@ export async function addEmailToQueue({ jobId, recipients, subject, html, text }
     html,
     text,
   });
+}
+
+/**
+ * Add CSV Export task to queue
+ */
+export async function addCsvExportJob({ filters, entityType = 'applications' }) {
+  const queue = getCsvExportsQueue();
+  if (!queue) {
+    throw new Error('Redis not available, cannot queue export job');
+  }
+  const job = await queue.add('export-csv', {
+    filters,
+    entityType,
+  });
+  return job.id;
 }
 
 // Export for use in controllers
