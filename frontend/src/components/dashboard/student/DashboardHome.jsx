@@ -276,7 +276,7 @@ const DashboardHome = ({
         <ApplicationTrackerSection 
           applications={liveApplications} 
           onTrackAll={() => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current' } }))}
-          onRowClick={(application) => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current', applicationId: application?.id, jobId: application?.job?.id || application?.jobId } }))}
+          onRowClick={(jobId) => window.dispatchEvent(new CustomEvent('navigateToApplications', { detail: { view: 'current', jobId } }))}
         />
       )}
 

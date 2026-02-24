@@ -1,10 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import ProfileCard from './ProfileCard.jsx';
-import ProfileCardCompact from './ProfileCardCompact.jsx';
-import ProfileCardAngular from './ProfileCardAngular.jsx';
 import ProfileCardBrutalist from './ProfileCardBrutalist.jsx';
-import ProfileCardCareerStyle from './ProfileCardCareerStyle.jsx';
-import ProfileCardMinimal from './ProfileCardMinimal.jsx';
 import './Records.css';
 
 const STUDENT_RECORDS = [
@@ -182,96 +177,28 @@ export default function PlacementRecords({ onLoginOpen }) {
           </div>
 
           <div className="relative">
-            {/* Laptop and up: 5-card grid — 5 options for comparison: Brutalist, Career, Compact, Minimal, ProfileCard */}
+            {/* Laptop and up: 5-card grid — Brutalist style only */}
             <div
-              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center w-full pt-9"
+              className="hidden lg:grid grid-cols-5 gap-8 xl:gap-10 transition-all duration-1000 ease-in-out max-w-7xl mx-auto justify-items-center items-start w-full pt-9"
               onMouseEnter={() => setIsRotating(false)}
               onMouseLeave={() => setIsRotating(true)}
             >
               {currentCards.map((student, index) => {
-                const title = `${student.company} • ${student.role}`;
                 const emailHref = `mailto:${String(student.name || '').toLowerCase().trim().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().trim().replace(/\s+/g, '')}.com`;
                 const testimonial = TESTIMONIALS[(currentRow * cardsToShow + index) % TESTIMONIALS.length];
-                const wrapperClass = "w-full max-w-[230px] xl:max-w-[250px]";
+                const wrapperClass = "w-full max-w-[200px] xl:max-w-[220px]";
                 const wrapperStyle = { animationDelay: `${index * 80}ms`, animation: 'slideInUp 0.6s ease-out forwards' };
 
-                if (index === 0) {
-                  return (
-                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
-                      <ProfileCardBrutalist
-                        name={student.name}
-                        role={student.role}
-                        company={student.company}
-                        status={student.package}
-                        testimonial={testimonial}
-                        linkedinUrl={student.linkedin}
-                        emailHref={emailHref}
-                      />
-                    </div>
-                  );
-                }
-                if (index === 1) {
-                  const careerTitle = `${student.company} • ${student.package}`;
-                  return (
-                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
-                      <ProfileCardCareerStyle
-                        name={student.name}
-                        title={careerTitle}
-                        avatarUrl={student.profileImg}
-                        testimonial={testimonial}
-                        linkedinUrl={student.linkedin}
-                        emailHref={emailHref}
-                      />
-                    </div>
-                  );
-                }
-                if (index === 2) {
-                  return (
-                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
-                      <ProfileCardAngular
-                        name={student.name}
-                        company={student.company}
-                        status={student.package}
-                        testimonial={testimonial}
-                        avatarUrl={student.profileImg}
-                        linkedinUrl={student.linkedin}
-                        emailHref={emailHref}
-                      />
-                    </div>
-                  );
-                }
-                if (index === 3) {
-                  return (
-                    <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
-                      <ProfileCardMinimal
-                        name={student.name}
-                        title={title}
-                        status={student.package}
-                        avatarUrl={student.profileImg}
-                        linkedinUrl={student.linkedin}
-                        emailHref={emailHref}
-                        batch={student.batch}
-                      />
-                    </div>
-                  );
-                }
                 return (
                   <div key={`${currentRow}-${index}`} className={wrapperClass} style={wrapperStyle}>
-                    <ProfileCard
+                    <ProfileCardBrutalist
                       name={student.name}
-                      title={title}
-                      batch={student.batch}
-                      handle={String(student.name || '').toLowerCase().replace(/\s+/g, '')}
+                      role={student.role}
+                      company={student.company}
                       status={student.package}
-                      contactText="View Profile"
-                      avatarUrl={student.profileImg}
-                      showUserInfo={false}
-                      enableTilt={true}
-                      enableMobileTilt={false}
-                      showBehindGlow
-                      behindGlowColor="rgba(148,163,184,0.4)"
-                      customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
+                      batch={student.batch}
                       testimonial={testimonial}
+                      avatarUrl={student.profileImg}
                       linkedinUrl={student.linkedin}
                       emailHref={emailHref}
                     />
@@ -293,7 +220,7 @@ export default function PlacementRecords({ onLoginOpen }) {
               ))}
             </div>
 
-            {/* Mobile only: ProfileCard carousel — 1 full card + 1/4 of next */}
+            {/* Mobile only: Brutalist card carousel */}
             <div
               ref={mobileScrollRef}
               className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
@@ -308,21 +235,14 @@ export default function PlacementRecords({ onLoginOpen }) {
                   style={{ width: '80%', minWidth: '80%' }}
                 >
                   <div className="w-full max-w-[240px]">
-                    <ProfileCard
+                    <ProfileCardBrutalist
                       name={student.name}
-                      title={`${student.company} • ${student.role}`}
-                      batch={student.batch}
-                      handle={String(student.name || '').toLowerCase().replace(/\s+/g, '')}
+                      role={student.role}
+                      company={student.company}
                       status={student.package}
-                      contactText="View Profile"
-                      avatarUrl={student.profileImg}
-                      showUserInfo={false}
-                      enableTilt={false}
-                      enableMobileTilt={false}
-                      showBehindGlow
-                      behindGlowColor="rgba(148,163,184,0.4)"
-                      customInnerGradient="linear-gradient(145deg,#334155cc 0%,#64748b66 100%)"
+                      batch={student.batch}
                       testimonial={TESTIMONIALS[idx % TESTIMONIALS.length]}
+                      avatarUrl={student.profileImg}
                       linkedinUrl={student.linkedin}
                       emailHref={`mailto:${String(student.name || '').toLowerCase().trim().replace(/\s+/g, '.')}@${String(student.company || '').toLowerCase().trim().replace(/\s+/g, '')}.com`}
                     />

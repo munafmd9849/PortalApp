@@ -103,6 +103,7 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
               {/* Rows - show first 3 as preview on dashboard */}
               {applications.slice(0, 3).map((application) => {
                 const job = application.job || application;
+                const jobId = application.jobId || job?.id;
                 const salaryStr = formatSalary(job?.salary ?? job?.ctc ?? job?.salaryRange);
                 const displayLabel = application.trackerLabel || application.currentStage || application.status;
                 return (
@@ -110,8 +111,8 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                   key={application.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onRowClick?.(application)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(application); } }}
+                  onClick={() => onRowClick?.(jobId)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(jobId); } }}
                   className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(displayLabel)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
                   style={{ gridTemplateColumns: gridCols, columnGap, rowGap }}
                 >

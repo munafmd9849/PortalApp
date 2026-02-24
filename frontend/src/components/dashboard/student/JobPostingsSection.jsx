@@ -234,24 +234,28 @@ export default function JobPostingsSection({
 
                 const notEligible = failedReasons.length > 0;
 
+                const openJobDetails = () => {
+                  if (typeof onKnowMore === 'function') {
+                    onKnowMore(job);
+                  } else {
+                    window.location.href = `/job/${job.id}`;
+                  }
+                };
+
                 return (
                   <div
                     key={job.id}
-                    onClick={() => {
-                      if (onKnowMore) onKnowMore(job);
-                      else window.location.href = `/job/${job.id}`;
+                    role="button"
+                    tabIndex={0}
+                    onClick={openJobDetails}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openJobDetails();
+                      }
                     }}
                     className="flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200 min-w-0 overflow-hidden md:items-center cursor-pointer"
                     style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        if (onKnowMore) onKnowMore(job);
-                        else window.location.href = `/job/${job.id}`;
-                      }
-                    }}
                   >
                     {/* Mobile Layout */}
                     <div className="md:hidden space-y-2">
@@ -278,8 +282,8 @@ export default function JobPostingsSection({
                       </div>
                       <div className="flex gap-1.5 sm:gap-2">
                         <button
-                          onClick={(event) => {
-                            event.stopPropagation();
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onApply && onApply(job);
                           }}
                           disabled={
@@ -355,8 +359,8 @@ export default function JobPostingsSection({
 
                       <div className="hidden md:flex items-center min-w-0 overflow-hidden">
                         <button
-                          onClick={(event) => {
-                            event.stopPropagation();
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onApply && onApply(job);
                           }}
                           disabled={
