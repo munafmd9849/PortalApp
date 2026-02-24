@@ -1,0 +1,73 @@
+# Redis Installation & Startup Commands (Windows)
+
+## Installation Options
+
+### Option 1: Download from GitHub (Recommended)
+
+1. Download Redis for Windows from:
+   https://github.com/microsoftarchive/redis/releases
+
+2. Extract the ZIP file (e.g., to C:\Redis)
+
+3. Open Command Prompt or PowerShell as Administrator
+
+
+### Option 2: Using Chocolatey (if installed)
+
+# Install Chocolatey (run PowerShell as Admin): 
+# Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install Redis
+choco install redis-64
+
+
+### Option 3: Using WSL2 (Windows Subsystem for Linux)
+
+wsl
+sudo apt update
+sudo apt install redis-server
+sudo service redis-server start
+
+
+## Starting Redis (Windows Native)
+
+# Navigate to Redis folder (adjust path if needed)
+cd C:\Redis
+
+# Start Redis server
+redis-server.exe
+
+# Or start with config file
+redis-server.exe redis.windows.conf
+
+# Run as Windows Service (install first)
+redis-server.exe --service-install redis.windows.conf
+redis-server.exe --service-start
+
+
+## Stopping Redis
+
+# If running in foreground: press Ctrl+C
+
+# If installed as Windows service
+redis-server.exe --service-stop
+
+# Uninstall service (optional)
+redis-server.exe --service-uninstall
+
+
+## Verify Redis is Running
+
+# Open new Command Prompt/PowerShell, then:
+redis-cli.exe ping
+# Expected response: PONG
+
+
+## Quick Reference (Windows)
+
+start:     redis-server.exe
+start:     redis-server.exe redis.windows.conf
+install:   redis-server.exe --service-install redis.windows.conf
+start svc: redis-server.exe --service-start
+stop svc:  redis-server.exe --service-stop
+cli:       redis-cli.exe
