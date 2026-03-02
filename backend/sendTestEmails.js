@@ -14,7 +14,13 @@ import {
     sendPasswordResetOTP,
     sendEndorsementMagicLinkEmail,
     sendDriveThankYouEmail,
-    sendDriveReminderRecruiterAdmin
+    sendDriveReminderRecruiterAdmin,
+    sendDriveReminderStudent,
+    sendDriveReminder24h,
+    sendScreeningRequestEmail,
+    sendInterviewerInviteEmail,
+    sendAnnouncementEmail,
+    sendGenericNotification
 } from './src/services/emailService.js';
 import { sendEmail } from './src/config/email.js';
 
@@ -78,6 +84,58 @@ async function testEmails() {
 
         console.log('8. Sending Drive Reminder Email...');
         await sendDriveReminderRecruiterAdmin(dummyJob, [targetEmail], 5);
+
+        console.log('9. Sending Screening Request Email...');
+        await sendScreeningRequestEmail({
+            recruiterEmail: targetEmail,
+            recruiterName: 'Charan Sai (Recruiter)',
+            jobTitle: 'Software Engineer Intern',
+            companyName: 'Google',
+            applicationCount: 42,
+            deadlineDate: new Date(),
+            screeningPortalUrl: 'http://localhost:5173/screening/test-token',
+            expiryDays: 7
+        });
+
+        console.log('10. Sending Interviewer Invite Email...');
+        await sendInterviewerInviteEmail({
+            interviewerEmail: targetEmail,
+            interviewerName: 'John Interviewer',
+            jobTitle: 'Software Engineer Intern',
+            companyName: 'Google',
+            magicLink: 'http://localhost:5173/interviewer/test-token',
+            expiryDays: 7
+        });
+
+        console.log('11. Sending Announcement Email...');
+        await sendAnnouncementEmail(targetEmail, {
+            title: 'Welcome to the Placement Season 2026',
+            recipientName: 'Charan Sai',
+            content: 'We are excited to announce the commencement of the placement season.',
+            calloutText: 'Register before March 1st',
+            actionUrl: 'http://localhost:5173/placements',
+            actionText: 'View Openings',
+            validityPeriod: 'March 1st - June 1st',
+            quote: 'Opportunities don\'t happen, you create them.',
+            senderName: 'Placement Head',
+            organization: 'PWIOI'
+        });
+
+        console.log('12. Sending Generic Notification...');
+        await sendGenericNotification(targetEmail, 'Urgent Update', {
+            title: 'Schedule Change',
+            userName: 'Charan Sai',
+            message: 'Your interview has been rescheduled.',
+            panelMessage: 'New Time: 10:00 AM tomorrow',
+            actionUrl: 'http://localhost:5173/dashboard',
+            actionText: 'Confirm Availability'
+        });
+
+        console.log('13. Sending 3-Day Drive Reminder (Admin)...');
+        await sendDriveReminderRecruiterAdmin(dummyJob, [targetEmail], 3);
+
+        console.log('14. Sending 3-Day Drive Reminder (Student)...');
+        await sendDriveReminderStudent(dummyJob, [targetEmail], 3);
 
         console.log('✅ All emails sent successfully!');
     } catch (error) {

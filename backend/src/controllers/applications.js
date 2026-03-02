@@ -11,6 +11,7 @@ import { getIO } from '../config/socket.js';
 import { sendApplicationNotification, sendApplicationStatusUpdateNotification } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess } from '../utils/response.js';
+import { logAction } from '../utils/auditLogger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -378,25 +379,28 @@ export async function getJobScreeningSummary(req, res) {
  */
 export async function getStudentApplications(req, res) {
   try {
-    const userId = req.userId;
-    console.log('📋 [getStudentApplications] Request received for userId:', userId);
+    let studentId;
+    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+      studentId = req.query.studentId;
+    } else {
+      const student = await prisma.student.findUnique({
+        where: { userId: req.userId },
+        select: { id: true },
+      });
+      studentId = student?.id;
+    }
 
-    const student = await prisma.student.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-
-    console.log('📋 [getStudentApplications] Student found:', student ? { id: student.id } : 'NOT FOUND');
+    console.log('📋 [getStudentApplications] Request received for studentId:', studentId);
 
     // If student doesn't exist yet, return empty array (for new users)
-    if (!student) {
+    if (!studentId) {
       console.warn('⚠️ [getStudentApplications] Student not found, returning empty array');
       return res.json([]);
     }
 
-    console.log('📋 [getStudentApplications] Querying applications for studentId:', student.id);
+    console.log('📋 [getStudentApplications] Querying applications for studentId:', studentId);
     const applications = await prisma.application.findMany({
-      where: { studentId: student.id },
+      where: { studentId },
       include: {
         job: {
           include: {
@@ -521,7 +525,7 @@ export async function getStudentApplications(req, res) {
 
     console.log('📋 [getStudentApplications] Returning formatted applications:', formatted.length);
     if (formatted.length === 0) {
-      console.warn('⚠️ [getStudentApplications] No applications found for studentId:', student.id);
+      console.warn('⚠️ [getStudentApplications] No applications found for studentId:', studentId);
       console.warn('⚠️ [getStudentApplications] This could mean:');
       console.warn('   1. Student has not applied to any jobs yet');
       console.warn('   2. Applications exist but studentId mismatch');
@@ -1609,6 +1613,14 @@ export async function applyToJob(req, res) {
       resumeId,
     });
 
+    // Audit log
+    await logAction(req, {
+      actionType: 'Apply Job',
+      targetType: 'Application',
+      targetId: application.id,
+      details: `Applied to job: ${job.jobTitle} at ${job.companyName}`,
+    });
+
     // Update student stats
     await prisma.student.update({
       where: { id: student.id },
@@ -1864,6 +1876,14 @@ export async function updateApplicationStatus(req, res) {
     }
 
     res.json(updated);
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'Update Application Status',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Updated status to ${status || 'N/A'}`,
+    });
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });

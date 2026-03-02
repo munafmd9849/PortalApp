@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { 
-  subscribeJobsWithDetails, 
+import {
+  subscribeJobsWithDetails,
   subscribeJobAnalytics,
-  approveJob, 
-  rejectJob, 
+  approveJob,
+  rejectJob,
   archiveJob,
   getCompaniesForDropdown,
   getRecruitersForDropdown,
@@ -17,10 +17,10 @@ import { useToast } from '../../ui/Toast';
 import CustomDropdown from '../../common/CustomDropdown';
 import JobDetailsModal from '../../common/JobDetailsModal.jsx';
 import CreateJob from './CreateJob';
-import { 
-  FaSearch, 
-  FaFilter, 
-  FaArchive, 
+import {
+  FaSearch,
+  FaFilter,
+  FaArchive,
   FaSpinner,
   FaBuilding,
   FaUser,
@@ -42,16 +42,16 @@ import {
 export default function JobPostingsManager() {
   const { user } = useAuth();
   const toast = useToast();
-  
+
   // Normalize role to lowercase for comparison (backend returns uppercase 'ADMIN')
   const userRole = user?.role?.toLowerCase();
-  
+
   // Core state
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState({});
   const [lastSnapshot, setLastSnapshot] = useState(null);
-  
+
   // Filter and search state - default to showing all jobs
   const [filters, setFilters] = useState({
     status: 'all', // Default to showing all jobs
@@ -62,19 +62,19 @@ export default function JobPostingsManager() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  
+
   // Dropdown data
   const [companies, setCompanies] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
-  
+
   // Modal state
   const [jobDetailModal, setJobDetailModal] = useState({ isOpen: false, job: null });
   const [rejectModal, setRejectModal] = useState({ isOpen: false, job: null, reason: '' });
   const [editModal, setEditModal] = useState({ isOpen: false, job: null });
-  
+
   // Action loading states
   const [actionLoading, setActionLoading] = useState({});
-  
+
   // Pagination state
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -87,7 +87,7 @@ export default function JobPostingsManager() {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -119,12 +119,12 @@ export default function JobPostingsManager() {
   useEffect(() => {
     console.log('📡 Setting up real-time job subscription with filters:', filters);
     setLoading(true);
-    
+
     const filterParams = {
       ...filters,
       limit: 1000 // Fetch all jobs, filter client-side
     };
-    
+
     const subscription = subscribeJobsWithDetails((jobsData, snapshot) => {
       console.log('📊 Received jobs update:', jobsData.length);
       setJobs(jobsData);
@@ -150,7 +150,7 @@ export default function JobPostingsManager() {
   const analyticsSubscriptionRef = useRef(null);
   useEffect(() => {
     console.log('📈 Setting up analytics subscription');
-    
+
     const subscription = subscribeJobAnalytics((analyticsData) => {
       console.log('📊 Received analytics update:', analyticsData);
       setAnalytics(analyticsData);
@@ -173,13 +173,13 @@ export default function JobPostingsManager() {
   // Filter and search jobs
   const filteredJobs = useMemo(() => {
     let result = [...jobs];
-    
+
     // Apply status filter
     if (filters.status && filters.status !== 'all') {
       const filterStatus = filters.status.toLowerCase();
       result = result.filter(job => {
         const jobStatus = (job.status || '').toLowerCase();
-        
+
         // Status filters - use only: IN_REVIEW, APPROVED, REJECTED, POSTED
         if (filterStatus === 'in_review') {
           return jobStatus === 'in_review';
@@ -193,27 +193,27 @@ export default function JobPostingsManager() {
         if (filterStatus === 'posted') {
           return jobStatus === 'posted';
         }
-        
+
         // Default: exact match
         return jobStatus === filterStatus;
       });
     }
-    
+
     // Apply company filter
     if (filters.companyId) {
-      result = result.filter(job => 
+      result = result.filter(job =>
         job.companyDetails?.id === filters.companyId
       );
     }
-    
+
     // Apply recruiter filter
     if (filters.recruiterId) {
-      result = result.filter(job => 
-        job.recruiterId === filters.recruiterId || 
+      result = result.filter(job =>
+        job.recruiterId === filters.recruiterId ||
         job.recruiter?.id === filters.recruiterId
       );
     }
-    
+
     // Apply date range filters
     if (filters.startDate) {
       const startDate = new Date(filters.startDate);
@@ -223,7 +223,7 @@ export default function JobPostingsManager() {
         return driveDate >= startDate;
       });
     }
-    
+
     if (filters.endDate) {
       const endDate = new Date(filters.endDate);
       result = result.filter(job => {
@@ -232,11 +232,11 @@ export default function JobPostingsManager() {
         return driveDate <= endDate;
       });
     }
-    
+
     // Apply search filter
     if (debouncedSearch) {
       const searchLower = debouncedSearch.toLowerCase();
-      result = result.filter(job => 
+      result = result.filter(job =>
         job.jobTitle?.toLowerCase().includes(searchLower) ||
         job.company?.toLowerCase().includes(searchLower) ||
         job.companyName?.toLowerCase().includes(searchLower) ||
@@ -244,7 +244,7 @@ export default function JobPostingsManager() {
         job.recruiter?.name?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return result;
   }, [jobs, filters, debouncedSearch]);
 
@@ -316,16 +316,16 @@ export default function JobPostingsManager() {
     const actionKey = `approve_${job.id}`;
     try {
       setActionLoading(prev => ({ ...prev, [actionKey]: true }));
-      
+
       const result = await approveJob(job.id, user);
-      
+
       if (result.success) {
         // Check the status from API response
         const updatedStatus = result.job?.status || result.status;
         console.log(`📋 Approval result - Job ID: ${job.id}, New Status: ${updatedStatus}`);
-        
+
         toast.success(`Job "${job.jobTitle}" approved and posted successfully! Status changed to POSTED. Students can now see this job.`);
-        
+
         // Optimistic update: Remove job from current view immediately
         // Since status changed from IN_REVIEW to ACCEPTED, it should disappear from in_review filter
         setJobs(prev => {
@@ -333,7 +333,7 @@ export default function JobPostingsManager() {
           console.log(`✅ Optimistic update: Removed job ${job.id} from view (status changed from IN_REVIEW to ACCEPTED). Jobs remaining: ${updated.length}`);
           return updated;
         });
-        
+
         // Immediate refresh: Trigger jobs and analytics refresh after a short delay
         // Delay ensures database transaction is committed before refresh
         console.log('🔄 Triggering immediate refresh after job approval (1000ms delay to ensure DB commit)');
@@ -346,14 +346,14 @@ export default function JobPostingsManager() {
             analyticsSubscriptionRef.current.refresh();
           }
         }, 1000); // 1000ms delay to ensure DB transaction is committed
-        
+
         // Notify ManageJobs component to refresh via custom event
         // This ensures ManageJobs page also updates immediately
         const refreshEvent = new CustomEvent('jobsRefresh', {
-          detail: { 
+          detail: {
             action: 'approve',
             jobId: job.id,
-            jobTitle: job.jobTitle 
+            jobTitle: job.jobTitle
           }
         });
         window.dispatchEvent(refreshEvent);
@@ -385,23 +385,23 @@ export default function JobPostingsManager() {
     const actionKey = `reject_${job.id}`;
     try {
       setActionLoading(prev => ({ ...prev, [actionKey]: true }));
-      
+
       const result = await rejectJob(job.id, reason, user);
-      
+
       if (result.success) {
         toast.success(`Job "${job.jobTitle}" rejected successfully! The recruiter has been notified.`);
-        
+
         // Optimistic update: Update job status to REJECTED and remove from current view
         setJobs(prev => {
-          const updated = prev.map(j => 
-            j.id === job.id 
+          const updated = prev.map(j =>
+            j.id === job.id
               ? { ...j, status: 'rejected' } // Update status to rejected
               : j
           ).filter(j => j.id !== job.id || j.status !== 'in_review'); // Remove if it was in_review
           console.log(`✅ Optimistic update: Updated job ${job.id} status to REJECTED. Jobs remaining: ${updated.length}`);
           return updated;
         });
-        
+
         // Immediate refresh: Trigger jobs and analytics refresh right away
         console.log('🔄 Triggering immediate refresh after job rejection');
         if (jobsSubscriptionRef.current?.refresh) {
@@ -410,18 +410,18 @@ export default function JobPostingsManager() {
         if (analyticsSubscriptionRef.current?.refresh) {
           analyticsSubscriptionRef.current.refresh();
         }
-        
+
         // Notify ManageJobs component to refresh via custom event
         const refreshEvent = new CustomEvent('jobsRefresh', {
-          detail: { 
+          detail: {
             action: 'reject',
             jobId: job.id,
-            jobTitle: job.jobTitle 
+            jobTitle: job.jobTitle
           }
         });
         window.dispatchEvent(refreshEvent);
         console.log('📢 Dispatched jobsRefresh event to notify ManageJobs');
-        
+
         setRejectModal({ isOpen: false, job: null, reason: '' });
       } else {
         throw new Error('Rejection failed: Server returned unsuccessful response');
@@ -455,9 +455,9 @@ export default function JobPostingsManager() {
     const actionKey = `archive_${job.id}`;
     try {
       setActionLoading(prev => ({ ...prev, [actionKey]: true }));
-      
+
       const result = await archiveJob(job.id, user);
-      
+
       if (result.success) {
         toast.success(`Job "${job.jobTitle}" archived successfully!`);
       } else {
@@ -491,14 +491,14 @@ export default function JobPostingsManager() {
     const actionKey = `discard_${job.id}`;
     try {
       setActionLoading(prev => ({ ...prev, [actionKey]: true }));
-      
+
       await deleteJob(job.id);
-      
+
       toast.success(`Job "${job.jobTitle}" discarded successfully!`);
-      
+
       // Remove job from list immediately
       setJobs(prev => prev.filter(j => j.id !== job.id));
-      
+
       // Refresh jobs and analytics
       setTimeout(() => {
         if (jobsSubscriptionRef.current?.refresh) {
@@ -537,10 +537,10 @@ export default function JobPostingsManager() {
 
     try {
       const result = await autoArchiveExpiredJobs(user);
-      
+
       if (result.successful > 0) {
         toast.success(`Auto-archived ${result.successful} expired job(s) successfully!`);
-        
+
         // Refresh jobs and analytics after archiving
         setTimeout(() => {
           if (jobsSubscriptionRef.current?.refresh) {
@@ -566,15 +566,15 @@ export default function JobPostingsManager() {
   // Get status styling - more user-friendly
   const getStatusChip = (status) => {
     const statusStyles = {
-      active: { 
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50', 
-        text: 'text-green-700', 
+      active: {
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+        text: 'text-green-700',
         border: 'border-green-200',
         label: 'Active'
       },
-      posted: { 
-        bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
-        text: 'text-blue-700', 
+      posted: {
+        bg: 'bg-gradient-to-r from-blue-50 to-cyan-50',
+        text: 'text-blue-700',
         border: 'border-blue-200',
         label: 'Posted'
       },
@@ -596,28 +596,28 @@ export default function JobPostingsManager() {
         border: 'border-amber-200',
         label: 'IN REVIEW'
       },
-      draft: { 
-        bg: 'bg-gradient-to-r from-yellow-50 to-orange-50', 
-        text: 'text-yellow-700', 
+      draft: {
+        bg: 'bg-gradient-to-r from-yellow-50 to-orange-50',
+        text: 'text-yellow-700',
         border: 'border-yellow-200',
         label: 'Draft'
       },
-      rejected: { 
-        bg: 'bg-gradient-to-r from-red-50 to-rose-50', 
-        text: 'text-red-700', 
+      rejected: {
+        bg: 'bg-gradient-to-r from-red-50 to-rose-50',
+        text: 'text-red-700',
         border: 'border-red-200',
         label: 'Rejected'
       },
-      archived: { 
-        bg: 'bg-gradient-to-r from-gray-50 to-slate-50', 
-        text: 'text-gray-700', 
+      archived: {
+        bg: 'bg-gradient-to-r from-gray-50 to-slate-50',
+        text: 'text-gray-700',
         border: 'border-gray-200',
         label: 'Archived'
       }
     };
-    
+
     const style = statusStyles[status?.toLowerCase()] || statusStyles.draft;
-    
+
     return (
       <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
         {style.label}
@@ -730,7 +730,7 @@ export default function JobPostingsManager() {
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">Job Moderation</h2>
             <p className="text-gray-600 text-sm sm:text-lg">Review, approve, and manage job postings from recruiters</p>
           </div>
-          
+
           <button
             onClick={handleAutoArchive}
             className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md touch-manipulation w-full sm:w-auto"
@@ -746,21 +746,21 @@ export default function JobPostingsManager() {
             <div className="flex items-center gap-3 mb-2">
               <FaFileAlt className="w-5 h-5 text-blue-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-blue-700">{analytics.total || 0}</div>
-          </div>
+            </div>
             <div className="text-sm font-medium text-blue-600">Total Jobs</div>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-green-700">{analytics.active || 0}</div>
-          </div>
+            </div>
             <div className="text-sm font-medium text-green-600">Active Jobs</div>
           </div>
           <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-5 rounded-xl shadow-sm border border-cyan-200 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <FaFileAlt className="w-5 h-5 text-cyan-600 flex-shrink-0" />
               <div className="text-3xl font-bold text-cyan-700">{analytics.posted || 0}</div>
-          </div>
+            </div>
             <div className="text-sm font-medium text-cyan-600">Posted</div>
           </div>
           <div className="bg-gradient-to-br from-amber-50 to-yellow-100 p-5 rounded-xl shadow-sm border border-amber-200 hover:shadow-md transition-all duration-200">
@@ -797,15 +797,15 @@ export default function JobPostingsManager() {
           {/* Search */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Search Jobs</label>
-          <div className="relative">
+            <div className="relative">
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search by job title, company..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              <input
+                type="text"
+                placeholder="Search by job title, company..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-            />
+              />
             </div>
           </div>
 
@@ -880,7 +880,7 @@ export default function JobPostingsManager() {
                 placeholderText="Select start date"
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
                 wrapperClassName="w-full"
-            />
+              />
             </div>
           </div>
           <div>
@@ -898,7 +898,7 @@ export default function JobPostingsManager() {
                 minDate={filters.startDate ? new Date(filters.startDate) : null}
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
                 wrapperClassName="w-full"
-            />
+              />
             </div>
           </div>
           <div className="flex items-end">
@@ -962,7 +962,7 @@ export default function JobPostingsManager() {
                   )}
                 </div>
               </div>
-              
+
               {filters.status && filters.status !== 'all' && (
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
@@ -981,7 +981,7 @@ export default function JobPostingsManager() {
                   </button>
                 </div>
               )}
-              
+
               {searchTerm && (
                 <div className="mt-4 flex justify-center">
                   <button
@@ -1048,8 +1048,8 @@ export default function JobPostingsManager() {
                           <div className="flex items-center gap-2">
                             <FaBuilding className="w-4 h-4 text-blue-600 flex-shrink-0" />
                             <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={job.companyDetails?.name || job.company || job.companyName || 'N/A'}>
-                          {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
-                        </div>
+                              {job.companyDetails?.name || job.company || job.companyName || 'N/A'}
+                            </div>
                           </div>
                           {job.companyLocation || job.companyDetails?.location ? (
                             <div className="pl-6">
@@ -1103,7 +1103,7 @@ export default function JobPostingsManager() {
                           </button>
 
                           {/* Edit Button - Show for IN_REVIEW jobs (admin can edit all fields) */}
-                          {(job.status === 'in_review' && userRole === 'admin') && (
+                          {(job.status === 'in_review' && (userRole === 'admin' || userRole === 'super_admin')) && (
                             <button
                               onClick={() => window.location.href = `/admin/job/${job.id}?edit=true`}
                               className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-all duration-200 border border-purple-200 hover:border-purple-300"
@@ -1236,7 +1236,7 @@ export default function JobPostingsManager() {
       </div>
 
       {/* Job Details Modal */}
-      <JobDetailsModal 
+      <JobDetailsModal
         isOpen={jobDetailModal.isOpen}
         job={jobDetailModal.job}
         onClose={() => setJobDetailModal({ isOpen: false, job: null })}
@@ -1248,7 +1248,7 @@ export default function JobPostingsManager() {
       />
 
       {/* Reject Modal */}
-      <RejectModal 
+      <RejectModal
         isOpen={rejectModal.isOpen}
         job={rejectModal.job}
         reason={rejectModal.reason}
@@ -1272,7 +1272,7 @@ export default function JobPostingsManager() {
               </button>
             </div>
             <div className="p-6">
-              <CreateJob 
+              <CreateJob
                 job={editModal.job}
                 onCreated={() => {
                   setEditModal({ isOpen: false, job: null });
@@ -1293,14 +1293,14 @@ export default function JobPostingsManager() {
 
 
 // Reject Modal Component
-const RejectModal = ({ 
-  isOpen, 
-  job, 
-  reason, 
-  onReasonChange, 
-  onConfirm, 
-  onClose, 
-  loading 
+const RejectModal = ({
+  isOpen,
+  job,
+  reason,
+  onReasonChange,
+  onConfirm,
+  onClose,
+  loading
 }) => {
   if (!isOpen || !job) return null;
 
@@ -1380,7 +1380,7 @@ const RejectModal = ({
           >
             {loading ? (
               <>
-              <FaSpinner className="w-4 h-4 animate-spin" />
+                <FaSpinner className="w-4 h-4 animate-spin" />
                 <span>Rejecting...</span>
               </>
             ) : (

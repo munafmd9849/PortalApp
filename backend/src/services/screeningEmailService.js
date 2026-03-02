@@ -6,6 +6,7 @@
 import prisma from '../config/database.js';
 import { sendEmail } from '../config/email.js';
 import jwt from 'jsonwebtoken';
+import { loadTemplate } from '../utils/templateLoader.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -27,7 +28,7 @@ function generateScreeningToken(jobId, recruiterEmail) {
 export async function checkAndSendScreeningEmails() {
   try {
     const now = new Date();
-    
+
     // Find jobs where:
     // 1. Application deadline has passed (currentTime >= applicationDeadline)
     // 2. Email not sent yet (applicationDeadlineMailSent == false)
@@ -38,52 +39,52 @@ export async function checkAndSendScreeningEmails() {
     let jobs;
     try {
       jobs = await prisma.job.findMany({
-      where: {
-        applicationDeadline: {
-          lte: now, // Deadline has passed (currentTime >= applicationDeadline)
-          // Note: lte already implies field is not null - cannot compare null with Date
+        where: {
+          applicationDeadline: {
+            lte: now, // Deadline has passed (currentTime >= applicationDeadline)
+            // Note: lte already implies field is not null - cannot compare null with Date
+          },
+          applicationDeadlineMailSent: false, // Email not sent yet (idempotency)
+          status: 'POSTED', // Only POSTED jobs (NOT ACTIVE or other statuses)
+          isPosted: true, // Additional check for posted jobs
+          // CRITICAL: Only send email if screening or test is required
+          OR: [
+            { requiresScreening: true },
+            { requiresTest: true }
+          ],
+          // Must have recruiter email
+          AND: [
+            {
+              OR: [
+                { recruiterEmail: { not: null } },
+                { recruiterEmails: { not: null } }
+              ]
+            }
+          ]
         },
-        applicationDeadlineMailSent: false, // Email not sent yet (idempotency)
-        status: 'POSTED', // Only POSTED jobs (NOT ACTIVE or other statuses)
-        isPosted: true, // Additional check for posted jobs
-        // CRITICAL: Only send email if screening or test is required
-        OR: [
-          { requiresScreening: true },
-          { requiresTest: true }
-        ],
-        // Must have recruiter email
-        AND: [
-          {
-            OR: [
-              { recruiterEmail: { not: null } },
-              { recruiterEmails: { not: null } }
-            ]
+        select: {
+          id: true,
+          jobTitle: true,
+          companyName: true,
+          recruiterEmail: true,
+          recruiterName: true,
+          recruiterEmails: true, // Include new field for multiple emails
+          applicationDeadline: true,
+          requiresScreening: true, // Include pre-interview requirement flags
+          requiresTest: true,
+          applications: {
+            select: { id: true }
+          },
+          screeningSession: {
+            select: {
+              id: true,
+              expiresAt: true
+            }
           }
-        ]
-      },
-      select: {
-        id: true,
-        jobTitle: true,
-        companyName: true,
-        recruiterEmail: true,
-        recruiterName: true,
-        recruiterEmails: true, // Include new field for multiple emails
-        applicationDeadline: true,
-        requiresScreening: true, // Include pre-interview requirement flags
-        requiresTest: true,
-        applications: {
-          select: { id: true }
         },
-        screeningSession: {
-          select: {
-            id: true,
-            expiresAt: true
-          }
+        orderBy: {
+          applicationDeadline: 'asc' // Process oldest deadlines first
         }
-      },
-      orderBy: {
-        applicationDeadline: 'asc' // Process oldest deadlines first
-      }
       });
     } catch (dbError) {
       // Handle database quota exceeded gracefully
@@ -157,7 +158,7 @@ export async function checkAndSendScreeningEmails() {
           });
         }
       }
-      
+
       // FRONTEND_URL is validated at startup, so it's guaranteed to exist
       const screeningUrl = `${process.env.FRONTEND_URL}/recruiter/screening?token=${encodeURIComponent(session.token)}&jobId=${job.id}`;
       // TODO: Add QA/Test results page link (if it exists)
@@ -167,8 +168,8 @@ export async function checkAndSendScreeningEmails() {
       let recruiterEmailsList = [];
       if (job.recruiterEmails) {
         try {
-          recruiterEmailsList = typeof job.recruiterEmails === 'string' 
-            ? JSON.parse(job.recruiterEmails) 
+          recruiterEmailsList = typeof job.recruiterEmails === 'string'
+            ? JSON.parse(job.recruiterEmails)
             : job.recruiterEmails;
           // Ensure it's an array and extract emails
           if (Array.isArray(recruiterEmailsList)) {
@@ -183,7 +184,7 @@ export async function checkAndSendScreeningEmails() {
           recruiterEmailsList = [];
         }
       }
-      
+
       // Fallback to single recruiterEmail if array is empty (backward compatibility)
       if (recruiterEmailsList.length === 0 && job.recruiterEmail) {
         recruiterEmailsList = [job.recruiterEmail];
@@ -193,62 +194,37 @@ export async function checkAndSendScreeningEmails() {
       const emailResults = [];
       for (const recruiterEmail of recruiterEmailsList) {
         try {
-          const recruiterName = job.recruiterName || 
-            (job.recruiterEmails && typeof job.recruiterEmails === 'string' 
+          const recruiterName = job.recruiterName ||
+            (job.recruiterEmails && typeof job.recruiterEmails === 'string'
               ? (() => {
-                  try {
-                    const parsed = JSON.parse(job.recruiterEmails);
-                    const found = Array.isArray(parsed) ? parsed.find(r => r?.email === recruiterEmail) : null;
-                    return found?.name || null;
-                  } catch {
-                    return null;
-                  }
-                })()
+                try {
+                  const parsed = JSON.parse(job.recruiterEmails);
+                  const found = Array.isArray(parsed) ? parsed.find(r => r?.email === recruiterEmail) : null;
+                  return found?.name || null;
+                } catch {
+                  return null;
+                }
+              })()
               : null) || 'Recruiter';
 
           const emailSubject = `Application Deadline Passed: ${job.jobTitle} - ${job.companyName || 'Company'}`;
-          const emailBody = `
-            <html>
-              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #2563eb;">Application Deadline Passed</h2>
-                  <p>Dear ${recruiterName},</p>
-                  <p>The application deadline for the following position has passed:</p>
-                  <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                    <p><strong>Job Title:</strong> ${job.jobTitle}</p>
-                    <p><strong>Company:</strong> ${job.companyName || 'N/A'}</p>
-                    <p><strong>Application Deadline:</strong> ${job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleString() : 'N/A'}</p>
-                    ${job.applications && job.applications.length > 0 ? `<p><strong>Total Applications:</strong> ${job.applications.length}</p>` : ''}
-                  </div>
-                  ${job.requiresScreening || job.requiresTest ? `
-                    <p><strong>Pre-Interview Requirements:</strong></p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                      ${job.requiresScreening ? '<li>Resume Screening required</li>' : ''}
-                      ${job.requiresTest ? '<li>QA/Test required</li>' : ''}
-                    </ul>
-                    <p>Please use the link below to access the screening portal and review applications:</p>
-                  ` : '<p>All applications are ready for review.</p>'}
-                  <div style="text-align: center; margin: 30px 0;">
-                    <a href="${screeningUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 10px;">
-                      Access Screening Portal
-                    </a>
-                  </div>
-                  <p style="font-size: 12px; color: #6b7280; margin-top: 30px;">
-                    <strong>Note:</strong> This link will expire in 14 days. If you need a new link, please contact the admin.
-                  </p>
-                  <p style="font-size: 12px; color: #6b7280;">
-                    If the button doesn't work, copy and paste this URL into your browser:<br>
-                    <span style="word-break: break-all;">${screeningUrl}</span>
-                  </p>
-                </div>
-              </body>
-            </html>
-          `;
+          const html = loadTemplate('09-screening-request', {
+            recruiterName,
+            jobTitle: job.jobTitle,
+            companyName: job.companyName || 'N/A',
+            applicationCount: job.applications?.length || 0,
+            deadlineDate: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleString() : 'N/A',
+            screeningPortalUrl: screeningUrl,
+            expiryDays: 14
+          });
+
+          const text = `Application Deadline Passed: ${job.jobTitle}\n\nDear ${recruiterName},\n\nThe deadline for ${job.jobTitle} at ${job.companyName || 'N/A'} has passed. Review candidates here: ${screeningUrl}`;
 
           await sendEmail({
             to: recruiterEmail,
             subject: emailSubject,
-            html: emailBody
+            html,
+            text
           });
 
           emailResults.push({ email: recruiterEmail, status: 'sent' });
@@ -322,9 +298,9 @@ export async function manualTriggerScreeningEmails(req, res) {
     });
   } catch (error) {
     console.error('Manual trigger error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to send screening emails',
-      details: error.message 
+      details: error.message
     });
   }
 }

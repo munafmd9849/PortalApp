@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ImEye } from 'react-icons/im';
 import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaCheckCircle, FaUsers, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa';
 import { MdBlock } from 'react-icons/md';
@@ -158,10 +158,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.fullName
-                    ? 'border-red-400 bg-red-50'
-                    : 'border-gray-200 bg-white focus:border-green-500'
-                  } `}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.fullName
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-200 bg-white focus:border-green-500'
+                  }`}
                 placeholder="Enter student's full name"
               />
               {errors.fullName && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.fullName}</p>}
@@ -176,10 +176,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.email
-                    ? 'border-red-400 bg-red-50'
-                    : 'border-gray-200 bg-white focus:border-green-500'
-                  } `}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.email
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-200 bg-white focus:border-green-500'
+                  }`}
                 placeholder="Enter student email"
               />
               {errors.email && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.email}</p>}
@@ -194,10 +194,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.phone
-                    ? 'border-red-400 bg-red-50'
-                    : 'border-gray-200 bg-white focus:border-green-500'
-                  } `}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.phone
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-200 bg-white focus:border-green-500'
+                  }`}
                 placeholder="+91 12345 67890"
               />
               {errors.phone && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.phone}</p>}
@@ -216,10 +216,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 max="10"
                 step="0.01"
                 placeholder="Enter CGPA (0-10)"
-                className={`w - full p - 3.5 border - 2 rounded - xl focus: outline - none focus: ring - 2 focus: ring - green - 500 transition - all duration - 200 ${errors.cgpa
-                    ? 'border-red-400 bg-red-50'
-                    : 'border-gray-200 bg-white focus:border-green-500'
-                  } `}
+                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.cgpa
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-200 bg-white focus:border-green-500'
+                  }`}
               />
               {errors.cgpa && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.cgpa}</p>}
             </div>
@@ -430,8 +430,8 @@ const EditCGPAModal = ({ isOpen, onClose, student, onSave }) => {
               placeholder="Enter CGPA (e.g., 9.00, 8.75)"
               pattern="^(10\.00|[0-9]\.[0-9]{2})$"
               maxLength="5"
-              className={`w - full p - 3 border rounded - lg focus: outline - none focus: ring - 2 focus: ring - blue - 500 ${error ? 'border-red-500' : 'border-gray-300'
-                } `}
+              className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-500' : 'border-gray-300'
+                }`}
               required
             />
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
@@ -866,7 +866,7 @@ export default function StudentDirectory() {
     const style = statusStyles[normalizedStatus] || statusStyles.inactive;
 
     return (
-      <span className={`px - 3 py - 1 rounded - lg text - xs font - medium whitespace - nowrap ${style.bg} ${style.text} border ${style.border} inline - flex items - center shadow - sm`}>
+      <span className={`px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
         {style.label}
       </span>
     );
@@ -1054,6 +1054,129 @@ export default function StudentDirectory() {
     const inactive = students.filter(s => s.status === 'Inactive').length;
     return { total: students.length, active, blocked, inactive };
   }, [students]);
+
+  // Memoized table rows - must be a top-level hook, NOT inside JSX (Rules of Hooks)
+  const renderedStudentRows = useMemo(() => displayedStudents.map((student) => (
+    <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="space-y-2">
+          <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={student.fullName || student.email || 'N/A'}>
+            {student.fullName || student.email || 'N/A'}
+          </div>
+          {student.phone && (
+            <div className="flex items-center gap-1.5">
+              <FaPhone className="w-3 h-3 text-gray-500" />
+              <span className="text-xs text-gray-600">{student.phone}</span>
+            </div>
+          )}
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="flex items-center gap-2">
+          <FaEnvelope className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.email}>
+            {student.email}
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded inline-block">
+          {student.enrollmentId || 'N/A'}
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="flex items-center gap-2">
+          <FaMapMarkerAlt className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.center || 'N/A'}>
+            {student.center || 'N/A'}
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="flex items-center gap-2">
+          <FaGraduationCap className="w-4 h-4 text-purple-600 flex-shrink-0" />
+          <div className="text-xs font-semibold text-gray-900">{student.school || 'N/A'}</div>
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-green-50 rounded-lg">
+            <FaGraduationCap className="w-4 h-4 text-green-600" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-gray-900">
+              {student.cgpa
+                ? (() => {
+                  const cgpaStr = String(student.cgpa);
+                  if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
+                    return cgpaStr;
+                  } else if (/^\d+$/.test(cgpaStr)) {
+                    return cgpaStr + '.00';
+                  } else if (/^\d+\.\d+$/.test(cgpaStr)) {
+                    const parts = cgpaStr.split('.');
+                    return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
+                  }
+                  return cgpaStr;
+                })()
+                : 'N/A'}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 border-r border-gray-100">
+        {getStatusChip(student.status)}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-center">
+        <div className="flex items-center gap-2">
+          {/* View Profile Button */}
+          <button
+            onClick={() => handleViewProfile(student)}
+            className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+            title="View Student Profile"
+          >
+            <ImEye className="w-4 h-4" />
+          </button>
+
+          {/* Edit Button */}
+          <button
+            onClick={() => handleEditStudent(student)}
+            disabled={!canModifyStudents() || operationLoading}
+            className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            title="Edit Student"
+          >
+            {operationLoading ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : (
+              <FaEdit className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Block/Unblock Button */}
+          <button
+            onClick={() => handleBlockClick(student)}
+            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
+            className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${student.status === 'Blocked'
+              ? 'bg-gray-500 hover:bg-gray-600 text-white'
+              : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
+              }`}
+            title={
+              student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
+                ? 'Permanently blocked - cannot be unblocked'
+                : student.status === 'Blocked'
+                  ? 'Unblock Student'
+                  : 'Block Student'
+            }
+          >
+            {operationLoading ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : (
+              <MdBlock className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </td>
+    </tr>
+  )), [displayedStudents, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents]);
 
   if (loading) {
     return (
@@ -1408,128 +1531,7 @@ export default function StudentDirectory() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {useMemo(() => displayedStudents.map((student) => (
-                    <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="space-y-2">
-                          <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={student.fullName || student.email || 'N/A'}>
-                            {student.fullName || student.email || 'N/A'}
-                          </div>
-                          {student.phone && (
-                            <div className="flex items-center gap-1.5">
-                              <FaPhone className="w-3 h-3 text-gray-500" />
-                              <span className="text-xs text-gray-600">{student.phone}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <FaEnvelope className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.email}>
-                            {student.email}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded inline-block">
-                          {student.enrollmentId || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <FaMapMarkerAlt className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.center || 'N/A'}>
-                            {student.center || 'N/A'}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <FaGraduationCap className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                          <div className="text-xs font-semibold text-gray-900">{student.school || 'N/A'}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2 bg-green-50 rounded-lg">
-                            <FaGraduationCap className="w-4 h-4 text-green-600" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-gray-900">
-                              {student.cgpa
-                                ? (() => {
-                                  // Ensure CGPA is displayed with exactly 2 decimal places
-                                  const cgpaStr = String(student.cgpa);
-                                  if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-                                    return cgpaStr;
-                                  } else if (/^\d+$/.test(cgpaStr)) {
-                                    return cgpaStr + '.00';
-                                  } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-                                    const parts = cgpaStr.split('.');
-                                    return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
-                                  }
-                                  return cgpaStr;
-                                })()
-                                : 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 border-r border-gray-100">
-                        {getStatusChip(student.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center gap-2">
-                          {/* View Profile Button */}
-                          <button
-                            onClick={() => handleViewProfile(student)}
-                            className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                            title="View Student Profile"
-                          >
-                            <ImEye className="w-4 h-4" />
-                          </button>
-
-                          {/* Edit Button */}
-                          <button
-                            onClick={() => handleEditStudent(student)}
-                            disabled={!canModifyStudents() || operationLoading}
-                            className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                            title="Edit Student"
-                          >
-                            {operationLoading ? (
-                              <Loader className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <FaEdit className="w-4 h-4" />
-                            )}
-                          </button>
-
-                          {/* Block/Unblock Button */}
-                          <button
-                            onClick={() => handleBlockClick(student)}
-                            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
-                            className={`p - 2 rounded - lg transition - all duration - 200 disabled: opacity - 50 disabled: cursor - not - allowed shadow - sm hover: shadow - md ${student.status === 'Blocked'
-                                ? 'bg-gray-500 hover:bg-gray-600 text-white'
-                                : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
-                              } `}
-                            title={
-                              student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
-                                ? 'Permanently blocked - cannot be unblocked'
-                                : student.status === 'Blocked'
-                                  ? 'Unblock Student'
-                                  : 'Block Student'
-                            }
-                          >
-                            {operationLoading ? (
-                              <Loader className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <MdBlock className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )), [displayedStudents, operationLoading])}
+                  {renderedStudentRows}
                 </tbody>
               </table>
             </div>
@@ -1659,8 +1661,8 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   return (
     <>
       <div
-        className={`fixed inset - 0 bg - black transition - opacity duration - 300 z - [9998] ${isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
-          } `}
+        className={`fixed inset-0 bg-black transition-opacity duration-300 z-[9998] ${isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
+          }`}
         style={{
           backdropFilter: isOpen ? 'blur(4px)' : 'none',
           WebkitBackdropFilter: isOpen ? 'blur(4px)' : 'none'
@@ -1669,8 +1671,8 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
       />
 
       <div
-        className={`fixed top - 0 right - 0 h - full w - full lg: w - [60 %] bg - gradient - to - br from - blue - 50 via - sky - 50 to - indigo - 50 shadow - 2xl z - [9999] transform transition - transform duration - 300 ease - out overflow - hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'
-          } `}
+        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
         onClick={(e) => e.stopPropagation()}
       >
         <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">

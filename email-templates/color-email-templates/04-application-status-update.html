@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Application Status Update</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #16A34A;
+      padding: 24px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.3px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .hello {
+      font-size: 16px;
+      line-height: 22px;
+      color: #111827;
+    }
+
+    .statusCard {
+      margin: 18px 0 18px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-left: 4px solid #16A34A;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .statusTop {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .jobTitle {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 900;
+      color: #111827;
+    }
+
+    .company {
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #4B5563;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #DCFCE7;
+      border: 1px solid #BBF7D0;
+      color: #166534;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      border-top: 1px solid #E5E7EB;
+    }
+
+    .cell {
+      padding: 12px 0 0;
+      vertical-align: top;
+      width: 50%;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #6B7280;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .value {
+      font-size: 13px;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .note {
+      margin-top: 12px;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 12px 12px;
+      color: #374151;
+      font-size: 13px;
+      line-height: 19px;
+      font-style: italic;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-success {
+      background: #16A34A;
+      color: #FFFFFF;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">{{statusTitle}}</p>
+                  <p class="subtitle">{{statusSubtitle}}</p>
+                </div>
+
+                <div class="content">
+                  <p class="hello">Hello <strong>{{studentName}}</strong>,</p>
+                  <p>
+                    Great news! Your application has been shortlisted. The recruiter has reviewed your profile and moved
+                    you to the next stage of the hiring process. Here are the details:
+                  </p>
+
+                  <div class="statusCard">
+                    <table role="presentation" class="statusTop" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="vertical-align:top;">
+                          <p class="jobTitle">{{jobTitle}}</p>
+                          <p class="company">{{companyName}}</p>
+                        </td>
+                        <td style="vertical-align:top; text-align:right;">
+                          <span class="badge">{{statusBadge}}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table role="presentation" class="grid" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="cell" style="padding-right:12px;">
+                          <div class="label">Applied Date</div>
+                          <div class="value">{{appliedDate}}</div>
+                        </td>
+                        <td class="cell" style="padding-left:12px;">
+                          <div class="label">Interview Date</div>
+                          <div class="value">{{interviewDate}}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding-top:12px;">
+                          <div class="label">Recruiter Notes</div>
+                          <div class="note">{{recruiterNotes}}
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-success" href="{{portalUrl}}">View Full Details in Portal</a>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  This is an automated notification from the PWIOI Placement Portal.
+                  <div class="muted">&copy; 2026 PWIOI. All rights reserved.</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Drive Summary & Thank You</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #16A34A;
+      padding: 18px 24px;
+    }
+
+    .headerTop {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #FFFFFF;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .hello {
+      font-size: 16px;
+      line-height: 22px;
+      color: #111827;
+    }
+
+    .panel {
+      margin: 18px 0 18px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-left: 4px solid #16A34A;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .panelTitle {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #166534;
+    }
+
+    .metrics {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .metric {
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 12px 10px;
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .metricLabel {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6B7280;
+      margin-bottom: 6px;
+    }
+
+    .metricValue {
+      display: block;
+      font-size: 18px;
+      color: #111827;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-success {
+      background: #16A34A;
+      color: #FFFFFF;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <table role="presentation" class="headerTop" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <p class="brand">Drive Completed</p>
+                      </td>
+                      <td style="vertical-align:middle; text-align:right;">
+                        <span class="tag">Admin Report</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="content">
+                  <p class="hello">Hello <strong>{{adminName}}</strong>,</p>
+                  <p>
+                    The scheduled placement drive for <strong>{{companyName}}</strong> has concluded. Thank you for
+                    facilitating the process and ensuring everything ran smoothly for our students and the recruiting
+                    partners.
+                  </p>
+
+                  <div class="panel">
+                    <div class="panelTitle">Drive Summary</div>
+                    <p style="margin:0; font-weight:900; color:#111827;">{{jobTitle}}</p>
+                    <p style="margin:6px 0 0; color:#4B5563; font-weight:700;">{{companyName}}</p>
+
+                    <table role="presentation" class="metrics" cellpadding="0" cellspacing="0" border="0"
+                      style="margin-top:12px;">
+                      <tr>
+                        <td style="width:33.33%; padding-right:8px;">
+                          <div class="metric">
+                            <span class="metricLabel">Total Attendees</span>
+                            <span class="metricValue">{{totalAttendees}}</span>
+                          </div>
+                        </td>
+                        <td style="width:33.33%; padding:0 4px;">
+                          <div class="metric">
+                            <span class="metricLabel">Interviews Held</span>
+                            <span class="metricValue">{{interviewsHeld}}</span>
+                          </div>
+                        </td>
+                        <td style="width:33.33%; padding-left:8px;">
+                          <div class="metric">
+                            <span class="metricLabel">Feedback Left</span>
+                            <span class="metricValue" style="color:#16A34A;">{{feedbackStatus}}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <p>
+                    As the final step in closing out this placement drive, we request that you consolidate any
+                    observations, recruiter feedback, or general remarks regarding the event. This data is critical for
+                    our end-of-year placement analytics.
+                  </p>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-success" href="{{reportUrl}}">Log Drive Report &amp; Notes</a>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  <strong>PWIOI System Logs</strong> · Automated Admin Dispatch<br />
+                  Do not reply to this email
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

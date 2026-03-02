@@ -6,7 +6,7 @@
 import prisma from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../config/email.js';
-import { sendDriveThankYouEmail } from '../services/emailService.js';
+import { sendDriveThankYouEmail, sendInterviewerInviteEmail } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess, sendError, sendValidationError, sendNotFound, sendUnauthorized, sendForbidden, sendServerError } from '../utils/response.js';
 
@@ -142,8 +142,8 @@ async function updateApplicationsForIncompleteSession(jobId) {
       const newStatus = app.interviewStatus && app.interviewStatus.startsWith('REJECTED_IN_ROUND_')
         ? 'INCOMPLETE'
         : app.interviewStatus && app.interviewStatus !== 'APPLIED' && app.interviewStatus !== 'TEST_SELECTED'
-        ? 'INCOMPLETE'
-        : 'INTERVIEW_NOT_COMPLETED';
+          ? 'INCOMPLETE'
+          : 'INTERVIEW_NOT_COMPLETED';
 
       await prisma.application.update({
         where: { id: app.id },
@@ -158,44 +158,6 @@ async function updateApplicationsForIncompleteSession(jobId) {
   }
 }
 
-/**
- * Send interviewer invite email
- */
-async function sendInterviewerInviteEmail(email, sessionLink, jobTitle, companyName) {
-  try {
-    const subject = `Interview Session Invitation - ${jobTitle}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #333;">Interview Session Invitation</h2>
-        <p>Hello,</p>
-        <p>You have been invited to participate in an interview session for:</p>
-        <div style="background: #f4f4f4; padding: 15px; margin: 20px 0; border-radius: 5px;">
-          <p style="margin: 5px 0;"><strong>Position:</strong> ${jobTitle}</p>
-          <p style="margin: 5px 0;"><strong>Company:</strong> ${companyName}</p>
-        </div>
-        <p>Click the link below to access the interview session:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${sessionLink}" 
-             style="background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Access Interview Session
-          </a>
-        </div>
-        <p style="color: #666; font-size: 12px; margin-top: 30px;">
-          This link is valid for 30 days. Please do not share this link with others.
-        </p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
-    const text = `You have been invited to participate in an interview session for ${jobTitle} at ${companyName}. Access the session at: ${sessionLink}`;
-
-    await sendEmail({ to: email, subject, html, text });
-    logger.info(`Interviewer invite email sent to ${email}`);
-  } catch (error) {
-    logger.error(`Failed to send interviewer invite email to ${email}:`, error);
-    throw error;
-  }
-}
 
 /**
  * Get or create interview session for a job
@@ -257,7 +219,7 @@ export const getOrCreateSession = async (req, res) => {
     // CRITICAL: Interview session cannot start before driveDate
     // Validate driveDate exists
     if (!job.driveDate) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Drive date not configured',
         message: 'Drive date is not set for this job. Please set the drive date before creating interview sessions.'
       });
@@ -359,11 +321,11 @@ export const getOrCreateSession = async (req, res) => {
         }
       }
     }
-    
+
     // CRITICAL: Auto-correct session status based on drive date
     // This ensures system self-corrects even if UI is wrong
     session = await autoCorrectSessionStatus(session, job);
-    
+
     // Safety: Ensure rounds and interviewerInvites are always arrays
     if (!Array.isArray(session.rounds)) {
       session.rounds = [];
@@ -374,7 +336,7 @@ export const getOrCreateSession = async (req, res) => {
 
     // Get application count (only INTERVIEW_ELIGIBLE or TEST_SELECTED candidates are eligible for interviews)
     const eligibleApplicationCount = await prisma.application.count({
-      where: { 
+      where: {
         jobId,
         screeningStatus: {
           in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
@@ -505,8 +467,8 @@ export const getOrCreateSession = async (req, res) => {
       userId: req.userId || req.user?.id,
       method: req.method,
     });
-    res.status(500).json({ 
-      error: 'Failed to get/create session', 
+    res.status(500).json({
+      error: 'Failed to get/create session',
       details: error.message,
       ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
@@ -543,7 +505,7 @@ export const configureRounds = async (req, res) => {
 
     const job = await prisma.job.findUnique({
       where: { id: session.jobId },
-      select: { 
+      select: {
         driveDate: true,
         recruiter: {
           select: { userId: true }
@@ -659,7 +621,7 @@ export const inviteInterviewers = async (req, res) => {
       where: { id: sessionId },
       include: {
         job: {
-          include: { 
+          include: {
             company: true,
             recruiter: {
               select: { userId: true }
@@ -734,12 +696,14 @@ export const inviteInterviewers = async (req, res) => {
 
       // Send email
       try {
-        await sendInterviewerInviteEmail(
-          email,
-          sessionLink,
-          session.job.jobTitle,
-          session.job.company?.name || 'Company'
-        );
+        await sendInterviewerInviteEmail({
+          interviewerEmail: email,
+          interviewerName: 'Interviewer',
+          jobTitle: session.job.jobTitle,
+          companyName: session.job.company?.name || 'Company',
+          magicLink: sessionLink,
+          expiryDays: 30
+        });
       } catch (emailError) {
         logger.error(`Failed to send email to ${email}:`, emailError);
         // Continue even if email fails - invite is still created
@@ -768,7 +732,7 @@ export const getSession = async (req, res) => {
     const { sessionId } = req.params;
     // Get token from query or authorization header
     let token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    
+
     // Decode URL-encoded token if needed
     if (token && token.includes('%')) {
       try {
@@ -786,45 +750,45 @@ export const getSession = async (req, res) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-      
+
       // Log for debugging (remove in production)
       if (process.env.NODE_ENV === 'development') {
-        console.log('Token decoded:', { 
-          type: decoded.type, 
-          sessionId: decoded.sessionId, 
+        console.log('Token decoded:', {
+          type: decoded.type,
+          sessionId: decoded.sessionId,
           email: decoded.email,
-          urlSessionId: sessionId 
+          urlSessionId: sessionId
         });
       }
-      
+
       if (decoded.type !== 'interviewer') {
-        return res.status(403).json({ 
-          error: 'Invalid token type', 
-          details: `Expected 'interviewer', got '${decoded.type}'` 
+        return res.status(403).json({
+          error: 'Invalid token type',
+          details: `Expected 'interviewer', got '${decoded.type}'`
         });
       }
       if (decoded.sessionId !== sessionId) {
-        return res.status(403).json({ 
-          error: 'Token session mismatch', 
-          details: `Token is for session ${decoded.sessionId}, but URL requests ${sessionId}` 
+        return res.status(403).json({
+          error: 'Token session mismatch',
+          details: `Token is for session ${decoded.sessionId}, but URL requests ${sessionId}`
         });
       }
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
-        return res.status(403).json({ 
-          error: 'Token has expired', 
-          details: 'Please request a new invitation link from the administrator.' 
+        return res.status(403).json({
+          error: 'Token has expired',
+          details: 'Please request a new invitation link from the administrator.'
         });
       }
       if (err.name === 'JsonWebTokenError') {
-        return res.status(403).json({ 
-          error: 'Invalid token format', 
-          details: err.message 
+        return res.status(403).json({
+          error: 'Invalid token format',
+          details: err.message
         });
       }
-      return res.status(403).json({ 
-        error: 'Token validation failed', 
-        details: err.message 
+      return res.status(403).json({
+        error: 'Token validation failed',
+        details: err.message
       });
     }
 
@@ -860,29 +824,29 @@ export const getSession = async (req, res) => {
         where: { token },
       });
       if (inviteByToken) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Token email mismatch',
-          details: `Token email (${decoded.email}) does not match invite email (${inviteByToken.email})` 
+          details: `Token email (${decoded.email}) does not match invite email (${inviteByToken.email})`
         });
       }
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Token not found in database',
-        details: 'This token may not have been properly saved. Please contact the administrator.' 
+        details: 'This token may not have been properly saved. Please contact the administrator.'
       });
     }
 
     if (invite.expiresAt < new Date()) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Token has expired',
-        details: `Token expired on ${new Date(invite.expiresAt).toLocaleString()}` 
+        details: `Token expired on ${new Date(invite.expiresAt).toLocaleString()}`
       });
     }
 
     // For NOT_STARTED / ONGOING / FROZEN: reject used tokens. For COMPLETED/INCOMPLETE: allow used (so recruiter can view + download).
     if (!isCompletedOrIncomplete && invite.used) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Token has already been used',
-        details: `Token was used on ${invite.usedAt ? new Date(invite.usedAt).toLocaleString() : 'unknown date'}. The session may have been completed.` 
+        details: `Token was used on ${invite.usedAt ? new Date(invite.usedAt).toLocaleString() : 'unknown date'}. The session may have been completed.`
       });
     }
 
@@ -900,9 +864,9 @@ export const getSession = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Interview session not found',
-        details: `No session found with ID: ${sessionId}` 
+        details: `No session found with ID: ${sessionId}`
       });
     }
 
@@ -1070,7 +1034,7 @@ export const getRoundCandidates = async (req, res) => {
     // CRITICAL: Only include candidates who passed screening (INTERVIEW_ELIGIBLE or TEST_SELECTED for backward compatibility)
     // INTERVIEW_ELIGIBLE is the final status after screening is finalized
     let applications = await prisma.application.findMany({
-      where: { 
+      where: {
         jobId: round.session.jobId,
         screeningStatus: {
           in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
@@ -1078,7 +1042,7 @@ export const getRoundCandidates = async (req, res) => {
       },
       include: {
         student: {
-          include: { 
+          include: {
             user: true,
             resumeFiles: {
               where: { isDefault: true },
@@ -1176,11 +1140,11 @@ export const getRoundCandidates = async (req, res) => {
     const candidates = applications.map(app => {
       const evaluation = evaluationMap.get(app.id);
       const previousEvaluation = previousEvaluationMap.get(app.id);
-      
+
       // Get resume URL from new StudentResumeFile (preferred) or fallback to old resumeUrl
       const defaultResume = app.student.resumeFiles?.[0];
       const resumeUrl = defaultResume?.fileUrl || app.student.resumeUrl;
-      
+
       return {
         applicationId: app.id,
         student: {
@@ -1430,7 +1394,7 @@ export const startRound = async (req, res) => {
       const interviewerCount = await prisma.interviewerInvite.count({
         where: { sessionId: round.sessionId },
       });
-      
+
       if (interviewerCount === 0) {
         return res.status(409).json({
           error: 'Cannot start session. At least one interviewer must be invited before starting the first round.',
@@ -1448,11 +1412,11 @@ export const startRound = async (req, res) => {
 
       const now = new Date();
       const driveDate = new Date(sessionWithJob.job.driveDate);
-      
+
       // Compare dates only (ignore time) - allow if today is drive date or later
       const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const driveDateOnly = new Date(driveDate.getFullYear(), driveDate.getMonth(), driveDate.getDate());
-      
+
       // Reject if current date is before drive date (date-only comparison)
       if (nowDateOnly < driveDateOnly) {
         return res.status(400).json({
@@ -1480,18 +1444,18 @@ export const startRound = async (req, res) => {
           error: 'Previous round must be ended before starting this round',
         });
       }
-      
+
       // CRITICAL: For continuing rounds, also check drive date hasn't passed
       const jobCheck = await prisma.job.findUnique({
         where: { id: correctedSession.jobId },
         select: { driveDate: true },
       });
-      
+
       if (jobCheck?.driveDate) {
         const now = new Date();
         const driveDate = new Date(jobCheck.driveDate);
         driveDate.setHours(23, 59, 59, 999);
-        
+
         if (now > driveDate) {
           return res.status(409).json({
             error: 'Interview drive date has passed',
@@ -1522,14 +1486,14 @@ export const startRound = async (req, res) => {
         where: { id: round.sessionId },
         include: { job: { select: { driveDate: true } } },
       });
-      
+
       if (sessionCheck.status === 'NOT_STARTED') {
         // Double-check drive date hasn't passed
         if (sessionCheck.job.driveDate) {
           const now = new Date();
           const driveDate = new Date(sessionCheck.job.driveDate);
           driveDate.setHours(23, 59, 59, 999);
-          
+
           if (now > driveDate) {
             // Drive date passed - mark as INCOMPLETE
             await tx.interviewSession.update({
@@ -1539,7 +1503,7 @@ export const startRound = async (req, res) => {
             throw new Error('Interview drive date has passed. Session cannot be started.');
           }
         }
-        
+
         await tx.interviewSession.update({
           where: { id: round.sessionId },
           data: { status: 'ONGOING', startedAt: new Date() },
@@ -1654,11 +1618,11 @@ export const endRound = async (req, res) => {
     // CRITICAL: For Round 1, only include candidates who passed screening (INTERVIEW_ELIGIBLE or TEST_SELECTED)
     // For rounds after first, only include SELECTED candidates from previous round
     let candidateApplicationIds;
-    
+
     if (round.roundNumber === 1) {
       // Round 1: Only include candidates who passed screening
       const eligibleApplications = await prisma.application.findMany({
-        where: { 
+        where: {
           jobId: round.session.jobId,
           screeningStatus: {
             in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] // Accept both for backward compatibility
@@ -1855,7 +1819,7 @@ export const endRound = async (req, res) => {
 
     const sessionCompleted = updatedSession?.status === 'COMPLETED';
     if (sessionCompleted) {
-      setImmediate(() => sendDriveThankYouEmailsForSession(round.sessionId).catch(() => {}));
+      setImmediate(() => sendDriveThankYouEmailsForSession(round.sessionId).catch(() => { }));
     }
 
     const message = sessionCompleted
@@ -1869,8 +1833,8 @@ export const endRound = async (req, res) => {
     });
   } catch (error) {
     console.error('Error ending round:', error);
-    res.status(500).json({ 
-      error: 'Failed to end round', 
+    res.status(500).json({
+      error: 'Failed to end round',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
@@ -1961,7 +1925,7 @@ async function sendDriveThankYouEmailsForSession(sessionId) {
     // Send email to recruiter - try multiple ways to find recruiter
     let recruiterEmail = null;
     let recruiterName = 'Recruiter';
-    
+
     // First, try from the loaded relationship
     if (job.recruiter?.user?.email) {
       recruiterEmail = job.recruiter.user.email;
@@ -2080,7 +2044,7 @@ export const endSession = async (req, res) => {
       },
     });
 
-    setImmediate(() => sendDriveThankYouEmailsForSession(sessionId).catch(() => {}));
+    setImmediate(() => sendDriveThankYouEmailsForSession(sessionId).catch(() => { }));
 
     res.json({
       message: 'Interview session ended successfully',

@@ -65,7 +65,7 @@ export default function AdminDashboard() {
     if (loading) return;
 
     const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
-    const allowedRoles = ['ADMIN', 'RECRUITER'];
+    const allowedRoles = ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'];
 
     if (!user) {
       console.error('🚫 AdminDashboard: No authenticated user');
@@ -92,7 +92,7 @@ export default function AdminDashboard() {
   if (loading) return null;
 
   const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
-  const allowedRoles = ['ADMIN', 'RECRUITER'];
+  const allowedRoles = ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'];
 
   if (!user || !allowedRoles.includes(userRole)) {
     return null; // Will redirect via useEffect
@@ -131,9 +131,8 @@ export default function AdminDashboard() {
   }, [navigate]);
 
   // Role-based tab filtering - STUDENT users cannot see Create Job or other admin-only tabs
-  // userRole is already declared above (line 68), reuse it here
   const userRoleUpper = userRole.toUpperCase();
-  const isAdmin = userRoleUpper === 'ADMIN';
+  const isAdmin = userRoleUpper === 'ADMIN' || userRoleUpper === 'SUPER_ADMIN';
   const isSuperAdmin = userRoleUpper === 'SUPER_ADMIN';
   const isRecruiter = userRoleUpper === 'RECRUITER';
   const isStudent = userRoleUpper === 'STUDENT';
@@ -143,20 +142,20 @@ export default function AdminDashboard() {
 
   // Base tabs available to all authorized users
   const allTabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
-    { id: 'createJob', label: 'Create Job', icon: FilePlus2, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
-    { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
-    { id: 'jobApplications', label: 'Applicants', icon: Users, roles: ['ADMIN', 'RECRUITER'] }, // ADMIN and RECRUITER only
+    { id: 'dashboard', label: 'Dashboard', icon: Home, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
+    { id: 'createJob', label: 'Create Job', icon: FilePlus2, roles: ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'] }, // ADMIN and RECRUITER only
+    { id: 'manageJobs', label: 'Manage Jobs', icon: Briefcase, roles: ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'] }, // ADMIN and RECRUITER only
+    { id: 'jobApplications', label: 'Applicants', icon: Users, roles: ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'] }, // ADMIN and RECRUITER only
     // { id: 'scheduleInterview', label: 'Schedule Interview', icon: Calendar }, // Commented out - replaced by InterviewScheduling
-    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar, roles: ['ADMIN', 'RECRUITER'] },
-    { id: 'calendar', label: 'Calendar', icon: Calendar, roles: ['ADMIN', 'RECRUITER'] },
+    { id: 'interviewScheduling', label: 'Interview Scheduling', icon: Calendar, roles: ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'] },
+    { id: 'calendar', label: 'Calendar', icon: Calendar, roles: ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'] },
     // { id: 'jobPostingsManager', label: 'Job Moderation', icon: ClipboardList }, // Removed from sidebar - page still exists
-    { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN'] }, // ADMIN only
-    { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN'] }, // ADMIN only
-    { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN'] }, // ADMIN only
+    { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
+    { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
+    { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
-    { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
-    { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT'] },
+    { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
+    { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
   ];
 
   // Filter tabs based on user role - STUDENT users should not see job creation tabs
@@ -312,7 +311,7 @@ export default function AdminDashboard() {
 
     }
   };
-  
+
 
   const handleTabClick = (tabId) => {
     setActiveTab(tabId);
@@ -344,11 +343,10 @@ export default function AdminDashboard() {
                             setActiveTab(tab.id);
                             navigate(`/admin?tab=${encodeURIComponent(tab.id)}`);
                           }}
-                          className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${
-                            sidebarActiveTab === tab.id
+                          className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${sidebarActiveTab === tab.id
                               ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                               : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                          } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
+                            } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
                           title={sidebarWidth < 9 ? tab.label : ''}
                         >
                           <Icon className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
@@ -364,9 +362,8 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
-                    sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'
-                  }`}
+                  className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'
+                    }`}
                   title={sidebarWidth < 9 ? 'Logout' : ''}
                 >
                   <LogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
@@ -386,9 +383,8 @@ export default function AdminDashboard() {
           )}
           {/* Mobile drawer sidebar */}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${
-              mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+              }`}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
@@ -412,11 +408,10 @@ export default function AdminDashboard() {
                     <div key={tab.id} className="mb-1">
                       <button
                         onClick={() => handleTabClick(tab.id)}
-                        className={`w-full flex items-center rounded-lg text-base font-medium transition-all px-4 py-3 touch-manipulation ${
-                          sidebarActiveTab === tab.id
+                        className={`w-full flex items-center rounded-lg text-base font-medium transition-all px-4 py-3 touch-manipulation ${sidebarActiveTab === tab.id
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                             : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                        }`}
+                          }`}
                       >
                         <Icon className="h-4 w-4 mr-2" />
                         {tab.label}

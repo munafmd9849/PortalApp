@@ -446,7 +446,7 @@ export const api = {
   }),
 
   // Students
-  getStudentProfile: () => apiRequest('/students/profile'),
+  getStudentProfile: (studentId) => apiRequest(studentId ? `/students/profile?studentId=${studentId}` : '/students/profile'),
   updateStudentProfile: (data) => apiRequest('/students/profile', {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -481,7 +481,7 @@ export const api = {
     const query = toQueryString(params);
     return apiRequest(`/students?${query}`);
   },
-  getStudentSkills: () => apiRequest('/students/skills'),
+  getStudentSkills: (studentId) => apiRequest(studentId ? `/students/skills?studentId=${studentId}` : '/students/skills'),
   addOrUpdateSkill: (skill) => apiRequest('/students/skills', {
     method: 'POST',
     body: JSON.stringify(skill),
@@ -618,7 +618,7 @@ export const api = {
   }),
 
   // Jobs
-  getTargetedJobs: () => apiRequest('/jobs/targeted'),
+  getTargetedJobs: (studentId) => apiRequest(studentId ? `/jobs/targeted?studentId=${studentId}` : '/jobs/targeted'),
   getJobs: (params = {}) => {
     const query = toQueryString(params);
     return apiRequest(`/jobs?${query}`);
@@ -691,7 +691,7 @@ export const api = {
     const query = toQueryString(filters);
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
-  getStudentApplications: () => apiRequest('/applications/student'),
+  getStudentApplications: (studentId) => apiRequest(studentId ? `/applications/student?studentId=${studentId}` : '/applications/student'),
 
   exportApplications: (filters = {}) => apiRequest('/applications/export', {
     method: 'POST',

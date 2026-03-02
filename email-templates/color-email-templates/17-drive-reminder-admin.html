@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Drive Reminder</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #F3F4F6;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: #111827;
+        }
+
+        .wrap {
+            width: 100%;
+            padding: 28px 12px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #1E3A8A;
+            padding: 24px 24px;
+            text-align: center;
+        }
+
+        .brand {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 0.2px;
+            color: #FFFFFF;
+            text-transform: uppercase;
+        }
+
+        .content {
+            padding: 26px 24px;
+        }
+
+        .hello {
+            font-size: 16px;
+            line-height: 22px;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+
+        .reminder-box {
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-left: 4px solid #2563EB;
+            border-radius: 14px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .days-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #2563EB;
+            color: #FFFFFF;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .job-title {
+            font-size: 20px;
+            font-weight: 900;
+            color: #111827;
+            margin: 0 0 4px;
+        }
+
+        .company-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #4B5563;
+            margin: 0 0 16px;
+        }
+
+        .detail-grid {
+            width: 100%;
+            border-top: 1px solid #DBEAFE;
+            padding-top: 16px;
+        }
+
+        .detail-item {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .detail-label {
+            font-weight: 700;
+            color: #1F2937;
+        }
+
+        .btn-container {
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            background: #2563EB;
+            color: #FFFFFF;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 14px;
+        }
+
+        .footer {
+            background: #F9FAFB;
+            border-top: 1px solid #E5E7EB;
+            padding: 20px 24px;
+            text-align: center;
+            color: #6B7280;
+            font-size: 12px;
+            line-height: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+            <td class="wrap" align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+                    style="max-width:640px;">
+                    <tr>
+                        <td>
+                            <div class="card">
+                                <div class="header">
+                                    <p class="brand">Drive Reminder</p>
+                                </div>
+
+                                <div class="content">
+                                    <p class="hello">Hello <strong>{{recipientName}}</strong>,</p>
+                                    <p>
+                                        This is a reminder regarding the upcoming placement drive. Please ensure all
+                                        preparations are finalized.
+                                    </p>
+
+                                    <div class="reminder-box">
+                                        <span class="days-badge">{{daysUntil}} Days Remaining</span>
+                                        <h2 class="job-title">{{jobTitle}}</h2>
+                                        <p class="company-name">{{companyName}}</p>
+
+                                        <div class="detail-grid">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Drive Date:</span> {{driveDate}}
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">Applications:</span> {{applicationCount}}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p>
+                                        You can manage the drive, review candidates, and update logistics via the
+                                        administrator dashboard.
+                                    </p>
+
+                                    <div class="btn-container">
+                                        <a href="{{dashboardUrl}}" class="btn">Go to Dashboard</a>
+                                    </div>
+                                </div>
+
+                                <div class="footer">
+                                    <strong>PWIOI Placement Portal</strong><br />
+                                    Automated Administrative Notification · Do not reply
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>

@@ -10,7 +10,7 @@ import api from './api.js';
  */
 export const getStudentProfile = async (studentId) => {
   try {
-    const profile = await api.getStudentProfile();
+    const profile = await api.getStudentProfile(studentId);
     return profile;
   } catch (error) {
     console.error('getStudentProfile error:', error);
@@ -63,7 +63,7 @@ export const updateCompleteStudentProfile = async (studentId, profileData, skill
  */
 export const getStudentSkills = async (studentId) => {
   try {
-    const skills = await api.getStudentSkills();
+    const skills = await api.getStudentSkills(studentId);
     return skills;
   } catch (error) {
     console.error('getStudentSkills error:', error);
@@ -76,7 +76,7 @@ export const getStudentSkills = async (studentId) => {
  */
 export const getEducationalBackground = async (studentId) => {
   try {
-    const profile = await api.getStudentProfile();
+    const profile = await api.getStudentProfile(studentId);
     return profile?.education || [];
   } catch (error) {
     console.error('getEducationalBackground error:', error);
@@ -264,33 +264,33 @@ export const deleteAchievementArray = async (studentId, achievementId) => {
  */
 export const getAllStudents = async (filters = {}, options = {}) => {
   const { retries = 2, retryDelay = 1000 } = options;
-  
+
   try {
     const response = await api.getAllStudents(filters);
-    
+
     // Validate response structure
     if (!response) {
       throw new Error('Empty response from server');
     }
-    
+
     // Backend returns { students, pagination }
     const students = response.students || response || [];
     const pagination = response.pagination;
-    
+
     // Ensure it's an array
     if (!Array.isArray(students)) {
       console.warn('getAllStudents: Invalid response format, expected array:', response);
       return { students: [], total: 0 };
     }
-    
+
     // If pagination exists and we haven't fetched all students, fetch remaining pages
     if (pagination && pagination.totalPages > 1) {
       const totalNeeded = pagination.totalPages;
       const requestedLimit = parseInt(filters.limit) || 50;
       const limitToUse = Math.min(requestedLimit, 1000); // Use requested limit or max 1000
-      
+
       const allStudents = [...students];
-      
+
       // Fetch remaining pages (starting from page 2) if needed
       for (let page = 2; page <= totalNeeded; page++) {
         try {
@@ -309,11 +309,11 @@ export const getAllStudents = async (filters = {}, options = {}) => {
           break;
         }
       }
-      
+
       // Always return array for consistency
       return allStudents;
     }
-    
+
     // Return students array (backwards compatibility)
     return students;
   } catch (error) {
@@ -326,21 +326,21 @@ export const getAllStudents = async (filters = {}, options = {}) => {
       endpoint: '/api/students',
       timestamp: new Date().toISOString(),
     };
-    
+
     console.error('getAllStudents error:', errorDetails);
-    
+
     // Retry logic for transient errors (500, 502, 503, 504)
     if (retries > 0 && errorStatus >= 500 && errorStatus < 600) {
       console.log(`Retrying getAllStudents... (${retries} retries remaining)`);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
       return getAllStudents(filters, { retries: retries - 1, retryDelay: retryDelay * 2 });
     }
-    
+
     // For authentication/authorization errors, throw to be handled by auth system
     if (errorStatus === 401 || errorStatus === 403) {
       throw error;
     }
-    
+
     // For other errors (500, network, etc.), return safe error object
     // This prevents component crashes while still allowing error handling
     return {

@@ -51,6 +51,7 @@ import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
 import resumeViewRoutes from './routes/resumeView.js';
+import auditLogRoutes from './routes/auditLogs.js';
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -127,10 +128,10 @@ app.use(cors({
   origin: (origin, callback) => {
     // Get allowed origins from environment variable
     // CORS_ORIGIN can be a comma-separated list for multiple origins
-    let allowedOrigins = process.env.CORS_ORIGIN 
+    let allowedOrigins = process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
       : [];
-    
+
     // If no CORS_ORIGIN is set
     if (allowedOrigins.length === 0) {
       if (isDevelopment) {
@@ -149,12 +150,12 @@ app.use(cors({
         process.exit(1);
       }
     }
-    
+
     // In development, also allow localhost on any port
     if (isDevelopment && origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
       return callback(null, true);
     }
-    
+
     // Allow requests from configured origins
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -214,7 +215,7 @@ app.use('/api/', generalLimiter);
 
 // Root route - API information
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'PWIOI Placement Portal API',
     version: '1.0.0',
     status: 'running',
@@ -260,6 +261,7 @@ app.use('/api/admin', adminScreeningRoutes); // Admin screening management route
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
+app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code
@@ -291,7 +293,7 @@ app.get('/api/calendar/oauth/callback', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
@@ -306,7 +308,7 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   console.log(`[404] Route not found: ${req.method} ${req.originalUrl}`);
   console.log(`[404] Available routes: /api/calendar/oauth-url, /auth/google/callback, /auth/google/calendar/callback`);
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Route not found',
     method: req.method,
     path: req.originalUrl,
@@ -320,11 +322,11 @@ const PORT = process.env.PORT || 3000; // Default to 3000 as per project context
 async function start() {
   let dbConnected = false;
   let dbQuotaExceeded = false;
-  
+
   // Retry logic for Render free tier databases (they spin down after inactivity)
   const maxRetries = 3;
   const retryDelay = 5000; // 5 seconds between retries
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 1) {
@@ -332,7 +334,7 @@ async function start() {
       } else {
         console.log('🔄 Connecting to database...');
       }
-      
+
       await prisma.$connect();
       await prisma.$queryRaw`SELECT 1`;
       dbConnected = true;
@@ -341,7 +343,7 @@ async function start() {
     } catch (dbErr) {
       const errorCode = dbErr?.code || '';
       const errorMessage = dbErr?.message || String(dbErr);
-      
+
       // Check if it's a quota error - allow server to start but warn
       if (errorMessage.includes('quota')) {
         dbQuotaExceeded = true;
@@ -350,12 +352,12 @@ async function start() {
         dbConnected = false;
         break;
       }
-      
+
       // For connection errors (P1001, P1017), retry (database might be sleeping)
-      if (errorCode === 'P1001' || errorCode === 'P1017' || errorCode === 'P2024' || 
-          errorMessage.includes("Can't reach database") || 
-          errorMessage.includes('connection pool') ||
-          errorMessage.includes('Timed out')) {
+      if (errorCode === 'P1001' || errorCode === 'P1017' || errorCode === 'P2024' ||
+        errorMessage.includes("Can't reach database") ||
+        errorMessage.includes('connection pool') ||
+        errorMessage.includes('Timed out')) {
         if (attempt < maxRetries) {
           console.warn(`⚠️  Database connection failed (attempt ${attempt}/${maxRetries}):`);
           console.warn(`   ${errorMessage.substring(0, 100)}...`);
@@ -469,7 +471,7 @@ function startScreeningEmailScheduler() {
   screeningEmailInterval = setInterval(async () => {
     try {
       const result = await checkAndSendScreeningEmails();
-      
+
       if (result && result.skipped && result.reason === 'database_quota_exceeded') {
         consecutiveQuotaErrors++;
         // Only log quota errors occasionally to reduce spam (every 10th error or first 3)

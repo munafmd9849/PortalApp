@@ -11,6 +11,7 @@ import { uploadToS3, deleteFromS3 } from '../config/s3.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
+import { logAction } from '../utils/auditLogger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -34,22 +35,25 @@ async function updateUserProfilePhoto(userId, profilePhotoValue) {
  */
 export async function getStudentProfile(req, res) {
   try {
-    const { studentId } = req.params;
-    const userId = studentId || req.userId;
+    let studentIdToFetch;
+    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+      studentIdToFetch = { id: req.query.studentId };
+    } else {
+      studentIdToFetch = { userId: req.userId };
+    }
 
     console.log('🔍 [getStudentProfile] Request received:', {
-      studentId,
+      studentIdToFetch,
       reqUserId: req.userId,
-      finalUserId: userId,
     });
 
-    if (!userId) {
+    if (!req.userId && !req.query.studentId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
     // SINGLE CONSOLIDATED PRISMA QUERY
     const student = await prisma.student.findUnique({
-      where: { userId },
+      where: studentIdToFetch,
       include: {
         user: {
           select: {
@@ -89,7 +93,7 @@ export async function getStudentProfile(req, res) {
       // Return empty profile structure instead of 404 for new users
       return res.json({
         id: null,
-        userId,
+        userId: studentIdToFetch.userId || null,
         fullName: '',
         email: '',
         phone: '',
@@ -412,6 +416,14 @@ export async function updateStudentProfile(req, res) {
         },
       });
 
+      // Audit log
+      await logAction(req, {
+        actionType: 'Create Profile',
+        targetType: 'Student',
+        targetId: student.id,
+        details: `Created student profile for ${student.fullName}`,
+      });
+
       // Sync coding profiles if any (don't fail creation if sync fails)
       if (cleanData.linkedin || cleanData.githubUrl || cleanData.youtubeUrl ||
         cleanData.leetcode || cleanData.codeforces || cleanData.gfg || cleanData.hackerrank) {
@@ -642,6 +654,14 @@ export async function updateStudentProfile(req, res) {
       },
     });
 
+    // Audit log
+    await logAction(req, {
+      actionType: 'Update Profile',
+      targetType: 'Student',
+      targetId: student.id,
+      details: `Updated student profile for ${student.fullName}`,
+    });
+
     // Sync coding profiles if any (don't fail update if sync fails)
     if (profileData.linkedin || profileData.githubUrl || profileData.youtubeUrl ||
       profileData.leetcode || profileData.codeforces || profileData.gfg || profileData.hackerrank) {
@@ -697,20 +717,24 @@ export async function updateStudentProfile(req, res) {
  */
 export async function getStudentSkills(req, res) {
   try {
-    const userId = req.userId;
-
-    const student = await prisma.student.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
+    let studentId;
+    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+      studentId = req.query.studentId;
+    } else {
+      const student = await prisma.student.findUnique({
+        where: { userId: req.userId },
+        select: { id: true },
+      });
+      studentId = student?.id;
+    }
 
     // If student doesn't exist yet, return empty array (for new users)
-    if (!student) {
+    if (!studentId) {
       return res.json([]);
     }
 
     const skills = await prisma.skill.findMany({
-      where: { studentId: student.id },
+      where: { studentId: studentId },
       orderBy: { skillName: 'asc' },
     });
 

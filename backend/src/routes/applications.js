@@ -25,8 +25,8 @@ router.get('/export/:jobId', requireRole(['ADMIN']), applicationController.getEx
 // Get screening summary for a job (admin only)
 router.get('/job/:jobId/screening-summary', requireRole(['ADMIN']), applicationController.getJobScreeningSummary);
 
-// Get student's applications (student only)
-router.get('/student', requireRole(['STUDENT']), applicationController.getStudentApplications);
+// Get student's applications (student only, admins via query)
+router.get('/student', requireRole(['STUDENT', 'ADMIN', 'SUPER_ADMIN']), applicationController.getStudentApplications);
 
 // Get student's interview history with rounds (student only)
 router.get('/student/interview-history', requireRole(['STUDENT']), applicationController.getStudentInterviewHistory);

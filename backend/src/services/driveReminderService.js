@@ -8,7 +8,7 @@
 
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database.js';
-import { sendDriveReminderRecruiterAdmin, sendDriveReminder24h } from './emailService.js';
+import { sendDriveReminderRecruiterAdmin, sendDriveReminder24h, sendDriveReminderStudent } from './emailService.js';
 import logger from '../config/logger.js';
 
 /** Date-only (YYYY-MM-DD) for comparison */
@@ -32,7 +32,7 @@ function getRecruiterEmails(job) {
     try {
       const arr = typeof job.recruiterEmails === 'string' ? JSON.parse(job.recruiterEmails) : job.recruiterEmails;
       if (Array.isArray(arr)) arr.forEach((r) => { if (r?.email) list.push(r.email); });
-    } catch (_) {}
+    } catch (_) { }
   }
   return [...new Set(list)];
 }
@@ -96,15 +96,28 @@ export async function checkAndSendDriveReminders() {
         logger.warn(`[Drive Reminder] Job ${job.id} has no recruiter/admin emails; skipping reminders`);
       }
 
+      // Fetch student applicant emails if needed
+      let applicantEmails = [];
+      if (days === 7 || days === 3 || days === 1) {
+        const applications = await prisma.application.findMany({
+          where: { jobId: job.id },
+          select: { student: { select: { email: true } } }
+        });
+        applicantEmails = applications.map((a) => a.student?.email).filter(Boolean);
+      }
+
       // 7 days before
       if (days === 7 && !job.driveReminder7dSent) {
         try {
           await sendDriveReminderRecruiterAdmin(job, recruiterAdminEmails, 7);
+          if (applicantEmails.length > 0) {
+            await sendDriveReminderStudent(job, applicantEmails, 7);
+          }
           await prisma.job.update({
             where: { id: job.id },
             data: { driveReminder7dSent: true }
           });
-          results.push({ jobId: job.id, type: '7d', status: 'sent' });
+          results.push({ jobId: job.id, type: '7d', status: 'sent', applicantCount: applicantEmails.length });
         } catch (err) {
           logger.error(`[Drive Reminder] 7d send failed for job ${job.id}:`, err);
           results.push({ jobId: job.id, type: '7d', status: 'error', error: err.message });
@@ -115,11 +128,14 @@ export async function checkAndSendDriveReminders() {
       if (days === 3 && !job.driveReminder3dSent) {
         try {
           await sendDriveReminderRecruiterAdmin(job, recruiterAdminEmails, 3);
+          if (applicantEmails.length > 0) {
+            await sendDriveReminderStudent(job, applicantEmails, 3);
+          }
           await prisma.job.update({
             where: { id: job.id },
             data: { driveReminder3dSent: true }
           });
-          results.push({ jobId: job.id, type: '3d', status: 'sent' });
+          results.push({ jobId: job.id, type: '3d', status: 'sent', applicantCount: applicantEmails.length });
         } catch (err) {
           logger.error(`[Drive Reminder] 3d send failed for job ${job.id}:`, err);
           results.push({ jobId: job.id, type: '3d', status: 'error', error: err.message });
@@ -129,11 +145,6 @@ export async function checkAndSendDriveReminders() {
       // 24 hours (1 day) before
       if (days === 1 && !job.driveReminder24hSent) {
         try {
-          const applications = await prisma.application.findMany({
-            where: { jobId: job.id },
-            select: { student: { select: { email: true } } }
-          });
-          const applicantEmails = applications.map((a) => a.student?.email).filter(Boolean);
           await sendDriveReminder24h(job, recruiterAdminEmails, applicantEmails);
           await prisma.job.update({
             where: { id: job.id },

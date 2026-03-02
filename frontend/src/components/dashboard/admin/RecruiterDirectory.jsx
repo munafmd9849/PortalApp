@@ -14,7 +14,7 @@ import JobInfoDisplay from '../../common/JobInfoDisplay';
 export default function RecruiterDirectory() {
   const location = useLocation();
   const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
-  const [expandedRecruiter, setExpandedRecruiter] = useState(null);
+  const [historyModal, setHistoryModal] = useState({ isOpen: false, recruiter: null });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [emailData, setEmailData] = useState({ to: '', subject: '', body: '' });
@@ -25,14 +25,14 @@ export default function RecruiterDirectory() {
   const [blockModal, setBlockModal] = useState({ isOpen: false, recruiter: null, isUnblocking: false });
   const [emailSending, setEmailSending] = useState(false);
   const [operationLoading, setOperationLoading] = useState({});
-  
+
   // Pagination state
   const [pagination, setPagination] = useState({
     currentPage: 1,
     itemsPerPage: 10,
     totalItems: 0
   });
-  
+
   // Hooks
   const { user } = useAuth();
   const toast = useToast();
@@ -41,7 +41,7 @@ export default function RecruiterDirectory() {
   useEffect(() => {
     console.log('📡 Setting up real-time recruiter directory subscription');
     setLoading(true);
-    
+
     const unsubscribe = subscribeRecruiterDirectory(
       (recruitersData) => {
         console.log('📊 Received recruiter directory update:', recruitersData.length, 'recruiters');
@@ -67,16 +67,16 @@ export default function RecruiterDirectory() {
     maxJobs: ''
   });
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchTerm]);
-  
+
   const filteredRecruiters = recruiters.filter((recruiter) => {
     // Search filter
     if (debouncedSearch) {
@@ -89,7 +89,7 @@ export default function RecruiterDirectory() {
       );
       if (!matchesSearch) return false;
     }
-    
+
     // Status filter
     if (filters.status) {
       const recruiterStatus = String(recruiter?.status || 'ACTIVE').toUpperCase();
@@ -106,12 +106,12 @@ export default function RecruiterDirectory() {
         if (recruiterStatus !== filterStatus) return false;
       }
     }
-    
+
     // Location filter
     if (filters.location && !recruiter.location?.toLowerCase().includes(filters.location.toLowerCase())) {
       return false;
     }
-    
+
     // Job count filters
     const jobCount = recruiter.totalJobPostings || 0;
     if (filters.minJobs && jobCount < parseInt(filters.minJobs)) {
@@ -120,7 +120,7 @@ export default function RecruiterDirectory() {
     if (filters.maxJobs && jobCount > parseInt(filters.maxJobs)) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -139,24 +139,24 @@ export default function RecruiterDirectory() {
     }
     return sortableItems;
   }, [filteredRecruiters, sortConfig]);
-  
+
   // Paginated results
   const paginatedRecruiters = React.useMemo(() => {
     const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
     const endIndex = startIndex + pagination.itemsPerPage;
     return sortedRecruiters.slice(startIndex, endIndex);
   }, [sortedRecruiters, pagination.currentPage, pagination.itemsPerPage]);
-  
+
   // Update total items when filtered recruiters change
   React.useEffect(() => {
-    setPagination(prev => ({ 
-      ...prev, 
+    setPagination(prev => ({
+      ...prev,
       totalItems: filteredRecruiters.length,
       // Reset to first page when filters change
       currentPage: prev.totalItems !== filteredRecruiters.length ? 1 : prev.currentPage
     }));
   }, [filteredRecruiters.length]);
-  
+
   const totalPages = Math.ceil(pagination.totalItems / pagination.itemsPerPage);
 
   // Calculate statistics from ALL recruiters (not filtered) - must be before conditional returns to follow Rules of Hooks
@@ -173,7 +173,7 @@ export default function RecruiterDirectory() {
       if (statusUpper === 'REJECTED') return 'Active';
       return 'Active';
     };
-    
+
     const active = recruiters.filter(r => normalizeStatus(r.status) === 'Active').length;
     const blocked = recruiters.filter(r => normalizeStatus(r.status) === 'Blocked').length;
     const total = recruiters.length;
@@ -184,23 +184,23 @@ export default function RecruiterDirectory() {
   // Get status styling - matching job moderation style
   const getStatusChip = (status) => {
     const statusStyles = {
-      active: { 
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50', 
-        text: 'text-green-700', 
+      active: {
+        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+        text: 'text-green-700',
         border: 'border-green-200',
         label: 'Active'
       },
-      blocked: { 
-        bg: 'bg-gradient-to-r from-red-50 to-rose-50', 
-        text: 'text-red-700', 
+      blocked: {
+        bg: 'bg-gradient-to-r from-red-50 to-rose-50',
+        text: 'text-red-700',
         border: 'border-red-200',
         label: 'Blocked'
       }
     };
-    
+
     const normalizedStatus = status?.toLowerCase();
     const style = statusStyles[normalizedStatus] || statusStyles.active;
-    
+
     return (
       <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
         {style.label}
@@ -216,9 +216,7 @@ export default function RecruiterDirectory() {
     setSortConfig({ key, direction });
   };
 
-  const toggleExpand = (id) => {
-    setExpandedRecruiter((prev) => (prev === id ? null : id));
-  };
+  // Removed toggleExpand as we now use a modal for history
 
   const getHeaderClass = (key) => {
     if (sortConfig.key === key) {
@@ -251,7 +249,7 @@ export default function RecruiterDirectory() {
 
     try {
       setEmailSending(true);
-      
+
       // Find the recruiter by email to get their ID
       const targetRecruiter = recruiters.find(rec => rec.email === emailData.to);
       if (!targetRecruiter) {
@@ -259,18 +257,18 @@ export default function RecruiterDirectory() {
       }
 
       const result = await sendEmailToRecruiter(
-        targetRecruiter.id, 
-        emailData, 
+        targetRecruiter.id,
+        emailData,
         user
       );
-      
+
       if (result.success) {
         toast.showSuccess('Email sent successfully!');
         closeMailModal();
       } else {
         throw new Error('Failed to send email');
       }
-      
+
     } catch (error) {
       console.error('Error sending email:', error);
       toast.showError(`Failed to send email: ${error.message}`);
@@ -291,25 +289,25 @@ export default function RecruiterDirectory() {
 
     try {
       setOperationLoading(prev => ({ ...prev, [operationKey]: true }));
-      
+
       const result = await blockUnblockRecruiter(
-        recruiter.id, 
-        blockData, 
+        recruiter.id,
+        blockData,
         user
       );
-      
+
       if (result.success) {
         const action = result.action;
         toast.showSuccess(
           `Recruiter ${action} successfully! Changes will reflect immediately.`
         );
-        
+
         // Close modal
         setBlockModal({ isOpen: false, recruiter: null, isUnblocking: false });
       } else {
         throw new Error('Operation failed');
       }
-      
+
     } catch (error) {
       console.error('Error blocking/unblocking recruiter:', error);
       toast.showError(
@@ -321,8 +319,8 @@ export default function RecruiterDirectory() {
   };
 
   const [recruiterSummaries, setRecruiterSummaries] = useState({});
-  
-  const getRecruiterSummary = async (recruiterId) => {
+
+  const fetchRecruiterSummary = async (recruiterId) => {
     if (recruiterSummaries[recruiterId]) {
       return recruiterSummaries[recruiterId];
     }
@@ -335,7 +333,7 @@ export default function RecruiterDirectory() {
       console.error('Error fetching recruiter summary:', error);
       // Fallback to basic data
       const fallbackSummary = {
-        jobsPerCenter: { 'Lucknow': 0, 'Pune': 0, 'Bangalore': 0, 'Noida': 0 , 'Indore': 0, 'Patna': 0},
+        jobsPerCenter: { 'Lucknow': 0, 'Pune': 0, 'Bangalore': 0, 'Noida': 0, 'Indore': 0, 'Patna': 0 },
         jobsPerSchool: { 'SOT': 0, 'SOH': 0, 'SOM': 0 },
         totalJobs: 0,
         activeJobs: 0,
@@ -360,7 +358,7 @@ export default function RecruiterDirectory() {
           setHistoryLoading(true);
           const [historyData, summaryData] = await Promise.all([
             getRecruiterHistory(recruiter.id),
-            getRecruiterSummary(recruiter.id)
+            fetchRecruiterSummary(recruiter.id)
           ]);
           setHistory(historyData);
           setSummary(summaryData);
@@ -434,9 +432,8 @@ export default function RecruiterDirectory() {
                         <span className="font-medium text-gray-800">{job.jobTitle}</span>
                         <span className="text-gray-600 ml-2">at {job.company}</span>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        job.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs ${job.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
                         {job.status}
                       </span>
                     </div>
@@ -483,7 +480,7 @@ export default function RecruiterDirectory() {
                     <div key={email.id || index} className="text-sm bg-gray-50 p-2 rounded">
                       <div className="font-medium">{email.data?.subject || 'No Subject'}</div>
                       <div className="text-gray-600">
-                        {email.date ? new Date(email.date.toMillis()).toLocaleString() : 'Unknown date'} • 
+                        {email.date ? new Date(email.date.toMillis()).toLocaleString() : 'Unknown date'} •
                         from {email.data?.adminName || 'Admin'}
                       </div>
                     </div>
@@ -505,9 +502,8 @@ export default function RecruiterDirectory() {
                 {history.statusChanges.map((change, index) => (
                   <div key={change.id || index} className="text-sm bg-gray-50 p-2 rounded">
                     <div className="flex justify-between items-start">
-                      <span className={`font-medium ${
-                        change.type === 'recruiter_blocked' ? 'text-red-600' : 'text-green-600'
-                      }`}>
+                      <span className={`font-medium ${change.type === 'recruiter_blocked' ? 'text-red-600' : 'text-green-600'
+                        }`}>
                         {change.type === 'recruiter_blocked' ? 'Blocked' : 'Unblocked'}
                       </span>
                       <span className="text-gray-600 text-xs">
@@ -543,8 +539,8 @@ export default function RecruiterDirectory() {
     return (
       <div className="text-center py-8">
         <div className="text-red-600 mb-2">{error}</div>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => window.location.reload()}
           className="text-blue-600 hover:text-blue-800 underline"
         >
           Try again
@@ -603,7 +599,7 @@ export default function RecruiterDirectory() {
           <FaFilter className="w-5 h-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
         </div>
-        
+
         {/* First Row: Search, Status, Location */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           {/* Search */}
@@ -878,10 +874,10 @@ export default function RecruiterDirectory() {
                               onClick={() => {
                                 const userRole = (user?.role || '').toLowerCase();
                                 if (userRole === 'super_admin') {
-                                  setBlockModal({ 
-                                    isOpen: true, 
-                                    recruiter, 
-                                    isUnblocking: recruiter.status === 'Blocked' 
+                                  setBlockModal({
+                                    isOpen: true,
+                                    recruiter,
+                                    isUnblocking: recruiter.status === 'Blocked'
                                   });
                                 } else {
                                   toast.showError('Only Super Admin users can block/unblock recruiters');
@@ -900,27 +896,16 @@ export default function RecruiterDirectory() {
 
                             {/* View History Button */}
                             <button
-                              onClick={() => toggleExpand(recruiter.id)}
+                              onClick={() => setHistoryModal({ isOpen: true, recruiter })}
                               className="p-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-all duration-200 border border-yellow-200 hover:border-yellow-300"
-                              aria-label={expandedRecruiter === recruiter.id ? 'Hide History' : 'View History'}
-                              title={expandedRecruiter === recruiter.id ? 'Hide History' : 'View History'}
+                              aria-label="View History"
+                              title="View History"
                             >
-                              <TbHistoryToggle 
-                                className={`w-4 h-4 transition-transform duration-300 ${expandedRecruiter === recruiter.id ? 'rotate-180' : ''}`} 
-                              />
+                              <TbHistoryToggle className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
                       </tr>
-                      {expandedRecruiter === recruiter.id && (
-                        <tr>
-                          <td colSpan="7" className="p-4 bg-gradient-to-b from-gray-50 to-gray-100">
-                            <div className="bg-white rounded-xl shadow-inner p-5 border border-gray-200">
-                              <RecruiterHistory recruiter={recruiter} />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </React.Fragment>
                   ))}
                 </tbody>
@@ -970,21 +955,42 @@ export default function RecruiterDirectory() {
       </div>
 
       {/* Modals */}
-      <MailModal 
-        isModalOpen={isModalOpen} 
-        closeMailModal={closeMailModal} 
-        emailData={emailData} 
-        setEmailData={setEmailData} 
-        handleSendMail={handleSendMail} 
+      {historyModal.isOpen && historyModal.recruiter && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center bg-white">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Activity History - {historyModal.recruiter.companyName || 'Unknown'}
+              </h2>
+              <button
+                onClick={() => setHistoryModal({ isOpen: false, recruiter: null })}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <RecruiterHistory recruiter={historyModal.recruiter} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MailModal
+        isModalOpen={isModalOpen}
+        closeMailModal={closeMailModal}
+        emailData={emailData}
+        setEmailData={setEmailData}
+        handleSendMail={handleSendMail}
       />
-      
-      <JobDescriptionModal 
+
+      <JobDescriptionModal
         isOpen={jobDescriptionModal.isOpen}
         recruiter={jobDescriptionModal.recruiter}
         onClose={() => setJobDescriptionModal({ isOpen: false, recruiter: null })}
       />
-      
-      <BlockModal 
+
+      <BlockModal
         isOpen={blockModal.isOpen}
         entity={blockModal.recruiter}
         entityType="recruiter"
@@ -1000,11 +1006,11 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   useEffect(() => {
     const loadJobs = async () => {
       if (!recruiter?.email) return;
-      
+
       try {
         setLoading(true);
         setError(null);
@@ -1024,15 +1030,15 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
       loadJobs();
     }
   }, [isOpen, recruiter]);
-  
+
   if (!isOpen || !recruiter) return null;
 
   // Get employment type for display
   const getEmploymentType = (job) => {
     if (job.jobType) {
-      return job.jobType === 'Internship' ? 'Internship' : 
-             job.jobType === 'Full-Time' ? 'Full-Time' : 
-             job.jobType;
+      return job.jobType === 'Internship' ? 'Internship' :
+        job.jobType === 'Full-Time' ? 'Full-Time' :
+          job.jobType;
     }
     // Fallback logic
     if (job.title?.toLowerCase().includes('intern')) return 'Internship';
@@ -1066,8 +1072,8 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
           ) : error ? (
             <div className="text-center py-8">
               <div className="text-red-600 mb-2">{error}</div>
-              <button 
-                onClick={() => window.location.reload()} 
+              <button
+                onClick={() => window.location.reload()}
                 className="text-purple-600 hover:text-purple-800 underline"
               >
                 Try again
@@ -1078,7 +1084,7 @@ const JobDescriptionModal = ({ isOpen, recruiter, onClose }) => {
               {jobs.map((job, index) => {
                 const employmentType = getEmploymentType(job);
                 const jobId = job.id || job.jobId;
-                
+
                 return (
                   <div
                     key={job.id || index}
@@ -1233,13 +1239,13 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
                 className="w-full p-2 text-gray-600 bg-white border-b border-transparent focus:outline-none"
               />
               <div className="text-xs text-gray-500 mt-1">
-                <button 
+                <button
                   onClick={() => setShowCC(!showCC)}
                   className="text-blue-500 hover:text-blue-700 mr-4"
                 >
                   Cc
                 </button>
-                <button 
+                <button
                   onClick={() => setShowBCC(!showBCC)}
                   className="text-blue-500 hover:text-blue-700"
                 >
@@ -1248,7 +1254,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               </div>
             </div>
           </div>
-          
+
           {/* CC Field - Conditionally Rendered */}
           {showCC && (
             <div className="px-6 py-3 border-b border-gray-200 flex items-center">
@@ -1262,7 +1268,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               />
             </div>
           )}
-          
+
           {/* BCC Field - Conditionally Rendered */}
           {showBCC && (
             <div className="px-6 py-3 border-b border-gray-200 flex items-center">
@@ -1276,7 +1282,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               />
             </div>
           )}
-          
+
           {/* Subject Field */}
           <div className="px-6 py-3 border-b border-gray-200 flex items-center">
             <div className="w-20 text-sm text-gray-600">Subject</div>
@@ -1288,7 +1294,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               className="flex-1 p-2 focus:outline-none"
             />
           </div>
-          
+
           {/* Message Body */}
           <div className="px-6 py-4 h-96">
             <textarea
@@ -1298,7 +1304,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               placeholder="Compose your email here..."
             ></textarea>
           </div>
-          
+
           {/* Attachments */}
           {attachments.length > 0 && (
             <div className="px-6 py-2 border-t border-gray-200">
@@ -1307,7 +1313,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
                 {attachments.map((file, index) => (
                   <div key={index} className="flex items-center bg-gray-100 rounded px-3 py-1 text-sm">
                     <span className="mr-2">{file.name}</span>
-                    <button 
+                    <button
                       onClick={() => removeAttachment(index)}
                       className="text-red-500 hover:text-red-700"
                     >
@@ -1321,36 +1327,36 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
             </div>
           )}
         </div>
-        
+
         {/* Formatting Toolbar and Action Buttons */}
         <div className="border-t border-gray-200 px-6 py-4">
           {/* Formatting Toolbar */}
           <div className="flex items-center space-x-2 mb-4">
-            <button 
+            <button
               onClick={() => formatText('bold')}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 font-bold"
               title="Bold"
             >
               B
             </button>
-            <button 
+            <button
               onClick={() => formatText('italic')}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 italic"
               title="Italic"
             >
               I
             </button>
-            <button 
+            <button
               onClick={() => formatText('underline')}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 underline"
               title="Underline"
             >
               U
             </button>
-            
+
             <div className="border-l border-gray-300 h-6 mx-2"></div>
-            
-            <button 
+
+            <button
               onClick={() => fileInputRef.current.click()}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
               title="Attach files"
@@ -1359,7 +1365,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
             </button>
-            
+
             <input
               type="file"
               ref={fileInputRef}
@@ -1367,31 +1373,30 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
               className="hidden"
               multiple
             />
-            
+
             <button className="p-1.5 rounded hover:bg-gray-100 text-gray-600" title="Insert link">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </button>
-            
+
             <button className="p-1.5 rounded hover:bg-gray-100 text-gray-600" title="Insert emoji">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </button>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleSendMail}
                 disabled={emailSending}
-                className={`px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                  emailSending 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
-                } text-white`}
+                className={`px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${emailSending
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+                  } text-white`}
               >
                 {emailSending ? (
                   <>
@@ -1410,8 +1415,8 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
               </button>
-              <button 
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600" 
+              <button
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600"
                 title="Delete"
                 onClick={closeMailModal}
               >
@@ -1420,7 +1425,7 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
                 </svg>
               </button>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <button className="p-2 rounded-full hover:bg-gray-100 text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1437,6 +1442,56 @@ const MailModal = ({ isModalOpen, closeMailModal, emailData, setEmailData, handl
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+const RecruiterHistory = ({ recruiter }) => {
+  if (!recruiter || !recruiter.activityHistory || recruiter.activityHistory.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        <TbHistoryToggle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No History Available</h3>
+        <p className="text-sm">There is no recorded activity for this recruiter yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {recruiter.activityHistory.map((activity, index) => (
+        <div key={index} className="flex items-start gap-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 rounded-lg flex-shrink-0 border border-blue-100">
+            <TbHistoryToggle className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0">
+                <h4 className="font-semibold text-gray-900 text-base truncate">{activity.type}</h4>
+                <p className="text-sm text-gray-600 flex items-center gap-1.5 mt-1.5 truncate">
+                  <FaMapMarkerAlt className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="truncate">{activity.location || 'Not specified'}</span>
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                <span className={`inline-flex px-2.5 py-1 text-[11px] uppercase tracking-wider font-bold rounded-full ${activity.status?.toUpperCase() === 'ACTIVE' ? 'bg-green-100 text-green-700 border border-green-200' :
+                    activity.status?.toUpperCase() === 'CLOSED' ? 'bg-red-100 text-red-700 border border-red-200' :
+                      'bg-gray-100 text-gray-700 border border-gray-200'
+                  }`}>
+                  {activity.status || 'PAST'}
+                </span>
+                <p className="text-xs text-gray-500 font-medium">
+                  {new Date(activity.date).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };

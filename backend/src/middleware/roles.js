@@ -16,7 +16,7 @@ export function requireRole(allowedRoles) {
   return async (req, res, next) => {
     // Ensure user is authenticated first
     if (!req.user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required'
       });
@@ -30,16 +30,16 @@ export function requireRole(allowedRoles) {
     // BUT: Allow STUDENT users to apply to jobs via /api/applications/jobs/:jobId
     // Use req.originalUrl to get the full path including base URL
     const originalUrl = req.originalUrl || req.url || req.path;
-    
+
     // Check if this is a job creation/modification endpoint (not application endpoint)
-    const isJobCreationEndpoint = originalUrl.startsWith('/api/jobs') && 
-                                   req.method === 'POST' && 
-                                   !originalUrl.includes('/applications');
-    const isJobPostEndpoint = originalUrl.includes('/jobs') && 
-                              req.method === 'POST' && 
-                              (originalUrl.includes('/post') || originalUrl.includes('/approve') || originalUrl.includes('/reject')) &&
-                              !originalUrl.includes('/applications');
-    
+    const isJobCreationEndpoint = originalUrl.startsWith('/api/jobs') &&
+      req.method === 'POST' &&
+      !originalUrl.includes('/applications');
+    const isJobPostEndpoint = originalUrl.includes('/jobs') &&
+      req.method === 'POST' &&
+      (originalUrl.includes('/post') || originalUrl.includes('/approve') || originalUrl.includes('/reject')) &&
+      !originalUrl.includes('/applications');
+
     if ((isJobCreationEndpoint || isJobPostEndpoint) && userRole === 'STUDENT') {
       // Audit log unauthorized access attempt
       console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - Job Management API:', {
@@ -52,13 +52,16 @@ export function requireRole(allowedRoles) {
         ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
       });
 
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Forbidden',
         message: 'You do not have permission to access this resource'
       });
     }
 
-    if (!roles.includes(userRole)) {
+    // Allow SUPER_ADMIN to access anything that requires an ADMIN or specific roles (Super Admin has global privileges)
+    const hasRole = roles.includes(userRole) || userRole === 'SUPER_ADMIN';
+
+    if (!hasRole) {
       // Audit log unauthorized access attempt
       console.error('🚫 UNAUTHORIZED ACCESS ATTEMPT - Role Mismatch:', {
         userId,
@@ -72,7 +75,7 @@ export function requireRole(allowedRoles) {
       });
 
       // Standardized error response - no information leakage
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Forbidden',
         message: 'You do not have permission to access this resource'
       });
@@ -92,7 +95,7 @@ export function requireRole(allowedRoles) {
  */
 export function requireActive(req, res, next) {
   if (req.user.status !== 'ACTIVE') {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Account is not active',
       status: req.user.status,
     });
@@ -121,7 +124,7 @@ export function requireOwnershipOrAdmin(resourceIdGetter, resourceUserIdField = 
     // Get resource from database
     // This is a generic pattern - specific routes should implement specific checks
     // Example: const resource = await prisma.student.findUnique({ where: { id: resourceId } });
-    
+
     // For now, allow if userId matches
     if (req.userId === resourceId) {
       return next();
@@ -140,7 +143,7 @@ export function requireCompleteProfile(req, res, next) {
   }
 
   const student = req.user.student;
-  
+
   const requiredFields = ['fullName', 'email', 'phone', 'enrollmentId', 'school', 'center', 'batch'];
   const missingFields = requiredFields.filter(field => !student[field]);
 

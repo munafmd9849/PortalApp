@@ -10,6 +10,7 @@ import { sendJobPostedNotification, sendBulkJobNotifications } from '../services
 import { createNotification } from './notifications.js';
 import logger from '../config/logger.js';
 import { sendServerError } from '../utils/response.js';
+import { logAction } from '../utils/auditLogger.js';
 
 /**
  * Get all jobs with filters
@@ -201,24 +202,43 @@ export async function getJobs(req, res) {
 export async function getTargetedJobs(req, res) {
   try {
     const userId = req.userId;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
+    let studentId;
+    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+      studentId = req.query.studentId;
+    } else {
+      const student = await prisma.student.findUnique({
+        where: { userId: req.userId },
+        select: { id: true, school: true, center: true, batch: true },
+      });
+      if (student) {
+        studentId = student.id;
+        // Make the school, center, batch available for targeting evaluation
+        req.student = student;
+      }
     }
 
-    // Get student profile
-    const student = await prisma.student.findUnique({
-      where: { userId },
-      select: {
-        school: true,
-        center: true,
-        batch: true,
-      },
-    });
+    if (!studentId) {
+      console.log('No student profile found for user');
+      return res.json([]);
+    }
+
+    let studentProfile = req.student;
+    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+      studentProfile = await prisma.student.findUnique({
+        where: { id: studentId },
+        select: { id: true, school: true, center: true, batch: true },
+      });
+    }
+
+    if (!studentProfile) {
+      return res.json([]);
+    }
+
+    const { school, center, batch } = studentProfile;
 
     // If student doesn't have profile yet, return all posted jobs (no targeting)
     // Only POSTED jobs are visible to students (visibility = status = POSTED AND isPosted = true)
-    if (!student || !student.school || !student.center || !student.batch) {
+    if (!studentProfile || !studentProfile.school || !studentProfile.center || !studentProfile.batch) {
       const jobs = await prisma.job.findMany({
         where: {
           status: 'POSTED',
@@ -292,9 +312,9 @@ export async function getTargetedJobs(req, res) {
       }
 
       // Match student's attributes
-      const schoolMatch = targetSchools.length === 0 || targetSchools.includes(student.school);
-      const centerMatch = targetCenters.length === 0 || targetCenters.includes(student.center);
-      const batchMatch = targetBatches.length === 0 || targetBatches.includes(student.batch);
+      const schoolMatch = targetSchools.length === 0 || targetSchools.includes(school);
+      const centerMatch = targetCenters.length === 0 || targetCenters.includes(center);
+      const batchMatch = targetBatches.length === 0 || targetBatches.includes(batch);
 
       return schoolMatch && centerMatch && batchMatch;
     });
@@ -712,6 +732,14 @@ export async function createJob(req, res) {
       }
     }
 
+    // Audit log
+    await logAction(req, {
+      actionType: 'Create Job',
+      targetType: 'Job',
+      targetId: job.id,
+      details: `Created job: ${job.jobTitle} at ${job.companyName}`,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Job created successfully. It has been sent for review and will appear in the "In Review" section.',
@@ -1111,6 +1139,14 @@ export async function updateJob(req, res) {
       timestamp: new Date().toISOString(),
     });
 
+    // Audit log
+    await logAction(req, {
+      actionType: 'Update Job',
+      targetType: 'Job',
+      targetId: jobId,
+      details: `Updated job: ${job.jobTitle}`,
+    });
+
     res.json(job);
   } catch (error) {
     console.error('Update job error:', error);
@@ -1246,6 +1282,14 @@ export async function postJob(req, res) {
       // Don't fail the request if email fails - log and continue
       logger.error(`Failed to send job posted notification for job ${job.id}:`, emailError);
     }
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'Post Job',
+      targetType: 'Job',
+      targetId: jobId,
+      details: `Posted job: ${job.jobTitle}`,
+    });
 
     res.json({
       success: true,
@@ -1430,6 +1474,14 @@ export async function approveJob(req, res) {
       logger.error(`Failed to send new job notifications to students for job ${job.id}:`, emailError);
     }
 
+    // Audit log
+    await logAction(req, {
+      actionType: 'Approve Job',
+      targetType: 'Job',
+      targetId: jobId,
+      details: `Approved and posted job: ${job.jobTitle}`,
+    });
+
     res.json({
       success: true,
       job,
@@ -1490,6 +1542,14 @@ export async function deleteJob(req, res) {
     });
 
     logger.info(`Job ${jobId} deleted by user ${userId}`);
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'Delete Job',
+      targetType: 'Job',
+      targetId: id,
+      details: `Deleted job: ${job.jobTitle}`,
+    });
 
     res.json({ message: 'Job deleted successfully' });
   } catch (error) {
@@ -1562,6 +1622,14 @@ export async function rejectJob(req, res) {
         // Don't fail the rejection if notification fails
       }
     }
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'Reject Job',
+      targetType: 'Job',
+      targetId: jobId,
+      details: `Rejected job: ${job.jobTitle}. Reason: ${rejectionReason || 'No reason provided'}`,
+    });
 
     res.json({ success: true, job });
   } catch (error) {

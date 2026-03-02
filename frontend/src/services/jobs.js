@@ -14,7 +14,7 @@ export async function listJobs({ limitTo = 50, recruiterId, status } = {}) {
     if (limitTo) params.limit = limitTo;
     if (recruiterId) params.recruiterId = recruiterId;
     if (status) params.status = status;
-    
+
     const response = await api.getJobs(params);
     const jobs = Array.isArray(response?.jobs) ? response.jobs : (Array.isArray(response) ? response : []);
     return limitTo ? jobs.slice(0, limitTo) : jobs;
@@ -101,8 +101,8 @@ export async function deleteJob(jobId) {
 export async function getTargetedJobsForStudent(studentId) {
   try {
     // Call real API to get targeted jobs
-    const jobs = await api.getTargetedJobs();
-    
+    const jobs = await api.getTargetedJobs(studentId);
+
     if (jobs && jobs.length > 0) {
       // Transform jobs to match expected format
       const transformedJobs = jobs.map(job => {
@@ -142,7 +142,7 @@ export async function getTargetedJobsForStudent(studentId) {
           posted: job.isPosted === true || job.status === 'POSTED' || job.status === 'posted',
           description: job.description,
           requirements: job.requirements,
-          requiredSkills: Array.isArray(job.requiredSkills) ? job.requiredSkills : 
+          requiredSkills: Array.isArray(job.requiredSkills) ? job.requiredSkills :
             (typeof job.requiredSkills === 'string' ? JSON.parse(job.requiredSkills || '[]') : []),
           location: job.location || job.companyLocation,
           workMode: job.workMode,
@@ -158,10 +158,10 @@ export async function getTargetedJobsForStudent(studentId) {
             (typeof job.targetBatches === 'string' ? JSON.parse(job.targetBatches || '[]') : []),
         };
       });
-      
+
       return transformedJobs;
     }
-    
+
     // If API returns empty, return empty array
     console.log('No jobs found from API for student');
     return [];
@@ -185,31 +185,31 @@ const fetchJobsFromAPI = async (filters = {}) => {
     };
     if (filters.recruiterId) params.recruiterId = filters.recruiterId;
     // Don't filter by status - we want all jobs including IN_REVIEW
-    
+
     const response = await api.getJobs(params);
     const jobs = response.jobs || response || [];
-    
+
     if (jobs && jobs.length > 0) {
       // Transform jobs to match expected format
       const transformedJobs = jobs.map(job => {
         // Normalize status: convert to lowercase and handle variations
         const rawStatus = job.status || 'DRAFT';
         let normalizedStatus = rawStatus.toLowerCase();
-        
+
         // Handle status variations
         if (normalizedStatus === 'accepted' || normalizedStatus === 'approved') {
           normalizedStatus = 'accepted'; // Standardize to 'accepted'
         }
-        
+
         const status = normalizedStatus;
         // ACCEPTED jobs are not posted yet (they're in review section)
         const isPosted = (job.isPosted === true) || (status === 'posted' || status === 'active');
-        
+
         // Debug: Log status transformation for ACCEPTED jobs
         if (rawStatus === 'ACCEPTED' || rawStatus === 'APPROVED' || normalizedStatus === 'accepted') {
           console.log(`🔄 Status transformation in jobs.js: "${job.jobTitle}" - ${rawStatus} → ${normalizedStatus} (isPosted: ${isPosted})`);
         }
-        
+
         return {
           id: job.id,
           jobTitle: job.jobTitle,
@@ -295,20 +295,20 @@ const fetchJobsFromAPI = async (filters = {}) => {
           rejectionReason: job.rejectionReason
         };
       });
-      
+
       // Debug: Log IN_REVIEW jobs
       const inReviewJobs = transformedJobs.filter(j => j.status === 'in_review');
       console.log(`📊 subscribeJobs: Fetched ${transformedJobs.length} real jobs from API`);
       if (inReviewJobs.length > 0) {
-        console.log(`📋 IN_REVIEW jobs found: ${inReviewJobs.length}`, inReviewJobs.map(j => ({ 
-          id: j.id, 
-          title: j.jobTitle, 
-          status: j.status, 
+        console.log(`📋 IN_REVIEW jobs found: ${inReviewJobs.length}`, inReviewJobs.map(j => ({
+          id: j.id,
+          title: j.jobTitle,
+          status: j.status,
           isPosted: j.isPosted,
-          originalStatus: jobs.find(orig => orig.id === j.id)?.status 
+          originalStatus: jobs.find(orig => orig.id === j.id)?.status
         })));
       }
-      
+
       return transformedJobs;
     }
     return [];
@@ -329,7 +329,7 @@ export function subscribeJobs(callback, filters = {}) {
       callback([]);
     }
   })();
-  
+
   // Shared fetch function that can be called manually
   const fetchAndNotify = async () => {
     try {
@@ -349,7 +349,7 @@ export function subscribeJobs(callback, filters = {}) {
 
   // Set up polling for updates every 5 seconds (faster updates)
   const intervalId = setInterval(fetchAndNotify, 5000);
-  
+
   // Return unsubscribe function and refresh function
   return {
     unsubscribe: () => {
@@ -376,9 +376,9 @@ export function subscribePostedJobs(callback, filters = {}) {
       callback([]);
     }
   })();
-  
+
   // Return empty unsubscribe function for backward compatibility
-  return () => {};
+  return () => { };
 }
 
 /**
@@ -451,18 +451,18 @@ export async function submitJobForReview(jobData) {
   try {
     console.log('📤 [submitJobForReview] Starting job submission...');
     console.log('📦 [submitJobForReview] Job data keys:', Object.keys(jobData || {}));
-    
+
     // Create job - backend will set status to IN_REVIEW for ALL jobs (admin and recruiter)
     // Jobs must be approved by admin before they can be posted to students
     const job = await createJob(null, jobData);
-    
+
     console.log('✅ [submitJobForReview] Job created successfully:', {
       id: job?.id,
       jobTitle: job?.jobTitle,
       status: job?.status,
       fullResponse: job,
     });
-    
+
     if (!job || !job.id) {
       console.error('❌ [submitJobForReview] Job created but missing ID:', {
         job,
@@ -473,7 +473,7 @@ export async function submitJobForReview(jobData) {
       });
       throw new Error('Job was created but no ID was returned. Please check the server response.');
     }
-    
+
     return { success: true, jobId: job.id, job: job };
   } catch (error) {
     console.error('❌ [submitJobForReview] Error occurred:', error);

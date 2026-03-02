@@ -11,8 +11,8 @@ import { validateJob } from '../middleware/validation.js';
 
 const router = express.Router({ mergeParams: true });
 
-// Public route - get targeted jobs (for authenticated students)
-router.get('/targeted', authenticate, requireRole(['STUDENT']), jobController.getTargetedJobs);
+// Public route - get targeted jobs (for authenticated students, or admins specifying studentId)
+router.get('/targeted', authenticate, requireRole(['STUDENT', 'ADMIN', 'SUPER_ADMIN']), jobController.getTargetedJobs);
 
 // Get all jobs (with filters)
 router.get('/', authenticate, jobController.getJobs);

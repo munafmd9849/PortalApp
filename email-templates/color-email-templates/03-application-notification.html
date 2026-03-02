@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Application Received</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #16A34A;
+      padding: 24px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.3px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .hello {
+      font-size: 16px;
+      line-height: 22px;
+      color: #111827;
+    }
+
+    .cardlet {
+      margin: 18px 0 18px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-left: 4px solid #16A34A;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .title {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-weight: 900;
+      color: #111827;
+    }
+
+    .meta {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0;
+    }
+
+    .meta small {
+      display: block;
+      font-size: 12px;
+      color: #6B7280;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .steps {
+      margin: 16px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      margin: 10px 0;
+      padding: 12px 12px;
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+    }
+
+    .stepNum {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      line-height: 22px;
+      text-align: center;
+      border-radius: 999px;
+      background: #2563EB;
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 900;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .stepTitle {
+      font-weight: 900;
+      color: #111827;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .stepDesc {
+      margin: 8px 0 0;
+      font-size: 13px;
+      line-height: 19px;
+      color: #4B5563;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">Application Received</p>
+                  <p class="subtitle">Confirmation of successful submission</p>
+                </div>
+
+                <div class="content">
+                  <p class="hello">Hi <strong>{{userName}}</strong>,</p>
+                  <p>
+                    Your application has been successfully submitted! The recruiting team at
+                    <strong>{{companyName}}</strong>
+                    has received your profile for the following position:
+                  </p>
+
+                  <div class="cardlet">
+                    <p class="title">{{jobTitle}}</p>
+                    <p class="meta">
+                      {{companyName}}
+                      <small>{{location}} · Applied {{appliedDate}}</small>
+                    </p>
+                  </div>
+
+                  <p style="margin-top:6px;"><strong
+                      style="color:#6B7280; letter-spacing:0.08em; text-transform:uppercase; font-size:11px;">What
+                      happens next?</strong></p>
+                  <ul class="steps">
+                    <li>
+                      <span class="stepNum">1</span><span class="stepTitle">Recruiter Review</span>
+                      <div class="stepDesc">The company's hiring team will review your portal profile and attached
+                        documents.</div>
+                    </li>
+                    <li>
+                      <span class="stepNum" style="background:#6B7280;">2</span><span class="stepTitle">Status
+                        Update</span>
+                      <div class="stepDesc">You'll receive another email when your application is Shortlisted,
+                        Interviewed, or Rejected.</div>
+                    </li>
+                  </ul>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-primary" href="{{dashboardUrl}}">Track Application Status</a>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  This is an automated notification from the PWIOI Placement Portal. Please do not reply to this email.
+                  <div class="muted">&copy; 2026 PWIOI. All rights reserved.</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

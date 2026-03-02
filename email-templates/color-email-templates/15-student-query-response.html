@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Query has a Response!</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #2563EB;
+      padding: 18px 24px;
+    }
+
+    .headerRow {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .brand {
+      margin: 0;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 0.2px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .thread {
+      margin: 18px 0 18px;
+    }
+
+    .bubbleAdmin {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-left: 4px solid #2563EB;
+      border-radius: 14px;
+      padding: 14px 14px;
+      margin: 0 0 10px;
+    }
+
+    .bubbleMeta {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8px;
+    }
+
+    .bubbleLabel {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #1D4ED8;
+    }
+
+    .bubbleTime {
+      font-size: 11px;
+      color: #9CA3AF;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .bubbleText {
+      margin: 0;
+      font-size: 13px;
+      line-height: 19px;
+      color: #1F2937;
+      font-style: italic;
+    }
+
+    .bubbleUser {
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      padding: 12px 14px;
+      opacity: 0.85;
+    }
+
+    .bubbleUserLabel {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #9CA3AF;
+      margin: 0 0 6px;
+    }
+
+    .bubbleUserText {
+      margin: 0;
+      font-size: 12px;
+      line-height: 18px;
+      color: #6B7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .micro {
+      margin-top: 10px;
+      font-size: 10px;
+      color: #9CA3AF;
+      font-weight: 700;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <table role="presentation" class="headerRow" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <p class="brand">Support Ticket Update</p>
+                      </td>
+                      <td style="vertical-align:middle; text-align:right;">
+                        <span class="badge">{{ticketStatus}}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="content">
+                  <p>
+                    Hello <strong>{{studentName}}</strong>,<br />
+                    An administrator has responded to your query regarding <strong>"{{querySubject}}"</strong>.
+                  </p>
+
+                  <div class="thread">
+                    <div class="bubbleAdmin">
+                      <table role="presentation" class="bubbleMeta" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td class="bubbleLabel">Admin Response</td>
+                          <td class="bubbleTime">{{adminResponseTime}}</td>
+                        </tr>
+                      </table>
+                      <p class="bubbleText">
+                        "{{adminResponseText}}"
+                      </p>
+                    </div>
+
+                    <div class="bubbleUser">
+                      <p class="bubbleUserLabel">Your Query</p>
+                      <p class="bubbleUserText">
+                        "{{studentQueryText}}"
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-primary" href="{{conversationUrl}}">View Full Conversation</a>
+                    <div class="micro">Ticket ID: #{{ticketId}} · Please do not reply to this email</div>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  PWIOI Help &amp; Support Desk
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

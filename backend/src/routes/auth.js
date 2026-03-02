@@ -7,9 +7,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database.js';
-import { 
-  authenticate, 
-  generateAccessToken, 
+import {
+  authenticate,
+  generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
 } from '../middleware/auth.js';
@@ -20,7 +20,7 @@ import { body, validationResult } from 'express-validator';
 import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
-import { createNotification } from '../controllers/notifications.js';
+import { logAction } from '../utils/auditLogger.js';
 
 const router = express.Router();
 
@@ -58,7 +58,7 @@ router.post('/register', [
     if (verificationToken) {
       try {
         const decoded = jwt.verify(verificationToken, process.env.JWT_SECRET);
-        
+
         // Verify token email matches registration email
         // Token payload has 'email' field, not 'userId'
         if (decoded.email !== email || decoded.type !== 'verification') {
@@ -152,7 +152,7 @@ router.post('/register', [
             location: profile.location,
           },
         });
-        
+
         // Emit Socket.IO event to notify admins of new recruiter registration
         const { getIO } = await import('../config/socket.js');
         const io = getIO();
@@ -288,6 +288,11 @@ router.post('/login', [
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       });
+      await logAction(req, {
+        actionType: 'Login',
+        targetType: 'Auth',
+        details: 'Super Admin Login',
+      });
       return res.json({
         user: {
           id: user.id,
@@ -384,19 +389,25 @@ router.post('/login', [
     const profileCompleted =
       user.role === 'STUDENT'
         ? (() => {
-            const s = user.student;
-            if (!s) return false;
-            if (s.profileCompleted === true) return true;
-            const email = (user.email || '').trim();
-            const fullName = (s.fullName || '').trim();
-            const phone = (s.phone || '').trim();
-            const enrollmentId = (s.enrollmentId || '').trim();
-            const school = (s.school || '').trim();
-            const center = (s.center || '').trim();
-            const batch = (s.batch || '').trim();
-            return !!(email && fullName && phone && enrollmentId && school && center && batch);
-          })()
+          const s = user.student;
+          if (!s) return false;
+          if (s.profileCompleted === true) return true;
+          const email = (user.email || '').trim();
+          const fullName = (s.fullName || '').trim();
+          const phone = (s.phone || '').trim();
+          const enrollmentId = (s.enrollmentId || '').trim();
+          const school = (s.school || '').trim();
+          const center = (s.center || '').trim();
+          const batch = (s.batch || '').trim();
+          return !!(email && fullName && phone && enrollmentId && school && center && batch);
+        })()
         : true;
+
+    await logAction(req, {
+      actionType: 'Login',
+      targetType: 'Auth',
+      details: `Login as ${user.role}`,
+    });
 
     res.json({
       user: {
@@ -419,7 +430,7 @@ router.post('/login', [
       name: error.name,
       meta: error.meta,
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Login failed',
       message: error.message || 'An unexpected error occurred',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -466,6 +477,11 @@ router.post('/logout', authenticate, async (req, res) => {
       });
     }
 
+    await logAction(req, {
+      actionType: 'Logout',
+      targetType: 'Auth',
+    });
+
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
@@ -498,18 +514,18 @@ router.get('/me', authenticate, async (req, res) => {
     const profileCompleted =
       user.role === 'STUDENT'
         ? (() => {
-            const s = user.student;
-            if (!s) return false;
-            if (s.profileCompleted === true) return true;
-            const email = (user.email || '').trim();
-            const fullName = (s.fullName || '').trim();
-            const phone = (s.phone || '').trim();
-            const enrollmentId = (s.enrollmentId || '').trim();
-            const school = (s.school || '').trim();
-            const center = (s.center || '').trim();
-            const batch = (s.batch || '').trim();
-            return !!(email && fullName && phone && enrollmentId && school && center && batch);
-          })()
+          const s = user.student;
+          if (!s) return false;
+          if (s.profileCompleted === true) return true;
+          const email = (user.email || '').trim();
+          const fullName = (s.fullName || '').trim();
+          const phone = (s.phone || '').trim();
+          const enrollmentId = (s.enrollmentId || '').trim();
+          const school = (s.school || '').trim();
+          const center = (s.center || '').trim();
+          const batch = (s.batch || '').trim();
+          return !!(email && fullName && phone && enrollmentId && school && center && batch);
+        })()
         : true;
 
     res.json({
@@ -673,13 +689,13 @@ router.put('/company-details', authenticate, requireRole(['RECRUITER']), [
         const companyUpdateData = {};
         if (website !== undefined) companyUpdateData.website = website?.trim() || null;
         if (address !== undefined) companyUpdateData.location = address?.trim() || null;
-        
+
         // Store additional info in description as JSON
         const additionalInfo = {};
         if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
         if (phone) additionalInfo.phone = phone.trim();
         if (email) additionalInfo.email = email.trim();
-        
+
         if (Object.keys(additionalInfo).length > 0) {
           companyUpdateData.description = JSON.stringify(additionalInfo);
         }
@@ -704,12 +720,12 @@ router.put('/company-details', authenticate, requireRole(['RECRUITER']), [
           const companyUpdateData = {};
           if (website !== undefined) companyUpdateData.website = website?.trim() || null;
           if (address !== undefined) companyUpdateData.location = address?.trim() || null;
-          
+
           const additionalInfo = {};
           if (registrationNumber) additionalInfo.registrationNumber = registrationNumber.trim();
           if (phone) additionalInfo.phone = phone.trim();
           if (email) additionalInfo.email = email.trim();
-          
+
           if (Object.keys(additionalInfo).length > 0) {
             companyUpdateData.description = JSON.stringify(additionalInfo);
           }
@@ -768,7 +784,7 @@ router.post('/reset-password', [
   try {
     logger.info(`=== Password Reset Request Received ===`);
     logger.info(`Request body:`, JSON.stringify(req.body, null, 2));
-    
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.error(`Validation errors:`, errors.array());
@@ -776,14 +792,14 @@ router.post('/reset-password', [
     }
 
     const { email } = req.body;
-    
+
     // Email should be normalized by express-validator's normalizeEmail()
     // But let's ensure it's lowercase for database lookup (case-sensitive matching)
     const normalizedEmail = email ? email.toLowerCase().trim() : '';
-    
+
     logger.info(`Email from request body: ${email}`);
     logger.info(`Normalized email: ${normalizedEmail}`);
-    
+
     if (!email || !normalizedEmail) {
       logger.error(`Email is missing or empty in request body!`);
       return res.status(400).json({ error: 'Email is required' });
@@ -791,36 +807,36 @@ router.post('/reset-password', [
 
     // Check if user exists (try both normalized and original email)
     let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    
+
     if (!user) {
       // Try original email in case normalization didn't work
       user = await prisma.user.findUnique({ where: { email } });
     }
-    
+
     if (!user) {
       // Don't reveal if email exists - security best practice
       // But return consistent format for frontend (don't create OTP if user doesn't exist)
       logger.info(`Password reset requested for non-existent email: ${normalizedEmail} (original: ${email})`);
-      
+
       // Return consistent format but don't create OTP (security: don't reveal if email exists)
       // Frontend will show UI, but OTP verification will fail (which is fine for security)
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-      
-      return res.json({ 
+
+      return res.json({
         success: true,
         message: 'If email exists, password reset OTP sent',
         otpStatus: 'PENDING_VERIFICATION',
         otpExpiresAt: expiresAt.toISOString(),
       });
     }
-    
+
     // Use the email from the database (source of truth)
     const dbEmail = user.email;
     logger.info(`Password reset requested for existing user: ${dbEmail} (ID: ${user.id}, requested: ${normalizedEmail})`);
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     // Store OTP in database with 10-minute expiration
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -852,7 +868,7 @@ router.post('/reset-password', [
     // OTP is already stored in DB, so we can respond immediately
     try {
       logger.info(`Attempting to send password reset OTP to ${dbEmail}`);
-      
+
       // Send email in background (fire and forget)
       // If email fails, user can request OTP again
       sendPasswordResetOTP(dbEmail, otp).then(() => {
@@ -866,7 +882,7 @@ router.post('/reset-password', [
         });
         // Don't delete OTP - user might have received it despite error
       });
-      
+
       // Respond immediately - don't wait for email
       logger.info(`Password reset OTP created and email sending initiated for ${dbEmail} (OTP: ${otp}, Record ID: ${otpRecord.id})`);
       res.json({
@@ -882,7 +898,7 @@ router.post('/reset-password', [
         stack: emailError.stack,
         code: emailError.code,
       });
-      
+
       // Still respond with success since OTP is in DB
       // User can try requesting OTP again if email fails
       res.json({
@@ -921,7 +937,7 @@ router.post('/send-otp', [
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     // Store OTP in database with 5-minute expiration
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
@@ -951,14 +967,14 @@ router.post('/send-otp', [
     // OTP is already stored in DB, so we can respond immediately
     try {
       logger.info(`Attempting to send OTP to ${email}`);
-      
+
       // Send email in background (fire and forget)
       // If email fails, user can request OTP again
       sendOTP(email, otp).catch((emailError) => {
         logger.error(`Failed to send OTP email to ${email}:`, emailError);
         // Don't delete OTP - user might have received it despite error
       });
-      
+
       // Respond immediately - don't wait for email
       logger.info(`OTP created and email sending initiated for ${email}`);
       res.json({
@@ -970,7 +986,7 @@ router.post('/send-otp', [
       });
     } catch (emailError) {
       logger.error(`Failed to initiate OTP email to ${email}:`, emailError);
-      
+
       // Still respond with success since OTP is in DB
       // User can try requesting OTP again if email fails
       res.json({
@@ -1126,7 +1142,7 @@ router.post('/update-password', [
     }
 
     // Find user
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findUnique({
       where: { email: decoded.email },
     });
 

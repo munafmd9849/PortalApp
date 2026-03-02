@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive Reminder: {{timeUntilTitle}}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .banner {
+      background: #DC2626;
+      padding: 10px 24px;
+      text-align: center;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .header {
+      background: #F59E0B;
+      padding: 22px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 24px 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      line-height: 28px;
+      text-align: center;
+      color: #111827;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+      text-align: center;
+    }
+
+    .details {
+      margin: 18px 0 18px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-left: 4px solid #F59E0B;
+      border-radius: 14px;
+      padding: 16px 16px;
+      text-align: left;
+    }
+
+    .details h2 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #92400E;
+    }
+
+    .row {
+      margin: 0 0 10px;
+    }
+
+    .label {
+      display: block;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6B7280;
+      margin-bottom: 2px;
+    }
+
+    .value {
+      font-size: 13px;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .checklist {
+      margin-top: 14px;
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-left: 4px solid #DC2626;
+      border-radius: 12px;
+      padding: 12px 12px;
+      text-align: left;
+    }
+
+    .checklistTitle {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #7F1D1D;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #7C2D12;
+      font-size: 13px;
+      line-height: 19px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:640px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="banner">Urgent Reminder</div>
+                <div class="header">
+                  <p class="brand">Drive {{timeUntilTitle}}</p>
+                  <p class="subtitle">Your placement drive is just around the corner.</p>
+                </div>
+
+                <div class="content">
+                  <h1>Be prepared {{timeUntilLowercase}}</h1>
+                  <p>
+                    Hello <strong>{{studentName}}</strong>,<br />
+                    This is a reminder that the placement drive for <strong>{{companyName}}</strong> is taking
+                    place <strong>{{timeUntilLowercase}}</strong>. Please ensure you are prepared.
+                  </p>
+
+                  <div class="details">
+                    <h2>Event Details</h2>
+                    <div class="row">
+                      <span class="label">Position</span>
+                      <span class="value">{{jobTitle}}</span>
+                    </div>
+                    <div class="row">
+                      <span class="label">Reporting Time</span>
+                      <span class="value">{{reportingTime}}</span>
+                    </div>
+                    <div class="row" style="margin-bottom:0;">
+                      <span class="label">Venue</span>
+                      <span class="value">{{venue}}</span>
+                    </div>
+                  </div>
+
+                  <div class="checklist">
+                    <div class="checklistTitle">Preparation Checklist</div>
+                    <ul>
+                      <li>Arrive at least 15 minutes early.</li>
+                      <li>Bring a printed copy of your resume and portfolio.</li>
+                      <li>Carry a valid college ID card.</li>
+                      <li>Dress in formal or smart-casual business attire.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  Good luck from the PWIOI Placement Team!<br />
+                  This is an automated notification. Please do not reply.
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

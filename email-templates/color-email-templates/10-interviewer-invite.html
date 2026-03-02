@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interview Session Invitation</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #DC2626;
+      padding: 24px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 12px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .panel {
+      margin: 18px 0 18px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-left: 4px solid #DC2626;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .panelTitle {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #7F1D1D;
+    }
+
+    .row {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6B7280;
+      margin-bottom: 2px;
+    }
+
+    .value {
+      font-size: 13px;
+      font-weight: 900;
+      color: #111827;
+      margin-bottom: 10px;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-danger {
+      background: #DC2626;
+      color: #FFFFFF;
+    }
+
+    .notice {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-left: 4px solid #F59E0B;
+      border-radius: 12px;
+      padding: 12px 12px;
+      margin-top: 16px;
+    }
+
+    .notice p {
+      margin: 0;
+      color: #92400E;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">Interview Session Invite</p>
+                  <p class="subtitle">Guest interviewer access</p>
+                </div>
+
+                <div class="content">
+                  <p>Hello,</p>
+                  <p>
+                    You have been invited by the recruitment team to participate as an interviewer for an upcoming
+                    placement session at PWIOI.
+                  </p>
+
+                  <div class="panel">
+                    <div class="panelTitle">Session Details</div>
+                    <table role="presentation" class="row" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="width:50%; padding-right:12px; vertical-align:top;">
+                          <div class="label">Position</div>
+                          <div class="value">{{jobTitle}}</div>
+                        </td>
+                        <td style="width:50%; padding-left:12px; vertical-align:top;">
+                          <div class="label">Company</div>
+                          <div class="value">{{companyName}}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <p>
+                    Your personalized magic link below will securely log you into the Interviewer Dashboard. From there,
+                    you can view candidate profiles, conduct evaluations, and submit your scores directly.
+                  </p>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-danger" href="{{magicLink}}">Access Interview Session</a>
+                  </div>
+
+                  <div class="notice">
+                    <p>
+                      <strong>Confidential Link:</strong> This link is unique to you and provides direct access to
+                      candidate data. Please do not forward or share this email. It will automatically expire in
+                      <strong>{{expiryDays}} days</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  Recruitment Team, PWIOI<br />
+                  This is an automated system message. Please contact the administrator for any scheduling conflicts.
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

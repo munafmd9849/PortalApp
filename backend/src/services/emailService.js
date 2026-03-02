@@ -6,6 +6,8 @@
 
 import { sendEmail } from '../config/email.js';
 import logger from '../config/logger.js';
+import { loadTemplate } from '../utils/templateLoader.js';
+import path from 'path';
 
 /**
  * Send OTP email
@@ -16,20 +18,7 @@ import logger from '../config/logger.js';
 export async function sendOTP(email, otp) {
   try {
     const subject = 'Your PWIOI Portal Verification Code';
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Email Verification</h2>
-        <p>Hello,</p>
-        <p>Your verification code for PWIOI Placement Portal is:</p>
-        <div style="background: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
-          <h1 style="color: #0066cc; margin: 0; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
-        </div>
-        <p>This code will expire in 5 minutes.</p>
-        <p>If you didn't request this code, please ignore this email.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
+    const html = loadTemplate('01-otp-verification', { otp });
     const text = `Your verification code is: ${otp}. This code will expire in 5 minutes.`;
 
     const result = await sendEmail({ to: email, subject, html, text });
@@ -56,22 +45,16 @@ export async function sendJobPostedNotification(job, recruiter) {
     }
 
     const subject = `Job Posted: ${job.jobTitle} at ${job.company?.name || 'Company'}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Job Successfully Posted!</h2>
-        <p>Hello,</p>
-        <p>Your job posting has been approved and posted to the portal.</p>
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-          <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-          <p><strong>Company:</strong> ${job.company?.name || 'N/A'}</p>
-          <p><strong>Location:</strong> ${job.location || 'N/A'}</p>
-          <p><strong>Posted Date:</strong> ${new Date(job.postedAt).toLocaleDateString()}</p>
-        </div>
-        <p>Students matching your job criteria will be notified automatically.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
+    const html = loadTemplate('02-job-posted-notification', {
+      recruiterName: recruiter.fullName || 'Recruiter',
+      jobTitle: job.jobTitle,
+      companyName: job.company?.name || 'Company',
+      location: job.location || 'N/A',
+      salary: job.salary || job.ctc || job.salaryRange || 'Competitive',
+      jobType: job.jobType || 'Full-time',
+      postedDate: new Date(job.postedAt).toLocaleDateString(),
+      viewJobUrl: `${process.env.FRONTEND_URL}/dashboard/recruiter?tab=jobs&jobId=${job.id}`
+    });
     const text = `Your job posting "${job.jobTitle}" has been approved and posted. Students matching your criteria will be notified.`;
 
     const result = await sendEmail({ to: recruiterEmail, subject, html, text });
@@ -92,72 +75,34 @@ export async function sendJobPostedNotification(job, recruiter) {
  * @param {Object} recruiter - Recruiter object
  * @returns {Promise<Object>} Result
  */
-export async function sendApplicationNotification(applicant, job, recruiter) {
+export async function sendApplicationNotification(applicant, job) {
   try {
-    const results = [];
-
-    // Email to recruiter - new application
-    const recruiterEmail = recruiter?.user?.email || recruiter?.email;
-    if (recruiterEmail) {
-      const recruiterSubject = `New Application: ${applicant.fullName || applicant.email} applied for ${job.jobTitle}`;
-      const recruiterHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">New Job Application</h2>
-          <p>Hello,</p>
-          <p>You have received a new application for your job posting.</p>
-          <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-            <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-            <p><strong>Applicant:</strong> ${applicant.fullName || applicant.email}</p>
-            <p><strong>Company:</strong> ${job.company?.name || 'N/A'}</p>
-            <p><strong>Applied Date:</strong> ${new Date().toLocaleDateString()}</p>
-          </div>
-          <p>Please review the application in your dashboard.</p>
-        </div>
-      `;
-      const recruiterText = `New application from ${applicant.fullName || applicant.email} for ${job.jobTitle}.`;
-
-      const recruiterResult = await sendEmail({
-        to: recruiterEmail,
-        subject: recruiterSubject,
-        html: recruiterHtml,
-        text: recruiterText
-      });
-      results.push({ type: 'recruiter', ...recruiterResult });
-      logger.info(`Application notification sent to recruiter ${recruiterEmail}`);
-    }
-
     // Email to applicant - confirmation
     const applicantEmail = applicant.email;
-    if (applicantEmail) {
-      const applicantSubject = `Application Confirmation: ${job.jobTitle}`;
-      const applicantHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Application Received</h2>
-          <p>Hello ${applicant.fullName || 'Student'},</p>
-          <p>Your application has been successfully submitted!</p>
-          <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-            <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-            <p><strong>Company:</strong> ${job.company?.name || 'N/A'}</p>
-            <p><strong>Location:</strong> ${job.location || 'N/A'}</p>
-            <p><strong>Applied Date:</strong> ${new Date().toLocaleDateString()}</p>
-          </div>
-          <p>The recruiter will review your application and contact you if you're shortlisted.</p>
-          <p>You can track your application status in your dashboard.</p>
-        </div>
-      `;
-      const applicantText = `Your application for ${job.jobTitle} at ${job.company?.name || 'Company'} has been received.`;
-
-      const applicantResult = await sendEmail({
-        to: applicantEmail,
-        subject: applicantSubject,
-        html: applicantHtml,
-        text: applicantText
-      });
-      results.push({ type: 'applicant', ...applicantResult });
-      logger.info(`Application confirmation sent to applicant ${applicantEmail}`);
+    if (!applicantEmail) {
+      throw new Error('Applicant email not found');
     }
 
-    return { success: true, results };
+    const applicantSubject = `Application Confirmation: ${job.jobTitle}`;
+    const html = loadTemplate('03-application-notification', {
+      userName: applicant.fullName || 'Student',
+      companyName: job.company?.name || 'Company',
+      jobTitle: job.jobTitle,
+      location: job.location || 'N/A',
+      appliedDate: new Date().toLocaleDateString(),
+      dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/student?tab=applications`
+    });
+    const text = `Your application for ${job.jobTitle} at ${job.company?.name || 'Company'} has been received.`;
+
+    const result = await sendEmail({
+      to: applicantEmail,
+      subject: applicantSubject,
+      html,
+      text
+    });
+
+    logger.info(`Application confirmation sent to applicant ${applicantEmail}`);
+    return { success: true, result };
   } catch (error) {
     logger.error(`Failed to send application notification:`, error);
     throw error;
@@ -214,171 +159,19 @@ export async function sendNewJobNotification(student, job) {
 
     const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
 
-    const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Job Opportunity</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f7fa; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
-                New Job Opportunity
-              </h1>
-              <p style="margin: 10px 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">
-                A position matching your profile has been posted
-              </p>
-            </td>
-          </tr>
-
-          <!-- Greeting -->
-          <tr>
-            <td style="padding: 30px 40px 20px;">
-              <p style="margin: 0; color: #2d3748; font-size: 16px; line-height: 1.6;">
-                Hello <strong style="color: #1a202c;">${studentName}</strong>,
-              </p>
-              <p style="margin: 15px 0 0; color: #4a5568; font-size: 15px; line-height: 1.6;">
-                We're excited to inform you that a new job opportunity matching your profile has been posted on the placement portal. This could be your next career step!
-              </p>
-            </td>
-          </tr>
-
-          <!-- Job Details Card -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
-                <tr>
-                  <td style="padding: 25px;">
-                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 22px; font-weight: 600; line-height: 1.3;">
-                      ${jobTitle}
-                    </h2>
-                    
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; width: 140px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Company:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${companyName}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Location:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${location}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Job Type:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${jobType}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Compensation:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${salary}
-                        </td>
-                      </tr>
-                      ${driveDate ? `
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Drive Date:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${driveDate}
-                        </td>
-                      </tr>
-                      ` : ''}
-                      ${deadline ? `
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Application Deadline:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #dc2626; font-size: 14px; font-weight: 500;">
-                          ${deadline}
-                        </td>
-                      </tr>
-                      ` : ''}
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Description -->
-          ${description ? `
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <div style="background-color: #ffffff; border-left: 4px solid #667eea; padding: 20px; border-radius: 4px;">
-                <h3 style="margin: 0 0 12px; color: #1a202c; font-size: 16px; font-weight: 600;">
-                  Job Description
-                </h3>
-                <p style="margin: 0; color: #4a5568; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">
-                  ${description}
-                </p>
-        </div>
-            </td>
-          </tr>
-          ` : ''}
-
-          <!-- CTA Button -->
-          <tr>
-            <td style="padding: 10px 40px 30px; text-align: center;">
-              <a href="${jobUrl}" 
-                 style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
-                View Full Job Details & Apply
-          </a>
-            </td>
-          </tr>
-
-          <!-- Additional Info -->
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <p style="margin: 0; color: #718096; font-size: 13px; line-height: 1.6; text-align: center;">
-                Don't miss this opportunity! Log in to your dashboard to view complete details and submit your application.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f7fafc; border-top: 1px solid #e2e8f0; padding: 25px 40px; text-align: center;">
-              <p style="margin: 0 0 8px; color: #718096; font-size: 12px; line-height: 1.5;">
-                This is an automated notification from the <strong style="color: #4a5568;">PWIOI Placement Portal</strong>
-              </p>
-              <p style="margin: 0; color: #a0aec0; font-size: 11px;">
-                Posted on ${postedDate}
-              </p>
-              <p style="margin: 12px 0 0; color: #cbd5e0; font-size: 11px;">
-                If you believe this email was sent in error, please contact the placement office.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-    `;
+    const html = loadTemplate('13-new-job-alert-student', {
+      studentName,
+      jobTitle,
+      companyName,
+      jobType,
+      remoteType: job.remote ? 'Remote' : 'On-site',
+      location,
+      salary,
+      deadlineDate: deadline || 'N/A',
+      driveDate: driveDate || '',
+      description: description || '',
+      jobUrl
+    });
 
     const text = `
 New Job Opportunity: ${jobTitle} at ${companyName}
@@ -489,162 +282,19 @@ export function generateGenericJobNotificationEmail(job) {
   const jobUrl = `${frontendUrl}/dashboard/student?tab=jobs&jobId=${job.id}`;
   const subject = `New Opportunity: ${jobTitle} at ${companyName}`;
 
-  const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Job Opportunity</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f7fa; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
-                New Job Opportunity
-              </h1>
-              <p style="margin: 10px 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">
-                A position matching your profile has been posted
-              </p>
-            </td>
-          </tr>
-
-          <!-- Greeting -->
-          <tr>
-            <td style="padding: 30px 40px 20px;">
-              <p style="margin: 0; color: #2d3748; font-size: 16px; line-height: 1.6;">
-                Hello <strong style="color: #1a202c;">Student</strong>,
-              </p>
-              <p style="margin: 15px 0 0; color: #4a5568; font-size: 15px; line-height: 1.6;">
-                We're excited to inform you that a new job opportunity matching your profile has been posted on the placement portal. This could be your next career step!
-              </p>
-            </td>
-          </tr>
-
-          <!-- Job Details Card -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
-                <tr>
-                  <td style="padding: 25px;">
-                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 22px; font-weight: 600; line-height: 1.3;">
-                      ${jobTitle}
-                    </h2>
-                    
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; width: 140px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Company:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${companyName}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Location:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${location}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Job Type:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${jobType}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Compensation:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${salary}
-                        </td>
-                      </tr>
-                      ${driveDate ? `
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Drive Date:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #1a202c; font-size: 14px; font-weight: 500;">
-                          ${driveDate}
-                        </td>
-                      </tr>
-                      ` : ''}
-                      ${deadline ? `
-                      <tr>
-                        <td style="padding: 8px 0; color: #4a5568; font-size: 14px; vertical-align: top;">
-                          <strong style="color: #2d3748;">Deadline:</strong>
-                        </td>
-                        <td style="padding: 8px 0; color: #e53e3e; font-size: 14px; font-weight: 600;">
-                          ${deadline}
-                        </td>
-                      </tr>
-                      ` : ''}
-                    </table>
-
-                    ${description ? `
-                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-                      <p style="margin: 0; color: #4a5568; font-size: 14px; line-height: 1.6;">
-                        ${description}
-                      </p>
-                    </div>
-                    ` : ''}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Call to Action -->
-          <tr>
-            <td style="padding: 10px 40px 30px; text-align: center;">
-              <a href="${jobUrl}" style="display: inline-block; background-color: #5a67d8; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px; transition: background-color 0.2s;">
-                View Job & Apply
-              </a>
-            </td>
-          </tr>
-
-          <!-- Additional Info -->
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <p style="margin: 0; color: #718096; font-size: 13px; line-height: 1.6; text-align: center;">
-                Don't miss this opportunity! Log in to your dashboard to view complete details and submit your application.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f7fafc; border-top: 1px solid #e2e8f0; padding: 25px 40px; text-align: center;">
-              <p style="margin: 0 0 8px; color: #718096; font-size: 12px; line-height: 1.5;">
-                This is an automated notification from the <strong style="color: #4a5568;">PWIOI Placement Portal</strong>
-              </p>
-              <p style="margin: 0; color: #a0aec0; font-size: 11px;">
-                Posted on ${postedDate}
-              </p>
-              <p style="margin: 12px 0 0; color: #cbd5e0; font-size: 11px;">
-                If you believe this email was sent in error, please contact the placement office.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `;
+  const html = loadTemplate('13-new-job-alert-student', {
+    studentName: 'Student',
+    jobTitle,
+    companyName,
+    jobType,
+    remoteType: job.remote ? 'Remote' : 'On-site',
+    location,
+    salary,
+    deadlineDate: deadline || 'N/A',
+    driveDate: driveDate || '',
+    description: description || '',
+    jobUrl
+  });
 
   const text = `
 New Job Opportunity: ${jobTitle} at ${companyName}
@@ -729,31 +379,18 @@ export async function sendApplicationStatusUpdateNotification(student, job, appl
     };
 
     const subject = `${statusInfo.title} - ${job.jobTitle} at ${job.company?.name || 'Company'}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">${statusInfo.title}</h2>
-        <p>Hello ${student.fullName || 'Student'},</p>
-        <p>${statusInfo.message}</p>
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid ${statusInfo.color};">
-          <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-          <p><strong>Company:</strong> ${job.company?.name || 'N/A'}</p>
-          <p><strong>Location:</strong> ${job.location || 'N/A'}</p>
-          <p><strong>Status:</strong> <span style="color: ${statusInfo.color}; font-weight: bold;">${application.status}</span></p>
-          ${application.interviewDate ? `<p><strong>Interview Date:</strong> ${new Date(application.interviewDate).toLocaleDateString()}</p>` : ''}
-          ${application.appliedDate ? `<p><strong>Applied Date:</strong> ${new Date(application.appliedDate).toLocaleDateString()}</p>` : ''}
-          ${application.notes ? `<p><strong>Notes:</strong> ${application.notes}</p>` : ''}
-        </div>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL}/student" 
-             style="background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            View Application Status
-          </a>
-        </div>
-        <p>You can track your application status and view more details in your dashboard.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
+    const html = loadTemplate('04-application-status-update', {
+      statusTitle: statusInfo.title,
+      statusSubtitle: statusInfo.message,
+      studentName: student.fullName || 'Student',
+      jobTitle: job.jobTitle,
+      companyName: job.company?.name || 'Company',
+      statusBadge: application.status,
+      appliedDate: application.appliedDate ? new Date(application.appliedDate).toLocaleDateString() : 'N/A',
+      interviewDate: application.interviewDate ? new Date(application.interviewDate).toLocaleDateString() : 'N/A',
+      recruiterNotes: application.notes || 'No specific notes from the recruiter.',
+      portalUrl: `${process.env.FRONTEND_URL}/student`
+    });
     const text = `${statusInfo.title}\n\nHello ${student.fullName || 'Student'},\n\n${statusInfo.message}\n\nJob: ${job.jobTitle}\nCompany: ${job.company?.name || 'N/A'}\nStatus: ${application.status}${application.interviewDate ? `\nInterview Date: ${new Date(application.interviewDate).toLocaleDateString()}` : ''}\n\nView your application status in your dashboard.`;
 
     const result = await sendEmail({ to: studentEmail, subject, html, text });
@@ -779,30 +416,11 @@ export async function sendPasswordResetOTP(email, otp) {
     const resetPasswordUrl = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}`;
 
     const subject = 'Password Reset - PWIOI Portal';
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Password Reset Request</h2>
-        <p>Hello,</p>
-        <p>You requested to reset your password for PWIOI Placement Portal.</p>
-        <p>Click the button below to reset your password:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetPasswordUrl}" 
-             style="background: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-            Reset Password
-          </a>
-        </div>
-        <p>Or use this code to reset your password:</p>
-        <div style="background: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
-          <h1 style="color: #dc3545; margin: 0; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
-        </div>
-        <p>This code will expire in 10 minutes.</p>
-        <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
-    const text = `You requested to reset your password. Click here to reset: ${resetPasswordUrl}\n\nOr use this code: ${otp}. This code will expire in 10 minutes. If you didn't request a password reset, please ignore this email.`;
-
+    const html = loadTemplate('05-password-reset', {
+      resetPasswordUrl,
+      otp
+    });
+    const text = `Your password reset code is: ${otp}. Use this link to reset: ${resetPasswordUrl}`;
     const result = await sendEmail({ to: email, subject, html, text });
 
     logger.info(`Password reset OTP email sent to ${email}`);
@@ -820,24 +438,109 @@ export async function sendPasswordResetOTP(email, otp) {
  * @param {string} message - Email message (HTML or plain text)
  * @returns {Promise<Object>} Result
  */
-export async function sendGenericNotification(email, subject, message) {
+export async function sendGenericNotification(email, subject, options = {}) {
   try {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-          ${message}
-        </div>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated email from PWIOI Placement Portal.</p>
-      </div>
-    `;
+    const {
+      title = subject,
+      message,
+      userName = 'User',
+      notificationType = 'Notification',
+      panelMessage = '',
+      actionText = 'View in Dashboard',
+      actionUrl = `${process.env.FRONTEND_URL}/dashboard`,
+      iconText = 'N'
+    } = options;
 
-    const result = await sendEmail({ to: email, subject, html, text: message });
+    const html = loadTemplate('14-generic-notification', {
+      notificationType,
+      date: new Date().toLocaleDateString(),
+      title,
+      userName,
+      message,
+      panelMessage,
+      actionText,
+      actionUrl,
+      iconText,
+      supportUrl: `${process.env.FRONTEND_URL}/support`,
+      privacyUrl: `${process.env.FRONTEND_URL}/privacy`
+    });
 
-    logger.info(`Generic notification sent to ${email}`);
+    const text = `${title}\n\nHello ${userName},\n\n${message}\n\nView details here: ${actionUrl}`;
+
+    const result = await sendEmail({ to: email, subject, html, text });
+
+    logger.info(`Generic notification sent to ${email}: ${subject}`);
     return { success: true, ...result };
   } catch (error) {
     logger.error(`Failed to send generic notification to ${email}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Send screening request email to recruiter when application deadline is reached
+ * @param {Object} params - Email parameters
+ */
+export async function sendScreeningRequestEmail({ recruiterEmail, recruiterName, jobTitle, companyName, applicationCount, deadlineDate, screeningPortalUrl, expiryDays = 7 }) {
+  try {
+    const subject = `Action Required: Screening for ${jobTitle} at ${companyName}`;
+    const html = loadTemplate('09-screening-request', {
+      recruiterName: recruiterName || 'Recruiter',
+      jobTitle,
+      companyName,
+      applicationCount,
+      deadlineDate: new Date(deadlineDate).toLocaleDateString(),
+      screeningPortalUrl,
+      expiryDays
+    });
+
+    const text = `
+The application window for ${jobTitle} at ${companyName} has closed. 
+${applicationCount} applications are ready for your review.
+
+Access the screening portal here:
+${screeningPortalUrl}
+
+This link will expire in ${expiryDays} days.
+    `.trim();
+
+    const result = await sendEmail({ to: recruiterEmail, subject, html, text });
+    logger.info(`Screening request email sent to ${recruiterEmail} for job ${jobTitle}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send screening request email to ${recruiterEmail}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Send interviewer invitation email with magic link
+ * @param {Object} params - Email parameters
+ */
+export async function sendInterviewerInviteEmail({ interviewerEmail, interviewerName, jobTitle, companyName, magicLink, expiryDays = 7 }) {
+  try {
+    const subject = `Invitation: Interview session for ${jobTitle} at ${companyName}`;
+    const html = loadTemplate('10-interviewer-invite', {
+      interviewerName: interviewerName || 'Interviewer',
+      jobTitle,
+      companyName,
+      magicLink,
+      expiryDays
+    });
+
+    const text = `
+You have been invited to participate as an interviewer for ${jobTitle} at ${companyName}.
+Access the session details and evaluate candidates here:
+${magicLink}
+
+This link will expire in ${expiryDays} days.
+    `.trim();
+
+    const result = await sendEmail({ to: interviewerEmail, subject, html, text });
+    logger.info(`Interviewer invite email sent to ${interviewerEmail} for job ${jobTitle}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send interviewer invite email to ${interviewerEmail}:`, error);
     throw error;
   }
 }
@@ -858,7 +561,7 @@ export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName,
     const subject = `Endorsement Request from ${studentName}`;
 
     // Format expiration date
-    const expiresDate = new Date(expiresAt).toLocaleDateString('en-US', {
+    const expiresDateStr = new Date(expiresAt).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -867,51 +570,13 @@ export async function sendEndorsementMagicLinkEmail({ teacherEmail, teacherName,
       minute: '2-digit',
     });
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Endorsement Request</h2>
-        </div>
-        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="color: #1f2937; font-size: 16px; line-height: 1.6;">Hello ${teacherName || 'there'},</p>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            <strong>${studentName}</strong> (Enrollment: ${studentEnrollmentId || 'N/A'}) has requested an endorsement letter from you for their placement portfolio.
-          </p>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            This endorsement will be used in their resume and placement applications.
-          </p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${magicLink}" style="display: inline-block; background: #3b82f6; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              Write Endorsement
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 25px;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${magicLink}" style="color: #3b82f6; word-break: break-all;">${magicLink}</a>
-          </p>
-          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; border-radius: 4px;">
-            <p style="margin: 0; color: #92400e; font-size: 12px;">
-              <strong>Important:</strong> This link expires on ${expiresDate} (48 hours). Please complete the endorsement before it expires.
-            </p>
-          </div>
-          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin-top: 20px;">
-            <strong>What you'll need to provide:</strong>
-          </p>
-          <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 10px 0;">
-            <li>Your endorsement message</li>
-            <li>Skills you're endorsing (optional)</li>
-            <li>Strength rating (optional)</li>
-          </ul>
-          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 20px;">
-            <strong>No account required.</strong> Simply click the link above to get started.
-          </p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            This is an automated email from PWIOI Placement Portal. If you did not expect this request, please ignore this email.
-          </p>
-        </div>
-      </div>
-    `;
+    const html = loadTemplate('06-endorsement-request', {
+      teacherName: teacherName || 'Professor',
+      studentName,
+      studentEnrollmentId: studentEnrollmentId || 'N/A',
+      magicLink,
+      expiresAt: expiresDateStr
+    });
 
     const text = `
 Endorsement Request from ${studentName}
@@ -930,7 +595,7 @@ What you'll need to provide:
 
 No account required. Simply click the link above to get started.
 
-IMPORTANT: This link expires on ${expiresDate} (48 hours). Please complete the endorsement before it expires.
+IMPORTANT: This link expires on ${expiresDateStr} (48 hours). Please complete the endorsement before it expires.
 
 This is an automated email from PWIOI Placement Portal.
     `.trim();
@@ -955,73 +620,19 @@ This is an automated email from PWIOI Placement Portal.
  */
 export async function sendEndorsementRequestEmail(teacherEmail, studentName, endorsementLink, studentMessage = null) {
   try {
-    // FRONTEND_URL is validated at startup, so it's guaranteed to exist
     const frontendUrl = process.env.FRONTEND_URL;
-    const fullLink = `${frontendUrl}${endorsementLink}`;
+    const fullLink = endorsementLink.startsWith('http') ? endorsementLink : `${frontendUrl}${endorsementLink}`;
 
     const subject = `Endorsement Request from ${studentName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Endorsement Request</h2>
-        </div>
-        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="color: #1f2937; font-size: 16px; line-height: 1.6;">Hello,</p>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            <strong>${studentName}</strong> has requested an endorsement letter from you through the PWIOI Placement Portal.
-          </p>
-          ${studentMessage ? `
-          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
-            <p style="margin: 0; color: #92400e; font-size: 14px; font-style: italic;">
-              "${studentMessage}"
-            </p>
-            <p style="margin: 5px 0 0; color: #78350f; font-size: 12px;">— ${studentName}</p>
-          </div>
-          ` : ''}
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            To provide your endorsement, please click the button below. You will be able to:
-          </p>
-          <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 15px 0;">
-            <li>Fill in your name and details</li>
-            <li>Write an endorsement message</li>
-            <li>Sign the document digitally using a canvas</li>
-          </ul>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${fullLink}" style="display: inline-block; background: #f97316; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              Complete Endorsement
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 25px;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${fullLink}" style="color: #f97316; word-break: break-all;">${fullLink}</a>
-          </p>
-          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 20px 0; border-radius: 4px;">
-            <p style="margin: 0; color: #991b1b; font-size: 12px;">
-              <strong>Note:</strong> This link will expire in 30 days. Please complete the endorsement as soon as possible.
-            </p>
-          </div>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            This is an automated email from PWIOI Placement Portal. If you did not expect this request, please ignore this email.
-          </p>
-        </div>
-      </div>
-    `;
+    const html = loadTemplate('06-endorsement-request', {
+      teacherName: 'Professor',
+      studentName,
+      studentEnrollmentId: 'N/A',
+      magicLink: fullLink,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleString()
+    });
 
-    const text = `
-Endorsement Request from ${studentName}
-
-${studentName} has requested an endorsement letter from you.
-
-${studentMessage ? `Message from student: "${studentMessage}"\n\n` : ''}To provide your endorsement, please visit:
-${fullLink}
-
-You will be able to fill in your details, write an endorsement message, and sign the document digitally.
-
-This link will expire in 30 days.
-
-This is an automated email from PWIOI Placement Portal.
-    `.trim();
+    const text = `Endorsement Request from ${studentName}\n\n${studentMessage ? `Message: "${studentMessage}"\n\n` : ''}Provide endorsement at: ${fullLink}`;
 
     const result = await sendEmail({ to: teacherEmail, subject, html, text });
 
@@ -1035,56 +646,19 @@ This is an automated email from PWIOI Placement Portal.
 
 /**
  * Send thank-you email after placement drive (interview session) ends.
- * Sent to both admin and recruiter. Endorsement-style SMTP format.
  * @param {Object} params
- * @param {string} params.to - Recipient email (admin or recruiter)
- * @param {string} params.recipientName - Display name (e.g. "Admin" or recruiter name)
- * @param {string} params.jobTitle - Job title
- * @param {string} params.companyName - Company name
- * @param {string} params.addNoteUrl - Full URL for recipient to add their note (admin: Applicants section, recruiter: Company History)
- * @returns {Promise<Object>}
  */
 export async function sendDriveThankYouEmail({ to, recipientName, jobTitle, companyName, addNoteUrl }) {
   try {
     const subject = `Thank you for conducting the placement drive – ${companyName}`;
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Thank you!</h2>
-        </div>
-        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="color: #1f2937; font-size: 16px; line-height: 1.6;">Hello ${recipientName || 'there'},</p>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            Thank you for conducting this placement drive with us.
-          </p>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            We hope the process was smooth. Your collaboration helps our students and the platform.
-          </p>
-          <div style="background: #f0f9ff; padding: 16px; margin: 20px 0; border-radius: 6px; border-left: 4px solid #3b82f6;">
-            <p style="margin: 0 0 8px 0; color: #1e40af; font-size: 14px; font-weight: 600;">Drive details</p>
-            <p style="margin: 0; color: #374151; font-size: 14px;"><strong>Job:</strong> ${jobTitle || 'N/A'}</p>
-            <p style="margin: 4px 0 0 0; color: #374151; font-size: 14px;"><strong>Company:</strong> ${companyName || 'N/A'}</p>
-          </div>
-          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin-top: 20px;">
-            Please add a short note about this drive (feedback, observations, or any remarks). It will help us improve and keep records.
-          </p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${addNoteUrl}" style="display: inline-block; background: #3b82f6; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              Add your note
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin-top: 25px;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${addNoteUrl}" style="color: #3b82f6; word-break: break-all;">${addNoteUrl}</a>
-          </p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            This is an automated email from PWIOI Placement Portal.
-          </p>
-        </div>
-      </div>
-    `;
+    const html = loadTemplate('07-drive-thank-you', {
+      recipientName,
+      jobTitle,
+      companyName,
+      driveDate: new Date().toLocaleDateString(),
+      addNoteUrl
+    });
 
     const text = `
 Thank you for conducting this placement drive with us.
@@ -1108,51 +682,27 @@ This is an automated email from PWIOI Placement Portal.
 }
 
 /**
- * Send announcement email to a student (GenZ / Retro styled)
- * @param {string} to - Student email
- * @param {Object} announcement - { title, description, link?, imageUrl? }
- * @param {Array} attachments - Optional nodemailer attachments (e.g. image from URL)
- * @returns {Promise<Object>}
+ * Send announcement email to a student
  */
 export async function sendAnnouncementEmail(to, announcement, attachments = []) {
   try {
-    const { title, description, link, imageUrl } = announcement;
+    const { title, description, link } = announcement;
     const subject = `📢 ${title}`;
 
-    // GenZ / Retro color palette: #FFC567 gold, #FB7DA8 pink, #058CD7 blue, #00995E green, #552CB7 purple
-    const html = `
-      <div style="font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #FFC567 0%, #FB7DA8 100%); padding: 28px; text-align: center; border-radius: 16px 16px 0 0;">
-          <h1 style="color: #1a1a1a; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
-            📢 ${(title || 'Announcement').replace(/</g, '&lt;')}
-          </h1>
-        </div>
-        <div style="background: #fff; padding: 28px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px;">
-          <div style="color: #374151; font-size: 15px; line-height: 1.7;">
-            ${(description || '').replace(/\n/g, '<br>').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-          </div>
-          ${imageUrl ? `
-          <div style="margin: 24px 0; text-align: center;">
-            <img src="${imageUrl}" alt="Announcement" style="max-width: 100%; height: auto; border-radius: 12px; border: 2px solid #FFC567;" />
-          </div>
-          ` : ''}
-          ${link ? `
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #058CD7 0%, #552CB7 100%); color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 16px;">
-              Check it out →
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 13px; word-break: break-all;">Link: <a href="${link}" style="color: #058CD7;">${link}</a></p>
-          ` : ''}
-          <hr style="margin: 28px 0; border: none; border-top: 1px solid #e5e7eb;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            PWIOI Placement Portal · Stay tuned for more updates
-          </p>
-        </div>
-      </div>
-    `;
+    const html = loadTemplate('12-announcement-email', {
+      announcementTitle: title,
+      recipientName: 'Student',
+      announcementContent: description || '',
+      calloutPoint: 'Important update from the placement portal.',
+      actionText: link ? 'Check Full Details' : 'Go to Dashboard',
+      actionUrl: link || `${process.env.FRONTEND_URL}/dashboard`,
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      announcementQuote: 'Your career journey is our priority.',
+      senderName: announcement.senderName || 'Office of Career Services',
+      senderOrg: 'PW Institute of Innovation'
+    });
 
-    const text = `${title}\n\n${(description || '').replace(/<[^>]*>/g, '')}\n\n${link ? `Link: ${link}` : ''}\n\n— PWIOI Placement Portal`;
+    const text = `${title}\n\n${(description || '').replace(/<[^>]*>/g, '')}\n\n— PWIOI Placement Portal`;
 
     const result = await sendEmail({ to, subject, html, text, attachments });
     logger.info(`Announcement email sent to ${to}: ${title}`);
@@ -1171,33 +721,24 @@ function formatDriveDateForEmail(driveDate) {
 }
 
 /**
- * Send drive reminder (7 days or 3 days before drive) to recruiter(s) and admin(s)
- * @param {Object} job - Job with jobTitle, companyName, driveDate, driveVenues, reportingTime
- * @param {string[]} recipientEmails - Recruiter + admin emails
- * @param {number} daysUntil - 7 or 3
+ * Send drive reminder to recruiter(s) and admin(s)
  */
 export async function sendDriveReminderRecruiterAdmin(job, recipientEmails, daysUntil) {
   if (!recipientEmails?.length) return { success: false, message: 'No recipients' };
   const companyName = job.companyName || job.company?.name || 'Company';
   const driveDateStr = formatDriveDateForEmail(job.driveDate);
   const subject = `Reminder: Drive in ${daysUntil} days – ${job.jobTitle} at ${companyName}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Placement Drive Reminder</h2>
-      <p>Hello,</p>
-      <p>This is a reminder that the placement drive for the following job is in <strong>${daysUntil} day${daysUntil > 1 ? 's' : ''}</strong>.</p>
-      <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-        <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-        <p><strong>Company:</strong> ${companyName}</p>
-        <p><strong>Drive date:</strong> ${driveDateStr}</p>
-        ${(job.reportingTime || job.driveVenues) ? `<p><strong>Reporting time:</strong> ${job.reportingTime || '—'}</p>` : ''}
-        ${job.driveVenues ? `<p><strong>Venue(s):</strong> ${typeof job.driveVenues === 'string' ? job.driveVenues : (Array.isArray(job.driveVenues) ? job.driveVenues.join(', ') : '—')}</p>` : ''}
-      </div>
-      <p>Please ensure all preparations are in place.</p>
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-      <p style="color: #666; font-size: 12px;">This is an automated reminder from PWIOI Placement Portal.</p>
-    </div>
-  `;
+
+  const html = loadTemplate('17-drive-reminder-admin', {
+    recipientName: 'Administrator',
+    daysUntil,
+    jobTitle: job.jobTitle,
+    companyName,
+    driveDate: driveDateStr,
+    applicationCount: 'Check Portal',
+    dashboardUrl: `${process.env.FRONTEND_URL}/dashboard`
+  });
+
   const text = `Reminder: Drive in ${daysUntil} days – ${job.jobTitle} at ${companyName}. Drive date: ${driveDateStr}.`;
   const to = recipientEmails.filter(Boolean);
   const result = await sendEmail({ to, subject, html, text });
@@ -1206,70 +747,118 @@ export async function sendDriveReminderRecruiterAdmin(job, recipientEmails, days
 }
 
 /**
- * Send 24-hour drive reminder to recruiter(s), admin(s), and applicants
- * @param {Object} job - Job with jobTitle, companyName, driveDate, driveVenues, reportingTime
- * @param {string[]} recruiterAdminEmails - Recruiter + admin emails
- * @param {string[]} applicantEmails - Student applicants' emails
+ * Send drive reminder to students who applied
  */
-export async function sendDriveReminder24h(job, recruiterAdminEmails, applicantEmails) {
+export async function sendDriveReminderStudent(job, applicantEmails, daysUntil) {
+  if (!applicantEmails?.length) return { success: false, message: 'No recipients' };
+
   const companyName = job.companyName || job.company?.name || 'Company';
   const driveDateStr = formatDriveDateForEmail(job.driveDate);
-  const venueInfo = job.driveVenues ? (typeof job.driveVenues === 'string' ? job.driveVenues : (Array.isArray(job.driveVenues) ? job.driveVenues.join(', ') : '')) : '';
-  const reportingTime = job.reportingTime || '';
+  const venueInfo = job.driveVenues ? (typeof job.driveVenues === 'string' ? job.driveVenues : (Array.isArray(job.driveVenues) ? job.driveVenues.join(', ') : '')) : 'Check portal';
+  const reportingTime = job.reportingTime || 'N/A';
 
-  // Email to recruiter + admin
-  if (recruiterAdminEmails?.length) {
-    const subject = `Reminder: Drive tomorrow – ${job.jobTitle} at ${companyName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Drive Tomorrow</h2>
-        <p>Hello,</p>
-        <p>The placement drive for <strong>${job.jobTitle}</strong> at ${companyName} is <strong>tomorrow</strong> (${driveDateStr}).</p>
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-          <p><strong>Drive date:</strong> ${driveDateStr}</p>
-          ${reportingTime ? `<p><strong>Reporting time:</strong> ${reportingTime}</p>` : ''}
-          ${venueInfo ? `<p><strong>Venue(s):</strong> ${venueInfo}</p>` : ''}
-        </div>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">PWIOI Placement Portal – automated reminder.</p>
-      </div>
-    `;
-    const text = `Drive tomorrow: ${job.jobTitle} at ${companyName}. Date: ${driveDateStr}.`;
-    await sendEmail({ to: recruiterAdminEmails, subject, html, text });
-    logger.info(`Drive 24h reminder (recruiter/admin) sent for job ${job.id}`);
-  }
+  const timeUntilTitle = daysUntil === 1 ? 'Tomorrow!' : `in ${daysUntil} days`;
+  const timeUntilLowercase = daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
 
-  // Email to each applicant
-  if (applicantEmails?.length) {
-    const subject = `Reminder: Your placement drive is tomorrow – ${job.jobTitle} at ${companyName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Drive Tomorrow</h2>
-        <p>Hello,</p>
-        <p>This is a reminder that the placement drive you applied for is <strong>tomorrow</strong>.</p>
-        <div style="background: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px;">
-          <h3 style="margin-top: 0; color: #0066cc;">${job.jobTitle}</h3>
-          <p><strong>Company:</strong> ${companyName}</p>
-          <p><strong>Date:</strong> ${driveDateStr}</p>
-          ${reportingTime ? `<p><strong>Reporting time:</strong> ${reportingTime}</p>` : ''}
-          ${venueInfo ? `<p><strong>Venue(s):</strong> ${venueInfo}</p>` : ''}
-        </div>
-        <p>Please be on time and bring the required documents.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">PWIOI Placement Portal – automated reminder.</p>
-      </div>
-    `;
-    const text = `Your drive for ${job.jobTitle} at ${companyName} is tomorrow (${driveDateStr}). ${reportingTime ? `Reporting: ${reportingTime}. ` : ''}${venueInfo ? `Venue: ${venueInfo}` : ''}`;
-    for (const email of applicantEmails) {
-      try {
-        await sendEmail({ to: email, subject, html, text });
-      } catch (err) {
-        logger.error(`Failed to send 24h reminder to applicant ${email}:`, err);
-      }
+  const subject = daysUntil === 1
+    ? `Reminder: Your placement drive is tomorrow – ${job.jobTitle} at ${companyName}`
+    : `Reminder: Drive in ${daysUntil} days – ${job.jobTitle} at ${companyName}`;
+
+  for (const email of applicantEmails) {
+    try {
+      const html = loadTemplate('08-drive-reminder', {
+        studentName: 'Student',
+        companyName,
+        jobTitle: job.jobTitle,
+        reportingTime,
+        venue: venueInfo,
+        timeUntilTitle,
+        timeUntilLowercase
+      });
+
+      const text = `Your drive for ${job.jobTitle} at ${companyName} is ${timeUntilLowercase} (${driveDateStr}). Reporting: ${reportingTime}. Venue: ${venueInfo}`;
+      await sendEmail({ to: email, subject, html, text });
+    } catch (err) {
+      logger.error(`Failed to send ${daysUntil}d reminder to applicant ${email}:`, err);
     }
-    logger.info(`Drive 24h reminder sent to ${applicantEmails.length} applicant(s) for job ${job.id}`);
   }
 
+  logger.info(`Drive ${daysUntil}d reminder sent to ${applicantEmails.length} applicant(s) for job ${job.id}`);
   return { success: true };
 }
 
+/**
+ * Send 24-hour drive reminder
+ */
+export async function sendDriveReminder24h(job, recruiterAdminEmails, applicantEmails) {
+  const results = [];
+
+  // Recruiter/Admin reminder (1 day until)
+  if (recruiterAdminEmails?.length) {
+    const res = await sendDriveReminderRecruiterAdmin(job, recruiterAdminEmails, 1);
+    results.push({ type: 'recruiterAdmin', ...res });
+  }
+
+  // Student reminder (1 day until)
+  if (applicantEmails?.length) {
+    const res = await sendDriveReminderStudent(job, applicantEmails, 1);
+    results.push({ type: 'student', ...res });
+  }
+
+  return { success: true, results };
+}
+
+/**
+ * Send admin drive summary and thank you email
+ */
+export async function sendAdminDriveThankYou({ to, adminName, jobTitle, companyName, totalAttendees, interviewsHeld, feedbackStatus, reportUrl }) {
+  try {
+    const subject = `Drive Summary: ${jobTitle} at ${companyName}`;
+    const html = loadTemplate('11-admin-drive-thank-you', {
+      adminName: adminName || 'Administrator',
+      companyName,
+      jobTitle,
+      totalAttendees,
+      interviewsHeld,
+      feedbackStatus,
+      reportUrl
+    });
+
+    const text = `The placement drive for ${jobTitle} at ${companyName} has concluded. Total Attendees: ${totalAttendees}, Interviews Held: ${interviewsHeld}, Feedback: ${feedbackStatus}. Review report: ${reportUrl}`;
+
+    const result = await sendEmail({ to, subject, html, text });
+    logger.info(`Admin drive thank you email sent to ${to} for job ${jobTitle}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send admin drive thank you email to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Send student query response email
+ */
+export async function sendStudentQueryResponse({ to, studentName, querySubject, ticketStatus, adminResponseTime, adminResponseText, studentQueryText, conversationUrl, ticketId }) {
+  try {
+    const subject = `Response to your query: ${querySubject}`;
+    const html = loadTemplate('15-student-query-response', {
+      studentName: studentName || 'Student',
+      querySubject,
+      ticketStatus: ticketStatus || 'Resolved',
+      adminResponseTime,
+      adminResponseText,
+      studentQueryText,
+      conversationUrl,
+      ticketId
+    });
+
+    const text = `Your query "${querySubject}" (ID: #${ticketId}) has a response: "${adminResponseText}". View full conversation: ${conversationUrl}`;
+
+    const result = await sendEmail({ to, subject, html, text });
+    logger.info(`Student query response email sent to ${to} for ticket #${ticketId}`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error(`Failed to send student query response email to ${to}:`, error);
+    throw error;
+  }
+}

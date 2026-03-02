@@ -778,3 +778,25 @@ model RecruiterScreeningSession {
   @@index([expiresAt])
   @@map("recruiter_screening_sessions")
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorName   String?  @map("actor_name")
+  actorRole   String?  @map("actor_role")
+  actorId     String?  @map("actor_id")
+  actionType  String   @map("action_type")
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id")
+  details     String?  @map("details")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  timestamp   DateTime @default(now())
+
+  @@index([actorRole])
+  @@index([actionType])
+  @@index([targetType])
+  @@index([timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
+
+

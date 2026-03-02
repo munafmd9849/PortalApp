@@ -72,12 +72,12 @@ export default function CreateJob({ onCreated }) {
   const [isEditing, setIsEditing] = useState(!!editJobId);
   const [editingJob, setEditingJob] = useState(null);
   const [loadingJob, setLoadingJob] = useState(!!editJobId);
-  
+
   // MANDATORY: Role-based access control - Check authorization immediately
   const userRole = role || user?.role || '';
   const userRoleUpper = userRole.toUpperCase();
   const isStudent = userRoleUpper === 'STUDENT';
-  const isAdmin = userRoleUpper === 'ADMIN';
+  const isAdmin = userRoleUpper === 'ADMIN' || userRoleUpper === 'SUPER_ADMIN';
   const isRecruiter = userRoleUpper === 'RECRUITER';
   const canCreateJobs = isAdmin || isRecruiter;
 
@@ -169,12 +169,12 @@ export default function CreateJob({ onCreated }) {
   useEffect(() => {
     const loadJobForEditing = async () => {
       if (!editJobId || !canCreateJobs) return;
-      
+
       try {
         setLoadingJob(true);
         const job = await getJob(editJobId);
         const jobData = job?.data || job;
-        
+
         if (!jobData) {
           showError('Job not found');
           navigate('/admin?tab=manageJobs');
@@ -182,14 +182,14 @@ export default function CreateJob({ onCreated }) {
         }
 
         setEditingJob(jobData);
-        
+
         // Populate form with job data
         const driveDate = jobData.driveDate ? (
           typeof jobData.driveDate === 'object' && jobData.driveDate.toMillis
             ? new Date(jobData.driveDate.toMillis())
             : new Date(jobData.driveDate)
         ) : null;
-        
+
         const applicationDeadline = jobData.applicationDeadline ? (
           typeof jobData.applicationDeadline === 'object' && jobData.applicationDeadline.toMillis
             ? new Date(jobData.applicationDeadline.toMillis())
@@ -200,8 +200,8 @@ export default function CreateJob({ onCreated }) {
           company: jobData.companyName || jobData.company?.name || jobData.company || '',
           website: jobData.website || jobData.company?.website || '',
           linkedin: jobData.linkedin || jobData.company?.linkedin || '',
-          recruiterEmails: Array.isArray(jobData.recruiterEmails) && jobData.recruiterEmails.length > 0 
-            ? jobData.recruiterEmails 
+          recruiterEmails: Array.isArray(jobData.recruiterEmails) && jobData.recruiterEmails.length > 0
+            ? jobData.recruiterEmails
             : [{ email: '', name: '' }],
           jobType: jobData.jobType || '',
           stipend: jobData.stipend || '',
@@ -212,8 +212,8 @@ export default function CreateJob({ onCreated }) {
           companyLocation: jobData.companyLocation || jobData.location || '',
           openings: jobData.openings?.toString() || '',
           responsibilities: jobData.description || jobData.responsibilities || '',
-          spocs: Array.isArray(jobData.spocs) && jobData.spocs.length > 0 
-            ? jobData.spocs 
+          spocs: Array.isArray(jobData.spocs) && jobData.spocs.length > 0
+            ? jobData.spocs
             : [{ fullName: '', email: '', phone: '' }],
           driveDateText: driveDate ? toDDMMYYYY(driveDate.toISOString()) : '',
           driveDateISO: driveDate ? driveDate.toISOString() : '',
@@ -227,9 +227,9 @@ export default function CreateJob({ onCreated }) {
           yop: jobData.yop || '',
           minCgpa: jobData.minCgpa || jobData.cgpaRequirement || '',
           skillsInput: '',
-          skills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills : 
-            (typeof jobData.requiredSkills === 'string' ? JSON.parse(jobData.requiredSkills || '[]') : 
-            (Array.isArray(jobData.skills) ? jobData.skills : [])),
+          skills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills :
+            (typeof jobData.requiredSkills === 'string' ? JSON.parse(jobData.requiredSkills || '[]') :
+              (Array.isArray(jobData.skills) ? jobData.skills : [])),
           gapAllowed: jobData.gapAllowed || '',
           gapYears: jobData.gapYears || '',
           backlogs: jobData.backlogs || '',
@@ -338,13 +338,13 @@ export default function CreateJob({ onCreated }) {
 
       // Update form
       setForm(updates);
-      
+
       // Switch to manual entry method
       setCreationMethod('manual');
-      
+
       // Close drafts panel
       setShowDraftsPanel(false);
-      
+
       showSuccess('Draft loaded successfully!');
     } catch (error) {
       console.error('Error loading draft:', error);
@@ -466,11 +466,11 @@ export default function CreateJob({ onCreated }) {
 
     try {
       console.log('📄 Starting real JD parsing for:', file.name);
-      
+
       // Import and use the real JD parser service
       const { parseJobDescription } = await import('../../../services/jdParser');
       const parseResult = await parseJobDescription(file);
-      
+
       console.log('JD parsing result:', parseResult);
 
       if (parseResult.success && parseResult.data) {
@@ -512,15 +512,15 @@ export default function CreateJob({ onCreated }) {
   // Handle Excel bulk processing
   const handleExcelBulkUpload = async (results) => {
     console.log('Excel processing results:', results);
-    
+
     const { totalJobs, successfulJobs, failedJobs } = results;
-    
+
     if (successfulJobs.length > 0) {
       const successMessage = `Successfully created ${successfulJobs.length} job${successfulJobs.length > 1 ? 's' : ''} from Excel file!`;
       const failureMessage = failedJobs.length > 0 ? `\n⚠️ ${failedJobs.length} job${failedJobs.length > 1 ? 's' : ''} failed to process.` : '';
-      
+
       alert(successMessage + failureMessage);
-      
+
       // Trigger any parent callbacks
       if (onCreated) onCreated();
     } else {
@@ -545,7 +545,7 @@ export default function CreateJob({ onCreated }) {
       }
     }
   };
-  
+
   const populateFormFromParsedData = (data) => {
     const updates = {};
 
@@ -562,11 +562,11 @@ export default function CreateJob({ onCreated }) {
     if (data.website) updates.website = data.website;
     if (data.linkedin) updates.linkedin = data.linkedin;
     if (data.skills || data.skillsRequired) {
-      updates.skills = Array.isArray(data.skills) ? data.skills : 
-                       Array.isArray(data.skillsRequired) ? data.skillsRequired : 
-                       [];
+      updates.skills = Array.isArray(data.skills) ? data.skills :
+        Array.isArray(data.skillsRequired) ? data.skillsRequired :
+          [];
     }
-    
+
     // Map additional fields if available
     if (data.jobType) updates.jobType = data.jobType;
     if (data.experience || data.experienceRequired) {
@@ -579,7 +579,7 @@ export default function CreateJob({ onCreated }) {
   // ENHANCED: Complete form population function for Excel data
   const populateFormWithExcelData = (jobData) => {
     const updates = {};
-    
+
     console.log('🔄 Populating form with Excel data:', jobData);
 
     // === SECTION 1: COMPANY DETAILS ===
@@ -595,7 +595,7 @@ export default function CreateJob({ onCreated }) {
     if (jobData.duration) updates.duration = jobData.duration;
     if (jobData.openings) updates.openings = jobData.openings;
     if (jobData.responsibilities) updates.responsibilities = jobData.responsibilities;
-    
+
     // === SECTION 2: DRIVE INFORMATION ===
     if (jobData.driveDate) {
       const dateStr = jobData.driveDate;
@@ -609,12 +609,12 @@ export default function CreateJob({ onCreated }) {
       updates.driveDateText = '';
       updates.driveDateISO = '';
     }
-    
+
     if (jobData.driveVenue) {
       // Handle multiple venues (comma-separated)
       const venues = jobData.driveVenue.split(',').map(v => v.trim());
       updates.driveVenues = venues;
-      
+
       // Update the driveDraft as well
       setDriveDraft(prev => ({
         ...prev,
@@ -639,10 +639,10 @@ export default function CreateJob({ onCreated }) {
     if (jobData.round1) rounds[0] = jobData.round1;
     if (jobData.round2) rounds[1] = jobData.round2;
     if (jobData.round3) rounds[2] = jobData.round3;
-    
+
     // Update base rounds
     updates.baseRoundDetails = rounds;
-    
+
     // Handle 4th round as extra round
     if (jobData.round4) {
       updates.extraRounds = [{
@@ -650,7 +650,7 @@ export default function CreateJob({ onCreated }) {
         detail: jobData.round4
       }];
     }
-    
+
     if (jobData.serviceAgreement) updates.serviceAgreement = jobData.serviceAgreement;
     if (jobData.blockingPeriod) updates.blockingPeriod = jobData.blockingPeriod;
 
@@ -661,13 +661,13 @@ export default function CreateJob({ onCreated }) {
         updates.responsibilities = jobData.description;
       }
     }
-    
+
     if (jobData.requirements) {
       // Combine with existing responsibilities if any
       const existing = updates.responsibilities || '';
       updates.responsibilities = existing ? `${existing}\n\nRequirements:\n${jobData.requirements}` : jobData.requirements;
     }
-    
+
     if (jobData.instructions) updates.instructions = jobData.instructions;
 
     // === COMPANY SPOC INFORMATION ===
@@ -687,32 +687,32 @@ export default function CreateJob({ onCreated }) {
   const isCompanyDetailsComplete = useMemo(() => {
     // Check if at least one recruiter email is provided and valid
     const recruiterEmailsArray = Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [];
-    const hasValidRecruiterEmail = recruiterEmailsArray.length > 0 && 
+    const hasValidRecruiterEmail = recruiterEmailsArray.length > 0 &&
       recruiterEmailsArray.some(rec => {
         const email = rec?.email?.trim();
         if (!email) return false;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
       });
-    
+
     // Base required fields: company, jobTitle, companyLocation, website, linkedin, workMode, jobType, recruiterEmails
-    const base = form.company?.trim() && 
-                 form.jobTitle?.trim() && 
-                 form.companyLocation?.trim() && 
-                 form.website?.trim() && 
-                 form.linkedin?.trim() && 
-                 form.workMode?.trim() && 
-                 form.workMode !== '' && 
-                 form.jobType?.trim() && 
-                 form.jobType !== '' && 
-                 hasValidRecruiterEmail &&
-                 form.responsibilities?.trim(); // Add responsibilities requirement
-    
+    const base = form.company?.trim() &&
+      form.jobTitle?.trim() &&
+      form.companyLocation?.trim() &&
+      form.website?.trim() &&
+      form.linkedin?.trim() &&
+      form.workMode?.trim() &&
+      form.workMode !== '' &&
+      form.jobType?.trim() &&
+      form.jobType !== '' &&
+      hasValidRecruiterEmail &&
+      form.responsibilities?.trim(); // Add responsibilities requirement
+
     // Conditional requirement based on job type
     const comp = form.jobType === 'Internship'
       ? form.stipend?.trim() && form.duration?.trim() // For internships, stipend is required (free text) along with duration
       : form.jobType === 'Full-Time' ? form.salary?.trim() : false;
-    
+
     // Validation checks (format/error checks)
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
@@ -721,7 +721,7 @@ export default function CreateJob({ onCreated }) {
     const durationOk = !form.duration?.trim() || !durationError;
     const salaryOk = !form.salary?.trim() || !salaryError;
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
-    
+
     return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
   }, [form, websiteError, linkedinError, recruiterEmailError, stipendError, durationError, salaryError, companyLocationError]);
 
@@ -830,7 +830,7 @@ export default function CreateJob({ onCreated }) {
     const updated = [...recruiterEmailsArray];
     updated[index] = { ...updated[index], email: value };
     update({ recruiterEmails: updated });
-    
+
     // Validate email
     if (!value) {
       setRecruiterEmailError('');
@@ -1026,8 +1026,8 @@ export default function CreateJob({ onCreated }) {
       company: keep.company ?? '',
       website: keep.website ?? '',
       linkedin: keep.linkedin ?? '',
-      recruiterEmails: keep.recruiterEmails && Array.isArray(keep.recruiterEmails) && keep.recruiterEmails.length > 0 
-        ? keep.recruiterEmails 
+      recruiterEmails: keep.recruiterEmails && Array.isArray(keep.recruiterEmails) && keep.recruiterEmails.length > 0
+        ? keep.recruiterEmails
         : (keep.recruiterEmail ? [{ email: keep.recruiterEmail, name: keep.recruiterName || '' }] : [{ email: '', name: '' }]),
       jobType: '',
       stipend: '',
@@ -1078,7 +1078,7 @@ export default function CreateJob({ onCreated }) {
     const description = (form.responsibilities || '').trim();
     const jobTitle = capitalizeJobTitle((form.jobTitle || '').trim());
     const requiredSkills = Array.isArray(form.skills) ? form.skills : [];
-    
+
     // Validate required fields before building payload
     if (!companyName) {
       throw new Error('Company name is required');
@@ -1089,7 +1089,7 @@ export default function CreateJob({ onCreated }) {
     if (!jobTitle) {
       throw new Error('Job title is required');
     }
-    
+
     return {
       // Company fields - send both for compatibility
       company: companyName,
@@ -1154,7 +1154,7 @@ export default function CreateJob({ onCreated }) {
       showWarning('Please fill in at least Company and Job Title before saving as draft.');
       return;
     }
-    
+
     try {
       setIsSaving(true);
       // Build payload with all form data including drive dates
@@ -1186,7 +1186,7 @@ export default function CreateJob({ onCreated }) {
       showWarning('Please fill in at least Company and Job Title before saving this position.');
       return;
     }
-    
+
     try {
       setIsSaving(true);
       const payload = buildJobPayload();
@@ -1248,12 +1248,12 @@ export default function CreateJob({ onCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Check user role before submission
     const userRole = role || user?.role;
     const allowedRoles = ['ADMIN', 'RECRUITER'];
     const hasRequiredRole = userRole && allowedRoles.includes(userRole.toUpperCase());
-    
+
     console.log('🔐 Pre-submission role check:', {
       'role from useAuth': role,
       'user?.role': user?.role,
@@ -1262,7 +1262,7 @@ export default function CreateJob({ onCreated }) {
       'allowedRoles': allowedRoles,
       'user object': user ? { id: user.id, email: user.email, role: user.role } : null,
     });
-    
+
     if (!hasRequiredRole) {
       console.error('❌ Permission check failed - blocking submission:', {
         userRole,
@@ -1273,9 +1273,9 @@ export default function CreateJob({ onCreated }) {
       showError(`You don't have permission to create jobs.\n\nRequired role: ${allowedRoles.join(' or ')}\nYour current role: ${userRole || 'Unknown'}\n\nPlease contact an administrator if you need access to this feature.`);
       return;
     }
-    
+
     console.log('✅ Role check passed, proceeding with submission');
-    
+
     console.log('🚀 Submit button clicked');
     console.log('📋 Form validation state:', {
       canPost,
@@ -1285,7 +1285,7 @@ export default function CreateJob({ onCreated }) {
       isInterviewProcessComplete,
       userRole,
     });
-    
+
     // Detailed validation debugging
     console.log('🔍 Detailed validation check:', {
       company: {
@@ -1324,12 +1324,12 @@ export default function CreateJob({ onCreated }) {
         round3: form.baseRoundDetails?.[2]?.trim() || '',
       },
     });
-    
+
     if (!canPost) {
       // Provide specific validation feedback
       let missingFields = [];
       let details = [];
-      
+
       if (!isCompanyDetailsComplete) {
         missingFields.push('Company Details');
         if (!form.company?.trim()) details.push('• Company name');
@@ -1344,7 +1344,7 @@ export default function CreateJob({ onCreated }) {
         if (!form.companyLocation?.trim()) details.push('• Company Location');
         if (!form.responsibilities?.trim()) details.push('• Roles & Responsibilities');
       }
-      
+
       if (!isDriveDetailsComplete) {
         missingFields.push('Drive Details');
         const hasDriveDate = !!(form.driveDateISO || driveDraft.driveDateISO || toISOFromDDMMYYYY(form.driveDateText) || toISOFromDDMMYYYY(driveDraft.driveDateText));
@@ -1354,7 +1354,7 @@ export default function CreateJob({ onCreated }) {
         if (!hasApplicationDeadline) details.push('• Application Deadline');
         if (!hasVenues) details.push('• Drive Venue (at least one)');
       }
-      
+
       if (!isSkillsEligibilityComplete) {
         missingFields.push('Skills & Eligibility');
         if (!form.qualification?.trim()) details.push('• Qualification');
@@ -1365,40 +1365,40 @@ export default function CreateJob({ onCreated }) {
         if (!form.backlogs?.trim() || form.backlogs === '') details.push('• Active Backlogs');
         if (minCgpaError) details.push(`• ${minCgpaError}`);
       }
-      
+
       if (!isInterviewProcessComplete) {
         missingFields.push('Interview Process');
         if (!form.baseRoundDetails?.[0]?.trim()) details.push('• I Round');
         if (!form.baseRoundDetails?.[1]?.trim()) details.push('• II Round');
         if (!form.baseRoundDetails?.[2]?.trim()) details.push('• III Round');
       }
-      
+
       console.warn('❌ Form validation failed. Missing sections:', missingFields);
       console.warn('❌ Missing details:', details);
-      
-      const message = details.length > 0 
+
+      const message = details.length > 0
         ? `Please complete the following:\n\n${details.join('\n')}`
         : `Please complete the following sections before submitting: ${missingFields.join(', ')}`;
-      
+
       showWarning(message);
       return;
     }
-    
+
     let loadingToastId = null;
     try {
       setPosting(true);
       console.log('📝 Starting job submission...');
-      
+
       // CRITICAL: Validate date relationship before submitting
       const driveDate = form.driveDateISO || (form.driveDateText ? toISOFromDDMMYYYY(form.driveDateText) : null);
       const applicationDeadline = form.applicationDeadlineISO || (form.applicationDeadlineText ? toISOFromDDMMYYYY(form.applicationDeadlineText) : null);
-      
+
       console.log('📅 Date validation:', { driveDate, applicationDeadline });
-      
+
       if (driveDate && applicationDeadline) {
         const driveDateTime = new Date(driveDate);
         const deadlineDate = new Date(applicationDeadline);
-        
+
         if (driveDateTime <= deadlineDate) {
           console.error('❌ Date validation failed: Drive date must be after deadline');
           showError('Drive date must be after the application deadline. Interviews happen after applications close.');
@@ -1406,29 +1406,29 @@ export default function CreateJob({ onCreated }) {
           return;
         }
       }
-      
+
       loadingToastId = showLoading(isEditing ? 'Updating job...' : 'Submitting job for review...');
-      
+
       const payload = buildJobPayload();
-      
+
       // Debug: Log payload to see what's being sent
       console.log('📦 Job Payload:', JSON.stringify(payload, null, 2));
-      
+
       // Check if we're editing or creating
       if (isEditing && editJobId) {
         // Update existing job
         console.log('📤 Calling updateJob...');
         const result = await updateJob(editJobId, payload);
         console.log('✅ updateJob response:', result);
-        
+
         console.log('✅ Job updated successfully! Job ID:', editJobId);
-        
+
         if (onCreated) {
           console.log('🔄 Calling onCreated callback...');
           onCreated();
         }
         replaceLoadingToast(loadingToastId, 'success', 'Job updated successfully! Changes will appear in the "In Review" section of Manage Jobs.');
-        
+
         // Navigate back to manage jobs
         navigate('/admin?tab=manageJobs');
       } else {
@@ -1436,15 +1436,15 @@ export default function CreateJob({ onCreated }) {
         console.log('📤 Calling submitJobForReview...');
         const result = await submitJobForReview(payload);
         console.log('✅ submitJobForReview response:', result);
-        
+
         const jobId = result?.jobId || result?.id;
         if (!jobId) {
           console.error('❌ No jobId returned from submitJobForReview:', result);
           throw new Error('Job submission failed: No job ID returned from server');
         }
-        
+
         console.log('✅ Job submitted successfully! Job ID:', jobId);
-        
+
         if (onCreated) {
           console.log('🔄 Calling onCreated callback...');
           onCreated();
@@ -1460,22 +1460,22 @@ export default function CreateJob({ onCreated }) {
         response: err?.response,
         status: err?.status,
       });
-      
+
       if (loadingToastId) {
         dismissToast(loadingToastId);
       }
-      
+
       // Handle network errors separately (production-safe, no localhost references)
       if (err?.isNetworkError || err?.message?.includes('Failed to connect') || err?.message?.includes('Failed to fetch')) {
         showError('Network error. Please check your connection and try again. If the problem persists, contact support.');
         return;
       }
-      
+
       // Extract detailed validation errors if available
       let errorMessage = err?.message || 'Unknown error occurred';
       // The API service puts the response body in error.response.data
       const errorData = err?.response?.data || {};
-      
+
       console.log('🔍 Error response structure:', {
         status: err?.status,
         response: err?.response,
@@ -1486,7 +1486,7 @@ export default function CreateJob({ onCreated }) {
         'user.role': user?.role,
         'auth.role': role,
       });
-      
+
       if (err?.response?.errors && Array.isArray(err.response.errors)) {
         const validationErrors = err.response.errors.map(e => `• ${e.msg || e.message || e}`).join('\n');
         errorMessage = `Validation failed:\n\n${validationErrors}`;
@@ -1496,7 +1496,7 @@ export default function CreateJob({ onCreated }) {
         const required = errorData?.required;
         const current = errorData?.current;
         const userCurrentRole = role || user?.role || 'Unknown';
-        
+
         if (required || current) {
           const requiredStr = Array.isArray(required) ? required.join(' or ') : (required || 'ADMIN or RECRUITER');
           const currentStr = current || userCurrentRole;
@@ -1512,7 +1512,7 @@ export default function CreateJob({ onCreated }) {
       } else if (err?.status) {
         errorMessage = `Server error (${err.status}): ${errorMessage}`;
       }
-      
+
       console.error('❌ Displaying error to user:', errorMessage);
       console.error('❌ Full error response:', {
         response: err?.response,
@@ -1603,7 +1603,7 @@ export default function CreateJob({ onCreated }) {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-3">
-              {isEditing 
+              {isEditing
                 ? 'Update the job details below. Changes will be saved to the job posting.'
                 : 'Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.'}
             </p>
@@ -1640,7 +1640,7 @@ export default function CreateJob({ onCreated }) {
               <X className="w-5 h-5" />
             </button>
           </div>
-          
+
           {savedDrafts.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Archive className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -1778,7 +1778,7 @@ export default function CreateJob({ onCreated }) {
       {/* MANUAL FORM */}
       {!loadingJob && creationMethod === 'manual' && (
         <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-8">
-          
+
           {/* Section 1: Company Details */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
@@ -1794,13 +1794,12 @@ export default function CreateJob({ onCreated }) {
                     <Building2 size={16} className="text-gray-500" />
                     Company <span className="text-red-500">*</span>
                   </label>
-                  <input 
-                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                      form.company?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                    }`} 
-                    placeholder="e.g. ABC Corp" 
-                    value={form.company} 
-                    onChange={(e) => update({ company: e.target.value })} 
+                  <input
+                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.company?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`}
+                    placeholder="e.g. ABC Corp"
+                    value={form.company}
+                    onChange={(e) => update({ company: e.target.value })}
                   />
                 </div>
 
@@ -1811,14 +1810,13 @@ export default function CreateJob({ onCreated }) {
                       <Linkedin size={16} className="text-blue-600" />
                       LinkedIn <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        linkedinError ? 'border-red-500 bg-red-50' : form.linkedin?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="https://linkedin.com/company/example" 
-                      value={form.linkedin} 
-                      onChange={(e) => onLinkedInChange(e.target.value)} 
-                      required 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${linkedinError ? 'border-red-500 bg-red-50' : form.linkedin?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="https://linkedin.com/company/example"
+                      value={form.linkedin}
+                      onChange={(e) => onLinkedInChange(e.target.value)}
+                      required
                     />
                     {linkedinError && <p className="text-red-500 text-sm mt-1">{linkedinError}</p>}
                   </div>
@@ -1828,14 +1826,13 @@ export default function CreateJob({ onCreated }) {
                       <Globe size={16} className="text-gray-500" />
                       Website <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        websiteError ? 'border-red-500 bg-red-50' : form.website?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="www.company.com" 
-                      value={form.website} 
-                      onChange={(e) => onWebsiteChange(e.target.value)} 
-                      required 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${websiteError ? 'border-red-500 bg-red-50' : form.website?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="www.company.com"
+                      value={form.website}
+                      onChange={(e) => onWebsiteChange(e.target.value)}
+                      required
                     />
                     {websiteError && <p className="text-red-500 text-sm mt-1">{websiteError}</p>}
                   </div>
@@ -1858,23 +1855,22 @@ export default function CreateJob({ onCreated }) {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mb-4">These emails will receive the screening link after application deadline</p>
-                  
+
                   {(Array.isArray(form.recruiterEmails) ? form.recruiterEmails : [{ email: '', name: '' }]).map((recruiter, index) => (
                     <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="md:col-span-1">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Email <span className="text-red-500">*</span>
                         </label>
-                        <input 
+                        <input
                           type="email"
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            recruiterEmailError ? 'border-red-500 bg-red-50' : recruiter.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="recruiter@company.com" 
-                          value={recruiter.email || ''} 
-                          onChange={(e) => onRecruiterEmailChange(index, e.target.value)} 
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${recruiterEmailError ? 'border-red-500 bg-red-50' : recruiter.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
+                          placeholder="recruiter@company.com"
+                          value={recruiter.email || ''}
+                          onChange={(e) => onRecruiterEmailChange(index, e.target.value)}
                           onBlur={(e) => onRecruiterEmailChange(index, e.target.value)}
-                          required 
+                          required
                         />
                       </div>
 
@@ -1882,13 +1878,12 @@ export default function CreateJob({ onCreated }) {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Name <span className="text-gray-400">(Optional)</span>
                         </label>
-                        <input 
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            recruiter.name?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="e.g. John Doe" 
-                          value={recruiter.name || ''} 
-                          onChange={(e) => onRecruiterNameChange(index, e.target.value)} 
+                        <input
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${recruiter.name?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
+                          placeholder="e.g. John Doe"
+                          value={recruiter.name || ''}
+                          onChange={(e) => onRecruiterNameChange(index, e.target.value)}
                         />
                       </div>
 
@@ -1942,14 +1937,13 @@ export default function CreateJob({ onCreated }) {
                       <Briefcase size={16} className="text-gray-500" />
                       Job Title <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.jobTitle?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. Full Stack Developer" 
-                      value={form.jobTitle} 
-                      onChange={(e) => onJobTitleChange(e.target.value)} 
-                      onBlur={(e) => onJobTitleBlur(e.target.value)} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.jobTitle?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. Full Stack Developer"
+                      value={form.jobTitle}
+                      onChange={(e) => onJobTitleChange(e.target.value)}
+                      onBlur={(e) => onJobTitleBlur(e.target.value)}
                     />
                   </div>
 
@@ -1981,14 +1975,13 @@ export default function CreateJob({ onCreated }) {
                         <FaDollarSign size={16} className="text-gray-500" />
                         Stipend <span className="text-red-500">*</span>
                       </label>
-                      <input 
+                      <input
                         type="text"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                        }`} 
-                        placeholder="e.g. ₹15000 per month, As per performance, As per industry standards" 
-                        value={form.stipend} 
-                        onChange={(e) => onStipendChange(e.target.value)} 
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${stipendError ? 'border-red-500 bg-red-50' : form.stipend?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`}
+                        placeholder="e.g. ₹15000 per month, As per performance, As per industry standards"
+                        value={form.stipend}
+                        onChange={(e) => onStipendChange(e.target.value)}
                       />
                       {stipendError && <p className="text-red-500 text-sm mt-1">{stipendError}</p>}
                     </div>
@@ -1997,13 +1990,12 @@ export default function CreateJob({ onCreated }) {
                         <FaClock size={16} className="text-gray-500" />
                         Duration <span className="text-red-500">*</span>
                       </label>
-                      <input 
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                          durationError ? 'border-red-500 bg-red-50' : form.duration?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                        }`} 
-                        placeholder="e.g. 6 months" 
-                        value={form.duration} 
-                        onChange={(e) => onDurationChange(e.target.value)} 
+                      <input
+                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${durationError ? 'border-red-500 bg-red-50' : form.duration?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                          }`}
+                        placeholder="e.g. 6 months"
+                        value={form.duration}
+                        onChange={(e) => onDurationChange(e.target.value)}
                       />
                       {durationError && <p className="text-red-500 text-sm mt-1">{durationError}</p>}
                     </div>
@@ -2014,14 +2006,13 @@ export default function CreateJob({ onCreated }) {
                       <FaDollarSign size={16} className="text-gray-500" />
                       Salary (CTC) <span className="text-red-500">*</span>
                     </label>
-                    <input 
+                    <input
                       type="text"
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 12 LPA, 10–15 LPA, As per industry standards" 
-                      value={form.salary} 
-                      onChange={(e) => onSalaryChange(e.target.value)} 
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${salaryError ? 'border-red-500 bg-red-50' : form.salary?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. 12 LPA, 10–15 LPA, As per industry standards"
+                      value={form.salary}
+                      onChange={(e) => onSalaryChange(e.target.value)}
                     />
                     {salaryError && <p className="text-red-500 text-sm mt-1">{salaryError}</p>}
                   </div>
@@ -2033,13 +2024,12 @@ export default function CreateJob({ onCreated }) {
                       <MapPin size={16} className="text-gray-500" />
                       Company Location <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        companyLocationError ? 'border-red-500 bg-red-50' : form.companyLocation?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="City, State (e.g. Bangalore, Karnataka)" 
-                      value={form.companyLocation} 
-                      onChange={(e) => onCompanyLocationChange(e.target.value)} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${companyLocationError ? 'border-red-500 bg-red-50' : form.companyLocation?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="City, State (e.g. Bangalore, Karnataka)"
+                      value={form.companyLocation}
+                      onChange={(e) => onCompanyLocationChange(e.target.value)}
                     />
                     {companyLocationError && <p className="text-red-500 text-sm mt-1">{companyLocationError}</p>}
                   </div>
@@ -2048,13 +2038,12 @@ export default function CreateJob({ onCreated }) {
                       <Users size={16} className="text-gray-500" />
                       Open Positions
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.openings?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 15" 
-                      value={form.openings} 
-                      onChange={(e) => update({ openings: e.target.value })} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.openings?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. 15"
+                      value={form.openings}
+                      onChange={(e) => update({ openings: e.target.value })}
                     />
                   </div>
                 </div>
@@ -2065,9 +2054,8 @@ export default function CreateJob({ onCreated }) {
                     Roles & Responsibilities <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[300px] resize-y ${
-                      form.responsibilities?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                    }`}
+                    className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[300px] resize-y ${form.responsibilities?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                      }`}
                     placeholder="Outline responsibilities, tech stack, team, etc."
                     value={form.responsibilities}
                     onChange={(e) => update({ responsibilities: e.target.value })}
@@ -2133,9 +2121,8 @@ export default function CreateJob({ onCreated }) {
                             Full Name
                           </label>
                           <input
-                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                              spoc.fullName?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${spoc.fullName?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                              }`}
                             placeholder="e.g. Amit Kumar"
                             value={spoc.fullName}
                             onChange={(e) => updateSpoc(idx, 'fullName', e.target.value)}
@@ -2148,9 +2135,8 @@ export default function CreateJob({ onCreated }) {
                           </label>
                           <input
                             type="email"
-                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                              spoc.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${spoc.email?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                              }`}
                             placeholder="e.g. amit.kumar@company.com"
                             value={spoc.email}
                             onChange={(e) => updateSpoc(idx, 'email', e.target.value)}
@@ -2163,9 +2149,8 @@ export default function CreateJob({ onCreated }) {
                           </label>
                           <input
                             type="tel"
-                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                              spoc.phone?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${spoc.phone?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                              }`}
                             placeholder="e.g. +91 9876543210"
                             value={spoc.phone}
                             onChange={(e) => updateSpoc(idx, 'phone', e.target.value)}
@@ -2326,8 +2311,8 @@ export default function CreateJob({ onCreated }) {
                         onClick={() => setShowVenues((v) => !v)}
                       >
                         <span className="truncate flex-1 text-gray-900">
-                          {driveDraft.driveVenues.length > 0 
-                            ? driveDraft.driveVenues.join(', ') 
+                          {driveDraft.driveVenues.length > 0
+                            ? driveDraft.driveVenues.join(', ')
                             : 'Select venues'}
                         </span>
                         <ChevronDown className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showVenues ? 'rotate-180' : ''}`} />
@@ -2339,11 +2324,10 @@ export default function CreateJob({ onCreated }) {
                             return (
                               <label
                                 key={v}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${
-                                  isSelected
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${isSelected
                                     ? 'bg-blue-50 text-blue-700 font-medium'
                                     : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <input
@@ -2413,13 +2397,12 @@ export default function CreateJob({ onCreated }) {
                       <GraduationCap size={16} className="text-purple-600" />
                       Qualification <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.qualification?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. B.Tech, BCA, MCA" 
-                      value={form.qualification} 
-                      onChange={(e) => update({ qualification: e.target.value })} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.qualification?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. B.Tech, BCA, MCA"
+                      value={form.qualification}
+                      onChange={(e) => update({ qualification: e.target.value })}
                     />
                   </div>
                   <div>
@@ -2427,13 +2410,12 @@ export default function CreateJob({ onCreated }) {
                       <Award size={16} className="text-gray-500" />
                       Specialization
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.specialization?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. Computer Science (optional)" 
-                      value={form.specialization} 
-                      onChange={(e) => update({ specialization: e.target.value })} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.specialization?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. Computer Science (optional)"
+                      value={form.specialization}
+                      onChange={(e) => update({ specialization: e.target.value })}
                     />
                   </div>
                   <div>
@@ -2465,14 +2447,13 @@ export default function CreateJob({ onCreated }) {
                       <Award size={16} className="text-yellow-500" />
                       Minimum CGPA/Percentage <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        minCgpaError ? 'border-red-500 bg-red-50' : form.minCgpa?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 7.0 or 70%" 
-                      value={form.minCgpa} 
-                      onChange={(e) => onMinCgpaChange(e.target.value)} 
-                      onBlur={(e) => onMinCgpaBlur(e.target.value)} 
+                    <input
+                      className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${minCgpaError ? 'border-red-500 bg-red-50' : form.minCgpa?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. 7.0 or 70%"
+                      value={form.minCgpa}
+                      onChange={(e) => onMinCgpaChange(e.target.value)}
+                      onBlur={(e) => onMinCgpaBlur(e.target.value)}
                     />
                     {minCgpaError && <p className="text-red-500 text-sm mt-1">{minCgpaError}</p>}
                   </div>
@@ -2483,9 +2464,8 @@ export default function CreateJob({ onCreated }) {
                     <Code2 size={16} className="text-orange-600" />
                     Skills <span className="text-red-500">*</span>
                   </label>
-                  <div className={`relative border rounded-md px-3 py-2 min-h-[42px] flex flex-wrap items-center gap-1 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors ${
-                    form.skills.length > 0 ? 'border-green-300 bg-green-50' : form.skillsInput?.trim() ? 'border-yellow-300 bg-yellow-50' : 'border-gray-300'
-                  }`}>
+                  <div className={`relative border rounded-md px-3 py-2 min-h-[42px] flex flex-wrap items-center gap-1 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors ${form.skills.length > 0 ? 'border-green-300 bg-green-50' : form.skillsInput?.trim() ? 'border-yellow-300 bg-yellow-50' : 'border-gray-300'
+                    }`}>
                     {form.skills.map((s, idx) => (
                       <span key={`${s}-${idx}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
                         {s}
@@ -2545,11 +2525,10 @@ export default function CreateJob({ onCreated }) {
                                   <button
                                     key={policy}
                                     type="button"
-                                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${
-                                      isSelected 
-                                        ? 'bg-blue-50 text-blue-700 font-medium' 
+                                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer border-b border-gray-100 last:border-b-0 text-left transition-all duration-200 ${isSelected
+                                        ? 'bg-blue-50 text-blue-700 font-medium'
                                         : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
-                                    }`}
+                                      }`}
                                     onClick={() => {
                                       update({ gapAllowed: policy, gapYears: '' });
                                       setShowGapAllowed(false);
@@ -2561,11 +2540,10 @@ export default function CreateJob({ onCreated }) {
                               })}
                               <button
                                 type="button"
-                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer text-left transition-all duration-200 ${
-                                  form.gapAllowed === 'Custom'
-                                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer text-left transition-all duration-200 ${form.gapAllowed === 'Custom'
+                                    ? 'bg-blue-50 text-blue-700 font-medium'
                                     : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
-                                }`}
+                                  }`}
                                 onClick={() => {
                                   setGapInputMode(true);
                                   setShowGapAllowed(false);
@@ -2666,14 +2644,13 @@ export default function CreateJob({ onCreated }) {
                           <Code2 size={16} className="text-indigo-600" />
                           {[`${toRoman(1)} Round`, `${toRoman(2)} Round`, `${toRoman(3)} Round`][i]} <span className="text-red-500">*</span>
                         </label>
-                        <input 
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            form.baseRoundDetails[i]?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="e.g. Online test, DS&A" 
-                          value={form.baseRoundDetails[i]} 
-                          onChange={(e) => updateBaseRoundDetail(i, e.target.value)} 
-                          required 
+                        <input
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.baseRoundDetails[i]?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
+                          placeholder="e.g. Online test, DS&A"
+                          value={form.baseRoundDetails[i]}
+                          onChange={(e) => updateBaseRoundDetail(i, e.target.value)}
+                          required
                         />
                       </div>
                     ))}
@@ -2689,28 +2666,27 @@ export default function CreateJob({ onCreated }) {
                           <Code2 size={16} className="text-gray-500" />
                           {r.title}
                         </label>
-                        <input 
-                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                            r.detail?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                          }`} 
-                          placeholder="e.g. Managerial round (optional)" 
-                          value={r.detail} 
-                          onChange={(e) => updateExtraRoundDetail(idx, e.target.value)} 
+                        <input
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${r.detail?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                            }`}
+                          placeholder="e.g. Managerial round (optional)"
+                          value={r.detail}
+                          onChange={(e) => updateExtraRoundDetail(idx, e.target.value)}
                         />
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => removeExtraRound(idx)} 
-                        className="mb-0.5 px-3 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors" 
+                      <button
+                        type="button"
+                        onClick={() => removeExtraRound(idx)}
+                        className="mb-0.5 px-3 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
                         title="Remove this round"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ))}
-                  <button 
-                    type="button" 
-                    onClick={addRound} 
+                  <button
+                    type="button"
+                    onClick={addRound}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
                   >
                     <Plus className="w-4 h-4" /> Add Round
@@ -2737,13 +2713,12 @@ export default function CreateJob({ onCreated }) {
                         )}
                       </div>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.serviceAgreement?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 1 year bond (optional)" 
-                      value={form.serviceAgreement} 
-                      onChange={(e) => update({ serviceAgreement: e.target.value })} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.serviceAgreement?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. 1 year bond (optional)"
+                      value={form.serviceAgreement}
+                      onChange={(e) => update({ serviceAgreement: e.target.value })}
                     />
                   </div>
                   <div>
@@ -2764,13 +2739,12 @@ export default function CreateJob({ onCreated }) {
                         )}
                       </div>
                     </label>
-                    <input 
-                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${
-                        form.blockingPeriod?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                      }`} 
-                      placeholder="e.g. 6 months (optional)" 
-                      value={form.blockingPeriod} 
-                      onChange={(e) => update({ blockingPeriod: e.target.value })} 
+                    <input
+                      className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.blockingPeriod?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                        }`}
+                      placeholder="e.g. 6 months (optional)"
+                      value={form.blockingPeriod}
+                      onChange={(e) => update({ blockingPeriod: e.target.value })}
                     />
                   </div>
                 </div>
@@ -2805,7 +2779,7 @@ export default function CreateJob({ onCreated }) {
                     <div className="text-sm text-blue-800">
                       <p className="font-medium mb-1">What are Pre-Interview Requirements?</p>
                       <p className="text-blue-700">
-                        Select the screening steps required before candidates can proceed to interview rounds. 
+                        Select the screening steps required before candidates can proceed to interview rounds.
                         If both are enabled, candidates must pass Resume Screening before they can take the QA/Test.
                       </p>
                     </div>
@@ -2844,7 +2818,7 @@ export default function CreateJob({ onCreated }) {
                         QA / Test required
                       </label>
                       <p className="text-xs text-gray-600 mt-1">
-                        Candidates must complete a QA/Test assessment before proceeding to interviews. 
+                        Candidates must complete a QA/Test assessment before proceeding to interviews.
                         {form.requiresScreening && (
                           <span className="text-blue-700 font-medium"> (Available only after Resume Screening)</span>
                         )}
@@ -2884,9 +2858,8 @@ export default function CreateJob({ onCreated }) {
                 Any Specific Instructions
               </label>
               <textarea
-                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[250px] resize-y ${
-                  form.instructions?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                }`}
+                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text min-h-[120px] max-h-[250px] resize-y ${form.instructions?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                  }`}
                 placeholder="Any notes for candidates or TPO team (optional)"
                 value={form.instructions}
                 onChange={(e) => update({ instructions: e.target.value })}
@@ -2927,11 +2900,10 @@ export default function CreateJob({ onCreated }) {
               <button
                 type="submit"
                 disabled={!canPost || posting}
-                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium text-white transition-all duration-200 ${
-                  !canPost || posting 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium text-white transition-all duration-200 ${!canPost || posting
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
-                }`}
+                  }`}
               >
                 {posting ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 {isEditing ? 'Update Job' : 'Submit for Review'}
@@ -2940,11 +2912,10 @@ export default function CreateJob({ onCreated }) {
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving || (!form.company?.trim() || !form.jobTitle?.trim())}
-                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${
-                  isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) 
-                    ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed' 
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${isSaving || (!form.company?.trim() || !form.jobTitle?.trim())
+                    ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300 shadow-sm hover:shadow'
-                }`}
+                  }`}
               >
                 {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 Save (Draft)
@@ -2953,11 +2924,10 @@ export default function CreateJob({ onCreated }) {
                 type="button"
                 onClick={handleAddAnotherPosition}
                 disabled={isSaving || (!form.company?.trim() || !form.jobTitle?.trim())}
-                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${
-                  isSaving || (!form.company?.trim() || !form.jobTitle?.trim()) 
-                    ? 'bg-emerald-200 text-emerald-500 border-emerald-300 cursor-not-allowed' 
+                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-md font-medium border transition-all duration-200 ${isSaving || (!form.company?.trim() || !form.jobTitle?.trim())
+                    ? 'bg-emerald-200 text-emerald-500 border-emerald-300 cursor-not-allowed'
                     : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 shadow-sm hover:shadow'
-                }`}
+                  }`}
               >
                 {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Add Another Position
@@ -2989,9 +2959,8 @@ const JDUploadForm = ({
       <div
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-          isUploading ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-        }`}
+        className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${isUploading ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400 bg-gray-50'
+          }`}
       >
         <input
           type="file"
