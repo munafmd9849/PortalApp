@@ -15,12 +15,13 @@ import { useToast } from '../../ui/Toast';
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      <td className="px-4 py-3"><div className="h-4 w-40 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-56 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-44 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-10 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-8 w-20 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-40 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-56 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-36 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-20 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-8 w-24 bg-slate-200 rounded" /></td>
     </tr>
   );
 }
@@ -69,6 +70,8 @@ export default function RecruiterApplicantHistory() {
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState(null);
+  const [overallStats, setOverallStats] = useState(null);
+  const [expandedFeedback, setExpandedFeedback] = useState(new Set());
   
   // Application data
   const [loading, setLoading] = useState(false);
@@ -78,7 +81,6 @@ export default function RecruiterApplicantHistory() {
   // Filters
   const [filters, setFilters] = useState({
     search: '',
-    applicationStatus: '',
     stage: '',
     finalStatus: '',
     lastRoundReached: '',
@@ -106,17 +108,54 @@ export default function RecruiterApplicantHistory() {
         const recruiterId = me?.user?.recruiter?.id;
         if (!recruiterId) {
           setJobs([]);
+          setOverallStats(null);
           return;
         }
         // Get all jobs for this recruiter's company (posted and approved)
         const response = await api.getJobs({ recruiterId, isPosted: true, status: 'POSTED', limit: 1000 });
         const jobsList = Array.isArray(response) ? response : (response.jobs || []);
-        setJobs(jobsList);
-        
-        // Auto-select first job if available
-        if (jobsList.length > 0 && !selectedJobId) {
-          setSelectedJobId(jobsList[0].id);
+        if (!jobsList.length) {
+          setJobs([]);
+          setOverallStats(null);
+          return;
         }
+        const completedJobs = jobsList.filter((job) => {
+          const status = (job?.interviewSession?.status || job?.interviewSessionStatus || '').toUpperCase();
+          return status === 'COMPLETED';
+        });
+        if (!completedJobs.length) {
+          setJobs([]);
+          setOverallStats(null);
+          return;
+        }
+        setJobs(completedJobs);
+
+        // Aggregate overall stats across completed jobs
+        try {
+          const statsResponses = await Promise.all(
+            completedJobs.map((job) =>
+              api.get(`/admin/jobs/${job.id}/applications`, { params: { page: 1, limit: 1 } })
+            )
+          );
+          const totals = statsResponses.reduce(
+            (acc, res) => {
+              const stats = res?.data?.stats || res?.stats || {};
+              acc.totalApplications += stats.totalApplications || 0;
+              acc.shortlisted += stats.shortlisted || 0;
+              acc.interviewing += stats.interviewing || 0;
+              acc.selected += stats.selected || 0;
+              acc.rejected += stats.rejected || 0;
+              return acc;
+            },
+            { totalApplications: 0, shortlisted: 0, interviewing: 0, selected: 0, rejected: 0 }
+          );
+          setOverallStats(totals);
+        } catch (err) {
+          console.error('Failed to aggregate overall stats:', err);
+          setOverallStats(null);
+        }
+        
+        // Do not auto-select; user must choose a job
       } catch (error) {
         console.error('Error loading jobs:', error);
         toast?.error('Failed to load jobs');
@@ -144,7 +183,6 @@ export default function RecruiterApplicantHistory() {
           page,
           limit,
           q: debouncedSearch || undefined,
-          applicationStatus: filters.applicationStatus || undefined,
           stage: filters.stage || undefined,
           finalStatus: filters.finalStatus || undefined,
           lastRoundReached: filters.lastRoundReached || undefined,
@@ -183,10 +221,30 @@ export default function RecruiterApplicantHistory() {
     [payload]
   );
 
+  const computeStatsFromApplications = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const totalApplications = list.length;
+    const shortlisted = list.filter((row) =>
+      ['RESUME_SELECTED', 'SCREENING_SELECTED'].includes(
+        String(row.screeningStatus || '').toUpperCase()
+      )
+    ).length;
+    const selected = list.filter((row) =>
+      ['SELECTED'].includes(String(row.finalStatus || '').toUpperCase())
+    ).length;
+    const rejected = list.filter((row) =>
+      ['REJECTED'].includes(String(row.finalStatus || '').toUpperCase())
+    ).length;
+    const interviewing = list.filter((row) => {
+      const status = String(row.screeningStatus || '').toUpperCase();
+      return ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'].includes(status);
+    }).length;
+    return { totalApplications, shortlisted, interviewing, selected, rejected };
+  };
+
   const hasActiveFilters = useMemo(() => {
     return !!(
       filters.search ||
-      filters.applicationStatus ||
       filters.stage ||
       filters.finalStatus ||
       filters.lastRoundReached
@@ -196,7 +254,6 @@ export default function RecruiterApplicantHistory() {
   const resetFilters = () => {
     setFilters({
       search: '',
-      applicationStatus: '',
       stage: '',
       finalStatus: '',
       lastRoundReached: '',
@@ -206,6 +263,18 @@ export default function RecruiterApplicantHistory() {
 
   const total = payload?.pagination?.total ?? null;
   const totalPages = payload?.pagination?.totalPages ?? null;
+
+  const toggleFeedback = (applicationId) => {
+    setExpandedFeedback((prev) => {
+      const next = new Set(prev);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 -m-8 p-8">
@@ -221,13 +290,13 @@ export default function RecruiterApplicantHistory() {
           </p>
         </div>
 
-        {!loading && stats && (
+        {!loading && (selectedJobId ? stats : overallStats) && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Total</div>
-                  <div className="text-2xl font-bold text-slate-900 mt-1">{stats.totalApplications ?? 0}</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-1">{(selectedJobId ? stats?.totalApplications : overallStats?.totalApplications) ?? 0}</div>
                 </div>
                 <div className="text-2xl opacity-20">👥</div>
               </div>
@@ -236,7 +305,7 @@ export default function RecruiterApplicantHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Shortlisted</div>
-                  <div className="text-2xl font-bold text-blue-900 mt-1">{stats.shortlisted ?? 0}</div>
+                  <div className="text-2xl font-bold text-blue-900 mt-1">{(selectedJobId ? stats?.shortlisted : overallStats?.shortlisted) ?? 0}</div>
                 </div>
                 <div className="text-2xl opacity-20">⭐</div>
               </div>
@@ -245,7 +314,7 @@ export default function RecruiterApplicantHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-indigo-600 font-semibold uppercase tracking-wide">Interviewing</div>
-                  <div className="text-2xl font-bold text-indigo-900 mt-1">{stats.interviewing ?? 0}</div>
+                  <div className="text-2xl font-bold text-indigo-900 mt-1">{(selectedJobId ? stats?.interviewing : overallStats?.interviewing) ?? 0}</div>
                 </div>
                 <div className="text-2xl opacity-20">🎤</div>
               </div>
@@ -254,7 +323,7 @@ export default function RecruiterApplicantHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">Selected</div>
-                  <div className="text-2xl font-bold text-emerald-700 mt-1">{stats.selected ?? 0}</div>
+                  <div className="text-2xl font-bold text-emerald-700 mt-1">{(selectedJobId ? stats?.selected : overallStats?.selected) ?? 0}</div>
                 </div>
                 <div className="text-2xl opacity-20">✅</div>
               </div>
@@ -263,7 +332,7 @@ export default function RecruiterApplicantHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-rose-600 font-semibold uppercase tracking-wide">Rejected</div>
-                  <div className="text-2xl font-bold text-rose-700 mt-1">{stats.rejected ?? 0}</div>
+                  <div className="text-2xl font-bold text-rose-700 mt-1">{(selectedJobId ? stats?.rejected : overallStats?.rejected) ?? 0}</div>
                 </div>
                 <div className="text-2xl opacity-20">❌</div>
               </div>
@@ -280,7 +349,7 @@ export default function RecruiterApplicantHistory() {
         ) : jobs.length === 0 ? (
           <div className="text-center py-4 text-slate-500">
             <Briefcase className="mx-auto mb-2 text-slate-400" size={24} />
-            <p>No posted jobs found</p>
+            <p>No completed interviews found</p>
           </div>
         ) : (
           <CustomDropdown
@@ -351,23 +420,24 @@ export default function RecruiterApplicantHistory() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Application Status</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Stage</label>
                 <CustomDropdown
                   options={[
-                    { value: '', label: 'All Status' },
-                    { value: 'applied', label: 'Applied' },
-                    { value: 'shortlisted', label: 'Shortlisted' },
-                    { value: 'interview_scheduled', label: 'Interview Scheduled' },
-                    { value: 'interviewed', label: 'Interviewed' },
-                    { value: 'selected', label: 'Selected' },
-                    { value: 'rejected', label: 'Rejected' },
+                    { value: '', label: 'All Stages' },
+                    { value: 'Applied', label: 'Applied' },
+                    { value: 'Screening Qualified', label: 'Screening Qualified' },
+                    { value: 'Qualified for Interview', label: 'Qualified for Interview' },
+                    { value: 'Interview Round 1', label: 'Interview Round 1' },
+                    { value: 'Interview Round 2', label: 'Interview Round 2' },
+                    { value: 'Selected', label: 'Selected' },
+                    { value: 'Rejected', label: 'Rejected' },
                   ]}
-                  value={filters.applicationStatus}
+                  value={filters.stage}
                   onChange={(value) => {
-                    setFilters(prev => ({ ...prev, applicationStatus: value }));
+                    setFilters(prev => ({ ...prev, stage: value }));
                     setPage(1);
                   }}
-                  placeholder="All Status"
+                  placeholder="All Stages"
                 />
               </div>
             </div>
@@ -376,64 +446,20 @@ export default function RecruiterApplicantHistory() {
               <div className="mt-3 pt-3 border-t border-slate-200">
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-medium text-slate-600">Active Filters:</span>
-                  {filters.applicationStatus && (
+                  {filters.stage && (
                     <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                      Status: {filters.applicationStatus}
+                      Stage: {filters.stage}
                     </span>
                   )}
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-200">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
-                <CustomDropdown
-                  options={[
-                    { value: 'appliedAt', label: 'Applied Date' },
-                    { value: 'name', label: 'Student Name' },
-                  ]}
-                  value={sortBy}
-                  onChange={(value) => setSortBy(value)}
-                  placeholder="Sort By"
-                />
+            {total !== null && (
+              <div className="mt-4 pt-4 border-t border-slate-200 text-sm text-slate-600">
+                {total} total • page {page}{totalPages ? ` / ${totalPages}` : ''}
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Order</label>
-                <CustomDropdown
-                  options={[
-                    { value: 'desc', label: 'Descending' },
-                    { value: 'asc', label: 'Ascending' },
-                  ]}
-                  value={order}
-                  onChange={(value) => setOrder(value)}
-                  placeholder="Order"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Per Page</label>
-                <CustomDropdown
-                  options={[
-                    { value: '25', label: '25 / page' },
-                    { value: '50', label: '50 / page' },
-                    { value: '100', label: '100 / page' },
-                  ]}
-                  value={String(limit)}
-                  onChange={(value) => { setLimit(parseInt(value, 10)); setPage(1); }}
-                  placeholder="Per Page"
-                />
-              </div>
-
-              <div className="flex items-end justify-end text-sm text-slate-600 pb-2">
-                {total !== null && (
-                  <span>
-                    {total} total • page {page}{totalPages ? ` / ${totalPages}` : ''}
-                  </span>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Applications Table */}
@@ -459,8 +485,8 @@ export default function RecruiterApplicantHistory() {
                         <th className="px-4 py-3">Contact</th>
                         <th className="px-4 py-3">Stage</th>
                         <th className="px-4 py-3">Last Round</th>
-                        <th className="px-4 py-3">Final Status</th>
-                        <th className="px-4 py-3">Profile</th>
+                      <th className="px-4 py-3">Final Status</th>
+                      <th className="px-4 py-3">Profile</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -480,76 +506,82 @@ export default function RecruiterApplicantHistory() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-slate-50">
-                    <tr className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200">
-                      <th className="px-4 py-4">Student</th>
-                      <th className="px-4 py-4">Contact</th>
-                      <th className="px-4 py-4">Stage</th>
-                      <th className="px-4 py-4 text-center">Round</th>
-                      <th className="px-4 py-4">Status</th>
-                      <th className="px-4 py-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {applications.map((row) => (
-                      <tr key={row.applicationId} className="hover:bg-indigo-50/50 transition-colors group">
-                        <td className="px-4 py-4">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                              {(row?.student?.name || 'U')[0].toUpperCase()}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-slate-900 truncate">{row?.student?.name || 'Unknown'}</div>
-                              {row?.student?.enrollmentId && (
-                                <div className="text-xs text-slate-500 mt-0.5">ID: {row.student.enrollmentId}</div>
-                              )}
-                              {row?.student?.phone && (
-                                <a href={`tel:${row.student.phone}`} className="text-xs text-indigo-600 hover:text-indigo-800 mt-0.5 inline-block">
-                                  📞 {row.student.phone}
-                                </a>
-                              )}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
+              <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    Student Details
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    Email
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    Enrollment ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    Center
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    School
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-white">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {applications.map((row) => (
+                  <React.Fragment key={row.applicationId}>
+                    <tr className="hover:bg-indigo-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                            {(row?.student?.name || 'U')[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-slate-900 truncate">{row?.student?.name || 'Unknown'}</div>
+                            {row?.student?.phone && (
+                              <a href={`tel:${row.student.phone}`} className="text-xs text-indigo-600 hover:text-indigo-800 mt-0.5 inline-block">
+                                📞 {row.student.phone}
+                              </a>
+                            )}
+                            <div className="text-xs text-slate-500 mt-0.5">
+                              Stage: {row.currentStage || 'Applied'}
                             </div>
                           </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-col gap-1">
-                            <a href={`mailto:${row?.student?.email || ''}`} className="text-slate-700 hover:text-indigo-600 truncate text-sm">
-                              {row?.student?.email || ''}
-                            </a>
-                            {row?.student?.city && row?.student?.stateRegion && (
-                              <div className="text-xs text-slate-500 flex items-center gap-1">
-                                📍 {row.student.city}, {row.student.stateRegion}
-                              </div>
-                            )}
-                            {row?.student?.school && (
-                              <div className="text-xs text-slate-500">School: {row.student.school}</div>
-                            )}
-                            {row?.student?.batch && (
-                              <div className="text-xs text-slate-500">Batch: {row.student.batch}</div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <StageBadge stage={row.currentStage} />
-                          {row.finalStatus === 'REJECTED' && row.rejectedIn && (
-                            <div className="text-xs text-rose-600 mt-2 flex items-center gap-1">
-                              ⚠️ Rejected in: {row.rejectedIn}
-                            </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <a href={`mailto:${row?.student?.email || ''}`} className="text-slate-700 hover:text-indigo-600 truncate text-sm">
+                          {row?.student?.email || ''}
+                        </a>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        {row?.student?.enrollmentId || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        {row?.student?.center || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        {row?.student?.school || '—'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusPill value={row.finalStatus || 'ONGOING'} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 justify-center">
+                          {Array.isArray(row.evaluations) && row.evaluations.length > 0 && (
+                            <button
+                              onClick={() => toggleFeedback(row.applicationId)}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
+                            >
+                              {expandedFeedback.has(row.applicationId) ? 'Hide feedback' : 'View feedback'}
+                            </button>
                           )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-center">
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-sm">
-                              {row.lastRoundReached || 0}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <StatusPill value={row.finalStatus} />
-                        </td>
-                        <td className="px-4 py-4">
                           <button
                             disabled={!row?.student?.profileLink}
                             onClick={() => row?.student?.profileLink && window.open(row.student.profileLink, '_blank')}
@@ -562,13 +594,46 @@ export default function RecruiterApplicantHistory() {
                             View Profile
                             <ExternalLink className="w-4 h-4" />
                           </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedFeedback.has(row.applicationId) && Array.isArray(row.evaluations) && row.evaluations.length > 0 && (
+                      <tr className="bg-indigo-50/40">
+                        <td colSpan={7} className="px-6 py-4">
+                          <div className="text-sm font-semibold text-slate-700 mb-2">Interview Feedback</div>
+                          <div className="space-y-3">
+                            {row.evaluations.map((evaluation, idx) => (
+                              <div key={`${row.applicationId}-${idx}`} className="bg-white border border-indigo-100 rounded-lg p-3">
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                                  <span className="font-semibold text-slate-800">
+                                    {evaluation.roundName || `Round ${evaluation.roundNumber || '-'}`}
+                                  </span>
+                                  {evaluation.status && (
+                                    <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      {evaluation.status}
+                                    </span>
+                                  )}
+                                  {evaluation.evaluatedAt && (
+                                    <span>
+                                      {new Date(evaluation.evaluatedAt).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-2 text-sm text-slate-700">
+                                  {evaluation.remarks ? evaluation.remarks : 'No remarks provided.'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
             {/* Pagination */}
             {!loading && !error && totalPages && totalPages > 1 && (
@@ -605,13 +670,7 @@ export default function RecruiterApplicantHistory() {
         </>
       )}
 
-      {!selectedJobId && !loadingJobs && jobs.length > 0 && (
-        <div className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl p-12 text-center">
-          <Briefcase className="mx-auto mb-4 text-slate-400" size={48} />
-          <h3 className="text-lg font-semibold text-slate-700 mb-2">Select a Job</h3>
-          <p className="text-slate-500">Choose a job from the dropdown above to view its applicants</p>
-        </div>
-      )}
+      {/* No extra prompt when no job selected */}
     </div>
   );
 }

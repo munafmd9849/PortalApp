@@ -1201,8 +1201,16 @@ export async function getAdminJobApplications(req, res) {
             },
           },
           roundEvaluations: {
-            select: { id: true },
-            take: 1,
+            select: {
+              id: true,
+              status: true,
+              remarks: true,
+              createdAt: true,
+              round: {
+                select: { roundNumber: true, name: true },
+              },
+            },
+            orderBy: { createdAt: 'asc' },
           },
         },
         orderBy: orderByClause,
@@ -1253,6 +1261,15 @@ export async function getAdminJobApplications(req, res) {
         appliedAt: app.appliedDate,
         screeningStatus: app.screeningStatus,
         interviewStatus: app.interviewStatus,
+        evaluations: Array.isArray(app.roundEvaluations)
+          ? app.roundEvaluations.map((evaluation) => ({
+            roundName: evaluation.round?.name || `Round ${evaluation.round?.roundNumber ?? ''}`.trim(),
+            roundNumber: evaluation.round?.roundNumber ?? null,
+            status: evaluation.status || null,
+            remarks: evaluation.remarks || null,
+            evaluatedAt: evaluation.createdAt || null,
+          }))
+          : [],
       };
     });
 

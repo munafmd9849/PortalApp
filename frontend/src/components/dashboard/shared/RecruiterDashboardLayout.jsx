@@ -123,7 +123,7 @@ const RecruiterDashboardLayout = ({ children }) => {
       <div className="flex min-h-[calc(100vh-5rem)]">
         {/* Sidebar */}
         <aside
-          className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"
+          className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out"
           style={{ width: `${sidebarWidth}%` }}
         >
           <div className="p-3 h-full flex flex-col">

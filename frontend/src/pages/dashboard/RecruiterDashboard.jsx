@@ -7,7 +7,7 @@ import Dashboard from '../recruiter/dashboard';
 import JobPostings from '../recruiter/JobPostings';
 import RecruiterCalendar from '../../components/dashboard/recruiter/RecruiterCalendar';
 import RecruiterAnalytics from '../../components/dashboard/recruiter/RecruiterAnalytics';
-import CompanyHistory from '../../components/dashboard/recruiter/CompanyHistory';
+import RecruiterApplicantHistory from '../../components/dashboard/recruiter/RecruiterApplicantHistory';
 import HelpSupport from '../../components/dashboard/recruiter/HelpSupport';
 import RecruiterProfile from '../../components/dashboard/recruiter/RecruiterProfile';
 import RecruiterQuery from '../../components/dashboard/recruiter/RecruiterQuery';
@@ -28,7 +28,7 @@ const RecruiterDashboard = () => {
   const location = useLocation();
   const { logout, user, role, loading: authLoading } = useAuth();
 
-  // When landing with addNote=jobId (e.g. from thank-you email), open Company History and keep URL in sync
+  // When landing with addNote=jobId (e.g. from thank-you email), open Applicant History and keep URL in sync
   useEffect(() => {
     if (tabFromUrl && ['dashboard', 'jobPostings', 'interviewScheduling', 'calendar', 'analytics', 'history', 'raiseQuery', 'help', 'profile'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
@@ -87,7 +87,7 @@ const RecruiterDashboard = () => {
     { id: 'interviewScheduling', label: 'Interview Session', icon: FiCalendar },
     { id: 'calendar', label: 'Calendar', icon: FiCalendar },
     { id: 'analytics', label: 'HR Analytics', icon: FiBarChart2 },
-    { id: 'history', label: 'Company History', icon: FiBriefcase },
+    { id: 'history', label: 'Applicant History', icon: FiBriefcase },
     { id: 'raiseQuery', label: 'Raise Query', icon: FiMessageSquare },
     { id: 'help', label: 'Help & Support', icon: FiMessageSquare },
     { id: 'profile', label: 'Profile', icon: FiSettings },
@@ -181,7 +181,7 @@ const RecruiterDashboard = () => {
       case 'analytics':
         return <RecruiterAnalytics />;
       case 'history':
-        return <CompanyHistory />;
+        return <RecruiterApplicantHistory />;
       case 'raiseQuery':
         return <RecruiterQuery />;
       case 'help':
@@ -236,7 +236,7 @@ const RecruiterDashboard = () => {
 
       <div className="flex min-h-[calc(100vh-5rem)] relative">
         <aside
-          className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out"
+          className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out"
           style={{ width: `${sidebarWidth}%` }}
         >
           <div className="p-3 h-full flex flex-col">

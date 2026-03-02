@@ -157,6 +157,11 @@ export async function getJobs(req, res) {
               },
             },
           },
+          interviewSession: {
+            select: {
+              status: true,
+            },
+          },
           _count: {
             select: {
               applications: true,

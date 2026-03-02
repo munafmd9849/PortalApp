@@ -179,7 +179,7 @@ export default function SuperAdminDashboard() {
       <AdminLayout>
         <div className="flex min-h-screen relative">
           <aside
-            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-y-auto transition-all duration-200 ease-in-out z-40"
+            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
             <div className="p-3 h-full flex flex-col">
@@ -221,7 +221,7 @@ export default function SuperAdminDashboard() {
             <div className="fixed inset-0 bg-black/50 z-40 md:hidden" aria-hidden onClick={() => setMobileMenuOpen(false)} />
           )}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300 ease-out flex flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-hidden transition-transform duration-300 ease-out flex flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
             aria-modal
             aria-label="Navigation menu"
           >
