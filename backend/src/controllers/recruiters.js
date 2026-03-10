@@ -134,7 +134,7 @@ export async function getRecruiterJobs(req, res) {
 export async function blockUnblockRecruiter(req, res) {
   try {
     const { recruiterId } = req.params;
-    const { isUnblocking, blockType, endDate, endTime, reason, notes } = req.body;
+    const { isUnblocking, blockType, startDate, endDate, endTime, reason, notes } = req.body;
     const adminId = req.userId;
 
     const recruiter = await prisma.recruiter.findUnique({
@@ -155,6 +155,7 @@ export async function blockUnblockRecruiter(req, res) {
     } else {
       updateData.blockInfo = {
         type: blockType,
+        startDate: blockType === 'temporary' ? startDate : null,
         endDate: blockType === 'temporary' ? endDate : null,
         endTime: blockType === 'temporary' ? endTime : null,
         reason,
