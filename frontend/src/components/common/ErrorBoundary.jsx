@@ -17,6 +17,8 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const fallback = this.props.fallback;
+      if (fallback) return fallback;
       return (
         <div className="border border-yellow-300 bg-yellow-50 text-yellow-800 rounded-md p-3 text-sm">
           <div className="font-medium">A preview error occurred.</div>
