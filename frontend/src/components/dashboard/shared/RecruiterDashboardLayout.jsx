@@ -85,8 +85,8 @@ const RecruiterDashboardLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
-      {/* Horizontal Navbar */}
-      <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
+      {/* Horizontal Navbar - fixed at top, never scrolls */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-blue-100">
         <div className="w-full px-2 py-1">
           <div
             className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400"
@@ -119,14 +119,14 @@ const RecruiterDashboardLayout = ({ children }) => {
         </div>
       </nav>
 
-      {/* Sidebar and Main Content */}
-      <div className="flex min-h-[calc(100vh-5rem)]">
+      {/* Sidebar and Main Content - pt reserves space for fixed header */}
+      <div className="flex min-h-[calc(100vh-6.5rem)] pt-[6.5rem]">
         {/* Sidebar */}
         <aside
-          className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out"
+          className="bg-white border-r border-gray-200 fixed top-[6.5rem] left-0 bottom-[4rem] overflow-y-auto overflow-x-hidden scrollbar-hide transition-all duration-200 ease-in-out z-40"
           style={{ width: `${sidebarWidth}%` }}
         >
-          <div className="p-3 h-full flex flex-col">
+          <div className="p-3 pb-4">
             <div className="mb-6">
               {sidebarWidth >= 9 && (
                 <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
@@ -156,22 +156,25 @@ const RecruiterDashboardLayout = ({ children }) => {
                 })}
               </nav>
             </div>
-
-            <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
-                  sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'
-                }`}
-                title={sidebarWidth < 9 ? 'Logout' : ''}
-              >
-                <FiLogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
-                {sidebarWidth >= 9 && 'Logout'}
-              </button>
-            </div>
           </div>
         </aside>
+        {/* Logout - fixed at bottom-left, always visible */}
+        <div
+          className="fixed bottom-0 left-0 z-50 p-3 border-t border-gray-300 bg-white"
+          style={{ width: `${sidebarWidth}%` }}
+        >
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
+              sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2.5'
+            }`}
+            title={sidebarWidth < 9 ? 'Logout' : ''}
+          >
+            <FiLogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
+            {sidebarWidth >= 9 && 'Logout'}
+          </button>
+        </div>
 
         <div
           onMouseDown={handleMouseDown}

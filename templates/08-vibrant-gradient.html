@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibrant Gradient Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-color: #0f172a;
+            background-image: radial-gradient(at 0% 0%, hsla(343, 90%, 55%, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(276, 82%, 54%, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, hsla(211, 88%, 54%, 0.15) 0px, transparent 50%), radial-gradient(at 0% 100%, hsla(168, 82%, 46%, 0.15) 0px, transparent 50%);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #f43f5e 0%, #8b5cf6 50%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hover-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .hover-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px -10px rgba(139, 92, 246, 0.2);
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen py-10 px-4 md:px-8">
+    <div class="mesh-bg"></div>
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Main Top Section -->
+        <header
+            class="glass-card p-8 md:p-12 mb-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative overflow-hidden text-center md:text-left">
+            <!-- Decorative circle -->
+            <div
+                class="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-500 rounded-full mix-blend-screen filter blur-[80px] opacity-40">
+            </div>
+
+            <div class="relative z-10 shrink-0">
+                <div
+                    class="w-40 h-40 rounded-[2rem] p-1.5 bg-gradient-to-br from-rose-500 via-fuchsia-500 to-blue-500 shadow-2xl rotate-3 hover:rotate-0 transition-transform">
+                    <img src="https://ui-avatars.com/api/?name=Charan+Sai&size=256&background=1e293b&color=f8fafc"
+                        alt="Profile" class="w-full h-full rounded-[1.75rem] object-cover bg-slate-800">
+                </div>
+            </div>
+
+            <div class="relative z-10 flex-1">
+                <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight mb-3">Charan <span
+                        class="text-gradient">Sai</span></h1>
+                <p class="text-xl md:text-2xl text-slate-300 font-medium mb-6">Full Stack Developer <span
+                        class="text-fuchsia-400 mx-2">&</span> AI Enthusiast</p>
+
+                <p class="text-slate-400 leading-relaxed max-w-2xl mb-8">A comprehensive campus placement management
+                    system builder and full-stack developer passionate about building scalable web applications. Focus
+                    on distributed systems and machine learning.</p>
+
+                <div class="flex flex-wrap justify-center md:justify-start gap-4">
+                    <a href="mailto:charansai82140@gmail.com"
+                        class="px-6 py-3 rounded-full bg-white text-slate-900 font-bold hover:bg-slate-200 transition-colors shadow-lg shadow-white/10 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg> Get In Touch
+                    </a>
+                    <a href="https://github.com/charansai0108"
+                        class="px-6 py-3 rounded-full bg-slate-800 text-white font-bold hover:bg-slate-700 transition-colors border border-slate-700 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        </svg> View GitHub
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Grid Layout -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+
+            <!-- Left Column: Skills & Stats -->
+            <div class="md:col-span-4 flex flex-col gap-8">
+                <!-- Skill Stack -->
+                <div class="glass-card p-8 h-full">
+                    <h3 class="text-2xl font-bold mb-6 flex items-center gap-3">
+                        <span class="p-2 rounded-xl bg-blue-500/20 text-blue-400"><svg class="w-6 h-6" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg></span>
+                        Tech Arsenal
+                    </h3>
+
+                    <div class="space-y-4">
+                        <div class="group">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span
+                                    class="text-slate-200">React.js</span><span class="text-blue-400">Expert</span>
+                            </div>
+                            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                    class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 w-full group-hover:scale-x-105 origin-left transition-transform">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span
+                                    class="text-slate-200">Python</span><span class="text-fuchsia-400">Expert</span>
+                            </div>
+                            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                    class="h-full bg-gradient-to-r from-fuchsia-500 to-pink-400 w-full group-hover:scale-x-105 origin-left transition-transform">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span
+                                    class="text-slate-200">Node.js</span><span class="text-rose-400">Advanced</span>
+                            </div>
+                            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                    class="h-full bg-gradient-to-r from-rose-500 to-orange-400 w-4/5 group-hover:scale-x-105 origin-left transition-transform">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span
+                                    class="text-slate-200">PostgreSQL</span><span
+                                    class="text-emerald-400">Advanced</span></div>
+                            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                    class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 w-4/5 group-hover:scale-x-105 origin-left transition-transform">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span
+                                    class="text-slate-200">Docker</span><span class="text-amber-400">Intermediate</span>
+                            </div>
+                            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                    class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 w-3/5 group-hover:scale-x-105 origin-left transition-transform">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Stats block -->
+                <div
+                    class="glass-card p-6 flex flex-col justify-center items-center text-center hover-card overflow-hidden relative">
+                    <div
+                        class="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500 rounded-full blur-[40px] opacity-30">
+                    </div>
+                    <h3 class="text-5xl font-black text-gradient mb-2">8.5</h3>
+                    <p class="text-slate-400 font-bold tracking-widest uppercase text-sm">CGPA / Bachelor's</p>
+                    <p class="text-slate-500 text-xs mt-2">National Institute of Technology</p>
+                </div>
+            </div>
+
+            <!-- Right Column: Projects & Acievements -->
+            <div class="md:col-span-8 flex flex-col gap-8">
+
+                <!-- Projects -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <!-- Project Card 1 -->
+                    <div class="glass-card p-8 hover-card group flex flex-col">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-6 group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                                </path>
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 text-white">Portal App</h3>
+                        <p class="text-slate-400 mb-6 flex-1">A comprehensive campus placement management system built
+                            with React and Node.js.</p>
+
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">React</span>
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">Node.js</span>
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">PostgreSQL</span>
+                        </div>
+
+                        <a href="https://github.com/charansai0108/PORTAL"
+                            class="inline-flex items-center text-blue-400 font-bold hover:text-blue-300 transition-colors">
+                            Explore Project <svg class="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                            </svg>
+                        </a>
+                    </div>
+
+                    <!-- Project Card 2 -->
+                    <div class="glass-card p-8 hover-card group flex flex-col">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-rose-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/30 mb-6 group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                </path>
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 text-white">AI Image Gen</h3>
+                        <p class="text-slate-400 mb-6 flex-1">A web app that uses Stable Diffusion API to generate
+                            images from text prompts.</p>
+
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">Python</span>
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">Flask</span>
+                            <span
+                                class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">React</span>
+                        </div>
+
+                        <a href="https://github.com/example/ai-image"
+                            class="inline-flex items-center text-fuchsia-400 font-bold hover:text-fuchsia-300 transition-colors">
+                            Explore Project <svg class="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Achievements Wide Card -->
+                <div class="glass-card p-8 border-l-4 border-l-fuchsia-500">
+                    <h3 class="text-2xl font-bold mb-6 text-white">Milestones & Achievements</h3>
+
+                    <div class="space-y-6">
+                        <div class="flex items-start gap-4">
+                            <div class="p-2 rounded-lg bg-yellow-500/20 text-yellow-500 mt-1"><svg class="w-5 h-5"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z">
+                                    </path>
+                                </svg></div>
+                            <div>
+                                <h4 class="text-lg font-bold text-slate-200">1st Place, HackWarangal 2023</h4>
+                                <p class="text-sm text-slate-400 mt-1">Built a solution for optimizing campus energy
+                                    usage using IoT sensors. (Issued by NIT Warangal)</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div class="p-2 rounded-lg bg-orange-500/20 text-orange-500 mt-1"><svg class="w-5 h-5"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg></div>
+                            <div>
+                                <h4 class="text-lg font-bold text-slate-200">AWS Certified Solutions Architect</h4>
+                                <p class="text-sm text-slate-400 mt-1">Amazon Web Services • May 2023</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+
+</html>

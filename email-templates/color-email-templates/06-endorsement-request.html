@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Endorsement Request</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #F59E0B;
+      padding: 26px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.3px;
+      color: #FFFFFF;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .salute {
+      font-size: 16px;
+      line-height: 22px;
+      color: #111827;
+    }
+
+    .actionBox {
+      margin: 18px 0 18px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-left: 4px solid #F59E0B;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .actionTitle {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 900;
+      color: #111827;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 18px;
+      color: #6B7280;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .notice {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-left: 4px solid #F59E0B;
+      border-radius: 10px;
+      padding: 12px 12px;
+      margin-top: 14px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .notice p {
+      margin: 0;
+      color: #92400E;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">Recommendation Request</p>
+                  <p class="subtitle">Secure endorsement magic link</p>
+                </div>
+
+                <div class="content">
+                  <p class="salute">Dear <strong>{{teacherName}}</strong>,</p>
+                  <p>
+                    A student you recently supervised or instructed, <strong>{{studentName}}</strong> (Enrollment:
+                    {{studentEnrollmentId}}),
+                    has formally requested a letter of endorsement from you for their professional placement portfolio.
+                  </p>
+                  <p>
+                    Recommendations from faculty members play a pivotal role in distinguishing our students during
+                    corporate recruitment drives. Your endorsement will be featured publicly on their digital resume.
+                  </p>
+
+                  <div class="actionBox">
+                    <p class="actionTitle">To provide your digital endorsement, please follow the secure link below:</p>
+                    <div class="center" style="margin-top:10px;">
+                      <a class="btn btn-primary" href="{{magicLink}}">Draft Endorsement Letter</a>
+                    </div>
+                    <div class="hint center">
+                      No account creation is required. You will be able to digitally sign the document upon completion.
+                    </div>
+                    <div class="notice">
+                      <p><strong>Expiration Notice:</strong> This unique link will securely expire on
+                        <strong>{{expiresAt}}</strong>.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  Office of Career Placements · PW Institute of Innovation (PWIOI)
+                  <div class="muted">This is an automated request. Should you have concerns, please contact
+                    administration.</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

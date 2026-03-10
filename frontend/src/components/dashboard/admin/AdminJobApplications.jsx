@@ -415,55 +415,13 @@ export default function AdminJobApplications() {
           </div>
         )}
 
-        {/* Row 2: Sort, Order, Limit, Pagination Info */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-200">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
-            <CustomDropdown
-              options={[
-                { value: 'appliedAt', label: 'Applied Date' },
-                { value: 'name', label: 'Student Name' },
-              ]}
-              value={sortBy}
-              onChange={(value) => setSortBy(value)}
-              placeholder="Sort By"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Order</label>
-            <CustomDropdown
-              options={[
-                { value: 'desc', label: 'Descending' },
-                { value: 'asc', label: 'Ascending' },
-              ]}
-              value={order}
-              onChange={(value) => setOrder(value)}
-              placeholder="Order"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Per Page</label>
-            <CustomDropdown
-              options={[
-                { value: '25', label: '25 / page' },
-                { value: '50', label: '50 / page' },
-                { value: '100', label: '100 / page' },
-              ]}
-              value={String(limit)}
-              onChange={(value) => { setLimit(parseInt(value, 10)); setPage(1); }}
-              placeholder="Per Page"
-            />
-          </div>
-
-          <div className="flex items-end justify-end text-sm text-slate-600 pb-2">
-            {total !== null && (
-              <span>
-                {total} total • page {page}{totalPages ? ` / ${totalPages}` : ''}
-              </span>
-            )}
-          </div>
+        {/* Pagination Info */}
+        <div className="mt-4 pt-4 border-t border-slate-200 flex justify-end">
+          {total !== null && (
+            <span className="text-sm text-slate-600">
+              {total} total • page {page}{totalPages ? ` / ${totalPages}` : ''}
+            </span>
+          )}
         </div>
       </div>
 

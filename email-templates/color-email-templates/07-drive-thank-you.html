@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thank You for the Placement Drive</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #16A34A;
+      padding: 24px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .hello {
+      font-size: 16px;
+      line-height: 22px;
+      color: #111827;
+    }
+
+    .summary {
+      margin: 18px 0 18px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-left: 4px solid #16A34A;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .summaryTitle {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #166534;
+    }
+
+    .itemLabel {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #6B7280;
+      text-transform: uppercase;
+      margin-top: 10px;
+    }
+
+    .itemValue {
+      font-size: 13px;
+      font-weight: 800;
+      color: #111827;
+      margin-top: 2px;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:720px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">Thank You!</p>
+                  <p class="subtitle">We appreciate your time &amp; collaboration</p>
+                </div>
+
+                <div class="content">
+                  <p class="hello">Hello <strong>{{recipientName}}</strong>,</p>
+                  <p>
+                    On behalf of the PWIOI Placement Team, we want to formally thank you for conducting the recent
+                    placement drive with us. Your time and insights are invaluable to our process and to our students'
+                    careers.
+                  </p>
+                  <p>
+                    We hope the drive ran smoothly and that you found some excellent talent from our current batch.
+                    Below is a quick summary of the event for your records.
+                  </p>
+
+                  <div class="summary">
+                    <div class="summaryTitle">Drive Summary</div>
+                    <div class="itemLabel">Position</div>
+                    <div class="itemValue">{{jobTitle}}</div>
+                    <div class="itemLabel">Company</div>
+                    <div class="itemValue">{{companyName}}</div>
+                    <div class="itemLabel">Drive Date</div>
+                    <div class="itemValue">{{driveDate}}</div>
+                  </div>
+
+                  <p>
+                    We highly value your feedback. We request that you take a few minutes to add a short note about the
+                    drive. Your observations and remarks help us continuously improve our curriculum and placement
+                    processes.
+                  </p>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-primary" href="{{addNoteUrl}}">Add Your Feedback</a>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  Placement Cell, PWIOI
+                  <div class="muted">Automated message sent by PWIOI Placement Portal.</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

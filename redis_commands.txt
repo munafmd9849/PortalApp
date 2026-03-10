@@ -1,0 +1,19 @@
+# Redis Installation and Control Commands (Mac)
+
+# 1. Install Redis
+brew install redis
+
+# 2. Start Redis (as a background service)
+brew services start redis
+
+# 3. Stop Redis
+brew services stop redis
+
+# 4. Restart Redis
+brew services restart redis
+
+# 5. Check if Redis is running
+brew services list
+
+# 6. Start Redis manually (foreground)
+redis-server

@@ -1,0 +1,139 @@
+/* Crack text animation – only for "Cracked it" in heading (no full-screen) */
+.crack-wrap {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+.crack-title {
+  position: relative;
+  font-family: 'Montserrat', Arial, sans-serif;
+  font-size: inherit;
+  font-weight: 700;
+  color: inherit;
+  letter-spacing: 0.02em;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.crack-letter {
+  position: relative;
+  display: inline-block;
+}
+
+.crack-letter--space {
+  min-width: 0.35em;
+}
+
+.crack-sizer {
+  visibility: hidden;
+  display: inline-block;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+/* Full-letter underlay: visible when idle (hides cracks), hidden during slice/rejoin */
+.crack-underlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  z-index: 0;
+  pointer-events: none;
+  animation: crack-underlay-fade 4.5s ease-in-out infinite;
+}
+
+@keyframes crack-underlay-fade {
+  0%, 22% {
+    opacity: 1;
+  }
+  25%, 52% {
+    opacity: 0;
+  }
+  55%, 100% {
+    opacity: 1;
+  }
+}
+
+.crack-piece {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-duration: 4.5s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  z-index: 1;
+}
+
+.crack-letter .crack-piece {
+  top: 50%;
+  left: 50%;
+  width: auto;
+  height: auto;
+}
+
+.crack-letter .crack-piece-1 {
+  animation-name: crack-explode-1;
+}
+.crack-letter .crack-piece-2 {
+  animation-name: crack-explode-2;
+}
+
+/* One cut per letter: very steep angled slice (slight overlap to hide subpixel gaps) */
+.crack-piece-1 {
+  clip-path: polygon(0% 0%, 9% 0%, 93% 100%, 0% 100%);
+}
+.crack-piece-2 {
+  clip-path: polygon(7% 0%, 100% 0%, 100% 100%, 91% 100%);
+}
+
+/* To-and-fro: idle → fast slice apart → rejoin (same duration) → idle */
+@keyframes crack-explode-1 {
+  0%, 22% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  33% {
+    transform: translate(calc(-50% - 8px), calc(-50% + 4px)) rotate(-2deg);
+  }
+  55%, 100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+@keyframes crack-explode-2 {
+  0%, 22% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  33% {
+    transform: translate(calc(-50% + 8px), calc(-50% - 4px)) rotate(2deg);
+  }
+  55%, 100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+/* Shared testimonial quote text: Caveat font, same as ProfileCard overlay / Records theme */
+.records-testimonial-text {
+  font-family: 'Caveat', cursive !important;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.4;
+  margin: 0;
+  text-align: left;
+}
+
+/* On light backgrounds (compact card) */
+.records-testimonial-text--light {
+  color: var(--pl-text, #1F2933);
+}
+
+/* On dark/theme card (quote card) */
+.records-testimonial-text--dark {
+  color: var(--pl-surface-strong, #FFFBF5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}

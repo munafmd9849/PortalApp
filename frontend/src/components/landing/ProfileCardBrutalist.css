@@ -1,0 +1,168 @@
+/* Typographic Brutalist card: bold type + offset shadow */
+.pcbr-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  transition: transform 0.25s ease;
+}
+
+.pcbr-card:hover {
+  transform: scale(1.04);
+  z-index: 10;
+}
+
+.pcbr-frame {
+  position: relative;
+  transition: transform 0.25s ease;
+}
+
+.pcbr-shadow {
+  position: absolute;
+  inset: 0;
+  transform: translate(8px, 8px);
+  background: #0b0b0b;
+  z-index: 0;
+  border-radius: 12px;
+}
+
+.pcbr-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.6rem;
+  flex-shrink: 0;
+}
+
+.pcbr-avatar-wrap {
+  flex-shrink: 0;
+}
+
+.pcbr-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pcbr-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #0b0b0b;
+}
+
+.pcbr-body {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  border: 2px solid #0b0b0b;
+  border-radius: 12px;
+  height: 300px;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.25s ease;
+}
+
+.pcbr-card:hover .pcbr-body {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.pcbr-body-inner {
+  width: 100%;
+  height: 100%;
+  padding: 1rem 1.15rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.pcbr-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #111111;
+  margin: 0 0 0.15rem 0;
+  line-height: 1.2;
+}
+
+.pcbr-role {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #4b5563;
+  margin: 0 0 0.15rem 0;
+  line-height: 1.3;
+}
+
+.pcbr-package {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #15803d;
+  margin: 0 0 0.15rem 0;
+  line-height: 1.2;
+}
+
+.pcbr-batch {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.pcbr-testimonial {
+  font-size: 0.94rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #374151;
+  margin: 0;
+  font-family: "Caveat", cursive;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  flex: 1;
+}
+
+.pcbr-social {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  flex-shrink: 0;
+}
+
+.pcbr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pcbr-icon:hover {
+  opacity: 0.9;
+  transform: scale(1.06);
+}
+
+.pcbr-icon-svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.pcbr-icon-linkedin {
+  background: #0a66c2;
+  color: #fff;
+}
+
+.pcbr-icon-email {
+  background: #334155;
+  color: #fff;
+  border: 1px solid #334155;
+}
+

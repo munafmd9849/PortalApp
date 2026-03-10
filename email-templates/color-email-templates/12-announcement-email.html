@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Announcement</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #1E3A8A;
+      padding: 26px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      line-height: 28px;
+      color: #111827;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+    }
+
+    .callout {
+      margin: 18px 0 18px;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-left: 4px solid #2563EB;
+      border-radius: 14px;
+      padding: 16px 16px;
+    }
+
+    .calloutTitle {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #1D4ED8;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .quote {
+      margin: 18px 0 0;
+      padding: 14px 14px;
+      border: 1px dashed #D1D5DB;
+      border-radius: 14px;
+      background: #F9FAFB;
+      color: #6B7280;
+      font-style: italic;
+      text-align: center;
+      font-size: 13px;
+      line-height: 19px;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 18px 24px;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .footerTop {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 900;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:760px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">Important Announcement</p>
+                  <p class="subtitle">PWIOI Placement Portal</p>
+                </div>
+
+                <div class="content">
+                  <h1>{{announcementTitle}}</h1>
+                  <p>Hello {{recipientName}},</p>
+                  <p>
+                    {{announcementContent}}
+                  </p>
+
+                  <div class="callout">
+                    <div class="calloutTitle">Key Point</div>
+                    <p style="margin:0;">
+                      {{calloutPoint}}
+                    </p>
+                  </div>
+
+                  <div class="center" style="margin-top:18px;">
+                    <a class="btn btn-primary" href="{{actionUrl}}">{{actionText}}</a>
+                    <div style="margin-top:10px; font-size:11px; color:#9CA3AF; font-weight:700;">Valid until
+                      {{validUntil}}</div>
+                  </div>
+
+                  <div class="quote">
+                    "{{announcementQuote}}"
+                  </div>
+                </div>
+
+                <div class="footer">
+                  <table role="presentation" class="footerTop" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="vertical-align:top;">
+                        <strong style="color:#111827;">{{senderName}}</strong><br />
+                        <span style="font-size:11px; color:#6B7280;">{{senderOrg}}</span>
+                      </td>
+                      <td style="vertical-align:top; text-align:right;">
+                        <span style="font-size:11px; color:#6B7280;">Official communication</span>
+                      </td>
+                    </tr>
+                  </table>
+                  <div class="muted">Automated notification · Please do not reply</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>
