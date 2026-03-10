@@ -284,7 +284,7 @@ export const getAllStudents = async (filters = {}, options = {}) => {
     }
 
     // If pagination exists and we haven't fetched all students, fetch remaining pages
-    if (pagination && pagination.totalPages > 1) {
+    if (pagination && pagination.totalPages > 1 && !options.returnPagination) {
       const totalNeeded = pagination.totalPages;
       const requestedLimit = parseInt(filters.limit) || 50;
       const limitToUse = Math.min(requestedLimit, 1000); // Use requested limit or max 1000
@@ -312,6 +312,11 @@ export const getAllStudents = async (filters = {}, options = {}) => {
 
       // Always return array for consistency
       return allStudents;
+    }
+
+    // Return full response if requested
+    if (options.returnPagination) {
+      return response;
     }
 
     // Return students array (backwards compatibility)

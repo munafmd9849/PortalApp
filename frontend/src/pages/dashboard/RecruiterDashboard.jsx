@@ -102,7 +102,8 @@ const RecruiterDashboard = () => {
     try {
       setLoading(true);
       const userData = await api.getCurrentUser();
-      setRecruiterProfile(userData.user);
+      const profile = userData.user;
+      setRecruiterProfile(profile);
     } catch (error) {
       console.error('Error loading recruiter profile:', error);
     } finally {
@@ -150,14 +151,15 @@ const RecruiterDashboard = () => {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     // Show confirmation dialog (custom modal)
     const confirmed = await showLogoutConfirm('Are you sure you want to logout?');
     if (!confirmed) {
       return; // User cancelled, don't proceed with logout
     }
 
-    console.log('Recruiter logout - starting...');
+    // Clear recruiter cache
+    localStorage.removeItem(`recruiter_profile_${user?.id}`);
 
     // Call logout (this clears tokens and state immediately)
     await logout();
@@ -173,7 +175,7 @@ const RecruiterDashboard = () => {
       case 'dashboard':
         return <Dashboard />;
       case 'jobPostings':
-        return <JobPostings/>;
+        return <JobPostings />;
       case 'interviewScheduling':
         return <InterviewScheduling />;
       case 'calendar':
@@ -251,11 +253,10 @@ const RecruiterDashboard = () => {
                     <div key={tab.id} className="mb-1">
                       <button
                         onClick={() => setActiveTab(tab.id)}
-                        className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${
-                          activeTab === tab.id
-                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                            : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                        } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
+                        className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${activeTab === tab.id
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                          } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
                         title={sidebarWidth < 9 ? tab.label : ''}
                       >
                         <Icon className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
@@ -276,9 +277,8 @@ const RecruiterDashboard = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${
-              sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2.5'
-            }`}
+            className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2.5'
+              }`}
             title={sidebarWidth < 9 ? 'Logout' : ''}
           >
             <FiLogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />

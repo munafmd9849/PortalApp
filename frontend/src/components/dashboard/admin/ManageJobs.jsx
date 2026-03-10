@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import api from '../../../services/api';
 import { deleteJob, subscribeJobs, postJob, updateJob } from '../../../services/jobs';
 import { Loader, Trash2, Share2, Building2, Calendar, GraduationCap, View, Users, Briefcase, ChevronDown, CheckCircle, Clock, PlayCircle, CheckSquare, XCircle, AlertTriangle, MapPin, Edit } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
@@ -62,7 +63,9 @@ export default function ManageJobs() {
   const [selectedCenters, setSelectedCenters] = useState({});
   const [activeFilter, setActiveFilter] = useState('in_review'); // Default to in_review to show jobs pending approval
   const [jobsPage, setJobsPage] = useState(1);
-  const JOBS_PER_PAGE = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const JOBS_PER_PAGE = 50;
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -143,17 +146,34 @@ export default function ManageJobs() {
     return option ? option.display : storageCode;
   };
 
-  // Real-time jobs subscription with refresh capability
-  const jobsSubscriptionRef = useRef(null);
 
-  useEffect(() => {
-    setLoading(true);
+  const loadJobs = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        limit: JOBS_PER_PAGE,
+        page: jobsPage
+      };
 
-    const subscription = subscribeJobs((jobsList) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📡 Real-time update - Jobs received:', jobsList.length);
+      if (activeFilter === 'in_review') {
+        params.status = 'IN_REVIEW';
+      } else {
+        // posted
+        params.status = 'POSTED';
+        params.isPosted = true;
       }
+
+      const response = await api.getJobs(params);
+      const jobsList = response.jobs || [];
+      const pagination = response.pagination || { total: 0, totalPages: 1 };
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📡 Jobs loaded:', jobsList.length, 'Total:', pagination.total);
+      }
+
       setJobs(jobsList);
+      setTotalJobs(pagination.total);
+      setTotalPages(pagination.totalPages || 1);
 
       // Load existing selections from database for posted jobs
       const schoolSelections = {};
@@ -161,43 +181,28 @@ export default function ManageJobs() {
       const centerSelections = {};
 
       jobsList.forEach(job => {
-        if (isJobPosted(job) && job.targetSchools) {
-          schoolSelections[job.id] = job.targetSchools;
-        }
-        if (isJobPosted(job) && job.targetBatches) {
-          batchSelections[job.id] = job.targetBatches;
-        }
-        if (isJobPosted(job) && job.targetCenters) {
-          centerSelections[job.id] = job.targetCenters;
+        if (job.status === 'POSTED' || job.isPosted === true) {
+          if (job.targetSchools) schoolSelections[job.id] = job.targetSchools;
+          if (job.targetBatches) batchSelections[job.id] = job.targetBatches;
+          if (job.targetCenters) centerSelections[job.id] = job.targetCenters;
         }
       });
 
-      // Update selections state with database data
-      if (Object.keys(schoolSelections).length > 0) {
-        setSelectedSchools(prev => ({ ...prev, ...schoolSelections }));
-      }
-      if (Object.keys(batchSelections).length > 0) {
-        setSelectedBatches(prev => ({ ...prev, ...batchSelections }));
-      }
-      if (Object.keys(centerSelections).length > 0) {
-        setSelectedCenters(prev => ({ ...prev, ...centerSelections }));
-      }
+      if (Object.keys(schoolSelections).length > 0) setSelectedSchools(prev => ({ ...prev, ...schoolSelections }));
+      if (Object.keys(batchSelections).length > 0) setSelectedBatches(prev => ({ ...prev, ...batchSelections }));
+      if (Object.keys(centerSelections).length > 0) setSelectedCenters(prev => ({ ...prev, ...centerSelections }));
 
+    } catch (err) {
+      console.error('Failed to load jobs:', err);
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
-    // Store subscription for manual refresh
-    jobsSubscriptionRef.current = subscription;
+  useEffect(() => {
+    loadJobs();
+  }, [jobsPage, activeFilter]);
 
-    return () => {
-      if (subscription?.unsubscribe) {
-        subscription.unsubscribe();
-      } else if (typeof subscription === 'function') {
-        subscription(); // Backward compatibility
-      }
-      jobsSubscriptionRef.current = null;
-    };
-  }, []);
 
   // Listen for custom events to trigger refresh (from JobPostingsManager)
   useEffect(() => {
@@ -206,10 +211,8 @@ export default function ManageJobs() {
       console.log(`📢 ManageJobs received jobsRefresh event: ${action} for job ${jobId} (${jobTitle})`);
 
       // Trigger immediate refresh
-      if (jobsSubscriptionRef.current?.refresh) {
-        console.log('🔄 Triggering ManageJobs refresh from event');
-        jobsSubscriptionRef.current.refresh();
-      }
+      console.log('🔄 Triggering ManageJobs refresh from event');
+      loadJobs();
     };
 
     window.addEventListener('jobsRefresh', handleJobsRefresh);
@@ -397,96 +400,6 @@ export default function ManageJobs() {
   };
 
   // Database-driven sorting and categorization
-  const getSortedJobs = () => {
-    // Debug: Log all jobs and their statuses
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 All jobs in ManageJobs:', jobs.map(j => ({
-        id: j.id,
-        title: j.jobTitle,
-        status: j.status,
-        statusLower: (j.status || '').toLowerCase(),
-        isPosted: j.isPosted,
-        posted: j.posted
-      })));
-    }
-
-    // First, filter out jobs that shouldn't appear in Manage Jobs at all
-    // Only show ACCEPTED, POSTED, and ACTIVE jobs (exclude IN_REVIEW, DRAFT, REJECTED)
-    const manageJobsOnly = jobs.filter(job => shouldShowInManageJobs(job));
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Jobs that should appear in Manage Jobs:', manageJobsOnly.map(j => ({
-        id: j.id,
-        title: j.jobTitle,
-        status: j.status,
-        statusLower: (j.status || '').toLowerCase()
-      })));
-    }
-
-    // Filter based on active filter (in_review vs posted)
-    let filteredJobs;
-    if (activeFilter === 'in_review') {
-      // Show IN_REVIEW jobs (pending admin approval)
-      filteredJobs = manageJobsOnly.filter(job => {
-        const status = (job.status || '').toLowerCase();
-        return status === 'in_review';
-      });
-    } else {
-      // Show POSTED jobs (approved and visible to students)
-      filteredJobs = manageJobsOnly.filter(job => isJobPosted(job));
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🗂️ Manage Jobs Filter:', {
-        totalJobs: jobs.length,
-        manageJobsOnly: manageJobsOnly.length,
-        activeFilter: activeFilter,
-        filteredCount: filteredJobs.length,
-        statusBreakdown: manageJobsOnly.reduce((acc, j) => {
-          const status = (j.status || '').toLowerCase();
-          acc[status] = (acc[status] || 0) + 1;
-          return acc;
-        }, {}),
-        filteredJobs: filteredJobs.map(j => ({ id: j.id, title: j.jobTitle, status: j.status }))
-      });
-    }
-
-    // Sort based on filter
-    if (activeFilter === 'in_review') {
-      // Sort IN_REVIEW jobs by creation/submission time (newest first)
-      return filteredJobs.sort((a, b) => {
-        const getTimestamp = (job) => {
-          if (job.submittedAt?.toDate) return job.submittedAt.toDate();
-          if (job.createdAt?.toDate) return job.createdAt.toDate();
-          if (job.timestamp?.toDate) return job.timestamp.toDate();
-          return new Date(job.submittedAt || job.createdAt || job.timestamp || 0);
-        };
-        return getTimestamp(b) - getTimestamp(a);
-      });
-    } else {
-      // Sort POSTED jobs by posted time (latest posted first)
-      return filteredJobs.sort((a, b) => {
-        const getPostedTimestamp = (job) => {
-          if (job.postedAt?.toDate) return job.postedAt.toDate();
-          return new Date(job.postedAt || 0);
-        };
-        const postedTimeA = getPostedTimestamp(a);
-        const postedTimeB = getPostedTimestamp(b);
-
-        if (postedTimeA && postedTimeB) {
-          return postedTimeB - postedTimeA; // Latest posted first
-        }
-        // Fallback to creation time
-        const getTimestamp = (job) => {
-          if (job.createdAt?.toDate) return job.createdAt.toDate();
-          if (job.timestamp?.toDate) return job.timestamp.toDate();
-          return new Date(job.createdAt || job.timestamp || 0);
-        };
-        return getTimestamp(b) - getTimestamp(a);
-      });
-    }
-  };
-
   // Check if job can be posted
   const canPostJob = (job) => {
     const isAlreadyPosted = isJobPosted(job);
@@ -544,9 +457,7 @@ export default function ManageJobs() {
       );
 
       // Refresh jobs list to show updated status
-      if (jobsSubscriptionRef.current?.refresh) {
-        jobsSubscriptionRef.current.refresh();
-      }
+      loadJobs();
 
     } catch (err) {
       console.error('❌ Failed to post job:', err);
@@ -623,6 +534,7 @@ export default function ManageJobs() {
       await deleteJob(jobId);
       if (process.env.NODE_ENV === 'development') {
         console.log('🗑️ Job deleted successfully:', jobId);
+        loadJobs();
       }
     } catch (e) {
       console.error('❌ Failed to delete job:', e);
@@ -799,7 +711,7 @@ export default function ManageJobs() {
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <h3 className="font-semibold">
-            {activeFilter === 'in_review' ? 'Jobs In Review' : 'Posted Jobs'} ({getSortedJobs().length})
+            {activeFilter === 'in_review' ? 'Jobs In Review' : 'Posted Jobs'} ({totalJobs})
           </h3>
           {loading && (
             <div className="inline-flex items-center gap-2 text-sm text-slate-500">
@@ -809,7 +721,7 @@ export default function ManageJobs() {
         </div>
 
         <div className="divide-y py-4">
-          {getSortedJobs().length === 0 && !loading && (
+          {totalJobs === 0 && !loading && (
             <div className="p-6 text-center">
               <div className="text-slate-500 text-sm">
                 No posted jobs available yet.
@@ -822,17 +734,7 @@ export default function ManageJobs() {
             </div>
           )}
 
-          {(() => {
-            const allJobs = getSortedJobs();
-            const totalJobs = allJobs.length;
-            const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
-            const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
-            const start = (currentPage - 1) * JOBS_PER_PAGE;
-            const paginatedJobs = allJobs.slice(start, start + JOBS_PER_PAGE);
-
-            return (
-              <>
-                {paginatedJobs.map((job, index) => {
+          {allManageJobs.map((job, index) => {
                   const jobStatus = isJobPosted(job) ? getJobStatus(job) : null;
 
                   return (
@@ -1138,16 +1040,13 @@ export default function ManageJobs() {
 
                 {/* Pagination */}
                 {(() => {
-                  const allJobs = getSortedJobs();
-                  const totalJobs = allJobs.length;
-                  const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
                   const currentPage = Math.min(Math.max(1, jobsPage), totalPages);
                   const start = (currentPage - 1) * JOBS_PER_PAGE;
 
-                  return totalJobs > JOBS_PER_PAGE ? (
+                  return totalJobs > 0 ? (
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 px-4">
                       <p className="text-sm text-gray-600">
-                        Showing {start + 1}–{Math.min(start + JOBS_PER_PAGE, totalJobs)} of {totalJobs} jobs
+                        Showing {start + 1}–{Math.min(start + jobs.length, totalJobs)} of {totalJobs} jobs
                       </p>
                       <div className="flex items-center gap-2">
                         <button
@@ -1173,9 +1072,6 @@ export default function ManageJobs() {
                     </div>
                   ) : null;
                 })()}
-              </>
-            );
-          })()}
         </div>
       </div>
 
@@ -1274,9 +1170,7 @@ export default function ManageJobs() {
                     });
 
                     // Refresh jobs list
-                    if (jobsSubscriptionRef.current?.refresh) {
-                      jobsSubscriptionRef.current.refresh();
-                    }
+                    loadJobs();
 
                     // Dispatch event to notify other components (e.g., InterviewScheduling)
                     const refreshEvent = new CustomEvent('jobsRefresh', {

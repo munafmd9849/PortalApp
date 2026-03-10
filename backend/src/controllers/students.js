@@ -905,7 +905,7 @@ export async function getAllStudents(req, res) {
     console.log('   User Role:', req.user?.role);
     console.log('   Query params:', req.query);
 
-    const { school, center, batch, status, page = 1, limit = 50 } = req.query;
+    const { school, center, batch, status, search, minCgpa, maxCgpa, page = 1, limit = 50 } = req.query;
 
     // Validate and parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -921,6 +921,21 @@ export async function getAllStudents(req, res) {
     // MOVE: Status filtering from in-memory to Prisma JOIN
     if (status) {
       where.user = { status: status };
+    }
+
+    if (search) {
+      const searchTerm = search.trim();
+      where.OR = [
+        { fullName: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { enrollmentId: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (minCgpa || maxCgpa) {
+      where.cgpa = {};
+      if (minCgpa) where.cgpa.gte = parseFloat(minCgpa);
+      if (maxCgpa) where.cgpa.lte = parseFloat(maxCgpa);
     }
 
     console.log('📊 getAllStudents - Executing Prisma query...');

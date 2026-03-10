@@ -47,6 +47,7 @@ import placementRoutes from './routes/placement.js';
 import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
 import adminJobsRoutes from './routes/adminJobs.js';
+import adminDashboardRoutes from './routes/adminDashboard.js'; // NEW: Serve-side aggregation
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import publicRoutes from './routes/public.js';
@@ -259,6 +260,7 @@ app.use('/api/recruiter', recruiterScreeningRoutes); // Token-based recruiter sc
 app.use('/api/resume', resumeViewRoutes); // Resume view by token (inline, for new tab)
 app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
+app.use('/api/admin/dashboard', adminDashboardRoutes); // NEW: Server-side dashboard stats
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
 app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only

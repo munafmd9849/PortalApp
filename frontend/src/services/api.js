@@ -123,7 +123,53 @@ async function refreshAccessToken() {
  */
 async function apiRequest(endpoint, options = {}) {
   const { silent = false, showSuccess = false, ...fetchOptions } = options;
+  const method = (fetchOptions.method || 'GET').toUpperCase();
   const token = getAuthToken();
+
+  // --- START UNIVERSAL CACHING LAYER ---
+  const CACHE_KEY_PREFIX = 'api_cache_';
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const cacheKey = `${CACHE_KEY_PREFIX}${endpoint}`;
+
+  // 1. Cache Invalidation for Mutations
+  if (method !== 'GET') {
+    // Clear related caches on any mutation (POST, PUT, DELETE, PATCH)
+    // We clear anything that starts with the same base path (e.g., /jobs clears all /jobs?...)
+    const basePath = endpoint.split('?')[0];
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith(CACHE_KEY_PREFIX)) {
+        const cachedUrl = key.replace(CACHE_KEY_PREFIX, '');
+        if (cachedUrl.startsWith(basePath)) {
+          localStorage.removeItem(key);
+        }
+      }
+    });
+
+    // Special case: mutations in students/profile should clear jobs/targeted too
+    if (endpoint.includes('/students/profile')) {
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('/jobs/targeted')) localStorage.removeItem(key);
+      });
+    }
+  }
+
+  // 2. Cache Lookup for GETs
+  if (method === 'GET' && !fetchOptions.body) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_TTL) {
+          console.log(`🚀 [API Cache] Hit: ${endpoint}`);
+          return data;
+        }
+        localStorage.removeItem(cacheKey);
+      }
+    } catch (e) {
+      console.warn('Cache read error:', e);
+    }
+  }
+  // --- END UNIVERSAL CACHING LAYER ---
 
   const headers = {
     'Content-Type': 'application/json',
@@ -249,6 +295,19 @@ async function apiRequest(endpoint, options = {}) {
     }
 
     const data = await response.json();
+
+    // --- UNIVERSAL CACHE: SAVE ---
+    if (method === 'GET' && !fetchOptions.body) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.warn('[API Cache] Write error:', e);
+      }
+    }
+    // ----------------------------
 
     // CRITICAL: Log profile API responses for debugging
     if (endpoint.includes('/students/profile')) {
@@ -420,6 +479,14 @@ export const api = {
       }
       // Always clear tokens, even if API call fails
       clearAuthTokens();
+
+      // Clear all global API caches
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('api_cache_') || key.includes('admin_dashboard_cache')) {
+          localStorage.removeItem(key);
+        }
+      });
+
       return { success: true };
     } catch (error) {
       // Even if everything fails, clear tokens

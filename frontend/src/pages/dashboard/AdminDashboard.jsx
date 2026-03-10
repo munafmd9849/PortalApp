@@ -17,11 +17,12 @@ import AdminJobApplications from '../../components/dashboard/admin/AdminJobAppli
 import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
 import AdminAnnouncements from '../../components/dashboard/admin/AdminAnnouncements';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
-import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X } from 'lucide-react';
+import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import showLogoutConfirm from '../../utils/logoutConfirm';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import RequireRole from '../../components/RequireRole';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
 
 export default function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,14 +89,30 @@ export default function AdminDashboard() {
     }
   }, [user, role, loading, navigate, location.pathname]);
 
-  // Don't render anything if unauthorized
-  if (loading) return null;
-
   const userRole = role?.toUpperCase() || user?.role?.toUpperCase() || '';
   const allowedRoles = ['ADMIN', 'RECRUITER', 'SUPER_ADMIN'];
 
+  // Show loading state instead of blank screen while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user || !allowedRoles.includes(userRole)) {
-    return null; // Will redirect via useEffect
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+          <p className="text-slate-600">Redirecting...</p>
+        </div>
+      </div>
+    );
   }
 
   // Sync activeTab with URL params
@@ -208,6 +225,8 @@ export default function AdminDashboard() {
 
     try {
       console.log('Attempting logout...');
+      // Clear admin dashboard cache
+      localStorage.removeItem('admin_dashboard_cache');
       await logout();
       console.log('Logout successful - navigating to home');
       navigate('/', { replace: true });
@@ -344,8 +363,8 @@ export default function AdminDashboard() {
                             navigate(`/admin?tab=${encodeURIComponent(tab.id)}`);
                           }}
                           className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${sidebarActiveTab === tab.id
-                              ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                              : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                            : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                             } ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'}`}
                           title={sidebarWidth < 9 ? tab.label : ''}
                         >
@@ -394,17 +413,17 @@ export default function AdminDashboard() {
           >
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide p-3">
               <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-gray-900">Navigation</h2>
-                  <button
-                    type="button"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 touch-manipulation"
-                    aria-label="Close menu"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <nav className="space-y-1">
+                <h2 className="text-base font-bold text-gray-900">Navigation</h2>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 touch-manipulation"
+                  aria-label="Close menu"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <nav className="space-y-1">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -412,8 +431,8 @@ export default function AdminDashboard() {
                       <button
                         onClick={() => handleTabClick(tab.id)}
                         className={`w-full flex items-center rounded-lg text-base font-medium transition-all px-4 py-3 touch-manipulation ${sidebarActiveTab === tab.id
-                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                            : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                           }`}
                       >
                         <Icon className="h-4 w-4 mr-2" />
@@ -422,7 +441,7 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
-                </nav>
+              </nav>
             </div>
             <div className="flex-shrink-0 p-3 pt-4 pb-6 border-t border-gray-300 bg-white">
               <button
@@ -457,7 +476,16 @@ export default function AdminDashboard() {
             }
           >
             <div className="p-3 sm:p-6 md:p-8">
-              {renderContent()}
+              <ErrorBoundary
+                fallback={
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+                    <p className="font-semibold">Something went wrong on this page.</p>
+                    <p className="mt-1 text-sm opacity-90">Try another tab or refresh the page. If it persists, check the console for details.</p>
+                  </div>
+                }
+              >
+                {renderContent()}
+              </ErrorBoundary>
             </div>
           </main>
         </div>

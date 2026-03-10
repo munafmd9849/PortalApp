@@ -470,7 +470,8 @@ export default function StudentDirectory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const pollIntervalRef = useRef(null);
-  const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [filters, setFilters] = useState({
     center: '',
     school: '',
@@ -487,11 +488,24 @@ export default function StudentDirectory() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [dashboardData, setDashboardData] = useState({ loading: true, error: null, jobs: [], applications: [], skills: [] });
-  const studentsPerPage = 10;
+  const studentsPerPage = 50;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStudents, setTotalStudents] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
   const [lastErrorTime, setLastErrorTime] = useState(null);
   const loadAttemptsRef = useRef(0);
   const isLoadingRef = useRef(false); // Track if a load is in progress
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (appliedSearch !== searchQuery) {
+        setAppliedSearch(searchQuery);
+        setCurrentPage(1);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, appliedSearch]);
+
 
   const clearPollingInterval = () => {
     if (pollIntervalRef.current) {
@@ -520,7 +534,16 @@ export default function StudentDirectory() {
       console.log(`📡 Loading students... (attempt ${loadAttemptsRef.current})`);
 
       // Request a high limit to get all students (backend max is now 1000)
-      const studentsData = await getAllStudents({ limit: 1000 }, { retries: 2, retryDelay: 1000 });
+      const studentsData = await getAllStudents({ 
+        limit: studentsPerPage,
+        page: currentPage,
+        search: appliedSearch,
+        center: filters.center,
+        school: filters.school,
+        status: filters.status,
+        minCgpa: filters.minCgpa,
+        maxCgpa: filters.maxCgpa
+      }, { retries: 2, retryDelay: 1000, returnPagination: true });
 
       // Reset attempts on success
       loadAttemptsRef.current = 0;
@@ -539,10 +562,13 @@ export default function StudentDirectory() {
 
       // Handle both array response (backwards compatibility) and object with students array
       let studentsArray = [];
-      if (Array.isArray(studentsData)) {
-        studentsArray = studentsData;
-      } else if (studentsData && Array.isArray(studentsData.students)) {
+      let paginationData = { totalPages: 1, total: 0 };
+      if (studentsData && Array.isArray(studentsData.students)) {
         studentsArray = studentsData.students;
+        if (studentsData.pagination) paginationData = studentsData.pagination;
+      } else if (Array.isArray(studentsData)) {
+        studentsArray = studentsData;
+        paginationData.total = studentsArray.length;
       } else {
         console.error('❌ Invalid response format:', studentsData);
         setError('Invalid response format from server');
@@ -551,6 +577,8 @@ export default function StudentDirectory() {
         isLoadingRef.current = false;
         return;
       }
+      setTotalPages(paginationData.totalPages || 1);
+      setTotalStudents(paginationData.total || studentsArray.length);
 
       // Format students with safe defaults
       // Normalize status from uppercase (ACTIVE, BLOCKED) to title case (Active, Blocked)
@@ -626,7 +654,7 @@ export default function StudentDirectory() {
     } finally {
       isLoadingRef.current = false;
     }
-  }, []);
+  }, [currentPage, appliedSearch, filters]);
 
   const setupStudentSubscription = useCallback(() => {
     clearPollingInterval();
@@ -671,78 +699,17 @@ export default function StudentDirectory() {
       clearPollingInterval();
       if (cleanup) cleanup();
     };
-  }, [authLoading, user?.id, userRole, setupStudentSubscription]);
+  }, [authLoading, user?.id, userRole, setupStudentSubscription, currentPage, appliedSearch, filters]);
 
   const refreshStudents = () => {
     setupStudentSubscription();
   };
 
-  const filteredStudents = students.filter((student) => {
-    // Safe null/undefined handling for search filter
-    const searchLower = search.toLowerCase();
-    const fullName = (student.fullName || '').toLowerCase();
-    const email = (student.email || '').toLowerCase();
-    const enrollmentId = (student.enrollmentId || '').toLowerCase();
-
-    const matchesSearch =
-      fullName.includes(searchLower) ||
-      email.includes(searchLower) ||
-      enrollmentId.includes(searchLower);
-    const matchesCenter = filters.center ? student.center === filters.center : true;
-    const matchesSchool = filters.school ? student.school === filters.school : true;
-    const matchesStatus = filters.status ? (() => {
-      const studentStatus = String(student?.status || student?.user?.status || 'ACTIVE').toUpperCase();
-      const filterStatus = String(filters.status).toUpperCase();
-      // Map display names (Active, Inactive, Blocked) to database values (ACTIVE, PENDING/REJECTED, BLOCKED)
-      if (filterStatus === 'ACTIVE') {
-        return studentStatus === 'ACTIVE';
-      } else if (filterStatus === 'BLOCKED') {
-        return studentStatus === 'BLOCKED';
-      } else if (filterStatus === 'INACTIVE') {
-        // Inactive = PENDING or REJECTED (not ACTIVE and not BLOCKED)
-        return studentStatus !== 'ACTIVE' && studentStatus !== 'BLOCKED';
-      }
-      return studentStatus === filterStatus;
-    })() : true;
-    // Compare CGPA values using string comparison when possible to avoid rounding errors
-    const matchesMinCgpa = filters.minCgpa ? (() => {
-      const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
-      const minCgpa = String(filters.minCgpa).trim();
-      // Normalize both to 2 decimal places for comparison
-      const studentParts = studentCgpa.includes('.') ? studentCgpa.split('.') : [studentCgpa, '00'];
-      const minParts = minCgpa.includes('.') ? minCgpa.split('.') : [minCgpa, '00'];
-      const studentInt = parseInt(studentParts[0] || '0', 10);
-      const studentDec = parseInt((studentParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
-      const minInt = parseInt(minParts[0] || '0', 10);
-      const minDec = parseInt((minParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
-      return studentInt > minInt || (studentInt === minInt && studentDec >= minDec);
-    })() : true;
-    const matchesMaxCgpa = filters.maxCgpa ? (() => {
-      const studentCgpa = student.cgpa ? String(student.cgpa).trim() : '0.00';
-      const maxCgpa = String(filters.maxCgpa).trim();
-      // Normalize both to 2 decimal places for comparison
-      const studentParts = studentCgpa.includes('.') ? studentCgpa.split('.') : [studentCgpa, '00'];
-      const maxParts = maxCgpa.includes('.') ? maxCgpa.split('.') : [maxCgpa, '00'];
-      const studentInt = parseInt(studentParts[0] || '0', 10);
-      const studentDec = parseInt((studentParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
-      const maxInt = parseInt(maxParts[0] || '0', 10);
-      const maxDec = parseInt((maxParts[1] || '00').padEnd(2, '0').substring(0, 2), 10);
-      return studentInt < maxInt || (studentInt === maxInt && studentDec <= maxDec);
-    })() : true;
-
-    return (
-      matchesSearch &&
-      matchesCenter &&
-      matchesSchool &&
-      matchesStatus &&
-      matchesMinCgpa &&
-      matchesMaxCgpa
-    );
-  });
+  
 
   const downloadFilteredStudents = useCallback((mode = 'export') => {
     try {
-      if (filteredStudents.length === 0) {
+      if (totalStudents === 0) {
         alert('No data matches the current filter to export');
         return;
       }
@@ -762,7 +729,7 @@ export default function StudentDirectory() {
         'Top Skills'
       ];
 
-      const csvRows = filteredStudents.map(student => [
+      const csvRows = students.map(student => [
         student.fullName || '',
         student.email || '',
         student.enrollmentId || '',
@@ -793,18 +760,14 @@ export default function StudentDirectory() {
       link.click();
       document.body.removeChild(link);
 
-      console.log(`Downloaded ${filteredStudents.length} students(${mode})`);
+      console.log(`Downloaded ${totalStudents} students(${mode})`);
     } catch (error) {
       console.error('Download error:', error);
       alert('Failed to prepare the CSV');
     }
-  }, [filteredStudents]);
+  }, [students, totalStudents]);
 
-  const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
-  const displayedStudents = filteredStudents.slice(
-    (currentPage - 1) * studentsPerPage,
-    currentPage * studentsPerPage
-  );
+  
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -1064,7 +1027,7 @@ export default function StudentDirectory() {
   }, [students]);
 
   // Memoized table rows - must be a top-level hook, NOT inside JSX (Rules of Hooks)
-  const renderedStudentRows = useMemo(() => displayedStudents.map((student) => (
+  const renderedStudentRows = useMemo(() => students.map((student) => (
     <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
       <td className="px-6 py-4 border-r border-gray-100">
         <div className="space-y-2">
@@ -1184,7 +1147,7 @@ export default function StudentDirectory() {
         </div>
       </td>
     </tr>
-  )), [displayedStudents, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents, isSuperAdmin]);
+  )), [students, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents, isSuperAdmin]);
 
   if (loading) {
     return (
@@ -1373,8 +1336,8 @@ export default function StudentDirectory() {
               <input
                 type="text"
                 placeholder="Search by name, email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
@@ -1464,10 +1427,10 @@ export default function StudentDirectory() {
       {/* Search Results Summary */}
       {!loading && (
         <div className="text-sm text-gray-600">
-          {search || Object.values(filters).some(f => f) ? (
+          {appliedSearch || Object.values(filters).some(f => f) ? (
             <span>
-              Showing {filteredStudents.length} of {students.length} students
-              {search && <span className="font-medium"> matching "{search}"</span>}
+              Showing {students.length} of {totalStudents} students
+              {appliedSearch && <span className="font-medium"> matching "{appliedSearch}"</span>}
             </span>
           ) : (
             <span>Showing all {students.length} students</span>
@@ -1482,7 +1445,7 @@ export default function StudentDirectory() {
             <Loader className="animate-spin text-blue-600 mr-3" />
             <span className="text-gray-600">Loading students...</span>
           </div>
-        ) : displayedStudents.length === 0 ? (
+        ) : students.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 max-w-md w-full border-2 border-blue-200 shadow-lg">
               <div className="text-center mb-6">
@@ -1491,7 +1454,7 @@ export default function StudentDirectory() {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">No Students Found</h3>
                 <div className="text-sm text-gray-600 leading-relaxed">
-                  {search ? (
+                  {appliedSearch || Object.values(filters).some(f => f) ? (
                     <div className="space-y-2">
                       <p className="font-medium">No students match your search criteria.</p>
                       <p className="text-gray-500">Try adjusting your search terms or filters.</p>
@@ -1545,16 +1508,16 @@ export default function StudentDirectory() {
             </div>
 
             {/* Pagination */}
-            {filteredStudents.length > studentsPerPage && (
+            {totalPages > 1 && (
               <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-t-2 border-gray-200">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <span className="text-gray-500">Showing</span>
                     <span className="font-semibold text-blue-700">{((currentPage - 1) * studentsPerPage) + 1}</span>
                     <span className="text-gray-500">to</span>
-                    <span className="font-semibold text-blue-700">{Math.min(currentPage * studentsPerPage, filteredStudents.length)}</span>
+                    <span className="font-semibold text-blue-700">{Math.min(currentPage * studentsPerPage, totalStudents)}</span>
                     <span className="text-gray-500">of</span>
-                    <span className="font-semibold text-blue-700">{filteredStudents.length}</span>
+                    <span className="font-semibold text-blue-700">{totalStudents}</span>
                     <span className="text-gray-500">results</span>
                   </div>
                   <div className="flex items-center gap-3">
