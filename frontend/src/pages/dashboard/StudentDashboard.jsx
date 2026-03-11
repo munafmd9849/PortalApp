@@ -4707,12 +4707,13 @@ export default function StudentDashboard() {
             className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
-            <div className="p-3 h-full flex flex-col">
-              <div className="mb-6">
-                {sidebarWidth >= 9 && (
-                  <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
-                )}
-                <nav className="space-y-1">
+            <div className="p-3 h-full flex flex-col min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                <div className="mb-6">
+                  {sidebarWidth >= 9 && (
+                    <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
+                  )}
+                  <nav className="space-y-1">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -4819,8 +4820,9 @@ export default function StudentDashboard() {
                   </nav>
                 </div>
               )}
+              </div>
 
-              <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
+              <div className="flex-shrink-0 pt-4 pb-4 border-t border-gray-300 mt-auto">
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -4857,19 +4859,20 @@ export default function StudentDashboard() {
             aria-modal
             aria-label="Navigation menu"
           >
-            <div className="p-3 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-gray-900">Navigation</h2>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                  aria-label="Close menu"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <nav className="space-y-1">
+            <div className="p-3 h-full flex flex-col min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-gray-900">Navigation</h2>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Close menu"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <nav className="space-y-1">
                 {(tabs || []).map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -4934,7 +4937,8 @@ export default function StudentDashboard() {
                   </nav>
                 </div>
               )}
-              <div className="mt-auto pt-4 border-t border-gray-300">
+              </div>
+              <div className="flex-shrink-0 pt-4 border-t border-gray-300">
                 <button
                   type="button"
                   onClick={handleLogout}

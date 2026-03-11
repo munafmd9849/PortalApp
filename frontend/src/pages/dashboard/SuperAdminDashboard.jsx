@@ -182,11 +182,12 @@ export default function SuperAdminDashboard() {
             className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
-            <div className="p-3 h-full flex flex-col">
-              <div className="mb-6">
-                {sidebarWidth >= 9 && <h2 className="text-base font-bold text-gray-900 mb-3">Super Admin</h2>}
-                <nav className="space-y-1">
-                  {tabs.map((tab) => {
+            <div className="p-3 h-full flex flex-col min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                <div className="mb-6">
+                  {sidebarWidth >= 9 && <h2 className="text-base font-bold text-gray-900 mb-3">Super Admin</h2>}
+                  <nav className="space-y-1">
+                    {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <div key={tab.id} className="mb-1">
@@ -202,9 +203,10 @@ export default function SuperAdminDashboard() {
                       </div>
                     );
                   })}
-                </nav>
+                  </nav>
+                </div>
               </div>
-              <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
+              <div className="flex-shrink-0 pt-4 pb-4 border-t border-gray-300 mt-auto">
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -225,30 +227,32 @@ export default function SuperAdminDashboard() {
             aria-modal
             aria-label="Navigation menu"
           >
-            <div className="p-3 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-gray-900">Super Admin</h2>
-                <button type="button" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 touch-manipulation" aria-label="Close menu">
-                  <X className="h-5 w-5" />
-                </button>
+            <div className="p-3 h-full flex flex-col min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-gray-900">Super Admin</h2>
+                  <button type="button" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 touch-manipulation" aria-label="Close menu">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <nav className="space-y-1">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <div key={tab.id} className="mb-1">
+                        <button
+                          onClick={() => handleTabClick(tab.id)}
+                          className={`w-full flex items-center rounded-lg text-sm font-medium px-3 py-3 touch-manipulation ${sidebarActiveTab === tab.id ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white' : 'text-gray-600 hover:text-violet-600 hover:bg-violet-50'}`}
+                        >
+                          <Icon className="h-4 w-4 mr-2" />
+                          {tab.label}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </nav>
               </div>
-              <nav className="space-y-1">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <div key={tab.id} className="mb-1">
-                      <button
-                        onClick={() => handleTabClick(tab.id)}
-                        className={`w-full flex items-center rounded-lg text-sm font-medium px-3 py-3 touch-manipulation ${sidebarActiveTab === tab.id ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white' : 'text-gray-600 hover:text-violet-600 hover:bg-violet-50'}`}
-                      >
-                        <Icon className="h-4 w-4 mr-2" />
-                        {tab.label}
-                      </button>
-                    </div>
-                  );
-                })}
-              </nav>
-              <div className="mt-auto pt-4 border-t border-gray-300">
+              <div className="flex-shrink-0 pt-4 border-t border-gray-300">
                 <button type="button" onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 px-3 py-3 touch-manipulation">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout

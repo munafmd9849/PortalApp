@@ -239,13 +239,14 @@ const RecruiterDashboard = () => {
           className="bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out"
           style={{ width: `${sidebarWidth}%` }}
         >
-          <div className="p-3 h-full flex flex-col">
-            <div className="mb-6">
-              {sidebarWidth >= 9 && (
-                <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
-              )}
-              <nav className="space-y-1">
-                {tabs.map((tab) => {
+          <div className="p-3 h-full flex flex-col min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+              <div className="mb-6">
+                {sidebarWidth >= 9 && (
+                  <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
+                )}
+                <nav className="space-y-1">
+                  {tabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <div key={tab.id} className="mb-1">
@@ -263,11 +264,12 @@ const RecruiterDashboard = () => {
                       </button>
                     </div>
                   );
-                })}
-              </nav>
+                  })}
+                </nav>
+              </div>
             </div>
 
-            <div className="mt-auto pt-4 pb-[35%] border-t border-gray-300">
+            <div className="flex-shrink-0 pt-4 pb-4 border-t border-gray-300 mt-auto">
               <button
                 type="button"
                 onClick={handleLogout}

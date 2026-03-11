@@ -109,21 +109,16 @@ export default function InterviewScheduling() {
       const completedSet = new Set();
       for (const job of jobsList) {
         try {
-          // Use centralized API client
-          const sessionData = await api.get(`/interview-sessions/${job.id}`, { silent: true });
-          
-          if (sessionData?.session && (sessionData.session.status === 'COMPLETED' || sessionData.session.status === 'INCOMPLETE')) {
+          const response = await api.get(`/interview-sessions/${job.id}`, { silent: true });
+          const session = response?.data?.session ?? response?.session;
+          if (session && (session.status === 'COMPLETED' || session.status === 'INCOMPLETE')) {
             completedSet.add(job.id);
           }
         } catch (error) {
           // Ignore errors - session might not exist yet
-          console.log(`No session found for job ${job.id}`);
         }
       }
-      
-      if (completedSet.size > 0) {
-        setCompletedSessions(completedSet);
-      }
+      setCompletedSessions(completedSet);
     } catch (error) {
       console.error('Error loading jobs:', error);
       // Error is already handled by centralized API client (toast shown)
@@ -303,13 +298,13 @@ export default function InterviewScheduling() {
       setInviting(true);
       
       // Use centralized API client
-      const data = await api.post(`/admin/interview-scheduling/session/${session.id}/invite-interviewers`, 
+      const response = await api.post(`/admin/interview-scheduling/session/${session.id}/invite-interviewers`, 
         { emails: safeInterviewerEmails },
         { showSuccess: true }
       );
-      
-      const invites = data?.data?.invites ?? data?.invites;
-      const invitesCount = Array.isArray(invites) ? invites.length : (invites ? 1 : 0);
+      // api.post returns { data: backendResponse }; backend sends { data: { invites } }
+      const invites = response?.data?.data?.invites ?? response?.data?.invites ?? response?.invites;
+      const invitesCount = Array.isArray(invites) ? invites.length : safeInterviewerEmails.length;
       showSuccess(`Invites sent to ${invitesCount} interviewer(s)`);
       // Reload session to get updated invites
       if (selectedJob) {

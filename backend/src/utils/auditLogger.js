@@ -17,6 +17,10 @@ import prisma from '../config/database.js';
  */
 export async function logAction(req, { actionType, targetType, targetId, details }) {
     try {
+        if (!prisma.auditLog) {
+            console.warn('AuditLog model not available. Run: npx prisma generate');
+            return;
+        }
         const user = req.user;
         const actorId = user?.id || null;
         const actorName = user?.displayName || user?.name || user?.email || 'System';
@@ -50,6 +54,7 @@ export async function logAction(req, { actionType, targetType, targetId, details
  */
 export async function logSystemAction({ actionType, targetType, targetId, details }) {
     try {
+        if (!prisma.auditLog) return;
         await prisma.auditLog.create({
             data: {
                 actorName: 'System',

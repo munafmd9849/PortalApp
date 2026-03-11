@@ -6,7 +6,6 @@
  * Only runs for jobs with driveDate set (not TBD).
  */
 
-import { Prisma } from '@prisma/client';
 import prisma from '../config/database.js';
 import { sendDriveReminderRecruiterAdmin, sendDriveReminder24h, sendDriveReminderStudent } from './emailService.js';
 import logger from '../config/logger.js';
@@ -43,8 +42,7 @@ async function getAdminEmails() {
     const users = await prisma.user.findMany({
       where: {
         role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-        status: 'ACTIVE',
-        email: { not: Prisma.DbNull }
+        status: 'ACTIVE'
       },
       select: { email: true }
     });
