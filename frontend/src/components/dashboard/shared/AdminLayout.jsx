@@ -111,8 +111,8 @@ export default function AdminLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
-      {/* Horizontal Navbar */}
-      <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
+      {/* Horizontal Navbar - fixed at top, never scrolls */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-blue-100">
         <div className="w-full px-2 py-1">
           <div className="px-4 md:px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400 relative overflow-hidden">
             {/* Mobile header: Hamburger | Logo | Profile */}
@@ -224,8 +224,8 @@ export default function AdminLayout({ children }) {
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="min-h-[calc(100vh-5rem)] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
+      {/* Main Content Area - padding-top reserves space for fixed header */}
+      <main className="min-h-screen pt-[6.5rem] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50">
         {children}
       </main>
     </div>

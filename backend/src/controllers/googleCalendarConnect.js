@@ -606,16 +606,19 @@ export const getCalendarEvents = async (req, res) => {
     res.json({ events });
   } catch (error) {
     logger.error('Error fetching calendar events:', error);
+    if (error.message?.includes('not connected') || error.message?.includes('invalid or expired') || error.message?.includes('Please reconnect')) {
+      return res.status(403).json({
+        error: error.message?.includes('not connected') ? 'Google Calendar not connected' : 'Google Calendar token expired',
+        code: 'RECONNECT_REQUIRED',
+        message: 'Please reconnect your Google Calendar.',
+      });
+    }
     res.status(500).json({
       error: 'Failed to fetch calendar events',
       message: error.message,
     });
   }
 };
-
-
-
-
 
 
 

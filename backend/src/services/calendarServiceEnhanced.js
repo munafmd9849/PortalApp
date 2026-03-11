@@ -54,7 +54,25 @@ export async function getAuthenticatedCalendarClient(userId, role) {
     expiryDate: calendarToken.expiryDate,
   };
 
-  const { calendar, updatedTokens } = await getCalendarClient(tokens);
+  let calendar, updatedTokens;
+  try {
+    const result = await getCalendarClient(tokens);
+    calendar = result.calendar;
+    updatedTokens = result.updatedTokens;
+  } catch (err) {
+    const isInvalidToken = err.message?.includes('invalid or expired') ||
+      err.message?.includes('Please reconnect') ||
+      err.response?.data?.error === 'invalid_grant';
+    if (isInvalidToken) {
+      logger.warn(`Clearing invalid Google Calendar token for user ${userId}`);
+      await prisma.googleCalendarToken.deleteMany({ where: { userId } });
+      await prisma.user.update({
+        where: { id: userId },
+        data: { googleCalendarConnected: false },
+      });
+    }
+    throw err;
+  }
 
   // Update tokens if refreshed
   if (updatedTokens) {
@@ -112,7 +130,25 @@ async function getCalendarClientForUser(targetUserId, targetRole) {
     expiryDate: calendarToken.expiryDate,
   };
 
-  const { calendar, updatedTokens } = await getCalendarClient(tokens);
+  let calendar, updatedTokens;
+  try {
+    const result = await getCalendarClient(tokens);
+    calendar = result.calendar;
+    updatedTokens = result.updatedTokens;
+  } catch (err) {
+    const isInvalidToken = err.message?.includes('invalid or expired') ||
+      err.message?.includes('Please reconnect') ||
+      err.response?.data?.error === 'invalid_grant';
+    if (isInvalidToken) {
+      logger.warn(`Clearing invalid Google Calendar token for user ${targetUserId}`);
+      await prisma.googleCalendarToken.deleteMany({ where: { userId: targetUserId } });
+      await prisma.user.update({
+        where: { id: targetUserId },
+        data: { googleCalendarConnected: false },
+      });
+    }
+    throw err;
+  }
 
   // Update tokens if refreshed
   if (updatedTokens) {

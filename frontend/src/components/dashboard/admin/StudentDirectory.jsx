@@ -500,7 +500,7 @@ export default function StudentDirectory() {
     }
   };
 
-  const loadStudents = useCallback(async () => {
+  const loadStudents = useCallback(async (showLoading = true) => {
     // Prevent concurrent loads using ref
     if (isLoadingRef.current) {
       console.log('⚠️ Load already in progress, skipping...');
@@ -509,7 +509,7 @@ export default function StudentDirectory() {
 
     try {
       isLoadingRef.current = true;
-      setLoading(true);
+      if (showLoading) setLoading(true);
 
       // Only clear error on new attempt (not retries)
       if (loadAttemptsRef.current === 0) {
@@ -633,17 +633,16 @@ export default function StudentDirectory() {
     loadAttemptsRef.current = 0; // Reset attempts on new subscription setup
     setRetryCount(0); // Reset retry count
 
-    // Initial load
-    loadStudents();
+    // Initial load (show spinner)
+    loadStudents(true);
 
-    // Set up polling interval (30 seconds)
-    // Will continue even if loadStudents fails
+    // Poll every 60s, only when tab is visible (no spinner on refresh)
     pollIntervalRef.current = setInterval(() => {
-      // Only poll if not currently loading
+      if (document.visibilityState !== 'visible') return;
       if (!isLoadingRef.current) {
-        loadStudents();
+        loadStudents(false);
       }
-    }, 30000);
+    }, 60000);
 
     return () => {
       clearPollingInterval();
@@ -659,7 +658,7 @@ export default function StudentDirectory() {
       return;
     }
 
-    if (!user || userRole !== 'admin') {
+    if (!user || !['admin', 'super_admin'].includes(userRole)) {
       setError('Admin access required to view the student directory.');
       setLoading(false);
       return;
@@ -984,6 +983,9 @@ export default function StudentDirectory() {
     return user && (r === 'admin' || r === 'super_admin');
   };
 
+  // Only Super Admin can unblock permanently blocked students
+  const isSuperAdmin = () => (user?.role || user?.userType || '').toLowerCase() === 'super_admin';
+
   const handleBlockConfirm = async (blockDetails) => {
     if (!canModifyStudents()) {
       alert('Only administrators can block/unblock students.');
@@ -1005,6 +1007,7 @@ export default function StudentDirectory() {
         blockType: !unblock && blockDetails?.blockType
           ? (blockDetails.blockType === 'Temporary' || blockDetails.blockType === 'temporary' ? 'temporary' : 'permanent')
           : 'permanent',
+        startDate: !unblock && blockDetails?.startDate ? blockDetails.startDate : null,
         endDate: !unblock && blockDetails?.endDate ? blockDetails.endDate : null,
         endTime: !unblock && blockDetails?.endTime ? blockDetails.endTime : null,
         reason: !unblock && blockDetails?.reason ? blockDetails.reason : '',
@@ -1019,7 +1022,12 @@ export default function StudentDirectory() {
     } catch (error) {
       console.error('Error updating student status:', error);
       setError('Failed to update student status');
-      alert('Failed to update student status: ' + (error.message || 'Unknown error'));
+      const msg = error?.response?.data?.message || error.message || 'Unknown error';
+      if (error?.response?.status === 403) {
+        alert(msg);
+      } else {
+        alert('Failed to update student status: ' + msg);
+      }
     } finally {
       setOperationLoading(false);
     }
@@ -1154,14 +1162,14 @@ export default function StudentDirectory() {
           {/* Block/Unblock Button */}
           <button
             onClick={() => handleBlockClick(student)}
-            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent')}
+            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent' && !isSuperAdmin())}
             className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${student.status === 'Blocked'
               ? 'bg-gray-500 hover:bg-gray-600 text-white'
               : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
               }`}
             title={
-              student.status === 'Blocked' && student.blockInfo?.type === 'permanent'
-                ? 'Permanently blocked - cannot be unblocked'
+              student.status === 'Blocked' && student.blockInfo?.type === 'permanent' && !isSuperAdmin()
+                ? 'Permanently blocked - only Super Admin can unblock'
                 : student.status === 'Blocked'
                   ? 'Unblock Student'
                   : 'Block Student'
@@ -1176,7 +1184,7 @@ export default function StudentDirectory() {
         </div>
       </td>
     </tr>
-  )), [displayedStudents, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents]);
+  )), [displayedStudents, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents, isSuperAdmin]);
 
   if (loading) {
     return (
@@ -1599,6 +1607,7 @@ export default function StudentDirectory() {
         entity={selectedStudent}
         entityType="student"
         isUnblocking={selectedStudent?.status === 'Blocked'}
+        canUnblockPermanent={isSuperAdmin()}
         onConfirm={handleBlockConfirm}
       />
 

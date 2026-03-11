@@ -13,7 +13,7 @@ import {
 } from '../../services/students';
 import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
@@ -255,12 +255,15 @@ export default function StudentDashboard() {
     setProfileSectionsOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Show mandatory profile completion modal when needed
+  const location = useLocation();
+  const fromOnboarding = location.state?.fromOnboarding === true;
+
+  // Show mandatory profile completion modal when needed (skip when just completed onboarding)
   useEffect(() => {
-    if (user?.role === 'STUDENT' && profileCompleted === false) {
+    if (user?.role === 'STUDENT' && profileCompleted === false && !fromOnboarding) {
       navigate('/student/onboarding', { replace: true });
     }
-  }, [user?.role, profileCompleted, navigate]);
+  }, [user?.role, profileCompleted, fromOnboarding, navigate]);
 
   const getCurrentProfileSnapshot = useCallback(() => normalizeProfileSnapshot({
     fullName,
@@ -1352,9 +1355,9 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (user?.id && !dataLoaded) {
       const loadInitialData = async () => {
-        // Load profile and public profile settings in parallel
+        // Load profile and public profile settings in parallel (force refresh when coming from onboarding)
         await Promise.all([
-          loadProfile(),
+          loadProfile(Boolean(location.state?.fromOnboarding)),
           (async () => {
             try {
               const settings = await api.getPublicProfileSettings();
@@ -4704,17 +4707,16 @@ export default function StudentDashboard() {
         <div className="flex min-h-screen relative">
           {/* Desktop sidebar: visible from md up */}
           <aside
-            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out z-40"
+            className="hidden md:block bg-white border-r border-gray-200 fixed top-[6.5rem] left-0 bottom-[4rem] overflow-y-auto overflow-x-hidden scrollbar-hide transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
-            <div className="p-3 h-full flex flex-col min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            <div className="p-3 pb-4">
                 <div className="mb-6">
                   {sidebarWidth >= 9 && (
                     <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
                   )}
                   <nav className="space-y-1">
-                  {tabs.map((tab) => {
+                    {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <div key={tab.id} className="mb-1">
@@ -4731,11 +4733,11 @@ export default function StudentDashboard() {
                         </button>
                       </div>
                     );
-                  })}
-                </nav>
-              </div>
+                    })}
+                  </nav>
+                </div>
 
-              {(visibleSkillsCredentials.length > 0 || (otherProfiles && otherProfiles.length > 0)) && (
+                {(visibleSkillsCredentials.length > 0 || (otherProfiles && otherProfiles.length > 0)) && (
                 <div className="mb-6">
                   {sidebarWidth >= 9 && (
                     <h2 className="text-base font-bold text-gray-900 mb-3">Skills & Credentials</h2>
@@ -4817,31 +4819,32 @@ export default function StudentDashboard() {
                         </div>
                       );
                     })}
-                  </nav>
-                </div>
-              )}
-              </div>
-
-              <div className="flex-shrink-0 pt-4 pb-4 border-t border-gray-300 mt-auto">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className={`w-full flex items-center rounded-lg text-xs font-medium text-red-500 hover:bg-red-100 transition-all duration-200 cursor-pointer ${sidebarWidth < 9 ? 'justify-center px-2 py-2 mb-10' : 'px-2 py-3'
-                    }`}
-                  title={sidebarWidth < 9 ? 'Logout' : ''}
-                >
-                  <LogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
-                  {sidebarWidth >= 9 && 'Logout'}
-                </button>
-              </div>
+                    </nav>
+                  </div>
+                )}
             </div>
-
             <div
               ref={dragRef}
               className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-gray-300 hover:bg-blue-500 transition-colors duration-200"
               onMouseDown={handleMouseDown}
             />
           </aside>
+          {/* Logout - fixed at bottom-left, always visible */}
+          <div
+            className="hidden md:block fixed bottom-0 left-0 z-50 p-3 border-t border-gray-300 bg-white"
+            style={{ width: `${sidebarWidth}%` }}
+          >
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={`w-full flex items-center rounded-lg text-xs font-medium text-red-500 hover:bg-red-100 transition-all duration-200 cursor-pointer ${sidebarWidth < 9 ? 'justify-center px-2 py-2' : 'px-2 py-3'
+                }`}
+              title={sidebarWidth < 9 ? 'Logout' : ''}
+            >
+              <LogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
+              {sidebarWidth >= 9 && 'Logout'}
+            </button>
+          </div>
 
           {/* Mobile drawer overlay */}
           {mobileMenuOpen && (
@@ -4853,14 +4856,13 @@ export default function StudentDashboard() {
           )}
           {/* Mobile drawer sidebar */}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-hidden transition-transform duration-300 ease-out flex flex-col ${
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden flex flex-col overflow-hidden transition-transform duration-300 ease-out ${
               mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
             aria-modal
             aria-label="Navigation menu"
           >
-            <div className="p-3 h-full flex flex-col min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide p-3">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold text-gray-900">Navigation</h2>
                   <button
@@ -4937,17 +4939,16 @@ export default function StudentDashboard() {
                   </nav>
                 </div>
               )}
-              </div>
-              <div className="flex-shrink-0 pt-4 border-t border-gray-300">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full flex items-center rounded-lg text-sm font-medium text-red-500 hover:bg-red-100 px-3 py-3"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </button>
-              </div>
+            </div>
+            <div className="flex-shrink-0 p-3 pt-4 pb-6 border-t border-gray-300 bg-white">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center rounded-lg text-sm font-medium text-red-500 hover:bg-red-100 px-3 py-3"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </button>
             </div>
           </aside>
 

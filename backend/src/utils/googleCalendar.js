@@ -79,17 +79,17 @@ export async function refreshAccessToken(oauth2Client) {
       scope: credentials.scope,
     };
   } catch (error) {
+    const responseData = error.response?.data || error.response;
+    const isInvalidGrant = error.message?.includes('invalid_grant') ||
+      responseData?.error === 'invalid_grant';
     logger.error('Error refreshing Google access token:', {
       error: error.message,
       code: error.code,
-      response: error.response?.data,
+      response: responseData,
     });
-    
-    // Provide more specific error messages
-    if (error.message?.includes('invalid_grant')) {
+    if (isInvalidGrant) {
       throw new Error('Refresh token is invalid or expired. Please reconnect your Google Calendar.');
     }
-    
     throw new Error(`Failed to refresh access token: ${error.message || 'Unknown error'}`);
   }
 }

@@ -32,7 +32,7 @@ const CustomDropdown = ({
     if (dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
       setMenuPosition({
-        top: rect.top - 4,
+        top: rect.bottom + 4,
         left: rect.left,
         width: rect.width
       });
@@ -78,13 +78,12 @@ const CustomDropdown = ({
   const menuEl = isOpen && typeof document !== 'undefined' && (
     <div
       ref={menuRef}
-      className="fixed z-[10000] bg-white border-2 border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+      className="fixed z-[10000] bg-white border-2 border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto scrollbar-hide overscroll-contain"
       style={{
         top: menuPosition.top,
         left: menuPosition.left,
         width: menuPosition.width,
-        minWidth: 120,
-        transform: 'translateY(-100%)'
+        minWidth: 120
       }}
     >
       {options.map((option) => {
@@ -120,7 +119,7 @@ const CustomDropdown = ({
           onClick={() => {
             if (!isOpen && dropdownRef.current) {
               const rect = dropdownRef.current.getBoundingClientRect();
-              setMenuPosition({ top: rect.top - 4, left: rect.left, width: rect.width });
+              setMenuPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
             }
             setIsOpen(prev => !prev);
           }}

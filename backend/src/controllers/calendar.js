@@ -245,11 +245,19 @@ export const getCalendarEvents = async (req, res) => {
       role: role || req.user?.role || 'unknown',
     });
     
-    // Handle "not connected" error gracefully
+    // Handle "not connected" or "reconnect required" errors
     if (error.message?.includes('not connected')) {
-      return res.status(400).json({
+      return res.status(403).json({
         error: 'Google Calendar not connected',
+        code: 'RECONNECT_REQUIRED',
         message: 'Please connect your Google Calendar first',
+      });
+    }
+    if (error.message?.includes('invalid or expired') || error.message?.includes('Please reconnect')) {
+      return res.status(403).json({
+        error: 'Google Calendar token expired',
+        code: 'RECONNECT_REQUIRED',
+        message: 'Please reconnect your Google Calendar.',
       });
     }
 

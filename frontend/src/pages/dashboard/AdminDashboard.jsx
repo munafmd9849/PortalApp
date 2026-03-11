@@ -325,17 +325,16 @@ export default function AdminDashboard() {
         <div className="flex min-h-screen relative">
           {/* Desktop sidebar: visible from md up */}
           <aside
-            className="hidden md:block bg-white border-r border-gray-200 fixed h-[calc(100vh-5rem)] overflow-hidden transition-all duration-200 ease-in-out z-40"
+            className="hidden md:block bg-white border-r border-gray-200 fixed top-[6.5rem] left-0 bottom-[4rem] overflow-y-auto overflow-x-hidden scrollbar-hide transition-all duration-200 ease-in-out z-40"
             style={{ width: `${sidebarWidth}%` }}
           >
-            <div className="p-3 h-full flex flex-col min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
-                <div className="mb-6">
-                  {sidebarWidth >= 9 && (
-                    <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
-                  )}
-                  <nav className="space-y-1">
-                    {tabs.map((tab) => {
+            <div className="p-3 pb-4">
+              <div className="mb-6">
+                {sidebarWidth >= 9 && (
+                  <h2 className="text-base font-bold text-gray-900 mb-3">Navigation</h2>
+                )}
+                <nav className="space-y-1">
+                  {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <div key={tab.id} className="mb-1">
@@ -355,25 +354,27 @@ export default function AdminDashboard() {
                         </button>
                       </div>
                     );
-                    })}
-                  </nav>
-                </div>
-              </div>
-
-              <div className="flex-shrink-0 pt-4 pb-4 border-t border-gray-300 mt-auto">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${sidebarWidth < 12 ? 'justify-center px-2 py-2 mb-15' : 'px-3 py-2.5'
-                    }`}
-                  title={sidebarWidth < 9 ? 'Logout' : ''}
-                >
-                  <LogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
-                  {sidebarWidth >= 9 && 'Logout'}
-                </button>
+                  })}
+                </nav>
               </div>
             </div>
           </aside>
+          {/* Logout - fixed at bottom-left, always visible */}
+          <div
+            className="hidden md:block fixed bottom-0 left-0 z-50 p-3 border-t border-gray-300 bg-white"
+            style={{ width: `${sidebarWidth}%` }}
+          >
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={`w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 ${sidebarWidth < 12 ? 'justify-center px-2 py-2' : 'px-3 py-2.5'
+                }`}
+              title={sidebarWidth < 9 ? 'Logout' : ''}
+            >
+              <LogOut className={`h-4 w-4 ${sidebarWidth >= 9 ? 'mr-2' : ''}`} />
+              {sidebarWidth >= 9 && 'Logout'}
+            </button>
+          </div>
 
           {/* Mobile drawer overlay */}
           {mobileMenuOpen && (
@@ -385,26 +386,25 @@ export default function AdminDashboard() {
           )}
           {/* Mobile drawer sidebar */}
           <aside
-            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden overflow-hidden transition-transform duration-300 ease-out flex flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-xl z-50 md:hidden flex flex-col overflow-hidden transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
               }`}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
           >
-            <div className="p-3 h-full flex flex-col min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
-                <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide p-3">
+              <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold text-gray-900">Navigation</h2>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 touch-manipulation"
-                  aria-label="Close menu"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <nav className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 touch-manipulation"
+                    aria-label="Close menu"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <nav className="space-y-1">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -422,18 +422,17 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
-              </nav>
-              </div>
-              <div className="flex-shrink-0 pt-4 border-t border-gray-300">
-                <button
-                  type="button"
-                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                  className="w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 px-3 py-3 touch-manipulation"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </button>
-              </div>
+                </nav>
+            </div>
+            <div className="flex-shrink-0 p-3 pt-4 pb-6 border-t border-gray-300 bg-white">
+              <button
+                type="button"
+                onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                className="w-full flex items-center rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 px-3 py-3 touch-manipulation"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </button>
             </div>
           </aside>
 
