@@ -6,27 +6,34 @@
 
 import Redis from 'ioredis';
 
-// Create Redis client with lazy connection (only connects when used)
-// This prevents Redis errors from crashing the server if Redis is not available
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  retryStrategy: (times) => {
-    // Stop retrying after 5 attempts to prevent endless retries
-    if (times > 5) {
-      return null; // Stop retrying
-    }
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  maxRetriesPerRequest: null, // Disable automatic retries to prevent blocking
-  lazyConnect: true, // Don't connect immediately - only when needed
-  enableOfflineQueue: false, // Don't queue commands if Redis is down
-  connectTimeout: 5000, // 5 second timeout
-  enableReadyCheck: false, // Don't wait for ready check
-  autoResubscribe: false, // Don't auto-resubscribe
-});
+// Use REDIS_URL (Upstash, etc.) when set; otherwise host/port for local dev
+const redisConfig = process.env.REDIS_URL
+  ? process.env.REDIS_URL
+  : {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
+      retryStrategy: (times) => {
+        if (times > 5) return null;
+        return Math.min(times * 50, 2000);
+      },
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      connectTimeout: 5000,
+      enableReadyCheck: false,
+      autoResubscribe: false,
+    };
+
+const redis = typeof redisConfig === 'string'
+  ? new Redis(redisConfig, {
+      retryStrategy: (times) => (times > 5 ? null : Math.min(times * 50, 2000)),
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      connectTimeout: 5000,
+    })
+  : new Redis(redisConfig);
 
 redis.on('connect', () => {
   console.log('✅ Redis connected');
@@ -52,14 +59,10 @@ export async function isRedisAvailable() {
 
     // Instead of forcing the main connection to wake up (which causes race conditions),
     // Use a temporary fast-failing connection to ping the server cleanly.
-    const tempRedis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-      maxRetriesPerRequest: 0,
-      connectTimeout: 500,
-      lazyConnect: false
-    });
+    const tempConfig = process.env.REDIS_URL
+      ? [process.env.REDIS_URL, { maxRetriesPerRequest: 0, connectTimeout: 500, lazyConnect: false }]
+      : [{ host: process.env.REDIS_HOST || 'localhost', port: parseInt(process.env.REDIS_PORT) || 6379, password: process.env.REDIS_PASSWORD, maxRetriesPerRequest: 0, connectTimeout: 500, lazyConnect: false }];
+    const tempRedis = new Redis(...tempConfig);
 
     await tempRedis.ping();
     tempRedis.disconnect();
