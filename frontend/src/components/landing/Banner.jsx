@@ -168,7 +168,7 @@ const Banner = () => {
           <div ref={missionRef} className="text-center lg:text-left relative">
             <h1 className="text-3xl md:text-4xl lg:text-[2.6rem] font-bold text-gray-900 leading-tight">
               On a mission to change the
-              <span className="text-blue-900"> Skilling landscape</span> of <span className="px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%]"> INDIA</span>
+              <span className="text-blue-900"> Skilling landscape</span> of <span className="italic px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%]"> INDIA</span>
             </h1>
             <div className="absolute w-[70%] right-0 top-[80%] -z-10">
               <img src={r2} alt="" className="opacity-30 brightness-90" loading="lazy" />
@@ -250,7 +250,7 @@ const Banner = () => {
         <div className="text-center">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
             On a mission to change the
-            <span className="text-blue-900"> Skilling landscape</span> of <span className="px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%]"> INDIA</span>
+            <span className="text-blue-900"> Skilling landscape</span> of <span className="italic px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%]"> INDIA</span>
           </h1>
         </div>
         <div className="mt-6 relative">
