@@ -142,7 +142,7 @@ const Banner = () => {
                 <IndiaMapSVG />
 
                 {/* Annotations */}
-                <g>
+                <g transform="translate(0, 21)">
                   {/* 70% */}
                   <path className="connector-arrow" d="M 270,195 Q 310,155 370,145" markerEnd="url(#arrow)" />
                   <text className="stat-text" x="375" y="148"><tspan className="stat-perc">70%</tspan><tspan dx="8">Students lack industry-relevant skills</tspan></text>

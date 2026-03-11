@@ -65,7 +65,9 @@ export default function ManageJobs() {
   const [jobsPage, setJobsPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalJobs, setTotalJobs] = useState(0);
-  const JOBS_PER_PAGE = 50;
+  const [inReviewCount, setInReviewCount] = useState(0);
+  const [postedCount, setPostedCount] = useState(0);
+  const JOBS_PER_PAGE = 25;
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -109,9 +111,7 @@ export default function ManageJobs() {
           { id: 'BANGALORE', display: 'Bangalore', storage: 'BANGALORE' },
           { id: 'NOIDA', display: 'Noida', storage: 'NOIDA' },
           { id: 'LUCKNOW', display: 'Lucknow', storage: 'LUCKNOW' },
-          { id: 'PUNE', display: 'Pune', storage: 'PUNE' },
-          { id: 'PATNA', display: 'Patna', storage: 'PATNA' },
-          { id: 'INDORE', display: 'Indore', storage: 'INDORE' }
+          { id: 'PUNE', display: 'Pune', storage: 'PUNE' }
         ];
 
         setSchoolOptions(schoolOptionsArray);
@@ -147,6 +147,20 @@ export default function ManageJobs() {
   };
 
 
+  // Fetch total counts for both tabs (pre-computed, shown immediately)
+  const loadCounts = async () => {
+    try {
+      const [inReviewRes, postedRes] = await Promise.all([
+        api.getJobs({ limit: 1, page: 1, status: 'IN_REVIEW' }),
+        api.getJobs({ limit: 1, page: 1, status: 'POSTED', isPosted: true }),
+      ]);
+      setInReviewCount((inReviewRes?.pagination?.total) ?? 0);
+      setPostedCount((postedRes?.pagination?.total) ?? 0);
+    } catch (err) {
+      console.warn('ManageJobs: Failed to load tab counts', err);
+    }
+  };
+
   const loadJobs = async () => {
     try {
       setLoading(true);
@@ -175,16 +189,33 @@ export default function ManageJobs() {
       setTotalJobs(pagination.total);
       setTotalPages(pagination.totalPages || 1);
 
+      // Refresh tab counts after jobs load (e.g. after post/delete)
+      loadCounts();
+
       // Load existing selections from database for posted jobs
       const schoolSelections = {};
       const batchSelections = {};
       const centerSelections = {};
 
+      const toArray = (v) => {
+        if (Array.isArray(v)) return v.map(x => (typeof x === 'string' ? x.trim() : String(x))).filter(Boolean);
+        if (typeof v === 'string' && v.trim()) {
+          const s = v.trim();
+          if (s.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(s);
+              return Array.isArray(parsed) ? parsed.map(x => String(x).trim()).filter(Boolean) : [];
+            } catch (_) { /* fallback */ }
+          }
+          return s.split(',').map(x => x.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+        }
+        return [];
+      };
       jobsList.forEach(job => {
         if (job.status === 'POSTED' || job.isPosted === true) {
-          if (job.targetSchools) schoolSelections[job.id] = job.targetSchools;
-          if (job.targetBatches) batchSelections[job.id] = job.targetBatches;
-          if (job.targetCenters) centerSelections[job.id] = job.targetCenters;
+          if (job.targetSchools) schoolSelections[job.id] = toArray(job.targetSchools);
+          if (job.targetBatches) batchSelections[job.id] = toArray(job.targetBatches);
+          if (job.targetCenters) centerSelections[job.id] = toArray(job.targetCenters);
         }
       });
 
@@ -198,6 +229,10 @@ export default function ManageJobs() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadCounts();
+  }, []);
 
   useEffect(() => {
     loadJobs();
@@ -403,18 +438,18 @@ export default function ManageJobs() {
   // Check if job can be posted
   const canPostJob = (job) => {
     const isAlreadyPosted = isJobPosted(job);
-    const hasSchoolSelection = selectedSchools[job.id]?.length > 0;
-    const hasBatchSelection = selectedBatches[job.id]?.length > 0;
-    const hasCenterSelection = selectedCenters[job.id]?.length > 0;
+    const hasSchoolSelection = Array.isArray(selectedSchools[job.id]) && selectedSchools[job.id].length > 0;
+    const hasBatchSelection = Array.isArray(selectedBatches[job.id]) && selectedBatches[job.id].length > 0;
+    const hasCenterSelection = Array.isArray(selectedCenters[job.id]) && selectedCenters[job.id].length > 0;
 
     return !isAlreadyPosted && hasSchoolSelection && hasBatchSelection && hasCenterSelection;
   };
 
   // Get posted job display text
   const getPostedJobDisplay = (jobId) => {
-    const schools = selectedSchools[jobId] || [];
-    const batches = selectedBatches[jobId] || [];
-    const centers = selectedCenters[jobId] || [];
+    const schools = Array.isArray(selectedSchools[jobId]) ? selectedSchools[jobId] : [];
+    const batches = Array.isArray(selectedBatches[jobId]) ? selectedBatches[jobId] : [];
+    const centers = Array.isArray(selectedCenters[jobId]) ? selectedCenters[jobId] : [];
 
     // Convert storage codes to display names
     const schoolText = schools.length === 1 ? getSchoolDisplay(schools[0]) :
@@ -436,9 +471,9 @@ export default function ManageJobs() {
       setPostingJobs(prev => new Set([...prev, jobId]));
 
       const postData = {
-        selectedSchools: selectedSchools[jobId] || [],
-        selectedBatches: selectedBatches[jobId] || [],
-        selectedCenters: selectedCenters[jobId] || [],
+        selectedSchools: Array.isArray(selectedSchools[jobId]) ? selectedSchools[jobId] : [],
+        selectedBatches: Array.isArray(selectedBatches[jobId]) ? selectedBatches[jobId] : [],
+        selectedCenters: Array.isArray(selectedCenters[jobId]) ? selectedCenters[jobId] : [],
         postedBy: 'admin',
       };
 
@@ -663,25 +698,12 @@ export default function ManageJobs() {
     });
   };
 
-  // Get statistics - calculate from all jobs
   const allManageJobs = jobs.filter(job => shouldShowInManageJobs(job));
-  const inReviewCount = allManageJobs.filter(job => {
-    const status = (job.status || '').toLowerCase();
-    return status === 'in_review';
-  }).length;
-  const postedCount = allManageJobs.filter(job => isJobPosted(job)).length;
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
       {/* Header with Statistics */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Manage & Post Jobs</h2>
-          <p className="text-sm text-slate-600 mt-1">
-            Select target schools and batches, then post jobs to students
-          </p>
-        </div>
-      </div>
+
 
       {/* Filter Buttons - Show both IN_REVIEW and POSTED sections */}
       <div className="flex justify-center mb-4 sm:mb-6">
@@ -787,7 +809,7 @@ export default function ManageJobs() {
                                 {isJobPosted(job) ? (
                                   <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedSchools[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
                                     <span className="truncate block">
-                                      {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : '—'}
+                                      {(Array.isArray(selectedSchools[job.id]) && selectedSchools[job.id].length) ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : '—'}
                                     </span>
                                   </div>
                                 ) : (
@@ -799,7 +821,7 @@ export default function ManageJobs() {
                                       onClick={() => toggleSchoolDropdown(job.id)}
                                     >
                                       <span className="truncate min-w-0">
-                                        {selectedSchools[job.id]?.length ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : 'Select Schools'}
+                                        {(Array.isArray(selectedSchools[job.id]) && selectedSchools[job.id].length) ? selectedSchools[job.id].map(code => getSchoolDisplay(code)).join(', ') : 'Select Schools'}
                                       </span>
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
@@ -809,7 +831,7 @@ export default function ManageJobs() {
                                           <label key={school.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
-                                              checked={selectedSchools[job.id]?.includes(school.storage) || false}
+                                              checked={Array.isArray(selectedSchools[job.id]) && selectedSchools[job.id].includes(school.storage)}
                                               onChange={() => toggleSchool(job.id, school.storage)}
                                             />
                                             <span>{school.display}</span>
@@ -831,7 +853,7 @@ export default function ManageJobs() {
                                 {isJobPosted(job) ? (
                                   <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedBatches[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
                                     <span className="truncate block">
-                                      {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : '—'}
+                                      {(Array.isArray(selectedBatches[job.id]) && selectedBatches[job.id].length) ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : '—'}
                                     </span>
                                   </div>
                                 ) : (
@@ -843,7 +865,7 @@ export default function ManageJobs() {
                                       onClick={() => toggleBatchDropdown(job.id)}
                                     >
                                       <span className="truncate min-w-0">
-                                        {selectedBatches[job.id]?.length ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : 'Select Batches'}
+                                        {(Array.isArray(selectedBatches[job.id]) && selectedBatches[job.id].length) ? selectedBatches[job.id].map(code => getBatchDisplay(code)).join(', ') : 'Select Batches'}
                                       </span>
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
@@ -853,7 +875,7 @@ export default function ManageJobs() {
                                           <label key={batch.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
-                                              checked={selectedBatches[job.id]?.includes(batch.storage) || false}
+                                              checked={Array.isArray(selectedBatches[job.id]) && selectedBatches[job.id].includes(batch.storage)}
                                               onChange={() => toggleBatch(job.id, batch.storage)}
                                             />
                                             <span>{batch.display}</span>
@@ -876,7 +898,7 @@ export default function ManageJobs() {
                                 {isJobPosted(job) ? (
                                   <div className={`w-full min-w-0 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-left ${selectedCenters[job.id]?.length ? 'bg-green-100' : 'bg-slate-50'} text-slate-700`}>
                                     <span className="truncate block">
-                                      {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : '—'}
+                                      {(Array.isArray(selectedCenters[job.id]) && selectedCenters[job.id].length) ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : '—'}
                                     </span>
                                   </div>
                                 ) : (
@@ -888,7 +910,7 @@ export default function ManageJobs() {
                                       onClick={() => toggleCenterDropdown(job.id)}
                                     >
                                       <span className="truncate min-w-0">
-                                        {selectedCenters[job.id]?.length ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : 'Select Centers'}
+                                        {(Array.isArray(selectedCenters[job.id]) && selectedCenters[job.id].length) ? selectedCenters[job.id].map(code => getCenterDisplay(code)).join(', ') : 'Select Centers'}
                                       </span>
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
@@ -898,7 +920,7 @@ export default function ManageJobs() {
                                           <label key={center.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
-                                              checked={selectedCenters[job.id]?.includes(center.storage) || false}
+                                              checked={Array.isArray(selectedCenters[job.id]) && selectedCenters[job.id].includes(center.storage)}
                                               onChange={() => toggleCenter(job.id, center.storage)}
                                             />
                                             <span>{center.display}</span>

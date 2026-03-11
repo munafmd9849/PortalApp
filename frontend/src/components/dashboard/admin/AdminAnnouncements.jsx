@@ -51,8 +51,6 @@ const CENTER_OPTIONS = [
   { id: 'NOIDA', label: 'Noida' },
   { id: 'LUCKNOW', label: 'Lucknow' },
   { id: 'PUNE', label: 'Pune' },
-  { id: 'PATNA', label: 'Patna' },
-  { id: 'INDORE', label: 'Indore' },
 ];
 
 export default function AdminAnnouncements() {

@@ -62,7 +62,8 @@ export class AdminDashboardService {
       const endpoint = queryString ? `/admin/dashboard?${queryString}` : '/admin/dashboard';
 
       // Make a single API call to the backend which performs all aggregation via SQL
-      const data = await api.get(endpoint);
+      const response = await api.get(endpoint);
+      const data = response?.data ?? response;
 
       this.cachedData = data;
       return data;

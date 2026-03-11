@@ -59,8 +59,6 @@ const DRIVE_VENUES = [
   'PW IOI Campus, Noida',
   'PW IOI Campus, Lucknow',
   'PW IOI Campus, Pune',
-  'PW IOI Campus, Patna',
-  'PW IOI Campus, Indore',
   'Company Premises',
 ];
 
@@ -284,8 +282,28 @@ export default function CreateJob({ onCreated }) {
   };
 
   // Load a draft into the form
+  // Parse interviewRounds (from older drafts) into baseRoundDetails + extraRounds
+  const parseRoundsFromDraft = (draft) => {
+    if (Array.isArray(draft.baseRoundDetails) && draft.baseRoundDetails.length >= 3) {
+      return {
+        baseRoundDetails: draft.baseRoundDetails,
+        extraRounds: Array.isArray(draft.extraRounds) ? draft.extraRounds : [],
+      };
+    }
+    const rounds = Array.isArray(draft.interviewRounds) ? draft.interviewRounds : [];
+    const base = [
+      rounds[0]?.detail ?? '',
+      rounds[1]?.detail ?? '',
+      rounds[2]?.detail ?? '',
+    ];
+    const extra = rounds.length > 3 ? rounds.slice(3) : [];
+    return { baseRoundDetails: base, extraRounds: extra };
+  };
+
   const loadDraft = (draft) => {
     try {
+      const { baseRoundDetails, extraRounds } = parseRoundsFromDraft(draft);
+
       // Populate form fields from draft
       const updates = {
         company: draft.company || '',
@@ -304,6 +322,7 @@ export default function CreateJob({ onCreated }) {
         spocs: draft.spocs || [{ fullName: '', email: '', phone: '' }],
         driveDateText: draft.driveDateText || '',
         driveDateISO: draft.driveDateISO || '',
+        driveDateNotDecided: draft.driveDateNotDecided === true,
         applicationDeadlineText: draft.applicationDeadlineText || '',
         applicationDeadlineISO: draft.applicationDeadlineISO || '',
         driveVenues: Array.isArray(draft.driveVenues) ? draft.driveVenues : [],
@@ -319,8 +338,8 @@ export default function CreateJob({ onCreated }) {
         backlogs: draft.backlogs || '',
         serviceAgreement: draft.serviceAgreement || '',
         blockingPeriod: draft.blockingPeriod || '',
-        baseRoundDetails: draft.baseRoundDetails || ['', '', ''],
-        extraRounds: draft.extraRounds || [],
+        baseRoundDetails,
+        extraRounds,
         instructions: draft.instructions || '',
         requiresScreening: draft.requiresScreening || false,
         requiresTest: draft.requiresTest || false,
@@ -1167,6 +1186,10 @@ export default function CreateJob({ onCreated }) {
         applicationDeadlineISO: form.applicationDeadlineISO || driveDraft.applicationDeadlineISO || '',
         driveVenues: form.driveVenues.length > 0 ? form.driveVenues : driveDraft.driveVenues,
         reportingTime: form.reportingTime || driveDraft.reportingTime || '',
+        // Round details (needed for draft load - buildJobPayload only saves interviewRounds)
+        baseRoundDetails: form.baseRoundDetails || ['', '', ''],
+        extraRounds: Array.isArray(form.extraRounds) ? form.extraRounds : [],
+        driveDateNotDecided: form.driveDateNotDecided || false,
       };
       await saveJobDraft(payload);
       // Reload drafts list after saving

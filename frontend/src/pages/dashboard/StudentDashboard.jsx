@@ -76,6 +76,19 @@ import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
 
+/** Validate profile URL - must start with http:// or https:// */
+function isValidProfileUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+  try {
+    new URL(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Format CGPA for display (avoids floating-point e.g. 8.699999999999999 → "8.70") */
 function formatCgpaForDisplay(val) {
   if (val === undefined || val === null || val === '') return '';
@@ -1738,6 +1751,13 @@ export default function StudentDashboard() {
       return;
     }
 
+    // Validate otherProfiles URLs before save
+    const invalidProfile = otherProfiles.find(p => p.profileId && !isValidProfileUrl(p.profileId));
+    if (invalidProfile) {
+      showError(`"${invalidProfile.platformName || 'Profile'}" has an invalid URL. Please enter a valid URL (e.g., https://kaggle.com/username).`);
+      return;
+    }
+
     // Validate form data
     const validation = validateProfile();
     if (validation.errors.length > 0) {
@@ -1827,6 +1847,10 @@ export default function StudentDashboard() {
         school: school.trim(),
         profilePhoto: profilePhoto.trim(),
         jobFlexibility: jobFlexibility.trim(),
+        otherProfiles: otherProfiles.filter(p => p.platformName?.trim() && isValidProfileUrl(p.profileId)).map(p => ({
+          platformName: p.platformName.trim(),
+          profileId: p.profileId.trim(),
+        })),
       };
 
       // Show success immediately for better UX (optimistic update)
@@ -3860,8 +3884,6 @@ export default function StudentDashboard() {
                               { value: 'NOIDA', label: 'Noida' },
                               { value: 'LUCKNOW', label: 'Lucknow' },
                               { value: 'PUNE', label: 'Pune' },
-                              { value: 'PATNA', label: 'Patna' },
-                              { value: 'INDORE', label: 'Indore' }
                             ]}
                             value={center}
                             onChange={(value) => {
@@ -4207,18 +4229,21 @@ export default function StudentDashboard() {
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">Profile ID/URL</label>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Profile URL</label>
                                     <input
-                                      type="text"
+                                      type="url"
                                       value={profile.profileId || ''}
                                       onChange={(e) => {
                                         const updated = [...otherProfiles];
                                         updated[index] = { ...updated[index], profileId: e.target.value };
                                         setOtherProfiles(updated);
                                       }}
-                                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      placeholder="username or URL"
+                                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${profile.profileId && !isValidProfileUrl(profile.profileId) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                      placeholder="e.g., https://kaggle.com/username"
                                     />
+                                    {profile.profileId && !isValidProfileUrl(profile.profileId) && (
+                                      <p className="mt-1 text-xs text-red-600">Enter a valid URL (https://...)</p>
+                                    )}
                                   </div>
                                 </div>
                                 <button
@@ -4261,15 +4286,18 @@ export default function StudentDashboard() {
 
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Profile ID/URL <span className="text-red-500">*</span>
+                                  Profile URL <span className="text-red-500">*</span>
                                 </label>
                                 <input
-                                  type="text"
+                                  type="url"
                                   value={newProfile.profileId}
                                   onChange={(e) => setNewProfile({ ...newProfile, profileId: e.target.value })}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="username or full URL"
+                                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${newProfile.profileId && !isValidProfileUrl(newProfile.profileId) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                  placeholder="e.g., https://kaggle.com/username"
                                 />
+                                {newProfile.profileId && !isValidProfileUrl(newProfile.profileId) && (
+                                  <p className="mt-1 text-xs text-red-600">Enter a valid URL starting with https://</p>
+                                )}
                               </div>
                             </div>
 
@@ -4287,10 +4315,15 @@ export default function StudentDashboard() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (newProfile.platformName.trim() && newProfile.profileId.trim()) {
+                                  const url = newProfile.profileId.trim();
+                                  if (!isValidProfileUrl(url)) {
+                                    showWarning('Please enter a valid profile URL (e.g., https://kaggle.com/username)');
+                                    return;
+                                  }
+                                  if (newProfile.platformName.trim() && url) {
                                     setOtherProfiles([...otherProfiles, {
                                       platformName: newProfile.platformName.trim(),
-                                      profileId: newProfile.profileId.trim()
+                                      profileId: url
                                     }]);
                                     setShowAddProfileForm(false);
                                     setNewProfile({ platformName: '', profileId: '' });

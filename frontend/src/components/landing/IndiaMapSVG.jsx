@@ -2,7 +2,7 @@ import React from 'react';
 
 const IndiaMapSVG = () => {
 	return (
-		<g transform="translate(20, 35) scale(1.25)">
+		<g transform="translate(20, 56) scale(1.25)">
 			<g filter="url(#shadow)">
 				<path fill="#67605E" opacity="1.000000" stroke="none"
 					d="

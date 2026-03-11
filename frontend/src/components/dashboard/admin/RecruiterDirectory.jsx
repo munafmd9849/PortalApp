@@ -333,7 +333,7 @@ export default function RecruiterDirectory() {
       console.error('Error fetching recruiter summary:', error);
       // Fallback to basic data
       const fallbackSummary = {
-        jobsPerCenter: { 'Lucknow': 0, 'Pune': 0, 'Bangalore': 0, 'Noida': 0, 'Indore': 0, 'Patna': 0 },
+        jobsPerCenter: { 'Lucknow': 0, 'Pune': 0, 'Bangalore': 0, 'Noida': 0 },
         jobsPerSchool: { 'SOT': 0, 'SOH': 0, 'SOM': 0 },
         totalJobs: 0,
         activeJobs: 0,
