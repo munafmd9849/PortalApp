@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Verification Code</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #F3F4F6;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111827;
+    }
+
+    .wrap {
+      width: 100%;
+      padding: 28px 12px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #DC2626;
+      padding: 22px 24px;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      color: #FFFFFF;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .content {
+      padding: 26px 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      line-height: 28px;
+      text-align: center;
+      color: #111827;
+    }
+
+    p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 20px;
+      color: #374151;
+      text-align: center;
+    }
+
+    .otpBox {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 14px;
+      padding: 18px 14px;
+      margin: 18px auto 18px;
+      text-align: center;
+    }
+
+    .otpCode {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 900;
+      font-size: 34px;
+      letter-spacing: 8px;
+      color: #DC2626;
+      margin-left: 6px;
+    }
+
+    .info {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-left: 4px solid #F59E0B;
+      border-radius: 10px;
+      padding: 12px 12px;
+      text-align: left;
+    }
+
+    .info p {
+      text-align: left;
+      margin: 0;
+      color: #92400E;
+      font-size: 13px;
+      line-height: 19px;
+    }
+
+    .footer {
+      background: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      text-align: center;
+      color: #6B7280;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .muted {
+      color: #9CA3AF;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td class="wrap" align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+          style="border-collapse:collapse; max-width:640px;">
+          <tr>
+            <td>
+              <div class="card">
+                <div class="header">
+                  <p class="brand">PWIOI Placement Portal</p>
+                  <p class="subtitle">Verify your email address</p>
+                </div>
+
+                <div class="content">
+                  <h1>Your Verification Code</h1>
+                  <p>
+                    Hello,<br />
+                    To complete your sign-in or registration request, please use the 6-digit verification code below:
+                  </p>
+
+                  <div class="otpBox">
+                    <span class="otpCode">{{otp}}</span>
+                  </div>
+
+                  <div class="info">
+                    <p>
+                      This code will expire in <strong>5 minutes</strong>. If you didn't request this code, you can
+                      safely ignore this email.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  This is an automated message. Please do not reply.
+                  <div class="muted">&copy; 2026 PWIOI Placement Portal. All rights reserved.</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

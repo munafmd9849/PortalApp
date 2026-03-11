@@ -117,6 +117,10 @@ console.log('  - FRONTEND_URL:', process.env.FRONTEND_URL);
 logDatabaseTarget();
 
 const app = express();
+
+// Required for Vercel/proxy: express-rate-limit needs trust proxy when X-Forwarded-For is set
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 
 // Initialize Socket.IO
