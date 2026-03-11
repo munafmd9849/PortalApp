@@ -66,7 +66,6 @@ const EndorsementPage = () => {
     { value: 'PW-IOI - Pune', label: 'PW-IOI - Pune' },
     { value: 'PW-IOI - Noida', label: 'PW-IOI - Noida' },
     { value: 'PW-IOI - Lucknow', label: 'PW-IOI - Lucknow' },
-    { value: 'PW-IOI - Indore', label: 'PW-IOI - Indore' },
     { value: 'PW-IOI - Delhi', label: 'PW-IOI - Delhi' }
   ];
 

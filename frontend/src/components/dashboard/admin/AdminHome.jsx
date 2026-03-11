@@ -64,8 +64,6 @@ export default function AdminHome() {
             { id: 'NOIDA', name: 'Noida' },
             { id: 'LUCKNOW', name: 'Lucknow' },
             { id: 'PUNE', name: 'Pune' },
-            { id: 'PATNA', name: 'Patna' },
-            { id: 'INDORE', name: 'Indore' }
           ],
           schools: [
             { id: 'SOT', name: 'School of Technology' },
@@ -95,8 +93,6 @@ export default function AdminHome() {
             { id: 'NOIDA', name: 'Noida' },
             { id: 'LUCKNOW', name: 'Lucknow' },
             { id: 'PUNE', name: 'Pune' },
-            { id: 'PATNA', name: 'Patna' },
-            { id: 'INDORE', name: 'Indore' }
           ],
           schools: [
             { id: 'SOT', name: 'School of Technology' },
@@ -150,12 +146,13 @@ export default function AdminHome() {
     
     const unsubscribe = adminDashboardService.subscribeToDashboardData(
       (data) => {
+        const safeData = data && typeof data === 'object' ? data : {};
         console.log('📊 Dashboard data received:', {
-          stats: data.stats,
-          chartDataKeys: Object.keys(data.chartData),
+          stats: safeData.stats,
+          chartDataKeys: Object.keys(safeData.chartData || {}),
           filters: mappedFilters
         });
-        setDashboardData(data);
+        setDashboardData(safeData);
         setIsLoading(false);
       },
       mappedFilters // Pass mapped filters to service
@@ -187,45 +184,46 @@ export default function AdminHome() {
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
 
   // Stats with real-time data and consistent Chart.js colors
-  const stats = dashboardData ? [
+  const s = dashboardData?.stats;
+  const stats = dashboardData && s ? [
     { 
       title: 'Job Postings', 
-      value: dashboardData.stats.totalJobsPosted, 
+      value: s.totalJobsPosted ?? 0, 
       borderColor: 'border-blue-200', 
       icon: <Briefcase className="w-5 h-5" style={{ color: chartColors.blue }} />, 
       chartData: [ 
-        { title: 'Posted', value: dashboardData.stats.totalJobsPosted, color: chartColors.blue },
-        { title: 'Total', value: Math.max(dashboardData.stats.totalJobsPosted, 1), color: '#dbeafe' } 
+        { title: 'Posted', value: s.totalJobsPosted ?? 0, color: chartColors.blue },
+        { title: 'Total', value: Math.max(s.totalJobsPosted ?? 0, 1), color: '#dbeafe' } 
       ] 
     },
     { 
       title: 'Active Students', 
-      value: dashboardData.stats.activeStudents, 
+      value: s.activeStudents ?? 0, 
       borderColor: 'border-green-200', 
       icon: <Users className="w-5 h-5" style={{ color: chartColors.green }} />, 
       chartData: [ 
-        { title: 'Active', value: dashboardData.stats.activeStudents, color: chartColors.green },
-        { title: 'Total', value: Math.max(dashboardData.stats.totalStudents || dashboardData.stats.activeStudents, 1), color: '#dcfce7' } 
+        { title: 'Active', value: s.activeStudents ?? 0, color: chartColors.green },
+        { title: 'Total', value: Math.max(s.totalStudents ?? s.activeStudents ?? 0, 1), color: '#dcfce7' } 
       ] 
     },
     { 
       title: 'Pending Queries', 
-      value: dashboardData.stats.pendingQueries, 
+      value: s.pendingQueries ?? 0, 
       borderColor: 'border-purple-200', 
       icon: <MessageSquare className="w-5 h-5" style={{ color: chartColors.purple }} />, 
       chartData: [ 
-        { title: 'Pending', value: dashboardData.stats.pendingQueries, color: chartColors.purple },
-        { title: 'Total', value: Math.max(dashboardData.stats.pendingQueries, 1), color: '#f3e8ff' } 
+        { title: 'Pending', value: s.pendingQueries ?? 0, color: chartColors.purple },
+        { title: 'Total', value: Math.max(s.pendingQueries ?? 0, 1), color: '#f3e8ff' } 
       ] 
     },
     { 
       title: 'Applications', 
-      value: dashboardData.stats.totalApplications, 
+      value: s.totalApplications ?? 0, 
       borderColor: 'border-red-200', 
       icon: <TrendingUp className="w-5 h-5" style={{ color: chartColors.red }} />, 
       chartData: [ 
-        { title: 'Placed', value: dashboardData.stats.placedStudents, color: chartColors.red },
-        { title: 'Applied', value: Math.max(dashboardData.stats.totalApplications - dashboardData.stats.placedStudents, 0), color: '#fecaca' } 
+        { title: 'Placed', value: s.placedStudents ?? 0, color: chartColors.red },
+        { title: 'Applied', value: Math.max((s.totalApplications ?? 0) - (s.placedStudents ?? 0), 0), color: '#fecaca' } 
       ] 
     }
   ] : [];
@@ -499,7 +497,7 @@ export default function AdminHome() {
       </div>
 
       {/* Overall Insights and Metrics */}
-      {!isLoading && dashboardData && (
+      {!isLoading && dashboardData && s && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-4 sm:p-6 border-b border-gray-200">
             <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center">
@@ -513,7 +511,7 @@ export default function AdminHome() {
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.blueLight }}>
                   <Users className="w-6 h-6" style={{ color: chartColors.blue }} />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">{dashboardData.stats.activeRecruiters}</h3>
+                <h3 className="text-2xl font-bold text-gray-800 mb-1">{s.activeRecruiters ?? 0}</h3>
                 <p className="text-sm text-gray-600">Active Recruiters</p>
                 <p className="text-xs text-gray-500 mt-1">Verified companies</p>
               </div>
@@ -523,8 +521,8 @@ export default function AdminHome() {
                   <Target className="w-6 h-6" style={{ color: chartColors.green }} />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {dashboardData.stats.totalApplications > 0 
-                    ? Math.round((dashboardData.stats.placedStudents / dashboardData.stats.totalApplications) * 100)
+                  {(s.totalApplications ?? 0) > 0 
+                    ? Math.round(((s.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
                     : 0}%
                 </h3>
                 <p className="text-sm text-gray-600">Placement Rate</p>
@@ -536,11 +534,11 @@ export default function AdminHome() {
                   <MessageSquare className="w-6 h-6" style={{ color: chartColors.purple }} />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {dashboardData.stats.pendingQueries === 0 ? '✅' : dashboardData.stats.pendingQueries}
+                  {(s.pendingQueries ?? 0) === 0 ? '✅' : (s.pendingQueries ?? 0)}
                 </h3>
                 <p className="text-sm text-gray-600">Support Queue</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {dashboardData.stats.pendingQueries === 0 ? 'All caught up!' : 'Queries pending'}
+                  {(s.pendingQueries ?? 0) === 0 ? 'All caught up!' : 'Queries pending'}
                 </p>
               </div>
               
@@ -549,8 +547,8 @@ export default function AdminHome() {
                   <TrendingUp className="w-6 h-6" style={{ color: chartColors.red }} />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {dashboardData.stats.activeStudents > 0 
-                    ? Math.round((dashboardData.stats.totalApplications / dashboardData.stats.activeStudents) * 10) / 10
+                  {(s.activeStudents ?? 0) > 0 
+                    ? Math.round(((s.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
                     : 0}
                 </h3>
                 <p className="text-sm text-gray-600">Avg Applications</p>
@@ -559,7 +557,7 @@ export default function AdminHome() {
             </div>
             
             {/* Student Statistics Breakdown */}
-            {dashboardData.stats.totalStudents !== undefined && (
+            {s.totalStudents !== undefined && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                   <Users className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
@@ -567,28 +565,28 @@ export default function AdminHome() {
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-700">{dashboardData.stats.totalStudents || 0}</div>
+                    <div className="text-2xl font-bold text-blue-700">{s.totalStudents ?? 0}</div>
                     <div className="text-sm text-blue-600 mt-1">Total Students</div>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-700">{dashboardData.stats.activeStudents || 0}</div>
+                    <div className="text-2xl font-bold text-green-700">{s.activeStudents ?? 0}</div>
                     <div className="text-sm text-green-600 mt-1">Active</div>
                   </div>
-                  {dashboardData.stats.blockedStudents > 0 && (
+                  {(s.blockedStudents ?? 0) > 0 && (
                     <div className="bg-red-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-red-700">{dashboardData.stats.blockedStudents || 0}</div>
+                      <div className="text-2xl font-bold text-red-700">{s.blockedStudents ?? 0}</div>
                       <div className="text-sm text-red-600 mt-1">Blocked</div>
                     </div>
                   )}
-                  {dashboardData.stats.pendingStudents > 0 && (
+                  {(s.pendingStudents ?? 0) > 0 && (
                     <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-yellow-700">{dashboardData.stats.pendingStudents || 0}</div>
+                      <div className="text-2xl font-bold text-yellow-700">{s.pendingStudents ?? 0}</div>
                       <div className="text-sm text-yellow-600 mt-1">Pending</div>
                     </div>
                   )}
-                  {dashboardData.stats.rejectedStudents > 0 && (
+                  {(s.rejectedStudents ?? 0) > 0 && (
                     <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-gray-700">{dashboardData.stats.rejectedStudents || 0}</div>
+                      <div className="text-2xl font-bold text-gray-700">{s.rejectedStudents ?? 0}</div>
                       <div className="text-sm text-gray-600 mt-1">Rejected</div>
                     </div>
                   )}
@@ -605,7 +603,7 @@ export default function AdminHome() {
                     <span className="font-semibold">Job Market</span>
                   </div>
                   <p className="text-blue-600">
-                    {dashboardData.stats.totalJobsPosted} active positions from {dashboardData.stats.activeRecruiters} companies
+                    {s.totalJobsPosted ?? 0} active positions from {s.activeRecruiters ?? 0} companies
                   </p>
                 </div>
                 
@@ -615,11 +613,11 @@ export default function AdminHome() {
                     <span className="font-semibold">Student Activity</span>
                   </div>
                   <p className="text-green-600">
-                    {dashboardData.stats.activeStudents || 0} active out of {dashboardData.stats.totalStudents || 0} total students
+                    {s.activeStudents ?? 0} active out of {s.totalStudents ?? 0} total students
                   </p>
-                  {dashboardData.stats.blockedStudents > 0 && (
+                  {(s.blockedStudents ?? 0) > 0 && (
                     <p className="text-xs text-red-600 mt-1">
-                      {dashboardData.stats.blockedStudents} blocked, {dashboardData.stats.pendingStudents || 0} pending
+                      {s.blockedStudents ?? 0} blocked, {s.pendingStudents ?? 0} pending
                     </p>
                   )}
                 </div>
@@ -630,9 +628,9 @@ export default function AdminHome() {
                     <span className="font-semibold">Support Status</span>
                   </div>
                   <p className="text-purple-600">
-                    {dashboardData.stats.pendingQueries === 0 
+                    {(s.pendingQueries ?? 0) === 0 
                       ? 'All queries resolved ✨' 
-                      : `${dashboardData.stats.pendingQueries} queries need attention`}
+                      : `${s.pendingQueries ?? 0} queries need attention`}
                   </p>
                 </div>
               </div>
@@ -654,7 +652,7 @@ export default function AdminHome() {
             </div>
             <div className="p-6">
               <div className="h-80">
-                {dashboardData.chartData.placementTrend && dashboardData.chartData.placementTrend.labels ? (
+                {dashboardData?.chartData?.placementTrend?.labels ? (
                   <Line 
                     data={dashboardData.chartData.placementTrend}
                     options={{
@@ -721,7 +719,7 @@ export default function AdminHome() {
               </div>
               <div className="p-4">
                 <div className="h-48">
-                  {dashboardData.chartData.queryVolume && dashboardData.chartData.queryVolume.length > 0 ? (
+                  {dashboardData?.chartData?.queryVolume?.length > 0 ? (
                     <PieChart 
                       data={dashboardData.chartData.queryVolume}
                       lineWidth={60}
@@ -756,7 +754,7 @@ export default function AdminHome() {
               </div>
               <div className="p-4">
                 <div className="h-48">
-                  {dashboardData.chartData.recruiterActivity && dashboardData.chartData.recruiterActivity.labels ? (
+                  {dashboardData?.chartData?.recruiterActivity?.labels ? (
                     <Bar 
                       data={dashboardData.chartData.recruiterActivity}
                       options={{

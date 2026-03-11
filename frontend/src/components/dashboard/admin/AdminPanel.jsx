@@ -218,8 +218,6 @@ const AdminPanel = () => {
             { id: 'NOIDA', name: 'Noida' },
             { id: 'LUCKNOW', name: 'Lucknow' },
             { id: 'PUNE', name: 'Pune' },
-            { id: 'PATNA', name: 'Patna' },
-            { id: 'INDORE', name: 'Indore' }
           ],
           schools: [
             { id: 'SOT', name: 'School of Technology' },
@@ -249,8 +247,6 @@ const AdminPanel = () => {
             { id: 'NOIDA', name: 'Noida' },
             { id: 'LUCKNOW', name: 'Lucknow' },
             { id: 'PUNE', name: 'Pune' },
-            { id: 'PATNA', name: 'Patna' },
-            { id: 'INDORE', name: 'Indore' }
           ],
           schools: [
             { id: 'SOT', name: 'School of Technology' },

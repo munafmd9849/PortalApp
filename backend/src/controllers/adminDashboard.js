@@ -1,140 +1,217 @@
 import prisma from '../config/database.js';
 
 /**
- * Get dashboard statistics
+ * Build student WHERE clause from query filters
+ */
+function buildStudentWhere(center, school, quarter, batch) {
+    const studentWhere = {};
+    if (center) {
+        const centers = center.split(',').map((c) => c.trim()).filter(Boolean);
+        if (centers.length) studentWhere.center = { in: centers, mode: 'insensitive' };
+    }
+    if (school) {
+        const schools = school.split(',').map((s) => s.trim()).filter(Boolean);
+        if (schools.length) studentWhere.school = { in: schools, mode: 'insensitive' };
+    }
+    const batches = [];
+    if (batch) batches.push(...batch.split(',').map((b) => b.trim()).filter(Boolean));
+    if (quarter) {
+        const quarterToBatch = {
+            'Q1 (PRE-PLACEMENT)': '25-29',
+            'Q2 (PLACEMENT DRIVE)': '24-28',
+            'Q3 (INTERNSHIP)': '23-27',
+            'Q4 (FINAL PLACEMENTS)': '26-30',
+        };
+        quarter.split(',').forEach((q) => {
+            const uppercaseQ = String(q).trim().toUpperCase();
+            batches.push(quarterToBatch[uppercaseQ] || q);
+        });
+    }
+    if (batches.length) {
+        studentWhere.batch = { in: batches, mode: 'insensitive' };
+    }
+    return studentWhere;
+}
+
+/**
+ * Get dashboard statistics (optimized: parallel queries, aggregates instead of findMany)
  * @route GET /api/admin/dashboard
  */
 export const getDashboardStats = async (req, res) => {
     try {
         const { center, school, quarter, batch } = req.query;
+        const studentWhere = buildStudentWhere(center, school, quarter, batch);
+        const hasStudentFilter = Object.keys(studentWhere).length > 0;
 
-        // Build the WHERE clause for students based on filters
-        const studentWhere = {};
-        if (center) {
-            const centers = center.split(',');
-            studentWhere.center = { in: centers, mode: 'insensitive' };
-        }
-        if (school) {
-            const schools = school.split(',');
-            studentWhere.school = { in: schools, mode: 'insensitive' };
-        }
-
-        // Handle batch filtering (including mapping from quarters)
-        const batches = [];
-        if (batch) batches.push(...batch.split(','));
-        if (quarter) {
-            const quarterToBatch = {
-                'Q1 (PRE-PLACEMENT)': '25-29',
-                'Q2 (PLACEMENT DRIVE)': '24-28',
-                'Q3 (INTERNSHIP)': '23-27',
-                'Q4 (FINAL PLACEMENTS)': '26-30'
-            };
-            quarter.split(',').forEach(q => {
-                const uppercaseQ = String(q).trim().toUpperCase();
-                if (quarterToBatch[uppercaseQ]) batches.push(quarterToBatch[uppercaseQ]);
-                else batches.push(q);
-            });
-        }
-        if (batches.length > 0) {
-            studentWhere.batch = { in: batches, mode: 'insensitive' };
-        }
-
-        // 1. Total Jobs Posted
-        // All jobs that are actually posted
-        const totalJobsPosted = await prisma.job.count({
-            where: {
-                OR: [
-                    { isPosted: true },
-                    { status: { equals: 'POSTED', mode: 'insensitive' } }
-                ]
-            }
-        });
-
-        // 2. Active Recruiters
-        const activeRecruiters = await prisma.recruiter.count({
-            where: {
-                user: {
-                    status: { in: ['ACTIVE', 'PENDING'], mode: 'insensitive' }
-                }
-            }
-        });
-
-        // 3. Active Students (Filtered)
-        const activeStudents = await prisma.student.count({
-            where: {
-                ...studentWhere,
-                user: {
-                    status: { equals: 'ACTIVE', mode: 'insensitive' }
-                }
-            }
-        });
-
-        // 4. Pending Queries (Filtered) - StudentQuery links to User, filter via user.student
-        const pendingQueriesWhere = {
-            status: { in: ['OPEN', 'PENDING', 'UNRESOLVED'], mode: 'insensitive' }
+        const placementStatusFilter = {
+            OR: [
+                { status: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
+                { interviewStatus: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
+            ],
         };
-        if (Object.keys(studentWhere).length > 0) {
-            pendingQueriesWhere.user = { student: studentWhere };
-        }
-        const pendingQueries = await prisma.studentQuery.count({
-            where: pendingQueriesWhere
-        });
 
-        // 5. Total Applications (Filtered)
-        const totalApplications = await prisma.application.count({
-            where: {
-                student: studentWhere // Apply same filters
-            }
-        });
+        // --- PHASE 1: Run all independent stats in parallel ---
+        const [
+            totalJobsPosted,
+            activeRecruiters,
+            activeStudents,
+            pendingQueries,
+            totalApplications,
+            placedStudentsResult,
+            queryVolumeGroup,
+            topRecruitersWithJobs,
+        ] = await Promise.all([
+            prisma.job.count({
+                where: {
+                    OR: [{ isPosted: true }, { status: { equals: 'POSTED', mode: 'insensitive' } }],
+                },
+            }),
+            prisma.recruiter.count({
+                where: {
+                    user: { status: { in: ['ACTIVE', 'PENDING'], mode: 'insensitive' } },
+                },
+            }),
+            prisma.student.count({
+                where: {
+                    ...studentWhere,
+                    user: { status: { equals: 'ACTIVE', mode: 'insensitive' } },
+                },
+            }),
+            prisma.studentQuery.count({
+                where: {
+                    status: { in: ['OPEN', 'PENDING', 'UNRESOLVED'], mode: 'insensitive' },
+                    ...(hasStudentFilter && { user: { student: studentWhere } }),
+                },
+            }),
+            prisma.application.count({
+                where: { student: studentWhere },
+            }),
+            prisma.application.groupBy({
+                by: ['studentId'],
+                where: {
+                    student: studentWhere,
+                    ...placementStatusFilter,
+                },
+                _count: { id: true },
+            }).then((groups) => groups.length),
+            prisma.studentQuery.groupBy({
+                by: ['type'],
+                where: hasStudentFilter ? { user: { student: studentWhere } } : {},
+                _count: { id: true },
+            }),
+            prisma.recruiter.findMany({
+                where: { jobs: { some: {} } },
+                select: {
+                    id: true,
+                    companyName: true,
+                    user: { select: { displayName: true, email: true } },
+                    jobs: { select: { id: true } },
+                },
+            }),
+        ]);
 
-        // 6. Placed Students (Filtered)
-        // Count distinct students who have an application with a placement status
-        const placedStudentsResult = await prisma.application.findMany({
-            where: {
-                student: studentWhere,
-                OR: [
-                    { status: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
-                    { interviewStatus: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } }
-                ]
-            },
-            select: {
-                studentId: true
-            },
-            distinct: ['studentId']
-        });
-        const placedStudents = placedStudentsResult.length;
+        const placedStudents = placedStudentsResult;
 
-        // --- CHART DATA ---
+        const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+        const queryVolumeData = queryVolumeGroup
+            .filter((g) => g._count.id > 0)
+            .map((g, index) => ({
+                title: ((g.type || 'Other').charAt(0).toUpperCase() + (g.type || 'Other').slice(1)),
+                value: g._count.id,
+                color: colors[index % colors.length],
+            }));
 
-        // 7. Placement Trend (Last 6 Months)
+        // --- PHASE 2: Recruiter activity - single app count grouped by jobId ---
+        const allJobIds = topRecruitersWithJobs.flatMap((r) => r.jobs.map((j) => j.id));
+        const appCountByJobId = allJobIds.length
+            ? await prisma.application.groupBy({
+                  by: ['jobId'],
+                  where: { jobId: { in: allJobIds } },
+                  _count: { id: true },
+              }).then((groups) => {
+                  const map = {};
+                  groups.forEach((g) => { map[g.jobId] = g._count.id; });
+                  return map;
+              })
+            : {};
+
+        const recruiterActivityList = topRecruitersWithJobs
+            .map((r) => {
+                const jobIds = r.jobs.map((j) => j.id);
+                const applications = jobIds.reduce((sum, jid) => sum + (appCountByJobId[jid] || 0), 0);
+                return {
+                    name: r.user?.displayName || r.user?.email || r.companyName || 'Unknown',
+                    jobsPosted: jobIds.length,
+                    applications,
+                };
+            })
+            .filter((r) => r.jobsPosted > 0)
+            .sort((a, b) => b.jobsPosted - a.jobsPosted)
+            .slice(0, 10);
+
+        const recruiterActivity =
+            recruiterActivityList.length > 0
+                ? {
+                      labels: recruiterActivityList.map((r) =>
+                          r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
+                      ),
+                      datasets: [
+                          {
+                              label: 'Jobs Posted',
+                              data: recruiterActivityList.map((r) => r.jobsPosted),
+                              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                              borderColor: 'rgb(34, 197, 94)',
+                              borderWidth: 1,
+                          },
+                      ],
+                  }
+                : null;
+
+        // --- PHASE 3: Placement trend - raw SQL for efficient month grouping ---
         const today = new Date();
         const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1);
 
-        // Get all placements in the last 6 months
-        const recentPlacements = await prisma.application.findMany({
-            where: {
-                student: studentWhere,
-                appliedDate: { gte: sixMonthsAgo },
-                OR: [
-                    { status: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
-                    { interviewStatus: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } }
-                ]
-            },
-            select: { appliedDate: true }
-        });
+        const studentFilterConditions = [];
+        const params = [sixMonthsAgo];
+        let paramIdx = 1;
+        if (studentWhere.center) {
+            studentFilterConditions.push(`s.center = ANY($${++paramIdx}::text[])`);
+            params.push(studentWhere.center.in);
+        }
+        if (studentWhere.school) {
+            studentFilterConditions.push(`s.school = ANY($${++paramIdx}::text[])`);
+            params.push(studentWhere.school.in);
+        }
+        if (studentWhere.batch) {
+            studentFilterConditions.push(`s.batch = ANY($${++paramIdx}::text[])`);
+            params.push(studentWhere.batch.in);
+        }
+        const studentFilterSql = studentFilterConditions.length
+            ? `AND ${studentFilterConditions.join(' AND ')}`
+            : '';
 
-        // Group by month manually (Prisma groupBy by month requires raw queries, doing it in memory is fine for a small subset)
+        const placementTrendRaw = await prisma.$queryRawUnsafe(`
+            SELECT to_char(a."appliedDate", 'Mon YYYY') AS month, COUNT(*)::int AS cnt
+            FROM applications a
+            JOIN students s ON a."studentId" = s.id
+            WHERE a."appliedDate" >= $1
+              AND (UPPER(a.status) IN ('SELECTED','ACCEPTED','OFFERED')
+                   OR UPPER(a."interviewStatus") IN ('SELECTED','ACCEPTED','OFFERED'))
+              ${studentFilterSql}
+            GROUP BY to_char(a."appliedDate", 'Mon YYYY'), date_trunc('month', a."appliedDate")
+            ORDER BY date_trunc('month', a."appliedDate")
+        `, ...params);
+
         const placementTrendMap = {};
         for (let i = 5; i >= 0; i--) {
             const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
             const monthLabel = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
             placementTrendMap[monthLabel] = 0;
         }
-
-        recentPlacements.forEach(app => {
-            const monthLabel = app.appliedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-            if (placementTrendMap[monthLabel] !== undefined) {
-                placementTrendMap[monthLabel]++;
+        (placementTrendRaw || []).forEach((row) => {
+            const label = String(row.month || '').trim();
+            if (placementTrendMap[label] !== undefined) {
+                placementTrendMap[label] = Number(row.cnt) || 0;
             }
         });
 
@@ -152,88 +229,41 @@ export const getDashboardStats = async (req, res) => {
             ],
         };
 
-        // 8. Recruiter Activity (Top 10)
-        // We get recruiter jobs, then fetch applications for those jobs
-        const topRecruiters = await prisma.recruiter.findMany({
-            include: {
-                user: { select: { displayName: true, email: true } },
-                jobs: { select: { id: true } }
-            }
-        });
-
-        let recruiterActivityList = await Promise.all(topRecruiters.map(async (r) => {
-            const jobIds = r.jobs.map(j => j.id);
-            const appCount = await prisma.application.count({
-                where: { jobId: { in: jobIds } }
-            });
-
-            return {
-                name: r.user?.displayName || r.user?.email || r.companyName || 'Unknown',
-                jobsPosted: jobIds.length,
-                applications: appCount
-            };
-        }));
-
-        recruiterActivityList = recruiterActivityList
-            .filter(r => r.jobsPosted > 0)
-            .sort((a, b) => b.jobsPosted - a.jobsPosted)
-            .slice(0, 10);
-
-        let recruiterActivity = null;
-        if (recruiterActivityList.length > 0) {
-            recruiterActivity = {
-                labels: recruiterActivityList.map(r => r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name),
-                datasets: [{
-                    label: 'Jobs Posted',
-                    data: recruiterActivityList.map(r => r.jobsPosted),
-                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                    borderColor: 'rgb(34, 197, 94)',
-                    borderWidth: 1,
-                }]
-            };
-        }
-
-        // 9. Query Volume - StudentQuery links to User, filter via user.student
-        const queryVolumeWhere = Object.keys(studentWhere).length > 0
-            ? { user: { student: studentWhere } }
-            : {};
-        const queryTypesGroup = await prisma.studentQuery.groupBy({
-            by: ['type'],
-            where: queryVolumeWhere,
-            _count: { id: true }
-        });
-
-        const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
-        const queryVolumeData = queryTypesGroup
-            .filter(g => g._count.id > 0)
-            .map((g, index) => ({
-                title: (g.type || 'Other').charAt(0).toUpperCase() + (g.type || 'Other').slice(1),
-                value: g._count.id,
-                color: colors[index % colors.length]
-            }));
-
-        // 10. School Performance (SOT, SOM, SOH)
+        // --- PHASE 4: School performance - parallel count queries ---
         const schools = ['SOT', 'SOM', 'SOH'];
+        const schoolPromises = schools.flatMap((schoolCode) => {
+            const localStudentWhere = {
+                ...studentWhere,
+                school: { equals: schoolCode, mode: 'insensitive' },
+            };
+            const placedWhere = {
+                student: localStudentWhere,
+                ...placementStatusFilter,
+            };
+            return [
+                prisma.student.count({ where: localStudentWhere }),
+                prisma.application.count({ where: { student: localStudentWhere } }),
+                prisma.application.count({
+                    where: placedWhere,
+                }),
+                prisma.application.count({
+                    where: {
+                        student: localStudentWhere,
+                        screeningStatus: { equals: 'TEST_SELECTED', mode: 'insensitive' },
+                    },
+                }),
+            ];
+        });
+
+        const schoolResults = await Promise.all(schoolPromises);
+
         const schoolPerformance = {};
-
-        for (const schoolCode of schools) {
-            const localStudentWhere = { ...studentWhere, school: { equals: schoolCode, mode: 'insensitive' } };
-
-            const totalSchStudents = await prisma.student.count({ where: localStudentWhere });
-
-            const apps = await prisma.application.findMany({
-                where: { student: localStudentWhere },
-                select: { status: true, interviewStatus: true, screeningStatus: true }
-            });
-
-            const applied = apps.length;
-            const placed = apps.filter(a => {
-                const s1 = String(a.status || '').toUpperCase();
-                const s2 = String(a.interviewStatus || '').toUpperCase();
-                return ['SELECTED', 'ACCEPTED', 'OFFERED'].includes(s1) || ['SELECTED', 'ACCEPTED', 'OFFERED'].includes(s2);
-            }).length;
-
-            const interviewEligible = apps.filter(a => String(a.screeningStatus || '').toUpperCase() === 'TEST_SELECTED').length;
+        schools.forEach((schoolCode, sIdx) => {
+            const base = sIdx * 4;
+            const totalSchStudents = schoolResults[base];
+            const applied = schoolResults[base + 1];
+            const placed = schoolResults[base + 2];
+            const interviewEligible = schoolResults[base + 3];
 
             const placementRate = totalSchStudents > 0 ? Math.round((placed / totalSchStudents) * 100) : 0;
             const applicationRate = totalSchStudents > 0 ? Math.round((applied / totalSchStudents) * 100) : 0;
@@ -250,7 +280,7 @@ export const getDashboardStats = async (req, res) => {
                     values: [totalSchStudents, applied, interviewEligible, placed],
                 },
             };
-        }
+        });
 
         res.json({
             stats: {
@@ -259,16 +289,15 @@ export const getDashboardStats = async (req, res) => {
                 activeStudents,
                 pendingQueries,
                 totalApplications,
-                placedStudents
+                placedStudents,
             },
             chartData: {
                 placementTrend,
                 recruiterActivity,
                 queryVolume: queryVolumeData,
-                schoolPerformance
-            }
+                schoolPerformance,
+            },
         });
-
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);
         res.status(500).json({ error: 'Failed to fetch dashboard statistics' });

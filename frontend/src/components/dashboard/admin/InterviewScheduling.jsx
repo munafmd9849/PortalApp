@@ -78,26 +78,54 @@ export default function InterviewScheduling() {
     };
   }, []);
 
-  const loadJobs = async () => {
+  const loadJobs = async (forceRefresh = false) => {
     try {
-      setLoading(true);
-      
-      // For recruiters, only load their own posted and approved jobs
-      // Recruiters can start interview sessions for their jobs on the drive date
-      let jobsList = [];
-      if ((role || user?.role || '').toLowerCase() === 'recruiter') {
+      // 1. CACHE-FIRST LOADING (Eliminate flickers)
+      const isRecruiter = (role || user?.role || '').toLowerCase() === 'recruiter';
+      let recruiterId = null;
+      if (isRecruiter) {
         const me = await api.getCurrentUser();
-        const recruiterId = me?.user?.recruiter?.id;
-        if (recruiterId) {
-          // Only show jobs that are posted and approved (status: POSTED)
-          const data = await api.getJobs({ recruiterId, isPosted: true, status: 'POSTED', limit: 1000 });
-          jobsList = data.jobs || (Array.isArray(data) ? data : []);
-        }
-      } else {
-        // Admin/Super Admin: get all posted jobs
-        const data = await api.getJobs({ isPosted: true, status: 'POSTED' });
-        jobsList = data.jobs || (Array.isArray(data) ? data : []);
+        recruiterId = me?.user?.recruiter?.id;
       }
+
+      const params = isRecruiter 
+        ? { recruiterId, isPosted: true, status: 'POSTED', limit: 1000 }
+        : { isPosted: true, status: 'POSTED' };
+
+      // Reconstruct endpoint for cache lookup (matches api.js logic)
+      const toQueryString = (p) => {
+        const sp = new URLSearchParams();
+        Object.entries(p).forEach(([k, v]) => v !== undefined && v !== null && sp.append(k, String(v)));
+        return sp.toString();
+      };
+      const qs = toQueryString(params);
+      const jobsEndpoint = qs ? `/jobs?${qs}` : '/jobs';
+      const cacheKey = `api_cache_${jobsEndpoint}`;
+      
+      const cached = localStorage.getItem(cacheKey);
+      if (cached && !forceRefresh) {
+        try {
+          const { data, timestamp } = JSON.parse(cached);
+          const TTL = 5 * 60 * 1000;
+          if (Date.now() - timestamp < TTL) {
+            console.log('🚀 [InterviewScheduling] Cache hit - serving O(1)');
+            setJobs(data.jobs || (Array.isArray(data) ? data : []));
+            setLoading(false);
+            // We still proceed to fetch in background (silent update) 
+            // but we don't trigger a full page loader
+          }
+        } catch (e) {
+          console.warn('Cache parse error:', e);
+        }
+      }
+
+      if (loading && !cached) {
+        setLoading(true);
+      }
+      
+      // Admin/Super Admin/Recruiter: get posted jobs
+      const data = await api.getJobs(params);
+      const jobsList = data.jobs || (Array.isArray(data) ? data : []);
       
       setJobs(jobsList);
       
@@ -105,23 +133,25 @@ export default function InterviewScheduling() {
         console.log('No jobs found with isPosted=true filter');
       }
       
-      // Check session status for all jobs to properly show/hide Start Session buttons
+      // 2. PARALLELIZED SESSION FETCH (Eliminate N+1 blocking)
+      // Check session status for all jobs in parallel to avoid sequential delays
+      const sessionResults = await Promise.allSettled(
+        jobsList.map(job => api.get(`/interview-sessions/${job.id}`, { silent: true }))
+      );
+      
       const completedSet = new Set();
-      for (const job of jobsList) {
-        try {
-          const response = await api.get(`/interview-sessions/${job.id}`, { silent: true });
-          const session = response?.data?.session ?? response?.session;
+      sessionResults.forEach((res, index) => {
+        if (res.status === 'fulfilled' && res.value) {
+          const session = res.value.session ?? res.value.data?.session;
           if (session && (session.status === 'COMPLETED' || session.status === 'INCOMPLETE')) {
-            completedSet.add(job.id);
+            completedSet.add(jobsList[index].id);
           }
-        } catch (error) {
-          // Ignore errors - session might not exist yet
         }
-      }
+      });
+      
       setCompletedSessions(completedSet);
     } catch (error) {
       console.error('Error loading jobs:', error);
-      // Error is already handled by centralized API client (toast shown)
     } finally {
       setLoading(false);
     }

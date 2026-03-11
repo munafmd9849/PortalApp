@@ -268,7 +268,7 @@ const JobDescriptionPage = () => {
                 showFooter={true}
                 hideHeader={true}
                 onClose={handleBack}
-                onApply={handleApply}
+                onApply={(role || '').toLowerCase() === 'student' ? handleApply : undefined}
                 onShare={null}
                 onPrint={null}
               />
@@ -305,7 +305,7 @@ const JobDescriptionPage = () => {
                 showFooter={true}
                 hideHeader={true}
                 onClose={handleBack}
-                onApply={handleApply}
+                onApply={(role || '').toLowerCase() === 'student' ? handleApply : undefined}
                 onShare={null}
                 onPrint={null}
               />

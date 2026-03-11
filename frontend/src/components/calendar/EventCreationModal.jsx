@@ -23,8 +23,6 @@ const LOCATION_OPTIONS = [
   { value: 'PW IOI Campus, Noida', label: 'PW IOI Campus, Noida' },
   { value: 'PW IOI Campus, Lucknow', label: 'PW IOI Campus, Lucknow' },
   { value: 'PW IOI Campus, Pune', label: 'PW IOI Campus, Pune' },
-  { value: 'PW IOI Campus, Patna', label: 'PW IOI Campus, Patna' },
-  { value: 'PW IOI Campus, Indore', label: 'PW IOI Campus, Indore' },
   { value: 'Company Premises', label: 'Company Premises' },
 ];
 

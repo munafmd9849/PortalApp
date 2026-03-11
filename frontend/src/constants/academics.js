@@ -2,9 +2,7 @@ export const CENTER_OPTIONS = [
   { id: 'BANGALORE', name: 'Bangalore' },
   { id: 'NOIDA', name: 'Noida' },
   { id: 'LUCKNOW', name: 'Lucknow' },
-  { id: 'PUNE', name: 'Pune' },
-  { id: 'PATNA', name: 'Patna' },
-  { id: 'INDORE', name: 'Indore' }
+  { id: 'PUNE', name: 'Pune' }
 ];
 
 export const SCHOOL_OPTIONS = [

@@ -262,8 +262,6 @@ export default function ProfileCompletionModal({ isOpen, onSaved }) {
                     { value: 'NOIDA', label: 'Noida' },
                     { value: 'LUCKNOW', label: 'Lucknow' },
                     { value: 'PUNE', label: 'Pune' },
-                    { value: 'PATNA', label: 'Patna' },
-                    { value: 'INDORE', label: 'Indore' }
                   ]}
                   value={center}
                   onChange={(value) => setCenter(value)}
