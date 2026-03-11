@@ -902,9 +902,9 @@ export default function ManageJobs() {
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
                                     {showSchools[job.id] && (
-                                      <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
+                                      <div className="absolute z-10 w-full bg-white border-2 border-slate-300 rounded-md shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {schoolOptions.map((school) => (
-                                          <label key={school.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
+                                          <label key={school.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
                                               checked={selectedSchools[job.id]?.includes(school.storage) || false}
@@ -946,9 +946,9 @@ export default function ManageJobs() {
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
                                     {showBatches[job.id] && (
-                                      <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
+                                      <div className="absolute z-10 w-full bg-white border-2 border-slate-300 rounded-md shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {batchOptions.map((batch) => (
-                                          <label key={batch.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
+                                          <label key={batch.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
                                               checked={selectedBatches[job.id]?.includes(batch.storage) || false}
@@ -991,9 +991,9 @@ export default function ManageJobs() {
                                       <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     </button>
                                     {showCenters[job.id] && (
-                                      <div className="absolute z-10 overflow-hidden w-full bg-white border-2 border-slate-300 rounded-md shadow-lg">
+                                      <div className="absolute z-10 w-full bg-white border-2 border-slate-300 rounded-md shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {centerOptions.map((center) => (
-                                          <label key={center.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0">
+                                          <label key={center.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-200 last:border-b-0 shrink-0">
                                             <input
                                               type="checkbox"
                                               checked={selectedCenters[job.id]?.includes(center.storage) || false}

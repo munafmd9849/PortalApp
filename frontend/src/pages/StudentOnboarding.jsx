@@ -110,8 +110,13 @@ export default function StudentOnboarding() {
                 window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { userId: user.id } }));
             }
 
+            // Clear profile cache so dashboard fetches fresh data (avoids stale cache from pre-onboarding)
+            try {
+                localStorage.removeItem(`student_profile_${user.id}`);
+            } catch (_) { /* ignore */ }
+
             showSuccess('Profile completed successfully! Welcome aboard.');
-            navigate('/student', { replace: true });
+            navigate('/student', { replace: true, state: { fromOnboarding: true } });
         } catch (error) {
             const backend = error?.response?.data;
             if (backend?.field === 'enrollmentId') {

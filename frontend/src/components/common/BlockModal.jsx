@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { MdBlock } from 'react-icons/md';
-import { FaCheckCircle, FaBuilding, FaInfoCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaBuilding, FaInfoCircle, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import CustomDropdown from './CustomDropdown';
+
+// Format Date for display in warning (date only)
+const formatBlockDate = (date) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 const BlockModal = ({ 
   isOpen, 
   entity, 
   entityType = 'student', // 'student' | 'recruiter'
   isUnblocking = false, 
+  canUnblockPermanent = false, // Only Super Admin can unblock permanently blocked students
   onClose, 
   onConfirm 
 }) => {
   const [blockType, setBlockType] = useState(entityType === 'student' ? 'Permanent' : 'temporary');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [blockStartDate, setBlockStartDate] = useState(null);
+  const [blockEndDate, setBlockEndDate] = useState(null);
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [otherReason, setOtherReason] = useState('');
@@ -42,30 +51,39 @@ const BlockModal = ({
   useEffect(() => {
     if (isOpen) {
       setBlockType(entityType === 'student' ? 'Permanent' : 'temporary');
-      setEndDate('');
-      setEndTime('');
+      setBlockStartDate(null);
+      setBlockEndDate(null);
       setReason('');
       setNotes('');
       setOtherReason('');
     }
   }, [isOpen, entityType]);
 
-  // Check if student is permanently blocked
+  // Lock body scroll while modal is open (must be before early return - Rules of Hooks)
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
+  // Check if student is permanently blocked (only Super Admin can unblock via canUnblockPermanent)
   const isPermanentlyBlocked = entityType === 'student' && entity?.blockInfo?.type === 'permanent';
   
   // Validation for student
   const isStudentUnblock = entityType === 'student' && isUnblocking;
   const hasValidReason = reason && reason.trim() !== '' && (reason !== 'Other' || (otherReason && otherReason.trim() !== ''));
+  const hasValidTemporaryDates = blockStartDate && blockEndDate && blockEndDate >= blockStartDate;
   const isStudentConfirmEnabled = isStudentUnblock
-    ? !isPermanentlyBlocked // Cannot unblock if permanently blocked
+    ? (canUnblockPermanent || !isPermanentlyBlocked) // Super Admin can unblock permanent; others cannot
     : (hasValidReason && // Reason is mandatory (and otherReason if reason is "Other")
         notes &&
-        (blockType === 'Permanent' || (blockType === 'Temporary' && endDate && endTime)));
+        (blockType === 'Permanent' || (blockType === 'Temporary' && hasValidTemporaryDates)));
 
   // Validation for recruiter
   const isRecruiterConfirmEnabled = 
     isUnblocking || 
-    (reason && (blockType === 'permanent' || (blockType === 'temporary' && endDate && endTime)));
+    (reason && (blockType === 'permanent' || (blockType === 'temporary' && hasValidTemporaryDates)));
 
   const isConfirmEnabled = entityType === 'student' ? isStudentConfirmEnabled : isRecruiterConfirmEnabled;
 
@@ -76,10 +94,18 @@ const BlockModal = ({
       if (isUnblocking) {
         onConfirm({ isUnblocking: true });
       } else {
+        const startDate = blockType === 'Temporary' && blockStartDate
+          ? blockStartDate.toISOString().slice(0, 10)
+          : null;
+        const endDate = blockType === 'Temporary' && blockEndDate
+          ? blockEndDate.toISOString().slice(0, 10)
+          : null;
+        const endTime = blockType === 'Temporary' ? '23:59' : null; // End of selected day
         onConfirm({
           blockType,
-          endDate: blockType === 'Temporary' ? endDate : null,
-          endTime: blockType === 'Temporary' ? endTime : null,
+          startDate,
+          endDate,
+          endTime,
           reason: reason === 'Other' ? otherReason : reason,
           notes,
         });
@@ -87,8 +113,8 @@ const BlockModal = ({
     } else {
       // Recruiter
       if (!isUnblocking) {
-        if (blockType === 'temporary' && (!endDate || !endTime)) {
-          alert('Please select end date and time for temporary block.');
+        if (blockType === 'temporary' && !hasValidTemporaryDates) {
+          alert('Please select start date and end date for temporary block.');
           return;
         }
         if (!reason) {
@@ -97,12 +123,20 @@ const BlockModal = ({
         }
       }
 
+      const recruiterStartDate = !isUnblocking && blockType === 'temporary' && blockStartDate
+        ? blockStartDate.toISOString().slice(0, 10)
+        : null;
+      const recruiterEndDate = !isUnblocking && blockType === 'temporary' && blockEndDate
+        ? blockEndDate.toISOString().slice(0, 10)
+        : null;
+      const recruiterEndTime = !isUnblocking && blockType === 'temporary' ? '23:59' : null;
       onConfirm({
         recruiter: entity,
         isUnblocking,
         blockType: isUnblocking ? null : blockType,
-        endDate: isUnblocking ? null : endDate,
-        endTime: isUnblocking ? null : endTime,
+        startDate: isUnblocking ? null : recruiterStartDate,
+        endDate: isUnblocking ? null : recruiterEndDate,
+        endTime: isUnblocking ? null : recruiterEndTime,
         reason: isUnblocking ? null : reason,
         notes: isUnblocking ? null : notes
       });
@@ -120,10 +154,17 @@ const BlockModal = ({
   const isTemporary = (isStudent && blockType === 'Temporary') || (!isStudent && blockType === 'temporary');
 
   return (
-    <div className={`fixed inset-0 ${isStudent ? 'bg-black/70 backdrop-blur-sm' : 'bg-black bg-opacity-50'} flex items-center justify-center z-50 p-4 ${isStudent ? 'animate-in fade-in duration-200' : ''}`}>
-      <div className={`bg-white ${isStudent ? 'rounded-2xl shadow-2xl' : 'rounded-xl shadow-xl'} w-full max-w-2xl ${isStudent ? 'animate-in zoom-in-95 duration-300' : ''}`}>
+    <div className={`fixed inset-0 ${isStudent ? 'bg-black/70 backdrop-blur-sm' : 'bg-black/50'} flex items-center justify-center z-50 p-4`}>
+      <div className={`bg-white ${isStudent ? 'rounded-2xl shadow-2xl' : 'rounded-xl shadow-xl'} w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden scrollbar-hide`}>
         {/* Header */}
-        <div className={`${isStudent ? 'bg-gradient-to-r from-red-600 to-rose-600 p-6' : `px-6 py-4 border-b border-gray-200 ${isUnblocking ? 'bg-gradient-to-r from-green-50 to-emerald-50' : 'bg-gradient-to-r from-red-50 to-rose-50'}`}`}>
+        <div className={`relative ${isStudent ? 'bg-gradient-to-r from-red-600 to-rose-600 p-6 pr-12 sticky top-0 z-10' : `px-6 py-4 pr-12 border-b border-gray-200 ${isUnblocking ? 'bg-gradient-to-r from-green-50 to-emerald-50' : 'bg-gradient-to-r from-red-50 to-rose-50'}`}`}>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+            aria-label="Close"
+          >
+            <FaTimes className={`w-6 h-6 ${isStudent ? 'text-white' : 'text-gray-600'}`} />
+          </button>
           <h2 className={`${isStudent ? 'text-2xl font-bold text-white' : 'text-xl font-semibold text-gray-800'} flex items-center gap-2`}>
             {isUnblocking ? (
               <>
@@ -158,24 +199,32 @@ const BlockModal = ({
             </div>
           ) : isStudentUnblock ? (
             <div className="mb-4">
-              {isPermanentlyBlocked ? (
-                <>
-                  <p className="text-red-700 font-semibold">
-                    This student is permanently blocked and cannot be unblocked.
+              {isPermanentlyBlocked && !canUnblockPermanent ? (
+                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50">
+                  <p className="text-amber-900 font-semibold">
+                    This student is permanently blocked
                   </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Permanent blocks are irreversible. If you need to restore access, please contact a system administrator.
+                  <p className="text-sm text-amber-800 mt-1">
+                    Only Super Admin can unblock. Contact a Super Admin if you need to restore access.
                   </p>
-                </>
+                </div>
               ) : (
-                <>
-                  <p className="text-gray-700">
-                    Are you sure you want to unblock <strong>{entity?.fullName}</strong> ({entity?.enrollmentId})?
+                <div className="p-4 rounded-xl border border-green-200 bg-green-50/70">
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="font-semibold text-gray-900">{entity?.fullName}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                      {entity?.enrollmentId}
+                    </span>
+                    {isPermanentlyBlocked && canUnblockPermanent && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                        Permanent
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700">
+                    Restore access to apply for jobs and use the placement portal?
                   </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    This will restore their access to apply for jobs and use the placement portal.
-                  </p>
-                </>
+                </div>
               )}
             </div>
           ) : (
@@ -183,73 +232,162 @@ const BlockModal = ({
               {isStudent && (
                 <>
                   <p className="text-sm sm:text-base text-gray-600 mb-4">
-                    Are you sure you want to block the following student? This action is irreversible.
+                    Are you sure you want to block this student?
                   </p>
-                  <div className="mb-4">
-                    <p className="text-sm sm:text-base font-medium text-gray-700">Name: {entity?.fullName}</p>
-                    <p className="text-sm sm:text-base font-medium text-gray-700">Enrollment ID: {entity?.enrollmentId}</p>
-                    <p className="text-sm sm:text-base font-medium text-gray-700">Program: {entity?.school}</p>
+                  <div className="mb-5 p-4 rounded-xl border border-red-100 bg-red-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="text-sm sm:text-base font-semibold text-gray-900">
+                        {entity?.fullName}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-700 mt-1">
+                        Enrollment ID: <span className="font-medium">{entity?.enrollmentId}</span>
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-700">
+                        Program: <span className="font-medium">{entity?.school}</span>
+                      </p>
+                    </div>
                   </div>
                 </>
               )}
 
               {/* Block Type */}
-              <div className="mb-4">
-                <label className={`block ${isStudent ? 'text-sm sm:text-base' : 'text-lg'} font-medium text-gray-700 ${!isStudent ? 'mb-3' : 'mb-1'}`}>
+              <div className="mb-5">
+                <label className={`block ${isStudent ? 'text-sm sm:text-base' : 'text-lg'} font-medium text-gray-800 mb-2`}>
                   Block Type
                 </label>
-                <div className={isStudent ? 'flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4' : 'space-y-2'}>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="blockType"
-                      value={isStudent ? 'Permanent' : 'permanent'}
-                      checked={isPermanent}
-                      onChange={(e) => setBlockType(e.target.value)}
-                      className="mr-2"
-                    />
-                    <span className="text-gray-700">Permanent Block</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="blockType"
-                      value={isStudent ? 'Temporary' : 'temporary'}
-                      checked={isTemporary}
-                      onChange={(e) => setBlockType(e.target.value)}
-                      className="mr-2"
-                    />
-                    <span className={isStudent ? 'text-gray-700' : 'text-blue-600'}>Temporary Block</span>
-                  </label>
-                </div>
+                {isStudent ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setBlockType('Permanent')}
+                      className={`text-left p-4 rounded-xl border transition-all ${
+                        isPermanent
+                          ? 'border-red-500 bg-red-50 shadow-sm'
+                          : 'border-gray-200 bg-white hover:border-red-300'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-gray-900">Permanent Block</p>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Revokes all placement and application access permanently.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBlockType('Temporary')}
+                      className={`text-left p-4 rounded-xl border transition-all ${
+                        isTemporary
+                          ? 'border-amber-500 bg-amber-50 shadow-sm'
+                          : 'border-gray-200 bg-white hover:border-amber-300'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-gray-900">Temporary Block</p>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Blocks the student only until the selected date and time.
+                      </p>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="blockType"
+                        value="permanent"
+                        checked={isPermanent}
+                        onChange={(e) => setBlockType(e.target.value)}
+                        className="mr-2"
+                      />
+                      <span className="text-gray-700">Permanent Block</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="blockType"
+                        value="temporary"
+                        checked={isTemporary}
+                        onChange={(e) => setBlockType(e.target.value)}
+                        className="mr-2"
+                      />
+                      <span className="text-blue-600">Temporary Block</span>
+                    </label>
+                  </div>
+                )}
               </div>
 
-              {/* End Date and Time (only for temporary blocks) */}
+              {/* Start Date & End Date (only for temporary blocks) */}
               {isTemporary && (
                 <div className={`mb-4 ${isStudent ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'grid grid-cols-2 gap-4'}`}>
-                  <div>
+                  <style>{`
+                    .block-modal-datepicker .react-datepicker {
+                      font-family: inherit;
+                      border: 1px solid #e5e7eb;
+                      border-radius: 0.5rem;
+                      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+                    }
+                    .block-modal-datepicker .react-datepicker__header {
+                      background: linear-gradient(to right, #2563eb, #4f46e5);
+                      border-bottom: none;
+                      border-radius: 0.5rem 0.5rem 0 0;
+                    }
+                    .block-modal-datepicker .react-datepicker__current-month { color: white; font-weight: 600; font-size: 0.875rem; }
+                    .block-modal-datepicker .react-datepicker__day-name { color: white; font-weight: 500; }
+                    .block-modal-datepicker .react-datepicker__day--selected,
+                    .block-modal-datepicker .react-datepicker__day--keyboard-selected {
+                      background: linear-gradient(to right, #2563eb, #4f46e5);
+                      border-radius: 0.375rem;
+                    }
+                    .block-modal-datepicker .react-datepicker__day:hover {
+                      background-color: #dbeafe;
+                      border-radius: 0.375rem;
+                    }
+                    .block-modal-datepicker .react-datepicker__day--today { font-weight: 600; color: #2563eb; }
+                    .block-modal-datepicker .react-datepicker__navigation-icon::before { border-color: white; }
+                    .block-modal-datepicker .react-datepicker__triangle { display: none; }
+                  `}</style>
+                  <div className="block-modal-datepicker">
+                    <label className={`block ${isStudent ? 'text-sm sm:text-base' : ''} font-medium text-gray-700 ${isStudent ? 'mb-1' : 'mb-2'}`}>
+                      Start Date
+                    </label>
+                    <DatePicker
+                      selected={blockStartDate}
+                      onChange={(date) => {
+                        setBlockStartDate(date);
+                        // Clear end date if it would be before the new start date
+                        if (date && blockEndDate && blockEndDate < date) {
+                          setBlockEndDate(null);
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      placeholderText="Select start date"
+                      minDate={new Date()}
+                      maxDate={blockEndDate || undefined}
+                      className={`w-full ${isStudent ? 'p-2.5' : 'px-3 py-2'} border border-gray-300 ${isStudent ? 'rounded-lg' : 'rounded-md'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer`}
+                      wrapperClassName="w-full"
+                    />
+                  </div>
+                  <div className="block-modal-datepicker">
                     <label className={`block ${isStudent ? 'text-sm sm:text-base' : ''} font-medium text-gray-700 ${isStudent ? 'mb-1' : 'mb-2'}`}>
                       End Date
                     </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className={`w-full ${isStudent ? 'p-2.5' : 'px-3 py-2'} border border-gray-300 ${isStudent ? 'rounded-lg' : 'rounded-md'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      min={!isStudent ? new Date().toISOString().split('T')[0] : undefined}
+                    <DatePicker
+                      selected={blockEndDate}
+                      onChange={(date) => setBlockEndDate(date)}
+                      dateFormat="dd/MM/yyyy"
+                      placeholderText="Select end date"
+                      minDate={blockStartDate ? new Date(blockStartDate.getFullYear(), blockStartDate.getMonth(), blockStartDate.getDate()) : new Date()}
+                      filterDate={(date) => {
+                        if (!blockStartDate) return date >= new Date();
+                        const start = new Date(blockStartDate.getFullYear(), blockStartDate.getMonth(), blockStartDate.getDate());
+                        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                        return d >= start;
+                      }}
+                      className={`w-full ${isStudent ? 'p-2.5' : 'px-3 py-2'} border border-gray-300 ${isStudent ? 'rounded-lg' : 'rounded-md'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer ${blockEndDate && blockStartDate && blockEndDate < blockStartDate ? 'border-red-500' : ''}`}
+                      wrapperClassName="w-full"
                     />
                   </div>
-                  <div>
-                    <label className={`block ${isStudent ? 'text-sm sm:text-base' : ''} font-medium text-gray-700 ${isStudent ? 'mb-1' : 'mb-2'}`}>
-                      End Time
-                    </label>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className={`w-full ${isStudent ? 'p-2.5' : 'px-3 py-2'} border border-gray-300 ${isStudent ? 'rounded-lg' : 'rounded-md'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                    />
-                  </div>
+                  {blockEndDate && blockStartDate && blockEndDate < blockStartDate && (
+                    <p className="col-span-full text-red-600 text-sm mt-1">End date must be on or after start date.</p>
+                  )}
                 </div>
               )}
 
@@ -315,17 +453,26 @@ const BlockModal = ({
               </div>
 
               {/* Warning */}
-              <div className={`mb-4 ${isStudent ? 'text-sm sm:text-base text-red-600' : 'p-3 bg-red-50 border border-red-200 rounded-md'}`}>
-                <p className={isStudent ? '' : 'text-red-600 text-sm'}>
-                  <strong>Warning:</strong> {
-                    isPermanent
-                      ? (isStudent 
-                        ? 'Blocking this student will permanently revoke their application privileges.'
-                        : 'Blocking this recruiter will revoke their application privileges until unblocked.')
-                      : `Blocking this ${isStudent ? 'student' : 'recruiter'} will revoke their application privileges until ${endDate} ${endTime}.`
-                  }
-                </p>
-              </div>
+              {(() => {
+                const formattedStart = formatBlockDate(blockStartDate);
+                const formattedEnd = formatBlockDate(blockEndDate);
+                const warningText = isPermanent
+                  ? (isStudent
+                    ? 'Blocking this student will permanently revoke their application privileges.'
+                    : 'Blocking this recruiter will revoke their application privileges until unblocked.')
+                  : (formattedStart && formattedEnd)
+                    ? `Blocking this ${isStudent ? 'student' : 'recruiter'} will revoke their application privileges from ${formattedStart} until ${formattedEnd}.`
+                    : `Blocking this ${isStudent ? 'student' : 'recruiter'} will revoke their application privileges until you set start date and end date.`;
+                return (
+                  <div className="mb-4 p-4 rounded-xl border border-amber-200 bg-amber-50 flex gap-3">
+                    <FaExclamationTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">Warning</p>
+                      <p className="text-sm text-amber-800 mt-0.5">{warningText}</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
@@ -340,9 +487,9 @@ const BlockModal = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!isConfirmEnabled || (isStudentUnblock && isPermanentlyBlocked)}
+            disabled={!isConfirmEnabled || (isStudentUnblock && isPermanentlyBlocked && !canUnblockPermanent)}
             className={`${isStudent 
-              ? `px-4 py-2 rounded-lg text-white ${isConfirmEnabled && !(isStudentUnblock && isPermanentlyBlocked) ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`
+              ? `px-4 py-2 rounded-lg text-white ${isConfirmEnabled && !(isStudentUnblock && isPermanentlyBlocked && !canUnblockPermanent) ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`
               : `px-5 py-2.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm hover:shadow-md ${
                 isUnblocking 
                   ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white' 
@@ -351,10 +498,7 @@ const BlockModal = ({
             }`}
           >
             {isUnblocking ? (
-              <>
-                <FaCheckCircle className={isStudent ? '' : 'w-4 h-4'} />
-                <span>{isStudent ? 'Confirm Unblock' : 'Confirm Unblock'}</span>
-              </>
+              <span>{isStudent ? 'Confirm Unblock' : 'Confirm Unblock'}</span>
             ) : (
               <>
                 {!isStudent && <MdBlock className="w-4 h-4" />}

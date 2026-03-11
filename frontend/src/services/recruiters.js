@@ -97,6 +97,7 @@ export async function blockUnblockRecruiter(recruiterId, blockData, user = null)
     const payload = {
       isUnblocking: !!blockData?.isUnblocking,
       blockType: blockData?.blockType,
+      startDate: blockData?.startDate,
       endDate: blockData?.endDate,
       endTime: blockData?.endTime,
       reason: blockData?.reason,

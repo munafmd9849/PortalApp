@@ -388,7 +388,7 @@ export async function updateStudentProfile(req, res) {
         cleanData.email = cleanData.email.toLowerCase().trim();
       }
 
-      // Ensure required fields have defaults
+      // Ensure required fields have defaults (onboarding creates with all required fields → mark completed)
       const studentData = {
         userId: targetUserId,
         email: cleanData.email || user.email,
@@ -398,6 +398,7 @@ export async function updateStudentProfile(req, res) {
         school: cleanData.school || null,
         center: cleanData.center || null,
         batch: cleanData.batch || null,
+        profileCompleted: true, // First-time create from onboarding has all required fields
         ...cleanData, // Spread cleanData to include other fields like bio, headline, etc.
       };
 
@@ -2329,16 +2330,37 @@ export async function analyzeATSResume(req, res) {
 export async function blockUnblockStudent(req, res) {
   try {
     const { studentId } = req.params;
-    const { isUnblocking, blockType, endDate, endTime, reason, notes } = req.body;
+    const { isUnblocking, blockType, startDate, endDate, endTime, reason, notes } = req.body;
     const adminId = req.userId;
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      include: { user: { select: { id: true, email: true } } },
+      include: { user: { select: { id: true, email: true, blockInfo: true } } },
     });
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Only Super Admin can unblock a permanently blocked student
+    if (isUnblocking && student.user?.blockInfo) {
+      let blockInfo;
+      try {
+        blockInfo = typeof student.user.blockInfo === 'string'
+          ? JSON.parse(student.user.blockInfo)
+          : student.user.blockInfo;
+      } catch {
+        blockInfo = null;
+      }
+      if (blockInfo?.type === 'permanent') {
+        const callerRole = (req.user?.role || '').toUpperCase();
+        if (callerRole !== 'SUPER_ADMIN') {
+          return res.status(403).json({
+            error: 'Forbidden',
+            message: 'Only Super Admin can unblock permanently blocked students.',
+          });
+        }
+      }
     }
 
     const updateData = {
@@ -2350,6 +2372,7 @@ export async function blockUnblockStudent(req, res) {
     } else {
       const blockInfo = {
         type: blockType === 'temporary' ? 'temporary' : 'permanent',
+        startDate: blockType === 'temporary' ? startDate : null,
         endDate: blockType === 'temporary' ? endDate : null,
         endTime: blockType === 'temporary' ? endTime : null,
         reason: reason || '',

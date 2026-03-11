@@ -230,9 +230,9 @@ export default function AdminAnnouncements() {
                   <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
                 </button>
                 {showSchoolDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg overflow-hidden">
+                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {SCHOOL_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0">
+                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
                         <input
                           type="checkbox"
                           checked={targetSchools.includes(opt.id)}
@@ -264,9 +264,9 @@ export default function AdminAnnouncements() {
                   <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
                 </button>
                 {showBatchDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg overflow-hidden">
+                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {BATCH_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0">
+                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
                         <input
                           type="checkbox"
                           checked={targetBatches.includes(opt.id)}
@@ -298,9 +298,9 @@ export default function AdminAnnouncements() {
                   <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
                 </button>
                 {showCenterDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {CENTER_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0">
+                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
                         <input
                           type="checkbox"
                           checked={targetCenters.includes(opt.id)}
