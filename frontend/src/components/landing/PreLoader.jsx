@@ -1,37 +1,25 @@
-import { useState, useEffect } from 'react';
-import logo from '../../assets/images/brand_logo.webp'; 
+import { useState, useEffect, useRef } from 'react';
+import logo from '../../assets/images/brand_logo.webp';
+
+const LOTTIE_ROCKET_URL = 'https://lottie.host/54e303b1-e0ab-433e-ba67-dc24e3f6ae13/YWLc5KQuUk.lottie';
+const DOTLOTTIE_SCRIPT = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.7.1/dist/dotlottie-wc.js';
 
 const Preloader = ({ onComplete }) => {
   const [showPreloader, setShowPreloader] = useState(true);
   const [isHiding, setIsHiding] = useState(false);
+  const lottieContainerRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsHiding(true);
-      // Hide the preloader after fade-out animation completes
       setTimeout(() => {
         setShowPreloader(false);
-        // Call the onComplete callback when preloader is done
-        if (onComplete) {
-          onComplete();
-        }
-      }, 500); // Match the fadeOut animation duration
-    }, 2500); // Show for 2.5 seconds
-
+        if (onComplete) onComplete();
+      }, 500);
+    }, 2500);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
-  // Dynamically load the Lottie web component script if not already present
-  useEffect(() => {
-    if (!document.querySelector('script[src*="dotlottie-wc"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.2/dist/dotlottie-wc.js';
-      script.type = 'module';
-      document.body.appendChild(script);
-    }
-  }, []);
-
-  // Prevent background scroll when preloader is open
   useEffect(() => {
     if (showPreloader) {
       document.body.style.overflow = 'hidden';
@@ -43,25 +31,43 @@ const Preloader = ({ onComplete }) => {
     };
   }, [showPreloader]);
 
+  // Load dotlottie-wc script and inject rocket animation
+  useEffect(() => {
+    if (!showPreloader || !lottieContainerRef.current) return;
+
+    const loadAndInject = async () => {
+      let script = document.querySelector('script[src*="dotlottie-wc"]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = DOTLOTTIE_SCRIPT;
+        script.type = 'module';
+        document.body.appendChild(script);
+      }
+      await customElements.whenDefined('dotlottie-wc');
+
+      const container = lottieContainerRef.current;
+      if (container && !container.querySelector('dotlottie-wc')) {
+        const dotlottie = document.createElement('dotlottie-wc');
+        dotlottie.setAttribute('src', LOTTIE_ROCKET_URL);
+        dotlottie.setAttribute('speed', '1');
+        dotlottie.setAttribute('mode', 'forward');
+        dotlottie.setAttribute('loop', '');
+        dotlottie.setAttribute('autoplay', '');
+        dotlottie.style.width = '260px';
+        dotlottie.style.height = '260px';
+        container.appendChild(dotlottie);
+      }
+    };
+    loadAndInject();
+  }, [showPreloader]);
+
   return (
     showPreloader && (
       <div className={`fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-500 ease-in-out ${
         isHiding ? 'animate-fadeOut' : 'animate-fadeIn'
       }`}>
         <div className="flex items-center justify-center gap-8 px-15">
-          {/* Lottie Animation on the left - reduced by 20% */}
-          <div className="flex items-center justify-center">
-            <dotlottie-wc 
-              src="https://lottie.host/6e821172-1003-4523-bf2d-96a5759519f9/SHkrOc6Yzm.lottie" 
-              speed="1" 
-              style={{ width: '240px', height: '240px' }} 
-              mode="forward" 
-              loop 
-              autoplay
-            />
-          </div>
-          
-          {/* Logo on the right - reduced by 20% */}
+          <div ref={lottieContainerRef} className="w-[260px] h-[260px] flex items-center justify-center" />
           <img
             src={logo}
             alt="Brand Logo"

@@ -41,11 +41,9 @@ import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
 import { ToastProvider } from './components/ui/Toast'
 
-const LANDING_PRELOADER_KEY = 'landingPreloaderSeen';
-
 function LandingPage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(() => sessionStorage.getItem(LANDING_PRELOADER_KEY) === '1');
+  const [isLoading, setIsLoading] = useState(true);
   const [timelineAutoplay, setTimelineAutoplay] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [loginRole, setLoginRole] = useState('Student');
@@ -101,7 +99,7 @@ function LandingPage() {
   return (
     <>
       {isLoading ? (
-        <Preloader onComplete={() => { sessionStorage.setItem(LANDING_PRELOADER_KEY, '1'); setIsLoading(false); }} />
+        <Preloader onComplete={() => setIsLoading(false)} />
       ) : (
         <main className='w-full min-h-screen'>
           <NotificationModal />
