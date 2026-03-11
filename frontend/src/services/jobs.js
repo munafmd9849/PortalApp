@@ -34,10 +34,22 @@ export async function getJob(jobId) {
     // Backend commonly wraps responses as: { success: true, data: {...} }
     const raw = res && typeof res === 'object' && 'data' in res ? res.data : res;
     if (!raw || typeof raw !== 'object') return raw;
+
+    // Parse interviewRounds if stored as JSON string (backend stores as string)
+    let interviewRounds = raw.interviewRounds;
+    if (typeof interviewRounds === 'string' && interviewRounds.trim()) {
+      try {
+        interviewRounds = JSON.parse(interviewRounds);
+      } catch {
+        interviewRounds = [];
+      }
+    }
+
     // Ensure workMode is always preserved (backend uses workMode; handle work_mode)
     return {
       ...raw,
       workMode: raw.workMode ?? raw.work_mode ?? null,
+      interviewRounds: Array.isArray(interviewRounds) ? interviewRounds : (raw.interviewRounds || []),
     };
   } catch (error) {
     console.error('getJob error:', error);
@@ -148,7 +160,11 @@ export async function getTargetedJobsForStudent(studentId) {
           workMode: job.workMode,
           openings: job.openings,
           qualification: job.qualification,
+          specialization: job.specialization,
           minCgpa: job.minCgpa || job.cgpaRequirement,
+          gapAllowed: job.gapAllowed,
+          gapYears: job.gapYears,
+          backlogs: job.backlogs,
           // Parse targeting arrays (stored as JSON strings)
           targetSchools: Array.isArray(job.targetSchools) ? job.targetSchools :
             (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools || '[]') : []),
@@ -237,6 +253,19 @@ const fetchJobsFromAPI = async (filters = {}) => {
           isPosted: isPosted,
           posted: isPosted,
           responsibilities: job.description,
+          description: job.description,
+          qualification: job.qualification,
+          specialization: job.specialization,
+          backlogs: job.backlogs,
+          minCgpa: job.minCgpa || job.cgpaRequirement,
+          yop: job.yop,
+          interviewRounds: (() => {
+            const r = job.interviewRounds;
+            if (typeof r === 'string' && r.trim()) {
+              try { return JSON.parse(r); } catch { return []; }
+            }
+            return Array.isArray(r) ? r : [];
+          })(),
           skills: (() => {
             try {
               if (typeof job.requiredSkills === 'string') {

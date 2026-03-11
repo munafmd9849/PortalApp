@@ -13,6 +13,8 @@ import {
   FaBuilding,
   FaMoneyBillWave,
   FaExternalLinkAlt,
+  FaLinkedin,
+  FaClock,
   FaTasks,
   FaEnvelopeOpen,
   FaClipboardList,
@@ -162,13 +164,38 @@ const JobContent = React.memo(({
   // Normalize job data from multiple sources
   const displayJob = useMemo(() => {
     if (!job) return null;
-    
+
+    // Parse interviewRounds if stored as JSON string (backend stores as string)
+    let interviewRounds = job.interviewRounds;
+    if (typeof interviewRounds === 'string' && interviewRounds.trim()) {
+      try {
+        interviewRounds = JSON.parse(interviewRounds);
+      } catch {
+        interviewRounds = [];
+      }
+    }
+    const parsedInterviewRounds = Array.isArray(interviewRounds) ? interviewRounds : [];
+
+    // Parse driveVenues if stored as JSON string
+    let driveVenues = job.driveVenues;
+    if (typeof driveVenues === 'string' && driveVenues.trim()) {
+      try {
+        driveVenues = JSON.parse(driveVenues);
+      } catch {
+        driveVenues = [];
+      }
+    }
+    const parsedDriveVenues = Array.isArray(driveVenues) ? driveVenues : [];
+
     return {
       ...job,
+      interviewRounds: parsedInterviewRounds,
+      driveVenues: parsedDriveVenues,
       // Company
       companyName: job.company?.name || job.companyName || job.company || "",
       logoUrl: job.company?.logoUrl || job.company?.logo || job.logoUrl,
       website: job.company?.website || job.website || job.companyWebsite,
+      linkedin: job.company?.linkedin || job.linkedin,
       // Description (backend uses `description`)
       jobDescription: job.jobDescription || job.description || job.responsibilities || "",
       // Many places in UI expect responsibilities separately; fall back to description
@@ -448,66 +475,96 @@ const JobContent = React.memo(({
 
   return (
     <>
-      {/* Header - Premium design */}
+      {/* Header - Premium design: Company & Job Role prominent, Website & LinkedIn on top */}
       {!hideHeader && (
       <div 
-        className="flex items-center justify-between p-6 md:p-8 border-b border-gray-200 bg-gradient-to-r from-gray-50 via-white to-gray-50"
+        className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-white to-gray-50"
         style={{
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
         }}
       >
-        <div className="flex items-center gap-5">
-          {displayJob.logoUrl ? (
-            <div className="relative group">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <img
-                src={displayJob.logoUrl}
-                alt={displayJob.companyName}
-                className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl object-contain border-2 border-white/30 shadow-2xl transform group-hover:scale-110 transition-transform duration-300"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  if (e.target.nextElementSibling) {
-                    e.target.nextElementSibling.style.display = 'flex';
-                  }
-                }}
-              />
-            </div>
-          ) : null}
-          <div
-            className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center text-2xl md:text-3xl font-black bg-gradient-to-br from-purple-500 via-blue-500 to-purple-600 text-white shadow-2xl transform hover:scale-110 transition-transform duration-300 ${displayJob.logoUrl ? 'hidden' : ''}`}
-            style={{
-              boxShadow: '0 10px 30px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-            }}
-          >
-            {displayJob.companyName?.[0]?.toUpperCase() || "?"}
+        {/* Website & LinkedIn - top only */}
+        {(displayJob.website || displayJob.linkedin) && (
+          <div className="px-6 md:px-8 pt-4 pb-2 flex flex-wrap items-center gap-4">
+            {displayJob.website && (
+              <a
+                href={displayJob.website.startsWith('http') ? displayJob.website : `https://${displayJob.website}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              >
+                <FaExternalLinkAlt size={14} />
+                <span>{displayJob.website.replace(/^https?:\/\//, '')}</span>
+              </a>
+            )}
+            {displayJob.linkedin && (
+              <a
+                href={displayJob.linkedin.startsWith('http') ? displayJob.linkedin : `https://${displayJob.linkedin}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-[#0A66C2] hover:text-[#004182] font-medium transition-colors"
+              >
+                <FaLinkedin size={16} />
+                <span>LinkedIn</span>
+              </a>
+            )}
           </div>
-          <div className="flex-1">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">
-              {displayJob.jobTitle || "—"}
-            </h2>
-            <p className="text-gray-600 font-semibold flex items-center gap-2 text-sm md:text-base">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                {displayJob.companyName}
-              </span>
-              {displayJob.location && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-gray-500">{displayJob.location}</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-3 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-300 group"
-            aria-label="Close"
-          >
-            <FaTimes size={22} className="group-hover:rotate-90 transition-transform duration-300" />
-          </button>
         )}
+
+        <div className="flex items-center justify-between p-6 md:p-8 pt-2">
+          <div className="flex items-center gap-5">
+            {displayJob.logoUrl ? (
+              <div className="relative group">
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <img
+                  src={displayJob.logoUrl}
+                  alt={displayJob.companyName}
+                  className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl object-contain border-2 border-white/30 shadow-2xl transform group-hover:scale-110 transition-transform duration-300"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    if (e.target.nextElementSibling) {
+                      e.target.nextElementSibling.style.display = 'flex';
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
+            <div
+              className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center text-2xl md:text-3xl font-black bg-gradient-to-br from-purple-500 via-blue-500 to-purple-600 text-white shadow-2xl transform hover:scale-110 transition-transform duration-300 ${displayJob.logoUrl ? 'hidden' : ''}`}
+              style={{
+                boxShadow: '0 10px 30px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+              }}
+            >
+              {displayJob.companyName?.[0]?.toUpperCase() || "?"}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">
+                {displayJob.jobTitle || "—"}
+              </h1>
+              <p className="text-gray-700 font-semibold flex items-center gap-2 text-lg md:text-xl">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  {displayJob.companyName}
+                </span>
+                {displayJob.location && (
+                  <>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-600 text-base md:text-lg">{displayJob.location}</span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-3 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-300 group"
+              aria-label="Close"
+            >
+              <FaTimes size={22} className="group-hover:rotate-90 transition-transform duration-300" />
+            </button>
+          )}
+        </div>
       </div>
       )}
 
@@ -595,23 +652,10 @@ const JobContent = React.memo(({
         )}
       </div>
 
-      {/* Footer - Enhanced styling */}
+      {/* Footer - Action buttons only (Website & LinkedIn moved to header top) */}
       {showFooter && (
         <div className="border-t p-5 bg-gradient-to-r from-gray-50 to-white shadow-inner">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div>
-              {displayJob.website && (
-                <a
-                  href={displayJob.website.startsWith('http') ? displayJob.website : `https://${displayJob.website}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200 group"
-                >
-                  <FaExternalLinkAlt size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" /> 
-                  <span>{displayJob.website.replace(/^https?:\/\//, '')}</span>
-                </a>
-              )}
-            </div>
+          <div className="flex flex-col sm:flex-row justify-end items-center gap-4">
             <div className="flex gap-3 flex-wrap justify-center sm:justify-end">
               {onPrint && (
                 <button
@@ -720,6 +764,42 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, forma
         </div>
         <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{formatSalary(displayJob.salary || displayJob.ctc || displayJob.stipend)}</p>
       </div>
+      {/* Drive Venue - in Overview */}
+      <div 
+        className="group relative p-6 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-indigo-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
+        style={{
+          boxShadow: '0 4px 20px rgba(99, 102, 241, 0.15)',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="relative z-10 flex items-center gap-3 text-gray-700 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg">
+            <FaMapMarkerAlt className="text-white" size={18} />
+          </div>
+          <span className="text-sm font-bold uppercase tracking-wide">Drive Venue</span>
+        </div>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">
+          {(displayJob.driveVenues && displayJob.driveVenues.length > 0)
+            ? displayJob.driveVenues[0]
+            : displayJob.location || displayJob.companyLocation || "—"}
+        </p>
+      </div>
+      {/* Reporting Time - in Overview */}
+      <div 
+        className="group relative p-6 rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-amber-100/50 transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer overflow-hidden"
+        style={{
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.15)',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="relative z-10 flex items-center gap-3 text-gray-700 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg">
+            <FaClock className="text-white" size={18} />
+          </div>
+          <span className="text-sm font-bold uppercase tracking-wide">Reporting Time</span>
+        </div>
+        <p className="relative z-10 font-semibold text-gray-900 text-lg md:text-xl">{displayJob.reportingTime || "—"}</p>
+      </div>
     </div>
 
     {(displayJob.deadline || displayJob.driveDate) ? (
@@ -770,9 +850,9 @@ const OverviewTab = React.memo(({ displayJob, countdown, responsibilities, forma
       </div>
     ) : null}
 
-    {/* Responsibilities */}
+    {/* Responsibilities - smaller label; Company & Job Role are the hero elements */}
     <div>
-      <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Responsibilities</h3>
+      <h3 className="text-base font-medium text-gray-600 mb-3">Responsibilities</h3>
       <div 
         className="p-6 md:p-8 rounded-2xl border border-gray-200 bg-gray-50"
         style={{
@@ -851,7 +931,7 @@ const RequirementsTab = React.memo(({ displayJob, skillsRequired }) => (
               <span className="text-white text-sm font-bold">✓</span>
             </div>
             <div>
-                <p className="font-semibold text-gray-900 mb-1">Specialization</p>
+                <p className="font-semibold text-gray-900 mb-1">Specialization/Branch</p>
               <p className="text-sm text-gray-600">{displayJob.specialization || "—"}</p>
             </div>
           </div>
@@ -1305,45 +1385,6 @@ const ProcessTab = React.memo(({ displayJob, interviewTimeline }) => {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </div>
-
-      {/* Additional Information */}
-      <div className="mt-12">
-        <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-6">Additional Information</h3>
-        <div 
-          className="p-6 md:p-8 rounded-2xl border border-gray-200 bg-gray-50"
-          style={{
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-          }}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            {/* Drive Venue - Blue */}
-            <div 
-              className="p-5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-              style={{
-                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.15)',
-              }}
-            >
-              <p className="font-semibold text-sm text-blue-700 mb-2">Drive Venue</p>
-              <p className="text-gray-900 font-semibold">
-                {(displayJob.driveVenues && Array.isArray(displayJob.driveVenues) && displayJob.driveVenues.length > 0)
-                  ? displayJob.driveVenues[0]
-                  : displayJob.location || displayJob.companyLocation || "—"}
-              </p>
-            </div>
-            
-            {/* Reporting Time - Green */}
-            <div 
-              className="p-5 rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-green-100/50 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-              style={{
-                boxShadow: '0 4px 15px rgba(34, 197, 94, 0.15)',
-              }}
-            >
-              <p className="font-semibold text-sm text-green-700 mb-2">Reporting Time</p>
-              <p className="text-gray-900 font-semibold">{displayJob.reportingTime || "—"}</p>
-            </div>
           </div>
         </div>
       </div>

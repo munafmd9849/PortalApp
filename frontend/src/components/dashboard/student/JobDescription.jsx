@@ -173,17 +173,28 @@ const JobDescription = ({ job, isOpen, onClose }) => {
 
   // -------- Dynamic Interview Timeline --------
   const interviewTimeline = useMemo(() => {
+    // Parse interviewRounds if stored as JSON string (backend stores as string)
+    let interviewRoundsArr = displayJob?.interviewRounds;
+    if (typeof interviewRoundsArr === 'string' && interviewRoundsArr.trim()) {
+      try {
+        interviewRoundsArr = JSON.parse(interviewRoundsArr);
+      } catch {
+        interviewRoundsArr = [];
+      }
+    }
+    if (!Array.isArray(interviewRoundsArr)) interviewRoundsArr = [];
+
     // Try to get interview rounds from job data
     let rounds = [];
-    
-    // Method 1: Check for interviewRounds array
-    if (displayJob?.interviewRounds && Array.isArray(displayJob.interviewRounds) && displayJob.interviewRounds.length > 0) {
-      rounds = displayJob.interviewRounds.map((round, index) => ({
-        label: round.title || `Round ${index + 1}`,
-        description: round.detail || round.description || "Interview round details will be shared.",
+
+    // Method 1: Check for interviewRounds array (parsed from JSON string or already array)
+    if (interviewRoundsArr.length > 0) {
+      rounds = interviewRoundsArr.map((round, index) => ({
+        label: round?.title || `Round ${index + 1}`,
+        description: round?.detail || round?.description || "Interview round details will be shared.",
         color: roundColors[index % roundColors.length],
         number: String(index + 1),
-        icon: getRoundIcon(round.title || `Round ${index + 1}`),
+        icon: getRoundIcon(round?.title || `Round ${index + 1}`),
       }));
     }
     // Method 2: Check for baseRoundDetails and extraRounds
@@ -675,7 +686,7 @@ const JobDescription = ({ job, isOpen, onClose }) => {
                           <span className="text-green-600 text-xs">✓</span>
                         </div>
                         <div>
-                          <p className="font-medium">Specialization</p>
+                          <p className="font-medium">Specialization/Branch</p>
                           <p className="text-sm text-gray-600">{displayJob.specialization}</p>
                         </div>
                       </div>

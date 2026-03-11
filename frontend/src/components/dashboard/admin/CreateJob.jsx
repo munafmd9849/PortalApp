@@ -758,8 +758,9 @@ export default function CreateJob({ onCreated }) {
   }, [form.qualification, form.yop, form.minCgpa, form.skills, form.gapAllowed, form.backlogs, minCgpaError]);
 
   const isInterviewProcessComplete = useMemo(() => {
-    return form.baseRoundDetails && form.baseRoundDetails.length >= 3 &&
-      form.baseRoundDetails[0]?.trim() && form.baseRoundDetails[1]?.trim() && form.baseRoundDetails[2]?.trim();
+    // Round 1 and Round 2 are mandatory; Round 3 is optional
+    return form.baseRoundDetails && form.baseRoundDetails.length >= 2 &&
+      form.baseRoundDetails[0]?.trim() && form.baseRoundDetails[1]?.trim();
   }, [form.baseRoundDetails]);
 
   const canPost = useMemo(() => {
@@ -1393,7 +1394,6 @@ export default function CreateJob({ onCreated }) {
         missingFields.push('Interview Process');
         if (!form.baseRoundDetails?.[0]?.trim()) details.push('• I Round');
         if (!form.baseRoundDetails?.[1]?.trim()) details.push('• II Round');
-        if (!form.baseRoundDetails?.[2]?.trim()) details.push('• III Round');
       }
 
       console.warn('❌ Form validation failed. Missing sections:', missingFields);
@@ -2431,7 +2431,7 @@ export default function CreateJob({ onCreated }) {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                       <Award size={16} className="text-gray-500" />
-                      Specialization
+                      Specialization/Branch
                     </label>
                     <input
                       className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.specialization?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
@@ -2665,15 +2665,16 @@ export default function CreateJob({ onCreated }) {
                       <div key={i}>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                           <Code2 size={16} className="text-indigo-600" />
-                          {[`${toRoman(1)} Round`, `${toRoman(2)} Round`, `${toRoman(3)} Round`][i]} <span className="text-red-500">*</span>
+                          {[`${toRoman(1)} Round`, `${toRoman(2)} Round`, `${toRoman(3)} Round`][i]}
+                          {i < 2 && <span className="text-red-500">*</span>}
                         </label>
                         <input
                           className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-text ${form.baseRoundDetails[i]?.trim() ? 'border-green-300 bg-green-50' : 'border-gray-300'
                             }`}
-                          placeholder="e.g. Online test, DS&A"
+                          placeholder={i < 2 ? "e.g. Online test, DS&A (required)" : "e.g. HR round (optional)"}
                           value={form.baseRoundDetails[i]}
                           onChange={(e) => updateBaseRoundDetail(i, e.target.value)}
-                          required
+                          required={i < 2}
                         />
                       </div>
                     ))}

@@ -533,7 +533,7 @@ export default function AdminJobDetail() {
               )}
               {job.specialization && (
                 <div className="p-3 bg-white/60 rounded-lg border border-slate-100">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Specialization</span>
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Specialization/Branch</span>
                   <span className="text-slate-700 font-medium">{job.specialization}</span>
                 </div>
               )}
