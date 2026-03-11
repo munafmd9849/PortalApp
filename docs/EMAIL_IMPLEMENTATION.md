@@ -181,18 +181,17 @@ npm run db:migrate
 
 **Required Variables:**
 ```env
-EMAIL_HOST="smtp.gmail.com"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-app-password"
-EMAIL_FROM="PWIOI Portal <noreply@pwioi.com>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your_password
+SMTP_FROM="PWIOI Portal <noreply@pwioi.com>"  # optional
 ```
 
 **Gmail Setup:**
 1. Enable 2-Factor Authentication
 2. Generate App Password: https://myaccount.google.com/apppasswords
-3. Use App Password (not regular password) for `EMAIL_PASS`
+3. Use App Password (not regular password) for `SMTP_PASS`
 
 ---
 
@@ -280,11 +279,11 @@ cp .env.example .env
 
 **Required for Email:**
 ```env
-EMAIL_HOST="smtp.gmail.com"
-EMAIL_PORT=587
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-app-password"  # Gmail App Password
-EMAIL_FROM="PWIOI Portal <noreply@pwioi.com>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your_password  # Gmail App Password
+SMTP_FROM="PWIOI Portal <noreply@pwioi.com>"  # optional
 ```
 
 ### 3. Test Email Configuration
@@ -350,7 +349,7 @@ curl -X POST http://localhost:3000/api/auth/send-otp \
 4. **Gmail Setup:**
    - Requires App Password (not regular password)
    - Enable 2FA first
-   - Use App Password in `EMAIL_PASS`
+   - Use App Password in `SMTP_PASS`
 
 ---
 

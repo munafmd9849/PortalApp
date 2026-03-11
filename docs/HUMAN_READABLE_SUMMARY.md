@@ -105,10 +105,10 @@ This is the **website** that users interact with.
 - Uses **Gmail SMTP** (Simple Mail Transfer Protocol)
 - Credentials stored in `backend/.env`:
   ```
-  EMAIL_USER=your-email@gmail.com
-  EMAIL_PASS=your-app-password
-  EMAIL_HOST=smtp.gmail.com
-  EMAIL_PORT=587
+  SMTP_USER=your@email.com
+  SMTP_PASS=your_password
+  SMTP_HOST=smtp.gmail.com
+  SMTP_PORT=587
   ```
 
 ### **How OTP Is Sent**

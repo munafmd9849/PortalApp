@@ -55,11 +55,11 @@ Complete OTP email flow tested end-to-end.
 ## Email Configuration
 
 ### ✅ Configuration Present
-- ✅ EMAIL_HOST configured
-- ✅ EMAIL_PORT configured
-- ✅ EMAIL_USER configured
-- ✅ EMAIL_PASS configured
-- ✅ EMAIL_FROM configured
+- ✅ SMTP_HOST configured
+- ✅ SMTP_PORT configured
+- ✅ SMTP_USER configured
+- ✅ SMTP_PASS configured
+- ✅ SMTP_FROM configured (optional)
 
 ### ⚠️ Email Transporter Verification
 **Status**: Non-blocking (server starts even if email fails)

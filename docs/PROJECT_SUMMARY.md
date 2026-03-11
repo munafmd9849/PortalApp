@@ -193,13 +193,12 @@ Portal-main/
     AWS_REGION="us-east-1"
     S3_BUCKET_NAME="your-bucket-name"
     
-    # Email Service (Nodemailer)
-    EMAIL_HOST="smtp.gmail.com"
-    EMAIL_PORT=587
-    EMAIL_SECURE="false"
-    EMAIL_USER="your-email@gmail.com"
-    EMAIL_PASS="your-app-password"
-    EMAIL_FROM="PWIOI Portal <noreply@pwioi.com>"
+    # Email Service (SMTP)
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=your@email.com
+    SMTP_PASS=your_password
+    SMTP_FROM="PWIOI Portal <noreply@pwioi.com>"  # optional
     
     # Server
     PORT=3000

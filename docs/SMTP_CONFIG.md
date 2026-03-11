@@ -9,13 +9,14 @@ Complete guide for setting up SMTP email in the PWIOI Placement Portal backend.
 Add these variables to your `backend/.env` file:
 
 ```env
-# Email Service (SMTP) Configuration
-EMAIL_HOST="smtp.gmail.com"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-app-password"
-EMAIL_FROM="PWIOI Portal <your-email@gmail.com>"
+# Email Service (SMTP) Configuration - Required
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your_password
+
+# Optional: display name for outgoing emails (defaults to PWIOI Portal <SMTP_USER>)
+SMTP_FROM="PWIOI Portal <your@email.com>"
 ```
 
 ---
@@ -36,8 +37,8 @@ EMAIL_FROM="PWIOI Portal <your-email@gmail.com>"
 
 ### Step 3: Update .env
 ```env
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-16-character-app-password"  # No spaces needed
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-character-app-password  # No spaces needed
 ```
 
 ---
@@ -46,62 +47,56 @@ EMAIL_PASS="your-16-character-app-password"  # No spaces needed
 
 ### Outlook/Hotmail
 ```env
-EMAIL_HOST="smtp-mail.outlook.com"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="your-email@outlook.com"
-EMAIL_PASS="your-password"
-EMAIL_FROM="PWIOI Portal <your-email@outlook.com>"
+SMTP_HOST=smtp-mail.outlook.com
+SMTP_PORT=587
+SMTP_USER=your-email@outlook.com
+SMTP_PASS=your-password
+SMTP_FROM="PWIOI Portal <your-email@outlook.com>"
 ```
 
 ### Yahoo Mail
 ```env
-EMAIL_HOST="smtp.mail.yahoo.com"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="your-email@yahoo.com"
-EMAIL_PASS="your-app-password"  # Requires app password
-EMAIL_FROM="PWIOI Portal <your-email@yahoo.com>"
+SMTP_HOST=smtp.mail.yahoo.com
+SMTP_PORT=587
+SMTP_USER=your-email@yahoo.com
+SMTP_PASS=your-app-password  # Requires app password
+SMTP_FROM="PWIOI Portal <your-email@yahoo.com>"
 ```
 
 ### Custom SMTP Server
 ```env
-EMAIL_HOST="smtp.your-domain.com"
-EMAIL_PORT=587  # or 465 for SSL
-EMAIL_SECURE="false"  # true for port 465, false for 587
-EMAIL_USER="noreply@your-domain.com"
-EMAIL_PASS="your-smtp-password"
-EMAIL_FROM="PWIOI Portal <noreply@your-domain.com>"
+SMTP_HOST=smtp.your-domain.com
+SMTP_PORT=587  # or 465 for SSL (secure is auto-detected from port)
+SMTP_USER=noreply@your-domain.com
+SMTP_PASS=your-smtp-password
+SMTP_FROM="PWIOI Portal <noreply@your-domain.com>"
 ```
 
 ### SendGrid
 ```env
-EMAIL_HOST="smtp.sendgrid.net"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="apikey"
-EMAIL_PASS="your-sendgrid-api-key"
-EMAIL_FROM="PWIOI Portal <verified-email@your-domain.com>"
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USER=apikey
+SMTP_PASS=your-sendgrid-api-key
+SMTP_FROM="PWIOI Portal <verified-email@your-domain.com>"
 ```
 
 ### Mailgun
 ```env
-EMAIL_HOST="smtp.mailgun.org"
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="postmaster@your-domain.mailgun.org"
-EMAIL_PASS="your-mailgun-password"
-EMAIL_FROM="PWIOI Portal <noreply@your-domain.com>"
+SMTP_HOST=smtp.mailgun.org
+SMTP_PORT=587
+SMTP_USER=postmaster@your-domain.mailgun.org
+SMTP_PASS=your-mailgun-password
+SMTP_FROM="PWIOI Portal <noreply@your-domain.com>"
 ```
 
 ### AWS SES
 ```env
-EMAIL_HOST="email-smtp.us-east-1.amazonaws.com"  # Change region if needed
-EMAIL_PORT=587
-EMAIL_SECURE="false"
-EMAIL_USER="your-ses-smtp-username"
-EMAIL_PASS="your-ses-smtp-password"
-EMAIL_FROM="PWIOI Portal <verified-email@your-domain.com>"
+SMTP_HOST=email-smtp.us-east-1.amazonaws.com  # Change region if needed
+SMTP_PORT=587
+SMTP_USER=your-ses-smtp-username
+SMTP_PASS=your-ses-smtp-password
+SMTP_FROM="PWIOI Portal <verified-email@your-domain.com>"
 ```
 
 ---
@@ -109,13 +104,14 @@ EMAIL_FROM="PWIOI Portal <verified-email@your-domain.com>"
 ## ⚙️ Configuration Details
 
 ### Port & Security
-- **Port 587** (TLS) - Recommended: `EMAIL_SECURE="false"`
-- **Port 465** (SSL) - Use: `EMAIL_SECURE="true"`
+- **Port 587** (TLS) - Recommended, `secure` is auto-set to `false`
+- **Port 465** (SSL) - `secure` is auto-set to `true` when port is 465
 - **Port 25** (Not recommended, often blocked)
 
-### EMAIL_FROM Format
+### SMTP_FROM Format
 - Must include both name and email: `"Name <email@domain.com>"`
 - Email must be verified (for Gmail, use your actual Gmail address)
+- Optional; defaults to `PWIOI Portal <SMTP_USER>`
 
 ---
 
@@ -161,7 +157,7 @@ Or use the frontend registration form - it will automatically send an OTP email.
 ## ❌ Common Issues
 
 ### "Missing credentials for PLAIN"
-- **Solution**: Check that `EMAIL_USER` and `EMAIL_PASS` are set in `.env`
+- **Solution**: Check that `SMTP_USER` and `SMTP_PASS` are set in `.env`
 - Restart backend server after updating `.env`
 
 ### "Invalid login"
@@ -170,7 +166,7 @@ Or use the frontend registration form - it will automatically send an OTP email.
 
 ### "Connection timeout"
 - **Solution**: Check firewall/network settings
-- Try port 465 with `EMAIL_SECURE="true"`
+- Try port 465 (SSL) instead of 587
 
 ### "Self-signed certificate"
 - **Solution**: Already handled in code with `rejectUnauthorized: false`
@@ -184,8 +180,23 @@ Check your current configuration:
 
 ```bash
 cd backend/
-grep "^EMAIL_" .env
+grep "^SMTP_" .env
 ```
+
+---
+
+## 📋 Deployment (Vercel / Production)
+
+Ensure these environment variables are set:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (optional)
+
+**Legacy variables removed** (do not use):
+- `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM`, `EMAIL_SECURE`
 
 ---
 

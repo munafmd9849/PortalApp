@@ -142,10 +142,10 @@ import { AuthContext } from '../context/AuthContextJWT';
   AWS_REGION="us-east-1"
   S3_BUCKET_NAME="your-bucket-name"
   
-  EMAIL_HOST="smtp.gmail.com"
-  EMAIL_PORT=587
-  EMAIL_USER="your-email@gmail.com"
-  EMAIL_PASS="your-app-password"
+  SMTP_HOST=smtp.gmail.com
+  SMTP_PORT=587
+  SMTP_USER=your@email.com
+  SMTP_PASS=your_password
   ```
 
 ### Database Setup

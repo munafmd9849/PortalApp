@@ -31,7 +31,7 @@ MIGRATION/                                    # Root migration package directory
 │  ├─ 📄 .env.example                        # [Should exist] Environment variables template
 │  │                                         #   - DATABASE_URL, JWT_SECRET, REDIS_URL
 │  │                                         #   - AWS_ACCESS_KEY_ID, S3_BUCKET_NAME
-│  │                                         #   - EMAIL_HOST, EMAIL_USER, EMAIL_PASS
+│  │                                         #   - SMTP_HOST, SMTP_USER, SMTP_PASS
 │  │                                         #   - PORT, CORS_ORIGIN, NODE_ENV
 │  │
 │  └─ 📁 src/                                # Backend source code

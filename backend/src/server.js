@@ -407,7 +407,7 @@ async function start() {
       console.log(`📡 Socket.IO enabled`);
       console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'NOT SET (CRITICAL)'}`);
       console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
-      console.log(`📧 Email configured: ${process.env.EMAIL_USER ? 'Yes' : 'No'}`);
+      console.log(`📧 Email configured: ${process.env.SMTP_USER ? 'Yes' : 'No'}`);
     }).on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use. Please stop the existing process or use a different port.`);
