@@ -2705,50 +2705,50 @@ export default function StudentDashboard() {
 
         return (
           <div className="space-y-5 sm:space-y-8 overflow-x-hidden">
-            {/* Application Dashboard – same style as Career Insights (fieldset + gradient legend) */}
-            <div className="py-3 px-3 sm:px-4 bg-gradient-to-r from-slate-50 via-white to-blue-50 rounded-xl border border-gray-200 shadow-sm">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 w-full max-w-6xl mx-auto justify-items-stretch items-stretch">
-                <div className="bg-gradient-to-br from-white to-red-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-red-600 group-hover:scale-105 transition-transform duration-300">
-                      <Briefcase className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+            {/* Application Dashboard – same style as Career Insights (compact, responsive) */}
+            <div className="py-2 px-3 sm:px-4 bg-gradient-to-r from-slate-50 via-white to-blue-50 rounded-xl border border-gray-200 shadow-sm">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 w-full max-w-6xl mx-auto justify-items-stretch items-stretch">
+                <div className="bg-gradient-to-br from-white to-red-100 p-2 sm:p-3 lg:p-4 rounded-lg border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[56px] sm:min-h-[64px] lg:min-h-[80px] flex flex-col justify-between group">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="p-1 sm:p-1.5 flex items-center justify-center shadow-md rounded-md flex-shrink-0 bg-red-600 group-hover:scale-105 transition-transform duration-300">
+                      <Briefcase className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-red-700 mb-0.5 truncate">Applied</p>
-                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(totalApplied)}>{totalApplied}</p>
+                      <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-red-700 mb-0 truncate">Applied</p>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 truncate" title={String(totalApplied)}>{totalApplied}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-blue-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-blue-600 group-hover:scale-105 transition-transform duration-300">
-                      <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                <div className="bg-gradient-to-br from-white to-blue-200 p-2 sm:p-3 lg:p-4 rounded-lg border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[56px] sm:min-h-[64px] lg:min-h-[80px] flex flex-col justify-between group">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="p-1 sm:p-1.5 flex items-center justify-center shadow-md rounded-md flex-shrink-0 bg-blue-600 group-hover:scale-105 transition-transform duration-300">
+                      <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-blue-700 mb-0.5 truncate">Shortlisted</p>
-                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(shortlisted)}>{shortlisted}</p>
+                      <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-blue-700 mb-0 truncate">Shortlisted</p>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 truncate" title={String(shortlisted)}>{shortlisted}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-green-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-green-600 group-hover:scale-105 transition-transform duration-300">
-                      <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                <div className="bg-gradient-to-br from-white to-green-200 p-2 sm:p-3 lg:p-4 rounded-lg border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[56px] sm:min-h-[64px] lg:min-h-[80px] flex flex-col justify-between group">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="p-1 sm:p-1.5 flex items-center justify-center shadow-md rounded-md flex-shrink-0 bg-green-600 group-hover:scale-105 transition-transform duration-300">
+                      <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-green-700 mb-0.5 truncate">Interviewed</p>
-                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(interviewed)}>{interviewed}</p>
+                      <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-green-700 mb-0 truncate">Interviewed</p>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 truncate" title={String(interviewed)}>{interviewed}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-white to-purple-200 p-3 sm:p-5 rounded-lg sm:rounded-xl border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[64px] sm:min-h-[112px] flex flex-col justify-between group">
-                  <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                    <div className="p-1.5 sm:p-2.5 flex items-center justify-center shadow-md rounded-lg sm:rounded-xl flex-shrink-0 bg-purple-600 group-hover:scale-105 transition-transform duration-300">
-                      <TrendingUp className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                <div className="bg-gradient-to-br from-white to-purple-200 p-2 sm:p-3 lg:p-4 rounded-lg border-2 border-gray-200 hover:shadow-md transition-all duration-300 min-h-[56px] sm:min-h-[64px] lg:min-h-[80px] flex flex-col justify-between group">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="p-1 sm:p-1.5 flex items-center justify-center shadow-md rounded-md flex-shrink-0 bg-purple-600 group-hover:scale-105 transition-transform duration-300">
+                      <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-base sm:text-lg font-bold uppercase tracking-wider text-purple-700 mb-0.5 truncate">Offers</p>
-                      <p className="text-3xl sm:text-5xl font-extrabold text-gray-900 truncate" title={String(offers)}>{offers}</p>
+                      <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-purple-700 mb-0 truncate">Offers</p>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 truncate" title={String(offers)}>{offers}</p>
                     </div>
                   </div>
                 </div>

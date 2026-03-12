@@ -54,8 +54,17 @@ export default function JobPostings() {
 
   const { activeJobs, draftJobs } = useMemo(() => {
     const list = Array.isArray(jobs) ? jobs : [];
-    const drafts = list.filter(j => String(j?.status || '').toUpperCase() === 'DRAFT');
-    const active = list.filter(j => String(j?.status || '').toUpperCase() !== 'DRAFT');
+    const status = (s) => String(s || '').toUpperCase();
+    // Drafts = IN_REVIEW (pending approval), REJECTED (can resubmit), or DRAFT - not yet live
+    const drafts = list.filter(j => {
+      const s = status(j?.status);
+      return s === 'IN_REVIEW' || s === 'REJECTED' || s === 'DRAFT';
+    });
+    // Active = POSTED or ACTIVE (live jobs)
+    const active = list.filter(j => {
+      const s = status(j?.status);
+      return s === 'POSTED' || s === 'ACTIVE';
+    });
     return { activeJobs: active, draftJobs: drafts };
   }, [jobs]);
 
@@ -118,18 +127,8 @@ export default function JobPostings() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Job Postings</h1>
-        <button
-          onClick={() => setActiveView('new')}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md inline-flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Post a New Job
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex mb-8">
+      <div className="flex justify-center mb-8">
+        <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex">
         <button
           onClick={() => setActiveView('active')}
           className={`px-6 py-3 rounded-md font-medium transition-all duration-200 ${
@@ -154,6 +153,7 @@ export default function JobPostings() {
         >
           + New Job
         </button>
+        </div>
       </div>
 
       {activeView === 'new' ? (

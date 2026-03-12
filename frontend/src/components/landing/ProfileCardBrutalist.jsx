@@ -16,7 +16,6 @@ export default function ProfileCardBrutalist({
   linkedinUrl,
   emailHref,
 }) {
-  const roleCompany = [role, company].filter(Boolean).join(" • ");
   const packageText = status || "";
 
   return (
@@ -33,7 +32,13 @@ export default function ProfileCardBrutalist({
             )}
             <div className="pcbr-header-text">
               <h3 className="pcbr-name">{name}</h3>
-              {roleCompany && <p className="pcbr-role">{roleCompany}</p>}
+              {(role || company) && (
+                <p className="pcbr-role">
+                  {role && <span className="pcbr-designation">{role}</span>}
+                  {role && company && <span className="pcbr-sep"> • </span>}
+                  {company && <span className="pcbr-company">{company}</span>}
+                </p>
+              )}
               {packageText && <p className="pcbr-package">{packageText}</p>}
               {batch && <p className="pcbr-batch">Batch {batch}</p>}
             </div>
