@@ -107,56 +107,11 @@ const Banner = () => {
     >
       {/* Laptop and up: original layout (Map + overlay facts) */}
       <div className="hidden lg:grid max-w-7xl mx-auto grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-center w-full">
-        <div className="w-full order-1 pr-2 xl:pr-6 self-start" style={{ marginTop: '-50px' }}>
+        <div className="w-full order-1 pr-2 xl:pr-6 self-start -ml-4 lg:-ml-6" style={{ marginTop: '20px' }}>
           <div ref={mapRef} className="relative pt-10 lg:pt-0 mb-4 w-full h-full flex items-center justify-center">
             <div ref={factsRef} className="w-full h-full flex items-center justify-center">
-              <svg viewBox="0 0 800 650" className="w-full h-auto max-w-[85%] lg:max-w-[100%] drop-shadow-2xl">
-                <defs>
-                  <style>
-                    {`
-                      .stat-perc { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; fill: #000000; }
-                      .stat-text { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 14px; fill: #000000; }
-                      .connector-arrow { fill: none; stroke: #000000; stroke-width: 0.8; stroke-dasharray: 5 5; stroke-linecap: round; }
-                    `}
-                  </style>
-                  <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
-                  </marker>
-                  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur in="SourceAlpha" stdDeviation="10" />
-                    <feOffset dx="5" dy="5" result="offsetblur" />
-                    <feComponentTransfer>
-                      <feFuncA type="linear" slope="0.15" />
-                    </feComponentTransfer>
-                    <feMerge>
-                      <feMergeNode />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-
-                {/* India Map (PNG - IndiaMapSVG excluded per request) */}
+              <svg viewBox="0 0 800 650" className="w-full h-auto max-w-[120%] lg:max-w-[145%] drop-shadow-2xl mt-4 lg:mt-6">
                 <image href={BannerImage1} x="0" y="0" width="800" height="650" preserveAspectRatio="xMidYMid meet" />
-
-                {/* Annotations */}
-                <g transform="translate(0, 21)">
-                  {/* 70% */}
-                  <path className="connector-arrow" d="M 270,195 Q 310,155 370,145" markerEnd="url(#arrow)" />
-                  <text className="stat-text" x="375" y="148"><tspan className="stat-perc">70%</tspan><tspan dx="8">Students lack industry-relevant skills</tspan></text>
-
-                  {/* 40% */}
-                  <path className="connector-arrow" d="M 300,245 Q 340,205 390,195" markerEnd="url(#arrow)" />
-                  <text className="stat-text" x="395" y="198"><tspan className="stat-perc">40%</tspan><tspan dx="8">Students choose the wrong career path</tspan></text>
-
-                  {/* 29% */}
-                  <path className="connector-arrow" d="M 300,440 Q 340,430 390,480" markerEnd="url(#arrow)" />
-                  <text className="stat-text" x="395" y="485"><tspan className="stat-perc">29%</tspan><tspan dx="8">Young population lacks industry exposure</tspan></text>
-
-                  {/* 55% */}
-                  <path className="connector-arrow" d="M 270,540 Q 310,570 360,560" markerEnd="url(#arrow)" />
-                  <text className="stat-text" x="365" y="565"><tspan className="stat-perc">55%</tspan><tspan dx="8">Students are unprepared for real interviews</tspan></text>
-                  <text className="stat-text" x="415" y="590">and hiring processes</text>
-                </g>
               </svg>
             </div>
           </div>
@@ -250,8 +205,8 @@ const Banner = () => {
             <span className="text-blue-900"> Skilling landscape</span> of <span className="italic px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%]"> INDIA</span>
           </h1>
         </div>
-        <div className="mt-6 relative">
-          <div className="relative mx-auto w-full max-w-sm aspect-square">
+        <div className="mt-6 relative -ml-3">
+          <div className="relative mx-auto w-full max-w-2xl aspect-square mt-4">
             <img
               src={BannerImage1}
               alt=""
