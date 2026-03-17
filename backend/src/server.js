@@ -119,6 +119,11 @@ logDatabaseTarget();
 const app = express();
 const server = http.createServer(app);
 
+// Behind Render/proxy: required for express-rate-limit to use X-Forwarded-For correctly
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Initialize Socket.IO
 const io = initSocket(server);
 // io is exported from socket.js config for use in controllers

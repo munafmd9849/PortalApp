@@ -32,7 +32,10 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false // Allow self-signed certificates (for development)
-  }
+  },
+  // Longer timeouts for cloud (e.g. Render) where first SMTP connection can be slow
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
 });
 
 // Verify transporter on startup (async, don't block server)
