@@ -28,8 +28,7 @@ function processConditionals(html, data) {
  */
 export const loadTemplate = (templateName, data = {}) => {
     try {
-        // email-templates is in backend/ for Vercel deployment (../../ from src/utils)
-const templatePath = path.join(__dirname, '../../email-templates/color-email-templates', `${templateName}.html`);
+        const templatePath = path.join(__dirname, '../../../email-templates/color-email-templates', `${templateName}.html`);
 
         if (!fs.existsSync(templatePath)) {
             throw new Error(`Template not found: ${templatePath}`);
