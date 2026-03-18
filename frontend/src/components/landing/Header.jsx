@@ -23,6 +23,14 @@ function Header({ onLoginOpen, onScrollToContact }) {
     }
   };
 
+  const scrollToFooter = (e) => {
+    e.preventDefault();
+    const footer = document.getElementById('footer');
+    if (footer) {
+      footer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const scrollToPlacements = (e) => {
     e.preventDefault();
 
@@ -192,6 +200,14 @@ function Header({ onLoginOpen, onScrollToContact }) {
             className="text-sm lg:text-base hidden md:flex font-medium transition-all duration-300 hover:scale-105 relative group text-black hover:text-gray-700 cursor-pointer"
           >
             Placements
+            <div className="absolute hidden md:flex bottom-0 left-0 w-0 h-0.5 bg-current transition-all duration-300 ease-out group-hover:w-full"></div>
+          </a>
+          <a
+            href="#footer"
+            onClick={scrollToFooter}
+            className="text-sm lg:text-base hidden md:flex text-nowrap font-medium transition-all duration-300 hover:scale-105 relative group text-black hover:text-gray-700 cursor-pointer"
+          >
+            Placement Policy
             <div className="absolute hidden md:flex bottom-0 left-0 w-0 h-0.5 bg-current transition-all duration-300 ease-out group-hover:w-full"></div>
           </a>
           <a
