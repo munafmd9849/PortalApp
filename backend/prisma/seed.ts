@@ -363,15 +363,12 @@ async function truncateAll(prisma: PrismaClient) {
     'users',
   ];
 
-  // PostgreSQL: Use TRUNCATE CASCADE to delete all data and handle foreign keys
-  // CASCADE automatically truncates dependent tables
+  // SQLite-compatible: use DELETE FROM in dependency order (children before parents)
   for (const table of tables) {
     try {
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
-    } catch (e) {
-      console.warn(`⚠️  Could not truncate table ${table}, trying DELETE instead:`, e.message);
-      // Fallback to DELETE if TRUNCATE fails (e.g., table doesn't exist)
       await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
+    } catch (e) {
+      console.warn(`⚠️  Could not delete from table ${table}:`, e.message);
     }
   }
 }

@@ -71,11 +71,11 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Validate DATABASE_URL format for PostgreSQL
+// Validate DATABASE_URL format (PostgreSQL or SQLite)
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://')) {
-  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://') && !dbUrlLower.startsWith('file:')) {
+  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string or SQLite file path.');
   console.error(`   Current value: ${dbUrl.substring(0, 20)}...`);
   process.exit(1);
 }
@@ -92,17 +92,18 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
 function logDatabaseTarget() {
   try {
     const dbUrl = process.env.DATABASE_URL || '';
-    // Extract host from PostgreSQL connection string
-    const match = dbUrl.match(/@([^:]+):(\d+)\//);
-    if (match) {
-      const host = match[1];
-      const port = match[2];
-      console.log(`🗄️  Database: PostgreSQL (${host}:${port})`);
+    if (dbUrl.startsWith('file:')) {
+      console.log(`🗄️  Database: SQLite (${dbUrl})`);
     } else {
-      console.log('🗄️  Database: PostgreSQL');
+      const match = dbUrl.match(/@([^:]+):(\d+)\//);
+      if (match) {
+        console.log(`🗄️  Database: PostgreSQL (${match[1]}:${match[2]})`);
+      } else {
+        console.log('🗄️  Database: PostgreSQL');
+      }
     }
   } catch {
-    console.log('🗄️  Database: PostgreSQL');
+    console.log('🗄️  Database: configured');
   }
 }
 
