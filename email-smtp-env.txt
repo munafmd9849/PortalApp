@@ -1,0 +1,6 @@
+
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=charansai82140@gmail.com
+EMAIL_PASS=yswj utrj jdyt srkq
+

@@ -1,0 +1,12 @@
+
+VITE_API_URL=https://portal-backend-zeta.vercel.app/api
+VITE_SOCKET_URL=https://portal-backend-zeta.vercel.app
+
+ 
+
+
+VITE_FRONTEND_URL=https://portal-frontend-pi-ten.vercel.app
+
+
+
+VITE_GOOGLE_CLIENT_ID=620332349787-8elql0hf7t3c0mh6kom6md1pt9prdq3q.apps.googleusercontent.com

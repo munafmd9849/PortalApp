@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Team | PWIOI Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+      min-height: 100vh;
+      line-height: 1.5;
+      position: relative;
+    }
+
+    /* Subtle geometric pattern */
+    .bg-pattern {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 60%, rgba(59, 130, 246, 0.06) 0%, transparent 35%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 60px 24px 140px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .header h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 12px;
+    }
+    .header .slogan {
+      font-size: 1rem;
+      color: #6b7280;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: #6b7280;
+      margin-bottom: 20px;
+    }
+    .section { margin-bottom: 48px; }
+
+    /* Card grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #f3f4f6;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card .img-wrap {
+      position: relative;
+      padding-top: 120%;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+    .card .img-wrap img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .card .img-wrap .hover-info {
+      position: absolute;
+      inset: 0;
+      background: rgba(30, 64, 175, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .card .img-wrap:hover .hover-info {
+      opacity: 1;
+    }
+    .card .img-wrap .hover-info .role {
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 6px;
+    }
+    .card .img-wrap .hover-info .name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .card .crown {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 24px;
+      height: 24px;
+      color: #d97706;
+      z-index: 2;
+    }
+
+    /* White overlay at bottom */
+    .card .details {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 16px;
+      margin: -20px 12px 12px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+    }
+    .card .details .role {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 4px;
+    }
+    .card .details .name {
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+
+    /* Wave at bottom */
+    .wave {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 120px;
+      z-index: 0;
+    }
+    .wave svg {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-pattern"></div>
+
+  <main class="page">
+    <header class="header">
+      <h1>Dev Team</h1>
+      <p class="slogan">The people behind PWIOI Portal</p>
+    </header>
+
+    <section class="section">
+      <div class="section-label">Mentors</div>
+      <div class="grid">
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/prof1.png" alt="Prof. Shubham">
+            <div class="hover-info">
+              <span class="role">Mentor</span>
+              <span class="name">Prof. Shubham</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Mentor</div>
+            <div class="name">Prof. Shubham</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/CS4.png" alt="Prof. Syed Zabi Ulla">
+            <div class="hover-info">
+              <span class="role">Mentor</span>
+              <span class="name">Prof. Syed Zabi Ulla</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Mentor</div>
+            <div class="name">Prof. Syed Zabi Ulla</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-label">Developers</div>
+      <div class="grid">
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/dev1.png" alt="Niraj">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Niraj</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Niraj</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/dev3.png" alt="Pratik">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Pratik</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Pratik</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/dev2.png" alt="Roshan">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Roshan</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Roshan</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/dev4.png" alt="Esha">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Esha</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Esha</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/munaf1.png" alt="Munaf">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Munaf</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Munaf</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/Irfan.png" alt="Irfan">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Irfan</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Irfan</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="img-wrap">
+            <svg class="crown" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 2H5v2h14v-2z"/></svg>
+            <img src="frontend/src/assets/images/sai1.png" alt="Sai Charan">
+            <div class="hover-info">
+              <span class="role">Developer</span>
+              <span class="name">Sai Charan</span>
+            </div>
+          </div>
+          <div class="details">
+            <div class="role">Developer</div>
+            <div class="name">Sai Charan</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Wave decoration at bottom -->
+  <div class="wave">
+    <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+      <path fill="#1e40af" fill-opacity="0.15" d="M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z"/>
+      <path fill="#f59e0b" fill-opacity="0.2" d="M0,80 C200,40 400,100 600,80 C800,60 1000,100 1200,80 L1200,120 L0,120 Z"/>
+    </svg>
+  </div>
+</body>
+</html>
