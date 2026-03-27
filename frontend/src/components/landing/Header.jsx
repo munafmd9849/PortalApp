@@ -23,6 +23,14 @@ function Header({ onLoginOpen, onScrollToContact }) {
     }
   };
 
+  const scrollToFooter = (e) => {
+    e.preventDefault();
+    const footer = document.getElementById('footer');
+    if (footer) {
+      footer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const scrollToPlacements = (e) => {
     e.preventDefault();
 
