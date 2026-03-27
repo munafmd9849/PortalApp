@@ -1,10 +1,18 @@
 /**
- * Email Configuration (Nodemailer)
- * Replaces Firebase Functions for email sending
- * Used with BullMQ for async email processing
+ * Email Configuration
  *
- * Required env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
- * Optional: SMTP_FROM (defaults to "PWIOI Portal <SMTP_USER>")
+ * Two modes:
+ * 1) Local / traditional: use Nodemailer SMTP directly (transporter.sendMail)
+ * 2) Deployed on Vercel: call an external email worker over HTTPS (EMAIL_WORKER_URL)
+ *
+ * Required env vars for SMTP mode:
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
+ * Optional:
+ *   SMTP_FROM (defaults to "PWIOI Portal <SMTP_USER>")
+ *
+ * Additional env vars for worker mode:
+ *   EMAIL_WORKER_URL   - base URL of worker (e.g. https://email-worker-abc.onrender.com)
+ *   EMAIL_WORKER_SECRET - shared secret for authentication
  */
 
 import nodemailer from 'nodemailer';
@@ -19,49 +27,60 @@ const __dirname = dirname(__filename);
 // Load .env file from the backend root directory (parent of src/)
 dotenv.config({ path: join(__dirname, '../../.env') });
 
-// Validate SMTP environment variables before creating transporter
-if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-  console.warn('⚠️ SMTP environment variables are not configured properly.');
-  console.warn('   Required: SMTP_HOST, SMTP_USER, SMTP_PASS (SMTP_PORT optional, defaults to 587)');
-}
+const useWorker = !!(process.env.EMAIL_WORKER_URL || process.env.SMTP_WORKER_URL);
 
-const port = Number(process.env.SMTP_PORT) || 587;
+let transporter = null;
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port,
-  secure: port === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false, // Allow self-signed certificates (for development)
-  },
-});
+if (!useWorker) {
+  // Support both SMTP_ and EMAIL_ prefixes from .env / Vercel
+  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com';
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 587;
 
-// Verify transporter on startup (async, don't block server)
-// Note: Verification is non-blocking - server will start even if email fails
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-  setImmediate(() => {
-    transporter.verify((error, success) => {
-      if (error) {
-        if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
-          console.warn('⚠️  Email transporter verification skipped: Cannot reach SMTP server');
-          console.warn('   This is usually due to network/DNS issues and can be ignored during development');
-          console.warn('   Email functionality will work when network is available');
-        } else {
-          console.error('❌ Email transporter verification failed:', error.message);
-          console.error('   Check your SMTP_HOST, SMTP_USER and SMTP_PASS in .env file');
-          if (error.message.includes('Invalid login')) {
-            console.error('   ⚠️  Gmail App Password might be incorrect or expired');
-          }
-        }
-      } else {
-        console.log('✅ Email transporter is ready');
-      }
-    });
+  // Validate SMTP environment variables before creating transporter
+  if (!host || !user || !pass) {
+    console.warn('⚠️ Email environment variables are not fully configured.');
+    console.warn('   Checked for: SMTP_HOST/EMAIL_HOST, SMTP_USER/EMAIL_USER, SMTP_PASS/EMAIL_PASS');
+  }
+
+  transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user,
+      pass,
+    },
+    tls: {
+      rejectUnauthorized: false, // Allow self-signed certificates (for development)
+    },
   });
+
+  // Verify transporter on startup (async, don't block server)
+  if (host && user && pass) {
+    setImmediate(() => {
+      transporter.verify((error, success) => {
+        if (error) {
+          if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+            console.warn('⚠️  Email transporter verification skipped: Cannot reach SMTP server');
+            console.warn('   This is usually due to network/DNS issues and can be ignored during development');
+            console.warn('   Email functionality will work when network is available');
+          } else {
+            console.error('❌ Email transporter verification failed:', error.message);
+            console.error('   Check your SMTP_HOST, SMTP_USER and SMTP_PASS in .env file');
+            if (error.message.includes('Invalid login')) {
+              console.error('   ⚠️  Gmail App Password might be incorrect or expired');
+            }
+          }
+        } else {
+          console.log('✅ Email transporter is ready');
+        }
+      });
+    });
+  }
+} else {
+  console.log('[Email] Using EMAIL_WORKER_URL for sending emails (no direct SMTP from this server).');
 }
 
 /**
@@ -76,10 +95,6 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
  */
 export async function sendEmail({ to, subject, html, text, cc, bcc, attachments }) {
   try {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      throw new Error('Email configuration missing: SMTP_HOST, SMTP_USER and SMTP_PASS must be set');
-    }
-
     const from =
       process.env.SMTP_FROM ||
       (process.env.SMTP_USER ? `PWIOI Portal <${process.env.SMTP_USER}>` : 'PWIOI Portal <noreply@pwioi.com>');
@@ -98,15 +113,56 @@ export async function sendEmail({ to, subject, html, text, cc, bcc, attachments 
     if (attachments && attachments.length > 0) {
       mailOptions.attachments = attachments;
     }
+    if (useWorker) {
+      const workerUrl = process.env.EMAIL_WORKER_URL;
+      const workerSecret = process.env.EMAIL_WORKER_SECRET;
 
-    const result = await transporter.sendMail(mailOptions);
+      if (!workerUrl || !workerSecret) {
+        throw new Error('Email worker configuration missing: EMAIL_WORKER_URL and EMAIL_WORKER_SECRET must be set');
+      }
 
-    console.log(`Email sent successfully. MessageId: ${result.messageId}`);
+      console.log('[Email] Using worker to send email.');
 
-    return {
-      success: true,
-      messageId: result.messageId,
-    };
+      const response = await fetch(`${workerUrl.replace(/\/$/, '')}/internal/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-worker-secret': workerSecret,
+        },
+        body: JSON.stringify({
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text,
+          from: mailOptions.from,
+        }),
+      });
+
+      if (!response.ok) {
+        const bodyText = await response.text();
+        throw new Error(`Email worker failed: ${response.status} ${bodyText}`);
+      }
+
+      console.log('[Email] Worker reported success.');
+
+      return {
+        success: true,
+        messageId: 'worker-delegated',
+      };
+    } else {
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        throw new Error('Email configuration missing: SMTP_HOST, SMTP_USER and SMTP_PASS must be set');
+      }
+
+      const result = await transporter.sendMail(mailOptions);
+
+      console.log(`Email sent successfully. MessageId: ${result.messageId}`);
+
+      return {
+        success: true,
+        messageId: result.messageId,
+      };
+    }
   } catch (error) {
     console.error('Email send error:', error);
     console.error('Error details:', {
