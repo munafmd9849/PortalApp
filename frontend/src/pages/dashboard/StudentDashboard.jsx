@@ -13,6 +13,7 @@ import {
 } from '../../services/students';
 import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
+import { subscribeToUpdates } from '../../services/socket';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
@@ -44,6 +45,7 @@ import {
   CheckCircle,
   XCircle,
   Loader,
+  Star,
   Info,
   AlertTriangle,
   X,
@@ -572,7 +574,7 @@ export default function StudentDashboard() {
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
-    // OPTIMIZED: Check cache first
+    // OPTIMIZED: Check cache first (unless forcing refresh)
     if (!forceRefresh) {
       const cacheKey = getCacheKey('jobs');
       if (cacheKey) {
@@ -585,6 +587,8 @@ export default function StudentDashboard() {
           return; // Use cached data, skip API call
         }
       }
+    } else {
+      console.log('🔄 Forcing refresh of jobs data, skipping cache');
     }
 
     setLoadingJobs(true);
@@ -644,16 +648,27 @@ export default function StudentDashboard() {
             );
           }
 
-          // Job is eligible only if ALL three criteria match
-          return centerMatch && schoolMatch && batchMatch;
+          // Job is eligible if explicitly recommended/invited OR if all three criteria match
+          return job.isRecommended || job.isInvited || (centerMatch && schoolMatch && batchMatch);
         });
 
-        setJobs(targetedJobs);
+        // Sort jobs: isInvited first, then isRecommended, then by date (desc)
+        const sortedJobs = [...targetedJobs].sort((a, b) => {
+          if (a.isInvited && !b.isInvited) return -1;
+          if (!a.isInvited && b.isInvited) return 1;
+          if (a.isRecommended && !b.isRecommended) return -1;
+          if (!a.isRecommended && b.isRecommended) return 1;
+          const dateA = new Date(a.postedAt || a.createdAt || 0);
+          const dateB = new Date(b.postedAt || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+        setJobs(sortedJobs);
         setJobsPage(1);
-        // CACHE: Store filtered jobs in localStorage
+        // CACHE: Store sorted jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, targetedJobs);
+          setCachedData(jobsCacheKey, sortedJobs);
         }
       } else {
         setJobs(jobs);
@@ -982,9 +997,6 @@ export default function StudentDashboard() {
       if (historyCacheKey) {
         setCachedData(historyCacheKey, historyData || []);
       }
-
-      // CACHE: Store interview history in localStorage
-      setCachedData(CACHE_KEYS.interviewHistory, historyData || []);
     } catch (err) {
       console.error('Failed to load interview history:', err);
       setInterviewHistory([]);
@@ -1399,31 +1411,46 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const loadDashboardData = async () => {
-      // Load applications and interview history in parallel (both are independent)
+    // Real-time updates via Socket.IO
+    const unsubscribe = subscribeToUpdates({
+      onJobPosted: (data) => {
+        console.log('🔔 New job posted! Refreshing dashboard...', data);
+        // Skip cache for real-time updates
+        loadJobsData(true);
+        // Show a subtle notification if they are on the jobs tab
+        if (activeTab === 'jobs') {
+          showInfo(`New job posted: ${data.jobTitle}`, `By ${data.companyName || 'Recruiter'}`);
+        }
+      }
+    });
+
+    const loadDashboardData = async (force = false) => {
       const promises = [];
 
-      if (!dataLoadingRef.current.applications) {
-        dataLoadingRef.current.applications = true;
-        promises.push(loadApplicationsData());
-      }
-
-      // Load interview history in parallel with applications (same data source)
-      promises.push(loadInterviewHistory());
+      // Always load applications and interview history
+      promises.push(loadApplicationsData(force));
+      promises.push(loadInterviewHistory(force));
 
       // Wait for both to complete
       await Promise.all(promises);
 
-      // Load jobs when profile is complete (requires profile data for filtering)
-      if (profileComplete && !dataLoadingRef.current.jobs) {
-        dataLoadingRef.current.jobs = true;
-        loadJobsData();
+      // Load jobs when profile is complete
+      if (profileComplete) {
+        loadJobsData(force);
       }
     };
 
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+    // If switching to dashboard or jobs, force a refresh to catch new recommendations
+    if (activeTab === 'dashboard' || activeTab === 'jobs') {
+      loadDashboardData(true);
+    } else {
+      loadDashboardData(false);
+    }
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.id, activeTab, profileComplete, loadJobsData, loadApplicationsData, loadInterviewHistory]);
 
   // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
   useEffect(() => {
@@ -2480,7 +2507,13 @@ export default function StudentDashboard() {
                                     navigate(`/job/${job.id}`);
                                   }
                                 }}
-                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+                                className={`group rounded-lg sm:rounded-xl border-2 transition-all duration-300 overflow-hidden cursor-pointer ${
+                                  job.isInvited 
+                                    ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
+                                    : job.isRecommended 
+                                      ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
+                                      : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl'
+                                }`}
                               >
                                 {/* Mobile Layout */}
                                 <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
@@ -2490,7 +2523,21 @@ export default function StudentDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
-                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
+                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1 truncate">{job.jobTitle}</p>
+                                      <div className="flex flex-wrap gap-1 mb-2">
+                                        {job.isRecommended && (
+                                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm">
+                                            <Star className="w-2.5 h-2.5 fill-current" />
+                                            REC
+                                          </span>
+                                        )}
+                                        {job.isInvited && (
+                                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm">
+                                            <Mail className="w-2.5 h-2.5" />
+                                            INV
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                                         <div className="flex items-center gap-1">
                                           <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
@@ -2560,8 +2607,22 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
 
-                                  <div className="min-w-0 overflow-hidden flex items-center">
+                                  <div className="min-w-0 overflow-hidden flex flex-col justify-center">
                                     <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {job.isRecommended && (
+                                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm shrink-0">
+                                          <Star className="w-2.5 h-2.5 fill-current" />
+                                          Recommended
+                                        </span>
+                                      )}
+                                      {job.isInvited && (
+                                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm shrink-0">
+                                          <Mail className="w-2.5 h-2.5" />
+                                          Invited
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center min-w-0 overflow-hidden">

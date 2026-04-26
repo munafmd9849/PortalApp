@@ -11,6 +11,8 @@ import { createNotification } from './notifications.js';
 import logger from '../config/logger.js';
 import { sendServerError } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
+import { rankCandidatesForJob } from '../services/recommendationService.js';
+import { getIO } from '../config/socket.js';
 
 /**
  * Get all jobs with filters
@@ -51,7 +53,7 @@ export async function getJobs(req, res) {
       const schools = school.split(',').map(s => s.trim());
       where.AND = [
         ...(where.AND || []),
-        { OR: schools.map(s => ({ targetSchools: { contains: s, mode: 'insensitive' } })) }
+        { OR: schools.map(s => ({ targetSchools: { contains: s } })) }
       ];
     }
 
@@ -60,7 +62,7 @@ export async function getJobs(req, res) {
       const centers = center.split(',').map(c => c.trim());
       where.AND = [
         ...(where.AND || []),
-        { OR: centers.map(c => ({ targetCenters: { contains: c, mode: 'insensitive' } })) }
+        { OR: centers.map(c => ({ targetCenters: { contains: c } })) }
       ];
     }
 
@@ -69,7 +71,7 @@ export async function getJobs(req, res) {
       const batches = batch.split(',').map(b => b.trim());
       where.AND = [
         ...(where.AND || []),
-        { OR: batches.map(b => ({ targetBatches: { contains: b, mode: 'insensitive' } })) }
+        { OR: batches.map(b => ({ targetBatches: { contains: b } })) }
       ];
     }
 
@@ -80,9 +82,9 @@ export async function getJobs(req, res) {
       const searchTerm = search.trim();
       searchConditions.push({
         OR: [
-          { jobTitle: { contains: searchTerm, mode: 'insensitive' } },
-          { companyName: { contains: searchTerm, mode: 'insensitive' } },
-          { company: { name: { contains: searchTerm, mode: 'insensitive' } } },
+          { jobTitle: { contains: searchTerm } },
+          { companyName: { contains: searchTerm } },
+          { company: { name: { contains: searchTerm } } },
         ],
       });
     }
@@ -161,6 +163,13 @@ export async function getJobs(req, res) {
             select: {
               status: true,
             },
+          },
+          jobTargets: {
+            select: {
+              studentId: true,
+              score: true,
+              sourceMode: true,
+            }
           },
           _count: {
             select: {
@@ -267,6 +276,9 @@ export async function getTargetedJobs(req, res) {
       },
       include: {
         company: true,
+        jobTargets: {
+          where: { studentId: studentId }
+        }
       },
       orderBy: { postedAt: 'desc' },
       take: 200, // Get more to filter in memory
@@ -316,7 +328,16 @@ export async function getTargetedJobs(req, res) {
         return true;
       }
 
-      // Match student's attributes
+      // PRIORITY BYPASS: If student is explicitly targeted (Cherry Picked), they always see the job
+      const isExplicitlyTargeted = job.jobTargets.length > 0;
+      if (isExplicitlyTargeted) return true;
+
+      // INVITE ONLY: If not explicitly targeted, they can't see it
+      if (job.visibilityMode === 'INVITE_ONLY' || job.visibilityMode === 'invite_only') {
+        return false;
+      }
+
+      // Match student's attributes (OPEN or PRIORITY modes)
       const schoolMatch = targetSchools.length === 0 || targetSchools.includes(school);
       const centerMatch = targetCenters.length === 0 || targetCenters.includes(center);
       const batchMatch = targetBatches.length === 0 || targetBatches.includes(batch);
@@ -324,8 +345,20 @@ export async function getTargetedJobs(req, res) {
       return schoolMatch && centerMatch && batchMatch;
     });
 
-    // Limit to 100 results
-    res.json(targetedJobs.slice(0, 100));
+    // Map flags and limit to 100 results
+    const finalJobs = targetedJobs.map(job => {
+      const hasTargetRecord = job.jobTargets.length > 0;
+      const isRecommended = (job.visibilityMode === 'PRIORITY' || job.visibilityMode === 'priority') && hasTargetRecord;
+      const isInvited = (job.visibilityMode === 'INVITE_ONLY' || job.visibilityMode === 'invite_only') && hasTargetRecord;
+      
+      return {
+        ...job,
+        isRecommended,
+        isInvited
+      };
+    }).slice(0, 100);
+
+    res.json(finalJobs);
   } catch (error) {
     console.error('Get targeted jobs error:', error);
     console.error('Error details:', {
@@ -1168,7 +1201,14 @@ export async function updateJob(req, res) {
 export async function postJob(req, res) {
   try {
     const { jobId } = req.params;
-    const { selectedSchools, selectedCenters, selectedBatches } = req.body;
+    const { 
+      selectedSchools, 
+      selectedCenters, 
+      selectedBatches,
+      selectedBranches = [],
+      visibilityMode = 'OPEN',
+      targetStudents = [] // Array of { studentId, score, sourceMode }
+    } = req.body;
     const adminId = req.userId;
 
     // First, check if job exists and is in a postable state
@@ -1227,11 +1267,13 @@ export async function postJob(req, res) {
     const targetSchools = parseTargeting(selectedSchools);
     const targetCenters = parseTargeting(selectedCenters);
     const targetBatches = parseTargeting(selectedBatches);
+    const targetBranches = parseTargeting(selectedBranches);
 
     // Convert arrays to JSON strings for database storage (schema expects String)
     const targetSchoolsJson = JSON.stringify(targetSchools);
     const targetCentersJson = JSON.stringify(targetCenters);
     const targetBatchesJson = JSON.stringify(targetBatches);
+    const targetBranchesJson = JSON.stringify(targetBranches);
 
     // Update job status
     const job = await prisma.job.update({
@@ -1244,6 +1286,9 @@ export async function postJob(req, res) {
         targetSchools: targetSchoolsJson,
         targetCenters: targetCentersJson,
         targetBatches: targetBatchesJson,
+        targetBranches: targetBranchesJson,
+        visibilityMode,
+        recommendationEnabled: visibilityMode === 'PRIORITY',
       },
       include: {
         company: true,
@@ -1259,6 +1304,21 @@ export async function postJob(req, res) {
         },
       },
     });
+
+    // Handle JobTargets
+    if (targetStudents && targetStudents.length > 0) {
+      await prisma.jobTarget.deleteMany({ where: { jobId } });
+      await prisma.jobTarget.createMany({
+        data: targetStudents.map(target => ({
+          jobId,
+          studentId: target.studentId,
+          score: target.score || 0,
+          sourceMode: target.sourceMode || 'SYSTEM',
+          selectedByAdmin: target.sourceMode === 'MANUAL',
+          status: 'PENDING'
+        }))
+      });
+    }
 
     // Add job distribution to queue (async background processing)
     try {
@@ -1296,6 +1356,18 @@ export async function postJob(req, res) {
       details: `Posted job: ${job.jobTitle}`,
     });
 
+    // Notify students via Socket.IO
+    try {
+      const io = getIO();
+      io.emit('job:posted', { 
+        jobId: job.id, 
+        jobTitle: job.jobTitle,
+        companyName: job.company?.name || job.companyName
+      });
+    } catch (socketErr) {
+      logger.error('Failed to emit job:posted socket event:', socketErr);
+    }
+
     res.json({
       success: true,
       job,
@@ -1329,7 +1401,14 @@ export async function postJob(req, res) {
 export async function approveJob(req, res) {
   try {
     const { jobId } = req.params;
-    const { selectedSchools, selectedCenters, selectedBatches } = req.body; // Optional targeting for posting
+    const { 
+      selectedSchools, 
+      selectedCenters, 
+      selectedBatches,
+      selectedBranches = [],
+      visibilityMode = 'OPEN',
+      targetStudents = []
+    } = req.body; // Optional targeting for posting
     const adminId = req.userId;
 
     // Check if job exists and is in IN_REVIEW status
@@ -1373,11 +1452,13 @@ export async function approveJob(req, res) {
     const targetSchools = parseTargeting(selectedSchools) || parseTargeting(existingJob.targetSchools);
     const targetCenters = parseTargeting(selectedCenters) || parseTargeting(existingJob.targetCenters);
     const targetBatches = parseTargeting(selectedBatches) || parseTargeting(existingJob.targetBatches);
+    const targetBranches = parseTargeting(selectedBranches) || parseTargeting(existingJob.targetBranches);
 
     // Convert arrays to JSON strings for database storage
     const targetSchoolsJson = JSON.stringify(targetSchools);
     const targetCentersJson = JSON.stringify(targetCenters);
     const targetBatchesJson = JSON.stringify(targetBatches);
+    const targetBranchesJson = JSON.stringify(targetBranches);
 
     // STRICT RULE: Move directly from IN_REVIEW → POSTED
     const job = await prisma.job.update({
@@ -1393,6 +1474,9 @@ export async function approveJob(req, res) {
         targetSchools: targetSchoolsJson,
         targetCenters: targetCentersJson,
         targetBatches: targetBatchesJson,
+        targetBranches: targetBranchesJson,
+        visibilityMode,
+        recommendationEnabled: visibilityMode === 'PRIORITY',
       },
       include: {
         recruiter: {
@@ -1403,6 +1487,21 @@ export async function approveJob(req, res) {
         company: true,
       },
     });
+
+    // Handle JobTargets
+    if (targetStudents && targetStudents.length > 0) {
+      await prisma.jobTarget.deleteMany({ where: { jobId } });
+      await prisma.jobTarget.createMany({
+        data: targetStudents.map(target => ({
+          jobId,
+          studentId: target.studentId,
+          score: target.score || 0,
+          sourceMode: target.sourceMode || 'SYSTEM',
+          selectedByAdmin: target.sourceMode === 'MANUAL',
+          status: 'PENDING'
+        }))
+      });
+    }
 
     // Add job distribution to queue (async background processing)
     try {
@@ -1442,37 +1541,66 @@ export async function approveJob(req, res) {
 
     // Send email notifications to matching students about new job
     try {
-      const where = {
-        user: { status: 'ACTIVE' },
-      };
+      let matchingStudents = [];
 
-      if (targetSchools.length > 0 && !targetSchools.includes('ALL')) {
-        where.school = { in: targetSchools };
-      }
-      if (targetCenters.length > 0 && !targetCenters.includes('ALL')) {
-        where.center = { in: targetCenters };
-      }
-      if (targetBatches.length > 0 && !targetBatches.includes('ALL')) {
-        where.batch = { in: targetBatches };
-      }
+      if (visibilityMode === 'INVITE_ONLY') {
+        // For Invite Only, only notify the explicitly selected students
+        if (targetStudents && targetStudents.length > 0) {
+          const invitedStudentIds = targetStudents.map(ts => ts.studentId);
+          matchingStudents = await prisma.student.findMany({
+            where: {
+              id: { in: invitedStudentIds },
+              user: { status: 'ACTIVE' }
+            },
+            include: {
+              user: {
+                select: { email: true, displayName: true }
+              }
+            }
+          });
+        }
+      } else {
+        // For Open or Priority, notify based on school/center/batch criteria
+        const where = {
+          user: { status: 'ACTIVE' },
+        };
 
-      const matchingStudents = await prisma.student.findMany({
-        where,
-        include: {
-          user: {
-            select: {
-              email: true,
-              displayName: true,
+        if (targetSchools.length > 0 && !targetSchools.includes('ALL')) {
+          where.school = { in: targetSchools };
+        }
+        if (targetCenters.length > 0 && !targetCenters.includes('ALL')) {
+          where.center = { in: targetCenters };
+        }
+        if (targetBatches.length > 0 && !targetBatches.includes('ALL')) {
+          where.batch = { in: targetBatches };
+        }
+
+        matchingStudents = await prisma.student.findMany({
+          where,
+          include: {
+            user: {
+              select: {
+                email: true,
+                displayName: true,
+              },
             },
           },
-        },
-        take: 500,
-      });
+          take: 1000, // Increased limit for broader reach
+        });
+      }
 
       if (matchingStudents.length > 0) {
-        const emailResults = await sendBulkJobNotifications(matchingStudents, job);
+        // Customize notification based on visibility mode
+        const notificationData = {
+          ...job,
+          visibilityMode,
+          isInviteOnly: visibilityMode === 'INVITE_ONLY',
+          isPriority: visibilityMode === 'PRIORITY'
+        };
+        
+        const emailResults = await sendBulkJobNotifications(matchingStudents, notificationData);
         logger.info(
-          `New job notifications sent to ${emailResults.successful} students for job ${job.id} (${emailResults.failed} failed)`
+          `New job notifications sent to ${emailResults.successful} students for job ${job.id} (${emailResults.failed} failed) [Mode: ${visibilityMode}]`
         );
       }
     } catch (emailError) {
@@ -1486,6 +1614,18 @@ export async function approveJob(req, res) {
       targetId: jobId,
       details: `Approved and posted job: ${job.jobTitle}`,
     });
+
+    // Notify students via Socket.IO
+    try {
+      const io = getIO();
+      io.emit('job:posted', { 
+        jobId: job.id, 
+        jobTitle: job.jobTitle,
+        companyName: job.company?.name || job.companyName
+      });
+    } catch (socketErr) {
+      logger.error('Failed to emit job:posted socket event:', socketErr);
+    }
 
     res.json({
       success: true,
@@ -1756,5 +1896,20 @@ export async function updateJobRecruiterNote(req, res) {
       error: 'Failed to save recruiter note',
       message: error.message,
     });
+  }
+}
+
+/**
+ * Analyze candidates for a job (admin only)
+ * Returns a ranked list of students for the job's targeting
+ */
+export async function analyzeCandidates(req, res) {
+  try {
+    const { jobId } = req.params;
+    const rankedCandidates = await rankCandidatesForJob(jobId);
+    res.json(rankedCandidates);
+  } catch (error) {
+    logger.error('Analyze candidates error:', error);
+    res.status(500).json({ error: 'Failed to analyze candidates' });
   }
 }
