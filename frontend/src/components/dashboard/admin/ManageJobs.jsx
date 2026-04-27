@@ -769,7 +769,7 @@ export default function ManageJobs() {
           <button
             onClick={() => setActiveFilter('in_review')}
             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'in_review'
-              ? 'bg-blue-500 text-white shadow-md'
+              ? 'bg-indigo-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
           >
@@ -778,7 +778,7 @@ export default function ManageJobs() {
           <button
             onClick={() => setActiveFilter('posted')}
             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all duration-200 touch-manipulation ${activeFilter === 'posted'
-              ? 'bg-green-500 text-white shadow-md'
+              ? 'bg-emerald-500 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-800'
               }`}
           >
@@ -834,8 +834,8 @@ export default function ManageJobs() {
                 key={job.id} 
                 style={{ zIndex: isAnyDropdownOpen ? 50 : 1 }}
                 className={`group relative bg-white border-l-[5px] rounded-xl shadow-sm hover:shadow-md transition-all duration-200 mb-6 mx-2 sm:mx-4 ${
-                  isPosted ? 'border-emerald-500' : 'border-indigo-500'
-                } border-y border-r border-slate-200`}
+                  isPosted ? 'border-l-emerald-500' : 'border-l-indigo-500'
+                } border border-slate-200`}
               >
                 {/* CARD HEADER (TOP BAR) */}
                 <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 ${
