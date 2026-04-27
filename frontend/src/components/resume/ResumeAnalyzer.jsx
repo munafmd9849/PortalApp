@@ -275,7 +275,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         isJobMatched,
         jobTitle: selectedJob?.jobTitle || '',
         companyName: selectedJob?.companyName || '',
-        analyzedFromBuilderFallback: usedFallbackBuilder,
+        analyzedFromBuilderFallback: false,
       };
 
       setAnalysis(transformedAnalysis);
