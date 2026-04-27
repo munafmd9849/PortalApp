@@ -174,20 +174,17 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     setSelectedResume(null);
   };
 
-  // Real analysis function using Gemini API
+  // Real analysis function using Gemini/Mistral API
   const analyzeResume = async () => {
     const resumeToAnalyze = selectedResume || resumeInfo;
     const hasUploadedResume = !!(resumeToAnalyze?.fileUrl || resumeToAnalyze?.resumeUrl);
-    const hasBuilderContent = !!(builderResumeText && String(builderResumeText).trim().length > 0);
-    // Use builder text only when there is no uploaded resume to analyze (so each uploaded resume gets its own analysis)
-    const useBuilderText = hasBuilderContent && !hasUploadedResume;
 
-    if (!useBuilderText && !hasUploadedResume) {
+    if (!hasUploadedResume) {
       if (resumes && resumes.length > 1) {
         setShowResumeSelector(true);
         return;
       }
-      setError('Resume URL is required for analysis');
+      setError('Please upload a resume PDF to get an ATS score.');
       return;
     }
 
@@ -197,28 +194,12 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     setError(null);
 
     let resumeText;
-    let usedFallbackBuilder = false;
     try {
-      if (useBuilderText) {
-        resumeText = String(builderResumeText).trim();
-      } else {
-        const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
-        try {
-          resumeText = await extractTextFromPDFUrl(resumeUrl);
-        } catch (pdfErr) {
-          if (hasBuilderContent) {
-            resumeText = String(builderResumeText).trim();
-            usedFallbackBuilder = true;
-          } else {
-            throw pdfErr;
-          }
-        }
-      }
+      const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
+      resumeText = await extractTextFromPDFUrl(resumeUrl);
 
       if (!resumeText || resumeText.trim().length === 0) {
-        throw new Error(useBuilderText
-          ? 'Your resume in the Builder has no content yet. Add details in Build Resume, then try again.'
-          : 'Could not extract text from PDF. The PDF might be image-based or corrupted.');
+        throw new Error('Could not extract text from PDF. The PDF might be image-based or corrupted.');
       }
 
       // Step 2: Call backend API for ATS analysis (job-matched or generic)
@@ -227,7 +208,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         throw new Error('Authentication required. Please log in again.');
       }
 
-      console.log('📊 [ATS Analysis] Source:', useBuilderText ? 'Builder content' : (usedFallbackBuilder ? 'Builder (PDF had no text)' : 'Uploaded PDF'), 'jobId:', selectedJob?.id || 'none');
+      console.log('📊 [ATS Analysis] Source: Uploaded PDF', 'jobId:', selectedJob?.id || 'none');
 
       // Add timeout to prevent hanging
       const controller = new AbortController();
@@ -360,9 +341,8 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     }
   };
 
-  // Check if we have any resumes or builder text to analyze
-  const hasBuilderText = builderResumeText && String(builderResumeText).trim().length > 0;
-  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0) || hasBuilderText;
+  // Check if we have any resumes to analyze
+  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0);
   const currentResume = selectedResume || (resumes && resumes.length > 0 ? resumes[0] : null) || resumeInfo;
 
   if (!hasAnyResume) {
