@@ -727,6 +727,61 @@ const ResumeBuilder = () => {
     }
   };
 
+  // Apply AI Optimized results directly to the resume state
+  const handleApplyOptimizedAI = () => {
+    if (!optimizeResult?.optimized || !student) return;
+
+    // Create a deep copy of student to avoid mutating state directly
+    const updatedStudent = JSON.parse(JSON.stringify(student));
+
+    // Update Summary
+    if (optimizeResult.optimized.summary) {
+      updatedStudent.summary = optimizeResult.optimized.summary;
+      setPersonalInfo(prev => ({ ...prev, summary: optimizeResult.optimized.summary }));
+    }
+
+    // Update Skills
+    if (optimizeResult.optimized.skills) {
+       const newSkills = [
+         ...(optimizeResult.optimized.skills.technical || []),
+         ...(optimizeResult.optimized.skills.tools || []),
+         ...(optimizeResult.optimized.skills.soft || [])
+       ].map(s => ({ skillName: s, rating: 3 }));
+       updatedStudent.skills = newSkills;
+    }
+
+    // Update Experience Bullets
+    if (optimizeResult.optimized.experience) {
+       optimizeResult.optimized.experience.forEach(optExp => {
+         const match = updatedStudent.experiences?.find(
+           e => e.title === optExp.originalTitle && e.company === optExp.originalCompany
+         );
+         if (match) {
+           match.description = optExp.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    // Update Project Bullets
+    if (optimizeResult.optimized.projects) {
+       optimizeResult.optimized.projects.forEach(optProj => {
+         const match = updatedStudent.projects?.find(
+           p => p.title === optProj.originalTitle
+         );
+         if (match) {
+           match.description = optProj.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    setStudent(updatedStudent);
+    
+    setSuccess('AI Optimization applied successfully! Review your tailored resume below.');
+    setTimeout(() => setSuccess(''), 4000);
+    setActiveMode('buildResume');
+    setActiveSection('preview');
+  };
+
   // Save all resume data
   const handleSaveAll = async () => {
     if (!user?.id) return;
@@ -2598,7 +2653,13 @@ const ResumeBuilder = () => {
                 </div>
               )}
 
-              <p className="text-xs text-gray-400 text-center">Copy the optimized content above into your Build Resume sections, then download your PDF.</p>
+              <button
+                onClick={handleApplyOptimizedAI}
+                className="w-full mt-4 flex items-center justify-center gap-2 py-4 px-6 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+              >
+                <CheckCircle2 size={20} />
+                Apply to Resume & Preview PDF
+              </button>
             </div>
           )}
         </div>
