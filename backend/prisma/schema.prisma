@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -75,11 +75,12 @@ model Student {
   enrollmentId               String?               @unique
   /// Indicates whether student has completed mandatory profile fields at least once
   profileCompleted           Boolean               @default(false) @map("profile_completed")
-  cgpa                       Decimal?
+  cgpa                       Float?
   backlogs                   String?
   batch                      String
   center                     String
   school                     String
+  branch                     String?
   bio                        String?
   headline                   String?
   summary                    String?
@@ -120,6 +121,7 @@ model Student {
   experiences                Experience[]
   interviewEvaluations       InterviewEvaluation[]
   jobTracking                JobTracking[]
+  jobTargets                 JobTarget[]
   projects                   Project[]
   skills                     Skill[]
   resumeFiles                StudentResumeFile[]
@@ -159,7 +161,7 @@ model Education {
   updatedAt   DateTime @updatedAt
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, endYear(sort: Desc)])
+  @@index([studentId, endYear])
   @@map("education")
 }
 
@@ -175,7 +177,7 @@ model Experience {
   updatedAt   DateTime @updatedAt
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, start(sort: Desc)])
+  @@index([studentId, start])
   @@map("experiences")
 }
 
@@ -194,7 +196,7 @@ model Project {
   updatedAt        DateTime @updatedAt
   student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
   @@map("projects")
 }
 
@@ -210,7 +212,7 @@ model Achievement {
   updatedAt      DateTime  @updatedAt
   student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
   @@map("achievements")
 }
 
@@ -227,7 +229,7 @@ model Certification {
   updatedAt      DateTime  @updatedAt
   student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, issuedDate(sort: Desc)])
+  @@index([studentId, issuedDate])
   @@map("certifications")
 }
 
@@ -341,6 +343,7 @@ model Job {
   targetSchools               String
   targetCenters               String
   targetBatches               String
+  targetBranches              String                     @default("[]")
   submittedAt                 DateTime?
   postedAt                    DateTime?
   postedBy                    String?
@@ -357,14 +360,17 @@ model Job {
   interviewSession            InterviewSession?
   interviews                  Interview?
   jobTracking                 JobTracking[]
+  jobTargets                  JobTarget[]
   company                     Company?                   @relation(fields: [companyId], references: [id])
   recruiter                   Recruiter?                 @relation(fields: [recruiterId], references: [id])
   screeningSession            RecruiterScreeningSession?
+  visibilityMode              String                     @default("OPEN")
+  recommendationEnabled       Boolean                    @default(false)
 
-  @@index([status, createdAt(sort: Desc)])
-  @@index([isActive, createdAt(sort: Desc)])
-  @@index([recruiterId, createdAt(sort: Desc)])
-  @@index([isPosted, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@index([isActive, createdAt])
+  @@index([recruiterId, createdAt])
+  @@index([isPosted, createdAt])
   @@index([applicationDeadline, applicationDeadlineMailSent, status])
   @@index([targetSchools])
   @@index([targetCenters])
@@ -386,10 +392,31 @@ model JobTracking {
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, jobId])
-  @@index([studentId, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
   @@index([jobId])
   @@index([studentId, viewed])
   @@map("job_tracking")
+}
+
+model JobTarget {
+  id               String   @id @default(uuid())
+  jobId            String
+  studentId        String
+  score            Float    @default(0)
+  sourceMode       String   @default("SYSTEM")
+  selectedByAdmin  Boolean  @default(false)
+  viewedAt         DateTime?
+  appliedAt        DateTime?
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, studentId])
+  @@index([jobId])
+  @@index([studentId])
+  @@map("job_student_targets")
 }
 
 model Application {
@@ -413,10 +440,10 @@ model Application {
   roundEvaluations     RoundEvaluation[]
 
   @@unique([studentId, jobId])
-  @@index([studentId, appliedDate(sort: Desc)])
-  @@index([studentId, createdAt(sort: Desc)])
-  @@index([jobId, createdAt(sort: Desc)])
-  @@index([status, createdAt(sort: Desc)])
+  @@index([studentId, appliedDate])
+  @@index([studentId, createdAt])
+  @@index([jobId, createdAt])
+  @@index([status, createdAt])
   @@index([interviewStatus])
   @@index([screeningStatus])
   @@map("applications")
@@ -452,9 +479,9 @@ model StudentResumeFile {
   uploadedAt DateTime @default(now())
   student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, uploadedAt(sort: Desc)])
+  @@index([studentId, uploadedAt])
   @@index([studentId, isDefault])
-  @@index([userId, uploadedAt(sort: Desc)])
+  @@index([userId, uploadedAt])
   @@map("student_resume_files")
 }
 
@@ -469,8 +496,8 @@ model Notification {
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([userId, createdAt])
+  @@index([userId, isRead, createdAt])
   @@map("notifications")
 }
 
@@ -487,7 +514,7 @@ model EmailNotification {
   createdAt  DateTime  @default(now())
 
   @@index([status, createdAt])
-  @@index([jobId, createdAt(sort: Desc)])
+  @@index([jobId, createdAt])
   @@map("email_notifications")
 }
 
@@ -506,8 +533,8 @@ model StudentQuery {
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, createdAt(sort: Desc)])
-  @@index([status, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
+  @@index([status, createdAt])
   @@map("student_queries")
 }
 
@@ -532,7 +559,7 @@ model Endorsement {
   student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   token         EndorsementToken? @relation(fields: [tokenId], references: [id])
 
-  @@index([studentId, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
   @@index([endorserEmail])
   @@index([consent])
   @@map("endorsements")
@@ -555,7 +582,7 @@ model EndorsementToken {
   endorsement  Endorsement?
 
   @@index([token])
-  @@index([studentId, createdAt(sort: Desc)])
+  @@index([studentId, createdAt])
   @@index([email])
   @@index([used, expiresAt])
   @@map("endorsement_tokens")
@@ -574,7 +601,7 @@ model AdminRequest {
   rejectedBy  String?
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([status, requestedAt(sort: Desc)])
+  @@index([status, requestedAt])
   @@map("admin_requests")
 }
 
@@ -591,7 +618,7 @@ model Announcement {
   createdBy     String
   createdAt     DateTime @default(now())
 
-  @@index([createdAt(sort: Desc)])
+  @@index([createdAt])
   @@map("announcements")
 }
 
@@ -644,7 +671,7 @@ model Interview {
   evaluations        InterviewEvaluation[]
   job                Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  @@index([status, startedAt(sort: Desc)])
+  @@index([status, startedAt])
   @@index([jobId])
   @@index([createdBy])
   @@index([sessionToken])
@@ -682,7 +709,7 @@ model InterviewActivity {
   createdAt    DateTime  @default(now())
   interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 
-  @@index([interviewId, createdAt(sort: Desc)])
+  @@index([interviewId, createdAt])
   @@index([activityType])
   @@map("interview_activities")
 }
@@ -701,7 +728,7 @@ model InterviewSession {
   job                Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
   interviewerInvites InterviewerInvite[]
 
-  @@index([status, createdAt(sort: Desc)])
+  @@index([status, createdAt])
   @@index([jobId])
   @@index([createdBy])
   @@map("interview_sessions")

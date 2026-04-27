@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Loader, XCircle } from 'lucide-react';
+import { CheckCircle, Loader, XCircle, Star, Mail } from 'lucide-react';
 
 export default function JobPostingsSection({
   jobs,
@@ -254,7 +254,13 @@ export default function JobPostingsSection({
                         openJobDetails();
                       }
                     }}
-                    className="flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200 min-w-0 overflow-hidden md:items-center cursor-pointer"
+                    className={`flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl transition-all duration-200 border min-w-0 overflow-hidden md:items-center cursor-pointer ${
+                      job.isInvited 
+                        ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
+                        : job.isRecommended 
+                          ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
+                          : 'bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md border-gray-200'
+                    }`}
                     style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
                   >
                     {/* Mobile Layout */}
@@ -265,9 +271,23 @@ export default function JobPostingsSection({
                           <span className="text-sm sm:text-base font-semibold text-black block truncate">
                             {companyName}
                           </span>
-                          <span className="text-xs sm:text-sm font-medium text-gray-700 block truncate">
-                            {job.jobTitle || job.title || 'Position Available'}
-                          </span>
+                          <div className="flex items-center flex-wrap gap-1">
+                            <span className="text-xs sm:text-sm font-medium text-gray-700 block truncate">
+                              {job.jobTitle || job.title || 'Position Available'}
+                            </span>
+                            {job.isRecommended && (
+                              <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200">
+                                <Star className="w-2.5 h-2.5 fill-current" />
+                                REC
+                              </span>
+                            )}
+                            {job.isInvited && (
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200">
+                                <Mail className="w-2.5 h-2.5" />
+                                INV
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
@@ -345,8 +365,20 @@ export default function JobPostingsSection({
                         </span>
                       </div>
 
-                      <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">
-                        <span className="truncate block">{job.jobTitle || job.title || 'Position Available'}</span>
+                      <div className="hidden md:flex items-center min-w-0 overflow-hidden gap-2">
+                        <span className="truncate block font-medium text-gray-800">{job.jobTitle || job.title || 'Position Available'}</span>
+                        {job.isRecommended && (
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shrink-0">
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                            Recommended
+                          </span>
+                        )}
+                        {job.isInvited && (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shrink-0">
+                            <Mail className="w-2.5 h-2.5" />
+                            Invited
+                          </span>
+                        )}
                       </div>
 
                       <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">

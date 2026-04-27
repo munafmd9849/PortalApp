@@ -139,7 +139,15 @@ async function apiRequest(endpoint, options = {}) {
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith(CACHE_KEY_PREFIX)) {
         const cachedUrl = key.replace(CACHE_KEY_PREFIX, '');
-        if (cachedUrl.startsWith(basePath)) {
+        
+        // Aggressive invalidation: If we mutate /jobs/123, we should clear /jobs (the list)
+        // Check if both are job related
+        const isJobMutation = endpoint.startsWith('/jobs');
+        const isJobCache = cachedUrl.startsWith('/jobs');
+        
+        if (isJobMutation && isJobCache) {
+          localStorage.removeItem(key);
+        } else if (cachedUrl.startsWith(basePath)) {
           localStorage.removeItem(key);
         }
       }
@@ -679,6 +687,10 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  optimizeResume: (data) => apiRequest('/students/resume/optimize', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   generateResumePDF: (data) => apiRequest('/students/generate-resume-pdf', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -714,6 +726,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  analyzeCandidates: (jobId) => apiRequest(`/jobs/${jobId}/analyze`),
   autoArchiveExpiredJobs: () => apiRequest('/jobs/auto-archive-expired', {
     method: 'POST',
   }),

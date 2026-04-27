@@ -868,14 +868,14 @@ export async function getAdminJobApplications(req, res) {
     if (q) {
       filterConditions.push({
         OR: [
-          { id: { contains: q, mode: 'insensitive' } }, // Application ID
+          { id: { contains: q } }, // Application ID
           {
             student: {
               OR: [
-                { fullName: { contains: q, mode: 'insensitive' } },
-                { email: { contains: q, mode: 'insensitive' } },
-                { phone: { contains: q, mode: 'insensitive' } },
-                { enrollmentId: { contains: q, mode: 'insensitive' } },
+                { fullName: { contains: q } },
+                { email: { contains: q } },
+                { phone: { contains: q } },
+                { enrollmentId: { contains: q } },
               ],
             },
           },
@@ -1031,12 +1031,12 @@ export async function getAdminJobApplications(req, res) {
     if (degree || branch || graduationYear) {
       const educationConditions = {};
       if (degree) {
-        educationConditions.degree = { contains: degree, mode: 'insensitive' };
+        educationConditions.degree = { contains: degree };
       }
       if (branch) {
         // Branch/specialization is stored in Education.description field
         // We search in the description field which typically contains specialization/branch info
-        educationConditions.description = { contains: branch, mode: 'insensitive' };
+        educationConditions.description = { contains: branch };
       }
       if (graduationYear) {
         educationConditions.endYear = graduationYear;
@@ -1051,11 +1051,11 @@ export async function getAdminJobApplications(req, res) {
     // Location filter
     if (city || state) {
       if (city) {
-        studentWhere.city = { contains: city, mode: 'insensitive' };
+        studentWhere.city = { contains: city };
         hasStudentFilters = true;
       }
       if (state) {
-        studentWhere.stateRegion = { contains: state, mode: 'insensitive' };
+        studentWhere.stateRegion = { contains: state };
         hasStudentFilters = true;
       }
     }

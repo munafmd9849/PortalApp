@@ -1,0 +1,157 @@
+/* ATS checker */
+.ats-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.ats-big-score {
+  display: flex;
+  align-items: baseline;
+  margin-top: 0.3rem;
+}
+.ats-score-num {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 4rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  &.score-high { color: var(--success); background: transparent; }
+  &.score-mid { color: var(--warning); background: transparent; }
+  &.score-low { color: var(--danger); background: transparent; }
+  padding: 0;
+  display: inline;
+}
+.ats-score-den {
+  font-family: var(--font-mono);
+  color: var(--ink-muted);
+  margin-left: 0.4rem;
+  font-size: 1.25rem;
+}
+
+/* Resume builder */
+.rb-form {
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+    @media (max-width: 640px) { grid-template-columns: 1fr; }
+  }
+}
+.rb-block {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  margin-top: 0.75rem;
+
+  & + .rb-block { margin-top: 0.75rem; }
+}
+.rb-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+/* Resume preview / editor */
+.resume-preview {
+  .rp-name {
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    width: 100%;
+    padding: 0.25rem 0;
+    outline: none;
+    border-bottom: 1px dashed transparent;
+    &:hover, &:focus { border-bottom-color: var(--border); }
+  }
+  .rp-headline {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 1rem;
+    width: 100%;
+    padding: 0.25rem 0;
+    outline: none;
+    border-bottom: 1px dashed transparent;
+    &:hover, &:focus { border-bottom-color: var(--border); }
+  }
+  .rp-contact {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+  }
+  .rp-contact-item {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    outline: none;
+    min-width: 140px;
+    &:focus { border-color: var(--accent); color: var(--ink); }
+  }
+  .rp-section {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .rp-exp {
+    padding: 0.75rem 0;
+    & + .rp-exp { border-top: 1px dashed var(--border); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      @media (max-width: 640px) { grid-template-columns: 1fr; }
+    }
+  }
+}
+
+/* shared tabs + dropzone re-use (dup to keep feature isolated) */
+.tabs {
+  display: inline-flex;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+.tab {
+  background: transparent;
+  color: var(--ink-muted);
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 500;
+  &:hover { color: var(--ink-soft); }
+  &.active { background: var(--surface-2); color: var(--ink); }
+}
+.dropzone {
+  display: block;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: 2.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  input { display: none; }
+  &:hover { border-color: var(--accent); background: var(--surface-2); }
+  .drop-icon { font-size: 1.8rem; margin-bottom: 0.6rem; color: var(--accent); }
+  .drop-file { font-weight: 600; margin-bottom: 0.3rem; }
+  .drop-hint { font-size: 0.82rem; color: var(--ink-muted); }
+}

@@ -113,9 +113,9 @@ function makePhone(): string {
   return `${first}${rest}`;
 }
 
-function makeCgpa(): Prisma.Decimal {
+function makeCgpa(): number {
   const value = rng.int(620, 980) / 100; // 6.20–9.80
-  return new Prisma.Decimal(value.toFixed(2));
+  return parseFloat(value.toFixed(2));
 }
 
 function pickUnique<T>(pool: T[], count: number): T[] {
@@ -325,7 +325,9 @@ function recruiterContacts(primaryEmail: string, primaryName: string): Array<{ e
 }
 
 async function truncateAll(prisma: PrismaClient) {
-  // All mapped tables from schema.prisma
+  // Disable foreign keys for SQLite during truncation
+  await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');
+
   const tables = [
     'round_evaluations',
     'interview_rounds',
@@ -337,6 +339,7 @@ async function truncateAll(prisma: PrismaClient) {
     'interviews',
     'applications',
     'job_tracking',
+    'job_student_targets',
     'jobs',
     'recruiters',
     'companies',
@@ -363,17 +366,16 @@ async function truncateAll(prisma: PrismaClient) {
     'users',
   ];
 
-  // PostgreSQL: Use TRUNCATE CASCADE to delete all data and handle foreign keys
-  // CASCADE automatically truncates dependent tables
   for (const table of tables) {
     try {
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
-    } catch (e) {
-      console.warn(`⚠️  Could not truncate table ${table}, trying DELETE instead:`, e.message);
-      // Fallback to DELETE if TRUNCATE fails (e.g., table doesn't exist)
       await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
+    } catch (e) {
+      console.warn(`⚠️  Could not delete from table ${table}:`, e.message);
     }
   }
+
+  // Re-enable foreign keys
+  await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
 }
 
 async function main() {
@@ -549,7 +551,7 @@ async function main() {
 
     // Skills, Education, Projects, Certifications, Achievements, Endorsements
     const skillRows: Array<{ studentId: string; skillName: string; rating: number; createdAt: Date; updatedAt: Date }> = [];
-    const educationRows: Array<{ studentId: string; degree: string; institution: string; startYear?: number; endYear?: number; cgpa?: Prisma.Decimal; description?: string | null; createdAt: Date; updatedAt: Date }> = [];
+    const educationRows: Array<{ studentId: string; degree: string; institution: string; startYear?: number; endYear?: number; cgpa?: number; description?: string | null; createdAt: Date; updatedAt: Date }> = [];
     const projectRows: Array<{ studentId: string; title: string; description?: string | null; technologies: string; githubUrl?: string | null; liveUrl?: string | null; createdAt: Date; updatedAt: Date }> = [];
     const certificationRows: Array<{ studentId: string; title: string; description?: string | null; issuedDate?: Date | null; expiryDate?: Date | null; issuer?: string | null; certificateUrl?: string | null; createdAt: Date; updatedAt: Date }> = [];
     const achievementRows: Array<{ studentId: string; title: string; description?: string | null; date?: Date | null; hasCertificate: boolean; certificateUrl?: string | null; createdAt: Date; updatedAt: Date }> = [];
@@ -1218,8 +1220,7 @@ async function main() {
       // PostgreSQL supports skipDuplicates
       try {
         await prisma.roundEvaluation.createMany({ 
-          data: evaluationRows,
-          skipDuplicates: true 
+          data: evaluationRows
         });
       } catch (error) {
         if (error.code === 'P2002') {

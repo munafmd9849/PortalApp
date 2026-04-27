@@ -1,0 +1,114 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(11, 16, 22, 0.75);
+  backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+
+  &:hover { color: var(--ink); }
+
+  .brand-mark {
+    color: var(--accent);
+    font-size: 1.2rem;
+    transform: translateY(-1px);
+  }
+  .brand-ai {
+    color: var(--accent);
+    margin-left: 0.15rem;
+  }
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+
+  a {
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--r-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover { color: var(--ink); background: var(--surface-2); }
+    &.active { color: var(--ink); background: var(--surface-2); }
+  }
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.8rem 0.35rem 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+
+  .user-avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+  .user-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  padding: 2.5rem 0 4rem;
+}
+
+.app-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 0;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+@media (max-width: 840px) {
+  .topbar-inner { gap: 1rem; }
+  .nav { display: none; }
+  .user-name { display: none; }
+}

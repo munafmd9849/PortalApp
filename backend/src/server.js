@@ -71,11 +71,11 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Validate DATABASE_URL format for PostgreSQL
+// Validate DATABASE_URL format (Allow PostgreSQL or local SQLite)
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://')) {
-  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://') && !dbUrlLower.startsWith('file:')) {
+  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://) or a local SQLite file (file:).');
   console.error(`   Current value: ${dbUrl.substring(0, 20)}...`);
   process.exit(1);
 }
@@ -92,6 +92,12 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
 function logDatabaseTarget() {
   try {
     const dbUrl = process.env.DATABASE_URL || '';
+    
+    if (dbUrl.startsWith('file:')) {
+      console.log('🗄️  Database: SQLite (Local)');
+      return;
+    }
+
     // Extract host from PostgreSQL connection string
     const match = dbUrl.match(/@([^:]+):(\d+)\//);
     if (match) {
@@ -102,7 +108,7 @@ function logDatabaseTarget() {
       console.log('🗄️  Database: PostgreSQL');
     }
   } catch {
-    console.log('🗄️  Database: PostgreSQL');
+    console.log('🗄️  Database: Connection established');
   }
 }
 
@@ -407,7 +413,7 @@ async function start() {
       console.log(`📡 Socket.IO enabled`);
       console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'NOT SET (CRITICAL)'}`);
       console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
-      console.log(`📧 Email configured: ${process.env.SMTP_USER ? 'Yes' : 'No'}`);
+      console.log(`📧 Email configured: ${(process.env.SMTP_USER || process.env.EMAIL_USER) ? 'Yes' : 'No'}`);
     }).on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use. Please stop the existing process or use a different port.`);

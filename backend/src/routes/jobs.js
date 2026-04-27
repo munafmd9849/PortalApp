@@ -35,6 +35,9 @@ router.post('/:jobId/post', authenticate, requireRole(['ADMIN']), jobController.
 // Approve job (admin)
 router.post('/:jobId/approve', authenticate, requireRole(['ADMIN']), jobController.approveJob);
 
+// Analyze candidates (admin)
+router.get('/:jobId/analyze', authenticate, requireRole(['ADMIN']), jobController.analyzeCandidates);
+
 // Reject job (admin)
 router.post('/:jobId/reject', authenticate, requireRole(['ADMIN']), jobController.rejectJob);
 
