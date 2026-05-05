@@ -905,7 +905,7 @@ export async function getAllStudents(req, res) {
     console.log('   User Role:', req.user?.role);
     console.log('   Query params:', req.query);
 
-    const { school, center, batch, status, search, minCgpa, maxCgpa, page = 1, limit = 50 } = req.query;
+    const { school, center, batch, status, search, minCgpa, maxCgpa, degree, branch, page = 1, limit = 50 } = req.query;
 
     // Validate and parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -918,9 +918,30 @@ export async function getAllStudents(req, res) {
     if (center) where.center = { in: center.split(',').map(c => c.trim()) };
     if (batch) where.batch = { in: batch.split(',').map(b => b.trim()) };
 
-    // MOVE: Status filtering from in-memory to Prisma JOIN
     if (status) {
-      where.user = { status: status };
+      const statusFilter = status.trim().toUpperCase();
+      if (statusFilter === 'ACTIVE') {
+        where.user = { status: 'ACTIVE' };
+      } else if (statusFilter === 'BLOCKED') {
+        where.user = { status: 'BLOCKED' };
+      } else if (statusFilter === 'INACTIVE') {
+        where.user = { status: { in: ['INACTIVE', 'PENDING', 'REJECTED'] } };
+      } else {
+        where.user = { status: statusFilter };
+      }
+    }
+
+    if (degree || branch) {
+      const educationConditions = {};
+      if (degree) {
+        educationConditions.degree = { contains: degree.trim(), mode: 'insensitive' };
+      }
+      if (branch) {
+        educationConditions.description = { contains: branch.trim(), mode: 'insensitive' };
+      }
+      if (Object.keys(educationConditions).length) {
+        where.education = { some: educationConditions };
+      }
     }
 
     if (search) {
@@ -957,6 +978,10 @@ export async function getAllStudents(req, res) {
               blockInfo: true,
             },
           },
+          education: {
+            orderBy: { endYear: 'desc' },
+            take: 1,
+          },
         },
       }),
       prisma.student.count({ where }),
@@ -989,9 +1014,13 @@ export async function getAllStudents(req, res) {
         blockInfo: null,
       };
 
+      const topEducation = Array.isArray(student.education) && student.education.length > 0 ? student.education[0] : null;
+
       // Return student with serialized dates and safe user
       return {
         ...student,
+        topEducationDegree: topEducation?.degree || null,
+        topEducationBranch: topEducation?.description || null,
         user,
         createdAt: student.createdAt
           ? new Date(student.createdAt).toISOString()
