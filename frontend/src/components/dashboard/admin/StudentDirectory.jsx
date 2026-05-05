@@ -476,6 +476,8 @@ export default function StudentDirectory() {
     center: '',
     school: '',
     status: '',
+    degree: '',
+    branch: '',
     minCgpa: '',
     maxCgpa: '',
   });
@@ -541,6 +543,8 @@ export default function StudentDirectory() {
         center: filters.center,
         school: filters.school,
         status: filters.status,
+        degree: filters.degree,
+        branch: filters.branch,
         minCgpa: filters.minCgpa,
         maxCgpa: filters.maxCgpa
       }, { retries: 2, retryDelay: 1000, returnPagination: true });
@@ -707,9 +711,30 @@ export default function StudentDirectory() {
 
   
 
-  const downloadFilteredStudents = useCallback((mode = 'export') => {
+  const downloadFilteredStudents = useCallback(async (mode = 'export') => {
     try {
-      if (totalStudents === 0) {
+      const exportResponse = await getAllStudents({
+        search: appliedSearch,
+        center: filters.center,
+        school: filters.school,
+        status: filters.status,
+        degree: filters.degree,
+        branch: filters.branch,
+        minCgpa: filters.minCgpa,
+        maxCgpa: filters.maxCgpa,
+        limit: 1000,
+        page: 1,
+      });
+
+      if (exportResponse && exportResponse.error) {
+        throw new Error(exportResponse.message || 'Failed to load students for export');
+      }
+
+      const studentsToExport = Array.isArray(exportResponse)
+        ? exportResponse
+        : exportResponse.students || [];
+
+      if (studentsToExport.length === 0) {
         alert('No data matches the current filter to export');
         return;
       }
@@ -720,29 +745,35 @@ export default function StudentDirectory() {
         'Enrollment ID',
         'Center',
         'School',
+        'Degree',
+        'Branch',
         'CGPA',
         'Phone',
         'Batch',
         'Status',
-        'Highest Education',
-        'Institution',
+        'Highest Education Institution',
         'Top Skills'
       ];
 
-      const csvRows = students.map(student => [
-        student.fullName || '',
-        student.email || '',
-        student.enrollmentId || '',
-        student.center || '',
-        student.school || '',
-        student.cgpa || '',
-        student.phone || '',
-        student.batch || '',
-        student.status || '',
-        student.highestEducation || '',
-        student.institution || '',
-        student.topSkills?.join(', ') || ''
-      ]);
+      const csvRows = studentsToExport.map(student => {
+        const topDegree = student.topEducationDegree || student.education?.[0]?.degree || '';
+        const topBranch = student.topEducationBranch || student.education?.[0]?.description || '';
+        return [
+          student.fullName || '',
+          student.email || '',
+          student.enrollmentId || '',
+          student.center || '',
+          student.school || '',
+          topDegree,
+          topBranch,
+          student.cgpa || '',
+          student.phone || '',
+          student.batch || '',
+          student.status || '',
+          student.education?.[0]?.institution || '',
+          student.topSkills?.join(', ') || ''
+        ];
+      });
 
       const csvContent = [
         headers.join(','),
@@ -760,12 +791,12 @@ export default function StudentDirectory() {
       link.click();
       document.body.removeChild(link);
 
-      console.log(`Downloaded ${totalStudents} students(${mode})`);
+      console.log(`Downloaded ${studentsToExport.length} students(${mode})`);
     } catch (error) {
       console.error('Download error:', error);
       alert('Failed to prepare the CSV');
     }
-  }, [students, totalStudents]);
+  }, [filters, appliedSearch]);
 
   
 
@@ -802,6 +833,24 @@ export default function StudentDirectory() {
   };
 
   // Get status styling - matching job moderation style
+  const uniqueDegrees = useMemo(() => {
+    const degreeSet = new Set();
+    students.forEach((student) => {
+      const degree = student.topEducationDegree || student.education?.[0]?.degree;
+      if (degree) degreeSet.add(degree.trim());
+    });
+    return Array.from(degreeSet).sort();
+  }, [students]);
+
+  const uniqueBranches = useMemo(() => {
+    const branchSet = new Set();
+    students.forEach((student) => {
+      const branch = student.topEducationBranch || student.education?.[0]?.description;
+      if (branch) branchSet.add(branch.trim());
+    });
+    return Array.from(branchSet).sort();
+  }, [students]);
+
   const getStatusChip = (status) => {
     const statusStyles = {
       active: {
@@ -1363,6 +1412,28 @@ export default function StudentDirectory() {
             value={filters.school}
             onChange={(value) => handleFilterDropdownChange('school', value)}
             placeholder="All Schools"
+          />
+
+          {/* Degree Filter */}
+          <CustomDropdown
+            label="Degree"
+            icon={FaGraduationCap}
+            iconColor="text-sky-600"
+            options={uniqueDegrees.map(degree => ({ value: degree, label: degree }))}
+            value={filters.degree}
+            onChange={(value) => handleFilterDropdownChange('degree', value)}
+            placeholder="All Degrees"
+          />
+
+          {/* Branch Filter */}
+          <CustomDropdown
+            label="Branch"
+            icon={FaGraduationCap}
+            iconColor="text-fuchsia-600"
+            options={uniqueBranches.map(branch => ({ value: branch, label: branch }))}
+            value={filters.branch}
+            onChange={(value) => handleFilterDropdownChange('branch', value)}
+            placeholder="All Branches"
           />
 
           {/* Status Filter */}
