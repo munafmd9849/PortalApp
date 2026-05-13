@@ -8,6 +8,10 @@ import CS3 from "../../assets/images/CS3.webp";
 import CS4 from "../../assets/images/CS1.webp";
 import CS5 from "../../assets/images/CS5.png";
 import CS6 from "../../assets/images/CS6.png";
+import VikasSirImg from "../../assets/images/VikaSir.png";
+import KaifulMamImg from "../../assets/images/KaifulMam.png";
+import KinjalMamImg from "../../assets/images/Kinjal Mam.png";
+import UmarSirImg from "../../assets/images/UmarSir.png";
 
 const TeamCard = ({ member, cardWidth, variant = "desktop" }) => {
   const isMobile = variant === "mobile";
@@ -84,46 +88,32 @@ const TeamCard = ({ member, cardWidth, variant = "desktop" }) => {
 export default function AdminSlider() {
   const members = [
     {
-      name: "Syed Zabi Ulla",
-      image: CS1,
+      name: "Mr. Umar",
+      image: UmarSirImg,
+      position: "Career Services",
+      linkedin: "https://www.linkedin.com/",
+      email: "umar@example.com",
+    },
+    {
+      name: "Ms. Kaiful",
+      image: KaifulMamImg,
       position: "Career Services",
       linkedin: "https://www.linkedin.com/in/syedzaabii/",
       email: "kaiful@example.com",
     },
     {
-      name: "Dr. Sapna",
-      image: CS2,
+      name: "Ms. Kinjal",
+      image: KinjalMamImg,
       position: "Career Services",
-      linkedin: "https://www.linkedin.com/in/saurabhmoharikar/",
-      email: "saurabh@example.com",
+      linkedin: "https://www.linkedin.com/",
+      email: "kinjal@example.com",
     },
     {
       name: "Mr. Vikas",
-      image: CS3,
+      image: VikasSirImg,
       position: "Career Services",
       linkedin: "https://linkedin.com/in/vikas",
       email: "vikas@example.com",
-    },
-    {
-      name: "Mr. Janishar Ali",
-      image: CS4,
-      position: "Career Services",
-      linkedin: "https://linkedin.com/in/arjun",
-      email: "arjun@example.com",
-    },
-    {
-      name: "Mr. Saurabh",
-      image: CS5,
-      position: "Career Services",
-      linkedin: "https://linkedin.com/in/priya",
-      email: "priya@example.com",
-    },
-    {
-      name: "X",
-      image: CS6,
-      position: "Career Services",
-      linkedin: "https://linkedin.com/in/rahul",
-      email: "rahul@example.com",
     },
   ];
 

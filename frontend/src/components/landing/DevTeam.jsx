@@ -28,15 +28,15 @@ const mentors = [
   },
 ];
 
-// Row 1: Niraj, Pratik, Roshan, Esha  |  Row 2: Munaf, Irfan, Sai Charan
+// Row 1: Niraj, Pratik, Roshan, Sai Charan  |  Row 2: Esha, Munaf, Irfan
 const devs = [
-  { name: "Niraj",      linkedin: "https://www.linkedin.com/in/nirajroy01/",                   img: dev1Img   },
+  { name: "Niraj",      linkedin: "https://linkedin.com/in/niraj",                                img: dev1Img   },
   { name: "Pratik",     linkedin: "https://linkedin.com/in/pratik",                               img: dev3Img   },
-  { name: "Roshan",     linkedin: "https://www.linkedin.com/in/roshankumar101/",               img: dev2Img   },
+  { name: "Roshan",     linkedin: "https://linkedin.com/in/roshan",                               img: dev2Img   },
+  { name: "Sai Charan", linkedin: "https://www.linkedin.com/in/sai-charan-761842266",             img: sai1Img   },
   { name: "Esha",       linkedin: "https://www.linkedin.com/in/esha-bajaj/",                      img: dev4Img   },
   { name: "Munaf",      linkedin: "https://www.linkedin.com/in/munafmohammad/",                   img: munaf1Img },
   { name: "Irfan",      linkedin: "https://www.linkedin.com/in/mohammad-irfan-638a2b308/",        img: IrfanImg  },
-  { name: "Sai Charan", linkedin: "https://www.linkedin.com/in/sai-charan-761842266",             img: sai1Img   },
 ];
 
 // Rotations and Y-offsets for the scattered feel
