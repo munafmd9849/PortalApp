@@ -145,7 +145,13 @@ async function apiRequest(endpoint, options = {}) {
         const isJobMutation = endpoint.startsWith('/jobs');
         const isJobCache = cachedUrl.startsWith('/jobs');
         
-        if (isJobMutation && isJobCache) {
+        const isAssessmentMutation = endpoint.startsWith('/assessments');
+        const isAssessmentCache = cachedUrl.startsWith('/assessments');
+
+        const isMockMutation = endpoint.startsWith('/mock-interviews');
+        const isMockCache = cachedUrl.startsWith('/mock-interviews');
+        
+        if ((isJobMutation && isJobCache) || (isAssessmentMutation && isAssessmentCache) || (isMockMutation && isMockCache)) {
           localStorage.removeItem(key);
         } else if (cachedUrl.startsWith(basePath)) {
           localStorage.removeItem(key);
@@ -168,7 +174,6 @@ async function apiRequest(endpoint, options = {}) {
       if (cached) {
         const { data, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_TTL) {
-          console.log(`🚀 [API Cache] Hit: ${endpoint}`);
           return data;
         }
         localStorage.removeItem(cacheKey);
@@ -186,7 +191,6 @@ async function apiRequest(endpoint, options = {}) {
   };
 
   const url = `${API_BASE_URL}${endpoint}`;
-  console.log(`API Request: ${options.method || 'GET'} ${url}`);
 
   try {
     let response;
@@ -317,31 +321,6 @@ async function apiRequest(endpoint, options = {}) {
     }
     // ----------------------------
 
-    // CRITICAL: Log profile API responses for debugging
-    if (endpoint.includes('/students/profile')) {
-      console.log('📥 [API] Profile response received:', {
-        endpoint,
-        hasProjects: Array.isArray(data?.projects),
-        projectsCount: data?.projects?.length || 0,
-        hasAchievements: Array.isArray(data?.achievements),
-        achievementsCount: data?.achievements?.length || 0,
-        hasCertifications: Array.isArray(data?.certifications),
-        certificationsCount: data?.certifications?.length || 0,
-        fullResponse: data,
-      });
-    }
-
-    // CRITICAL: Log applications API responses for debugging
-    if (endpoint.includes('/applications/student')) {
-      console.log('📥 [API] Applications response received:', {
-        endpoint,
-        isArray: Array.isArray(data),
-        length: data?.length || 0,
-        type: typeof data,
-        firstItem: data?.[0] || null,
-        fullResponse: data,
-      });
-    }
 
     // Show success toast if requested and message exists
     if (!silent && showSuccess && data?.message) {
@@ -789,6 +768,13 @@ export const api = {
     body: JSON.stringify({ status, interviewDate }),
   }),
   getApplicationResumeViewUrl: (applicationId) => apiRequest(`/applications/${applicationId}/resume-view-url`),
+  revokeApplication: (applicationId, reason) => apiRequest(`/applications/${applicationId}/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  }),
+  restoreApplication: (applicationId) => apiRequest(`/applications/${applicationId}/restore`, {
+    method: 'POST',
+  }),
 
   // Notifications
   getNotifications: (params = {}) => {
@@ -994,18 +980,107 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  updateSuperAdminAdmin: (userId, data) => apiRequest(`/super-admin/admins/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
   disableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/disable`, { method: 'PATCH' }),
-  enableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/enable`, { method: 'PATCH' }),
+  enableSuperAdminAdmin: (userId) => apiRequest(`/super-admin/admins/${userId}/enable`, {
+    method: 'PATCH',
+  }),
+  getAdminPerformance: (userId) => apiRequest(`/super-admin/admins/${userId}/performance`),
   getSuperAdminStats: () => apiRequest('/super-admin/stats'),
   getStatsSummary: () => apiRequest('/super-admin/stats/summary'),
   freezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/freeze`, { method: 'PATCH' }),
   unfreezeInterviewSession: (sessionId) => apiRequest(`/admin/interview-scheduling/session/${sessionId}/unfreeze`, { method: 'PATCH' }),
+
+  // Analytics (Control Tower)
+  getAnalyticsOverview: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/overview${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsFunnel: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/funnel${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsBatchPerf: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/batch-performance${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsSchoolPerf: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/school-performance${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsCenterPerf: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/center-performance${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsUnplaced: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/unplaced-students${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsCompanyPerf: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/company-performance${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsAdminPerf: (params) => {
+    const query = toQueryString(params);
+    return apiRequest(`/super-admin/analytics/admin-performance${query ? `?${query}` : ''}`);
+  },
+
+  // Academic Structure
+  getSchools: () => apiRequest('/academic/schools'),
+  getCenters: () => apiRequest('/academic/centers'),
+  getBatches: () => apiRequest('/academic/batches'),
+  createSchool: (data) => apiRequest('/academic/schools', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchool: (id, data) => apiRequest(`/academic/schools/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSchool: (id) => apiRequest(`/academic/schools/${id}`, { method: 'DELETE' }),
+
+  getCenters: () => apiRequest('/academic/centers'),
+  createCenter: (data) => apiRequest('/academic/centers', { method: 'POST', body: JSON.stringify(data) }),
+  updateCenter: (id, data) => apiRequest(`/academic/centers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCenter: (id) => apiRequest(`/academic/centers/${id}`, { method: 'DELETE' }),
+
+  getBatches: () => apiRequest('/academic/batches'),
+  createBatch: (data) => apiRequest('/academic/batches', { method: 'POST', body: JSON.stringify(data) }),
+  updateBatch: (id, data) => apiRequest(`/academic/batches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteBatch: (id) => apiRequest(`/academic/batches/${id}`, { method: 'DELETE' }),
 
   // Utility
   uploadFile,
   getAuthToken,
   setAuthTokens,
   clearAuthTokens,
+
+  // Assessment Engine
+  createAssessment: (data) => apiRequest('/assessments/create', { method: 'POST', body: JSON.stringify(data) }),
+  getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
+  getAssessmentCandidates: (assessmentId) => apiRequest(`/assessments/${assessmentId}/candidates`),
+  updateAssessment: (id, data) => apiRequest(`/assessments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAssessment: (id) => apiRequest(`/assessments/${id}`, { method: 'DELETE' }),
+  getAssessments: () => apiRequest('/assessments/all'),
+  getAssessmentDetails: (id) => apiRequest(`/assessments/details/${id}`),
+  getAssessmentResults: (sessionId) => apiRequest(`/assessments/results/${sessionId}`),
+  getStudentAssessments: () => apiRequest('/assessments/my-assignments'),
+  startAssessmentSession: (id) => apiRequest(`/assessments/session/start/${id}`, { method: 'POST' }),
+  logProctoringViolation: (sessionId, data) => apiRequest(`/assessments/session/violation/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  uploadProctoringMedia: (sessionId, data) => apiRequest(`/assessments/session/media/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  completeAssessment: (sessionId, data) => apiRequest(`/assessments/session/complete/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  evaluateAssessmentCandidate: (assessmentId, studentId, data) => apiRequest(`/assessments/evaluate/${assessmentId}/${studentId}`, { method: 'POST', body: JSON.stringify(data) }),
+  getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
+  getLiveAssessmentSessions: (id) => apiRequest(`/assessments/${id}/live-sessions`),
+  getStudentSessionResults: (sessionId) => apiRequest(`/assessments/session/results/${sessionId}`),
+
+  // Mock Interview System
+  createMockInterviewDrive: (data) => apiRequest('/mock-interviews/create', { method: 'POST', body: JSON.stringify(data) }),
+  getMockInterviewDrives: () => apiRequest('/mock-interviews/all'),
+  assignStudentToSlot: (data) => apiRequest('/mock-interviews/assign', { method: 'POST', body: JSON.stringify(data) }),
+  updateMockSlotStatus: (data) => apiRequest('/mock-interviews/update-status', { method: 'POST', body: JSON.stringify(data) }),
+  getStudentMockInterviews: () => apiRequest('/mock-interviews/my-sessions'),
+  submitMockFeedback: (data) => apiRequest('/mock-interviews/feedback', { method: 'POST', body: JSON.stringify(data) }),
+  deleteMockInterviewDrive: (id) => apiRequest(`/mock-interviews/drives/${id}`, { method: 'DELETE' }),
+  getMockInterviewSlot: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}`),
+  updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Generic HTTP methods for calendar and other services
   get: (endpoint, config = {}) => {

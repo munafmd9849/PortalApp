@@ -49,9 +49,27 @@ const RecruiterAnalytics = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filterOptions, setFilterOptions] = useState({
-    centers: CENTER_OPTIONS,
-    schools: SCHOOL_OPTIONS
+    centers: [],
+    schools: []
   });
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [s, c] = await Promise.all([
+          api.getSchools(),
+          api.getCenters()
+        ]);
+        setFilterOptions({
+          schools: (s || []).map(opt => ({ id: opt.name, name: opt.name })),
+          centers: (c || []).map(opt => ({ id: opt.name, name: opt.name }))
+        });
+      } catch (err) {
+        console.error('Failed to load academic options for analytics:', err);
+      }
+    };
+    fetchOptions();
+  }, []);
   
   // Debounce timer for filter changes
   const debounceTimer = useRef(null);

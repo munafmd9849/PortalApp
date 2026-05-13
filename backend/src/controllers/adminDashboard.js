@@ -1,4 +1,6 @@
 import prisma from '../config/database.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
+
 
 /**
  * Build student WHERE clause from query filters
@@ -40,7 +42,14 @@ function buildStudentWhere(center, school, quarter, batch) {
 export const getDashboardStats = async (req, res) => {
     try {
         const { center, school, quarter, batch } = req.query;
-        const studentWhere = buildStudentWhere(center, school, quarter, batch);
+        
+        // BUILD BASE SCOPE FILTER
+        const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+        
+        // MERGE WITH REQUEST FILTERS
+        const requestFilters = buildStudentWhere(center, school, quarter, batch);
+        const studentWhere = { ...adminScope, ...requestFilters };
+        
         const hasStudentFilter = Object.keys(studentWhere).length > 0;
 
         const placementStatusFilter = {
@@ -194,18 +203,18 @@ export const getDashboardStats = async (req, res) => {
         try {
           if (process.env.DATABASE_URL?.startsWith('file:')) {
             // SQLite version
-            const studentFilterSql = [];
-            const params = [sixMonthsAgo.toISOString()];
+            const sqliteFilters = [];
+            const sqliteParams = [sixMonthsAgo.toISOString()];
             if (studentWhere.center) {
-              studentFilterSql.push(`s.center IN (${studentWhere.center.in.map(c => `'${c}'`).join(',')})`);
+              sqliteFilters.push(`s.center IN (${studentWhere.center.in.map(c => `'${c}'`).join(',')})`);
             }
             if (studentWhere.school) {
-              studentFilterSql.push(`s.school IN (${studentWhere.school.in.map(s => `'${s}'`).join(',')})`);
+              sqliteFilters.push(`s.school IN (${studentWhere.school.in.map(s => `'${s}'`).join(',')})`);
             }
             if (studentWhere.batch) {
-              studentFilterSql.push(`s.batch IN (${studentWhere.batch.in.map(b => `'${b}'`).join(',')})`);
+              sqliteFilters.push(`s.batch IN (${studentWhere.batch.in.map(b => `'${b}'`).join(',')})`);
             }
-            const filterClause = studentFilterSql.length ? `AND ${studentFilterSql.join(' AND ')}` : '';
+            const filterClause = sqliteFilters.length ? `AND ${sqliteFilters.join(' AND ')}` : '';
 
             placementTrendRaw = await prisma.$queryRawUnsafe(`
                 SELECT strftime('%m %Y', appliedDate) AS month_key, 
@@ -219,7 +228,7 @@ export const getDashboardStats = async (req, res) => {
                   ${filterClause}
                 GROUP BY month_start
                 ORDER BY month_start
-            `, ...params);
+            `, ...sqliteParams);
             
             // SQLite strftime doesn't do "Mon YYYY" easily, so we map it in JS
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -277,7 +286,17 @@ export const getDashboardStats = async (req, res) => {
         };
 
         // --- PHASE 4: School performance - parallel count queries ---
-        const schools = ['SOT', 'SOM', 'SOH'];
+        const schoolsResult = await prisma.student.groupBy({
+            by: ['school'],
+            where: {
+                ...adminScope,
+                school: {
+                    ...(adminScope.school || {}),
+                    not: "", // Skip empty strings
+                }
+            }
+        });
+        const schools = schoolsResult.map(s => s.school);
         const schoolPromises = schools.flatMap((schoolCode) => {
             const localStudentWhere = {
                 ...studentWhere,

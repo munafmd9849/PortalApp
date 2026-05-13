@@ -32,6 +32,8 @@ model User {
   refreshTokens           RefreshToken[]
   queries                 StudentQuery[]
   student                 Student?
+  jobsCreated             Job[]                @relation("JobCreatedBy")
+  jobsUpdated             Job[]                @relation("JobUpdatedBy")
 
   @@index([email])
   @@index([role, status])
@@ -67,20 +69,24 @@ model OTP {
 }
 
 model Student {
-  id                         String                @id @default(uuid())
-  userId                     String                @unique
+  assessmentAssignments      AssessmentAssignment[]
+  id                         String                 @id @default(uuid())
+  userId                     String                 @unique
   fullName                   String
-  email                      String                @unique
+  email                      String                 @unique
   phone                      String
-  enrollmentId               String?               @unique
+  enrollmentId               String?                @unique
   /// Indicates whether student has completed mandatory profile fields at least once
-  profileCompleted           Boolean               @default(false) @map("profile_completed")
+  profileCompleted           Boolean                @default(false) @map("profile_completed")
   cgpa                       Float?
   backlogs                   String?
   batch                      String
   center                     String
   school                     String
   branch                     String?
+  batchId                    String?
+  centerId                   String?
+  schoolId                   String?
   bio                        String?
   headline                   String?
   summary                    String?
@@ -100,17 +106,17 @@ model Student {
   resumeUrl                  String?
   resumeFileName             String?
   resumeUploadedAt           DateTime?
-  statsApplied               Int                   @default(0)
-  statsShortlisted           Int                   @default(0)
-  statsInterviewed           Int                   @default(0)
-  statsOffers                Int                   @default(0)
-  emailNotificationsDisabled Boolean               @default(false)
-  publicProfileId            String?               @unique
-  publicProfileShowEmail     Boolean               @default(true)
-  publicProfileShowPhone     Boolean               @default(false)
+  statsApplied               Int                    @default(0)
+  statsShortlisted           Int                    @default(0)
+  statsInterviewed           Int                    @default(0)
+  statsOffers                Int                    @default(0)
+  emailNotificationsDisabled Boolean                @default(false)
+  publicProfileId            String?                @unique
+  publicProfileShowEmail     Boolean                @default(true)
+  publicProfileShowPhone     Boolean                @default(false)
   endorsementsData           String?
-  createdAt                  DateTime              @default(now())
-  updatedAt                  DateTime              @updatedAt
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
   achievements               Achievement[]
   applications               Application[]
   certifications             Certification[]
@@ -125,7 +131,9 @@ model Student {
   projects                   Project[]
   skills                     Skill[]
   resumeFiles                StudentResumeFile[]
-  user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessmentSessions         AssessmentSession[]
+  mockInterviewSlots         MockInterviewSlot[]
+  user                       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([center])
   @@index([school])
@@ -344,6 +352,9 @@ model Job {
   targetCenters               String
   targetBatches               String
   targetBranches              String                     @default("[]")
+  targetSchoolIds             String                     @default("[]")
+  targetCenterIds             String                     @default("[]")
+  targetBatchIds              String                     @default("[]")
   submittedAt                 DateTime?
   postedAt                    DateTime?
   postedBy                    String?
@@ -366,6 +377,11 @@ model Job {
   screeningSession            RecruiterScreeningSession?
   visibilityMode              String                     @default("OPEN")
   recommendationEnabled       Boolean                    @default(false)
+  createdBy                   String?
+  creator                     User?                      @relation("JobCreatedBy", fields: [createdBy], references: [id])
+  assignedTo                  String?
+  updatedBy                   String?
+  updater                     User?                      @relation("JobUpdatedBy", fields: [updatedBy], references: [id])
 
   @@index([status, createdAt])
   @@index([isActive, createdAt])
@@ -399,19 +415,19 @@ model JobTracking {
 }
 
 model JobTarget {
-  id               String   @id @default(uuid())
-  jobId            String
-  studentId        String
-  score            Float    @default(0)
-  sourceMode       String   @default("SYSTEM")
-  selectedByAdmin  Boolean  @default(false)
-  viewedAt         DateTime?
-  appliedAt        DateTime?
-  status           String   @default("PENDING")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id              String    @id @default(uuid())
+  jobId           String
+  studentId       String
+  score           Float     @default(0)
+  sourceMode      String    @default("SYSTEM")
+  selectedByAdmin Boolean   @default(false)
+  viewedAt        DateTime?
+  appliedAt       DateTime?
+  status          String    @default("PENDING")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, studentId])
   @@index([jobId])
@@ -433,6 +449,10 @@ model Application {
   interviewStatus      String?
   lastRoundReached     Int?              @default(0)
   notes                String?
+  revokedBy            String?
+  revokedAt            DateTime?
+  revokedReason        String?
+  previousStatus       String?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   job                  Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -446,6 +466,7 @@ model Application {
   @@index([status, createdAt])
   @@index([interviewStatus])
   @@index([screeningStatus])
+  @@index([revokedBy])
   @@map("applications")
 }
 
@@ -588,6 +609,90 @@ model EndorsementToken {
   @@map("endorsement_tokens")
 }
 
+// --- MOCK INTERVIEW SYSTEM MODELS ---
+
+model MockInterviewDrive {
+  id               String   @id @default(uuid())
+  title            String
+  category         String // HR, TECHNICAL, BEHAVIORAL, etc.
+  description      String?
+  instructions     String?
+  date             DateTime
+  startTime        DateTime
+  endTime          DateTime
+  slotDuration     Int // in minutes
+  breakDuration    Int      @default(5)
+  bufferTime       Int      @default(0)
+  targetBatches    String? // JSON array of strings
+  targetBranches   String? // JSON array of strings
+  targetStudentIds String? // JSON array of strings (for cherry-picking)
+  status           String   @default("DRAFT") // DRAFT, PUBLISHED, COMPLETED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  slots MockInterviewSlot[]
+
+  @@map("mock_interview_drives")
+}
+
+model MockInterviewSlot {
+  id            String   @id @default(uuid())
+  driveId       String
+  studentId     String?
+  interviewerId String?
+  startTime     DateTime
+  endTime       DateTime
+  status        String   @default("AVAILABLE") // AVAILABLE, SCHEDULED, WAITING, LIVE, COMPLETED, MISSED, NO_SHOW, CANCELLED
+  meetingRoomId String?  @unique
+  joinLink      String?
+
+  drive      MockInterviewDrive       @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  student    Student?                 @relation(fields: [studentId], references: [id])
+  feedback   MockInterviewFeedback?
+  recordings MockInterviewRecording[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driveId])
+  @@index([studentId])
+  @@index([interviewerId])
+  @@map("mock_interview_slots")
+}
+
+model MockInterviewFeedback {
+  id                 String  @id @default(uuid())
+  slotId             String  @unique
+  communication      Int // 1-5
+  confidence         Int // 1-5
+  technicalSkills    Int // 1-5
+  problemSolving     Int // 1-5
+  bodyLanguage       Int // 1-5
+  resumeKnowledge    Int // 1-5
+  overallPerformance Int // 1-5
+  result             String // EXCELLENT, GOOD, AVERAGE, NEEDS_IMPROVEMENT
+  detailedRemarks    String?
+
+  slot MockInterviewSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("mock_interview_feedback")
+}
+
+model MockInterviewRecording {
+  id        String   @id @default(uuid())
+  slotId    String
+  videoUrl  String
+  fileSize  Int?
+  duration  Int? // in seconds
+  createdAt DateTime @default(now())
+
+  slot MockInterviewSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  @@map("mock_interview_recordings")
+}
+
 model AdminRequest {
   id          String    @id @default(uuid())
   userId      String
@@ -606,29 +711,41 @@ model AdminRequest {
 }
 
 model Announcement {
-  id            String   @id @default(uuid())
-  title         String
-  description   String
-  link          String?
-  imageUrl      String?
-  imagePublicId String?
-  targetSchools String?
-  targetBatches String?
-  targetCenters String?
-  createdBy     String
-  createdAt     DateTime @default(now())
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  link            String?
+  imageUrl        String?
+  imagePublicId   String?
+  targetSchools   String?
+  targetBatches   String?
+  targetCenters   String?
+  targetSchoolIds String?  @default("[]")
+  targetBatchIds  String?  @default("[]")
+  targetCenterIds String?  @default("[]")
+  createdBy       String
+  createdAt       DateTime @default(now())
 
   @@index([createdAt])
   @@map("announcements")
 }
 
 model Admin {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  name             String?
+  role             String   @default("ADMIN")
+  permissions      String   @default("[]")
+  allowedSchools   String   @default("[]")
+  allowedCenters   String   @default("[]")
+  allowedBatches   String   @default("[]")
+  allowedSchoolIds String   @default("[]")
+  allowedCenterIds String   @default("[]")
+  allowedBatchIds  String   @default("[]")
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("admins")
@@ -792,6 +909,41 @@ model RoundEvaluation {
   @@map("round_evaluations")
 }
 
+model School {
+  id                   String                 @id @default(uuid())
+  name                 String                 @unique
+  code                 String?                @unique
+  status               String                 @default("ACTIVE")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  AssessmentAssignment AssessmentAssignment[]
+
+  @@map("schools")
+}
+
+model Center {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  location  String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("centers")
+}
+
+model Batch {
+  id                   String                 @id @default(uuid())
+  year                 String                 @unique
+  label                String?
+  status               String                 @default("ACTIVE")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  AssessmentAssignment AssessmentAssignment[]
+
+  @@map("batches")
+}
+
 model RecruiterScreeningSession {
   id        String   @id @default(uuid())
   jobId     String   @unique
@@ -807,17 +959,17 @@ model RecruiterScreeningSession {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  actorName   String?  @map("actor_name")
-  actorRole   String?  @map("actor_role")
-  actorId     String?  @map("actor_id")
-  actionType  String   @map("action_type")
-  targetType  String   @map("target_type")
-  targetId    String?  @map("target_id")
-  details     String?  @map("details")
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent")
-  timestamp   DateTime @default(now())
+  id         String   @id @default(uuid())
+  actorName  String?  @map("actor_name")
+  actorRole  String?  @map("actor_role")
+  actorId    String?  @map("actor_id")
+  actionType String   @map("action_type")
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  details    String?  @map("details")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  timestamp  DateTime @default(now())
 
   @@index([actorRole])
   @@index([actionType])
@@ -826,4 +978,115 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model Assessment {
+  id           String                 @id @default(uuid())
+  title        String
+  description  String?
+  type         String // MOCK_TEST, CODING_TEST, DESCRIPTIVE, MIXED
+  difficulty   String                 @default("MEDIUM")
+  duration     Int // in minutes
+  startTime    DateTime?
+  endTime      DateTime?
+  instructions String?
+  config       String                 @default("{}") // JSON: proctoring settings
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  questions    AssessmentQuestion[]
+  sessions     AssessmentSession[]
+  assignments  AssessmentAssignment[]
 
+  @@map("assessments")
+}
+
+model AssessmentQuestion {
+  id            String     @id @default(uuid())
+  assessmentId  String
+  questionText  String
+  description   String?
+  type          String // MCQ, CODING, DESCRIPTIVE
+  options       String? // JSON for MCQ
+  correctAnswer String?
+  points        Int        @default(1)
+  order         Int        @default(0)
+  difficulty    String     @default("MEDIUM")
+  starterCode   String? // For coding questions
+  testCases     String? // JSON for coding test cases
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@map("assessment_questions")
+}
+
+model AssessmentAssignment {
+  id           String     @id @default(uuid())
+  assessmentId String
+  studentId    String?
+  batchId      String?
+  schoolId     String?
+  scheduledAt  DateTime?
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student      Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch        Batch?     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  school       School?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@map("assessment_assignments")
+}
+
+model AssessmentSession {
+  id              String                 @id @default(uuid())
+  assessmentId    String
+  studentId       String
+  startTime       DateTime               @default(now())
+  endTime         DateTime?
+  status          String                 @default("IN_PROGRESS") // NOT_STARTED, IN_PROGRESS, SUBMITTED, AUTO_SUBMITTED, TERMINATED
+  score           Float?
+  responses       String? // JSON string of answers
+  violationsCount Int                    @default(0)
+  riskLevel       String                 @default("LOW") // LOW, MEDIUM, HIGH
+  assessment      Assessment             @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student         Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  violations      AssessmentViolation[]
+  media           AssessmentMedia[]
+  screenshots     AssessmentScreenshot[]
+
+  @@unique([assessmentId, studentId])
+  @@index([assessmentId])
+  @@index([studentId])
+  @@map("assessment_sessions")
+}
+
+model AssessmentViolation {
+  id        String            @id @default(uuid())
+  sessionId String
+  type      String // TAB_SWITCH, NO_FACE, MULTIPLE_FACES, WINDOW_BLUR, FULLSCREEN_EXIT
+  timestamp DateTime          @default(now())
+  details   String?
+  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("assessment_violations")
+}
+
+model AssessmentMedia {
+  id        String            @id @default(uuid())
+  sessionId String
+  type      String // SCREENSHOT, VIDEO_ANSWER
+  url       String
+  timestamp DateTime          @default(now())
+  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("assessment_media")
+}
+
+model AssessmentScreenshot {
+  id        String            @id @default(uuid())
+  sessionId String
+  imageUrl  String
+  timestamp DateTime          @default(now())
+  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("assessment_screenshots")
+}

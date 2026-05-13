@@ -50,9 +50,12 @@ import adminJobsRoutes from './routes/adminJobs.js';
 import adminDashboardRoutes from './routes/adminDashboard.js'; // NEW: Serve-side aggregation
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
+import assessmentRoutes from './routes/assessment.js';
+import academicRoutes from './routes/academic.js';
 import publicRoutes from './routes/public.js';
 import resumeViewRoutes from './routes/resumeView.js';
 import auditLogRoutes from './routes/auditLogs.js';
+import mockInterviewRoutes from './routes/mockInterview.js';
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -248,6 +251,7 @@ app.get('/health', (req, res) => {
 // API Routes
 // Public routes (NO AUTH) - must come before authenticated routes
 app.use('/api/public', publicRoutes);
+app.use('/api/academic', academicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/jobs', jobRoutes);
@@ -273,7 +277,9 @@ app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
 app.use('/api/admin/dashboard', adminDashboardRoutes); // NEW: Server-side dashboard stats
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
+app.use('/api/assessments', assessmentRoutes); // Assessment Engine: Tests, Interviews, Proctoring
 app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only
+app.use('/api/mock-interviews', mockInterviewRoutes); // Dedicated Mock Interview System
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code

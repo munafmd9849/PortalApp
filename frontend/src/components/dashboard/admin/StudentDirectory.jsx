@@ -497,6 +497,22 @@ export default function StudentDirectory() {
   const [lastErrorTime, setLastErrorTime] = useState(null);
   const loadAttemptsRef = useRef(0);
   const isLoadingRef = useRef(false); // Track if a load is in progress
+  const [academicOptions, setAcademicOptions] = useState({ schools: [], centers: [] });
+
+  useEffect(() => {
+    const fetchAcademicOptions = async () => {
+      try {
+        const [s, c] = await Promise.all([
+          api.getSchools(),
+          api.getCenters()
+        ]);
+        setAcademicOptions({ schools: s || [], centers: c || [] });
+      } catch (err) {
+        console.error('Failed to load academic options for directory filters:', err);
+      }
+    };
+    fetchAcademicOptions();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1046,26 +1062,29 @@ export default function StudentDirectory() {
   };
 
   // Get unique values for filter dropdowns
-  const uniqueCenters = [...new Set(students.map(s => s.center).filter(c => c && c !== 'N/A'))];
-  const uniqueSchools = [...new Set(students.map(s => s.school).filter(s => s && s !== 'N/A'))];
   const filterCenterOptions = useMemo(() => {
-    const merged = [...CENTER_OPTIONS];
+    // Start with dynamic options
+    const merged = academicOptions.centers.map(c => ({ id: c.name, name: c.name }));
+    // Add unique ones found in current student list (for backward compatibility/consistency)
+    const uniqueCenters = [...new Set(students.map(s => s.center).filter(c => c && c !== 'N/A'))];
     uniqueCenters.forEach((center) => {
       if (!merged.some(option => option.id === center)) {
         merged.push({ id: center, name: center });
       }
     });
     return merged;
-  }, [uniqueCenters]);
+  }, [academicOptions.centers, students]);
+
   const filterSchoolOptions = useMemo(() => {
-    const merged = [...SCHOOL_OPTIONS];
+    const merged = academicOptions.schools.map(s => ({ id: s.name, name: s.name }));
+    const uniqueSchools = [...new Set(students.map(s => s.school).filter(s => s && s !== 'N/A'))];
     uniqueSchools.forEach((school) => {
       if (!merged.some(option => option.id === school)) {
         merged.push({ id: school, name: school });
       }
     });
     return merged;
-  }, [uniqueSchools]);
+  }, [academicOptions.schools, students]);
 
   // Calculate statistics from ALL students (not filtered) - must be before conditional returns to follow Rules of Hooks
   const stats = useMemo(() => {
@@ -1233,15 +1252,11 @@ export default function StudentDirectory() {
                   </svg>
                 </div>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-3">Failed to Load Students</h2>
-              <p className="text-red-600 mb-8 max-w-md mx-auto font-medium">{error}</p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={refreshStudents}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold transform hover:scale-105"
-                >
-                  Retry
-                </button>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Something went wrong</h3>
+              <p className="text-gray-500 max-w-md mx-auto mb-8">
+                {error || 'We couldn\'t load the student directory. This might be due to a connection issue or server error.'}
+              </p>
+              <div className="flex justify-center gap-4">
                 <button
                   onClick={() => {
                     setError(null);

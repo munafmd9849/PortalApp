@@ -35,20 +35,22 @@ export default function JobPostingsSection({
     // Ensure companyName is a string
     const nameStr = typeof companyName === 'string' ? companyName : (companyName?.name || String(companyName));
     
-    // Clean company name for URL
-    const cleanName = nameStr.toLowerCase()
-      .replace(/\s+/g, '')
-      .replace(/[^a-z0-9]/g, '');
+    // Check if nameStr already looks like a domain
+    const isDomain = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/i.test(nameStr.trim());
     
-    // Try multiple logo sources
-    const logoSources = [
-      `https://logo.clearbit.com/${cleanName}.com`,
-      `https://img.logo.dev/${cleanName}.com?token=pk_X-XcVpYzThmk7wK4y3w_tQ`, // Logo.dev API
-      `https://logo.uplead.com/${cleanName}.com`,
-      `https://api.brandfetch.io/v2/search/${companyName}`, // Brandfetch API
-    ];
+    let domain = '';
+    if (isDomain) {
+      domain = nameStr.trim().toLowerCase();
+    } else {
+      // Clean company name for URL and append .com
+      const cleanName = nameStr.toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9]/g, '');
+      domain = `${cleanName}.com`;
+    }
     
-    return logoSources[0]; // Primary source: Clearbit
+    // Return Clearbit as primary - but we could rotate or try others if needed
+    return `https://logo.clearbit.com/${domain}`;
   };
 
   // Handle logo loading states
@@ -99,21 +101,20 @@ export default function JobPostingsSection({
 
     if (logoUrl && logoState !== 'error') {
       return (
-        <div className={`${sizeClass} rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0`}>
+        <div className={`${sizeClass} rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative`}>
+          {/* Fallback while loading - always present but covered by image when loaded */}
+          <div className={`absolute inset-0 rounded-full ${getCompanyColor(companyName)} flex items-center justify-center text-white font-bold ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
+            {getCompanyInitial(companyName)}
+          </div>
+          
           <img
             src={logoUrl}
             alt={`${companyName} logo`}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain relative z-10 bg-white"
             onLoad={() => handleLogoLoad(companyName)}
             onError={() => handleLogoError(companyName)}
-            style={{ display: logoState === 'error' ? 'none' : 'block' }}
+            style={{ opacity: logoState === 'loaded' ? 1 : 0 }}
           />
-          {/* Fallback while loading or on error */}
-          {(logoState === 'error' || !logoState) && (
-            <div className={`w-full h-full rounded-full ${getCompanyColor(companyName)} flex items-center justify-center text-white font-bold ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-              {getCompanyInitial(companyName)}
-            </div>
-          )}
         </div>
       );
     }

@@ -12,6 +12,7 @@ import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
 import { logAction } from '../utils/auditLogger.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -260,6 +261,7 @@ export async function updateStudentProfile(req, res) {
       const allowedFields = [
         'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
         'batch', 'center', 'school',
+        'batchId', 'centerId', 'schoolId',
         'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
         'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
         'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
@@ -642,6 +644,25 @@ export async function updateStudentProfile(req, res) {
     }
 
     // Update student profile
+    // Handle both ID-based and name-based academic fields
+    if (profileData.schoolId) cleanData.schoolId = profileData.schoolId;
+    if (profileData.centerId) cleanData.centerId = profileData.centerId;
+    if (profileData.batchId) cleanData.batchId = profileData.batchId;
+
+    // Logic to resolve IDs from names if IDs aren't provided (Backward Compatibility)
+    if (!cleanData.schoolId && cleanData.school) {
+      const s = await prisma.school.findFirst({ where: { name: cleanData.school } });
+      if (s) cleanData.schoolId = s.id;
+    }
+    if (!cleanData.centerId && cleanData.center) {
+      const c = await prisma.center.findFirst({ where: { name: cleanData.center } });
+      if (c) cleanData.centerId = c.id;
+    }
+    if (!cleanData.batchId && cleanData.batch) {
+      const b = await prisma.batch.findFirst({ where: { year: cleanData.batch } });
+      if (b) cleanData.batchId = b.id;
+    }
+
     const student = await prisma.student.update({
       where: { userId: targetUserId },
       data: cleanData,
@@ -914,9 +935,40 @@ export async function getAllStudents(req, res) {
     const limitNum = Math.min(1000, Math.max(1, requestedLimit)); // Max 1000, min 1
 
     const where = {};
+    
+    // BUILD BASE SCOPE FILTER
+    const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+    
+    // MERGE WITH REQUEST FILTERS
     if (school) where.school = { in: school.split(',').map(s => s.trim()) };
     if (center) where.center = { in: center.split(',').map(c => c.trim()) };
     if (batch) where.batch = { in: batch.split(',').map(b => b.trim()) };
+    
+    // Apply scoping constraints (AND)
+    if (adminScope.school) {
+      if (where.school) {
+        // Intersect requested schools with allowed schools
+        where.school.in = where.school.in.filter(s => adminScope.school.in.includes(s));
+      } else {
+        where.school = adminScope.school;
+      }
+    }
+    
+    if (adminScope.center) {
+      if (where.center) {
+        where.center.in = where.center.in.filter(c => adminScope.center.in.includes(c));
+      } else {
+        where.center = adminScope.center;
+      }
+    }
+    
+    if (adminScope.batch) {
+      if (where.batch) {
+        where.batch.in = where.batch.in.filter(b => adminScope.batch.in.includes(b));
+      } else {
+        where.batch = adminScope.batch;
+      }
+    }
 
     if (status) {
       const statusFilter = status.trim().toUpperCase();

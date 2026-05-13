@@ -85,6 +85,8 @@ export default function ManageJobs() {
   const [schoolOptions, setSchoolOptions] = useState([]);
   const [batchOptions, setBatchOptions] = useState([]);
   const [centerOptions, setCenterOptions] = useState([]);
+  const [adminOptions, setAdminOptions] = useState([]);
+  const [selectedAdmin, setSelectedAdmin] = useState('ALL');
   const [loadingFilters, setLoadingFilters] = useState(true);
 
   const schoolDropdownRefs = useRef({});
@@ -93,7 +95,7 @@ export default function ManageJobs() {
 
   // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
-    const loadFilterOptions = () => {
+    const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
 
@@ -126,8 +128,26 @@ export default function ManageJobs() {
         setBatchOptions(batchOptionsArray);
         setCenterOptions(centerOptionsArray);
 
+        // Fetch Admins for Super Admin filter
+        const isSuperAdmin = role?.toUpperCase() === 'SUPER_ADMIN' || user?.role?.toUpperCase() === 'SUPER_ADMIN';
+        if (isSuperAdmin) {
+          try {
+            const statsRes = await api.getSuperAdminStats();
+            if (statsRes && statsRes.admins) {
+              const adminsList = statsRes.admins.map(a => ({
+                id: a.id,
+                display: a.displayName || a.email,
+                storage: a.id
+              }));
+              setAdminOptions([{ id: 'ALL', display: 'All Admins', storage: 'ALL' }, ...adminsList]);
+            }
+          } catch (err) {
+            console.warn('ManageJobs: Failed to load admins for filter', err);
+          }
+        }
+
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ ManageJobs filter options loaded (predefined only)');
+          console.log('✅ ManageJobs filter options loaded (predefined + admins if Super)');
         }
 
       } finally {
@@ -251,7 +271,7 @@ export default function ManageJobs() {
 
   useEffect(() => {
     loadJobs();
-  }, [jobsPage, activeFilter]);
+  }, [jobsPage, activeFilter, selectedAdmin]);
 
 
   // Handle body scroll locking when modals are open
@@ -787,6 +807,34 @@ export default function ManageJobs() {
         </div>
       </div>
 
+      {/* Super Admin: Filter by Creator */}
+      {(role === 'SUPER_ADMIN' || user?.role === 'SUPER_ADMIN') && adminOptions.length > 0 && (
+        <div className="flex justify-center mb-6">
+          <div className="flex items-center gap-3 bg-indigo-50/50 px-4 py-2 rounded-xl border border-indigo-100">
+            <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Filter by Admin:</span>
+            <select
+              value={selectedAdmin}
+              onChange={(e) => setSelectedAdmin(e.target.value)}
+              className="bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
+            >
+              {adminOptions.map(admin => (
+                <option key={admin.id} value={admin.storage}>
+                  {admin.display}
+                </option>
+              ))}
+            </select>
+            {selectedAdmin !== 'ALL' && (
+              <button 
+                onClick={() => setSelectedAdmin('ALL')}
+                className="text-xs font-bold text-indigo-400 hover:text-indigo-600 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Jobs list */}
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
@@ -853,12 +901,21 @@ export default function ManageJobs() {
                         <Building2 className="w-3.5 h-3.5" />
                         <span className="text-xs sm:text-sm font-medium truncate">{companyName}</span>
                       </div>
+                      {/* Super Admin Visibility: Show who posted/created the job */}
+                      {/* {(role === 'SUPER_ADMIN' || user?.role === 'SUPER_ADMIN') && job.creator && (
+                        <div className="flex items-center gap-1.5 text-indigo-500 mt-1">
+                          <User className="w-3 h-3" />
+                          <span className="text-[10px] font-bold uppercase tracking-tight">
+                            Posted by: {job.creator.displayName || job.creator.email}
+                          </span>
+                        </div>
+                      )} */}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
                     <div className="text-right">
-                      <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
                         {isPosted ? 'Application Deadline' : 'Interview Date'}
                       </p>
                       <p className="text-[13px] font-bold text-slate-700">
@@ -868,7 +925,7 @@ export default function ManageJobs() {
                         }
                       </p>
                     </div>
-                    <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-tight rounded-md border flex items-center gap-1.5 shadow-sm whitespace-nowrap ${
+                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md border flex items-center gap-1.5 shadow-sm whitespace-nowrap ${
                       isPosted ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : jobStatus.color
                     }`}>
                       {jobStatus.icon}
@@ -885,7 +942,7 @@ export default function ManageJobs() {
                     <div className="md:col-span-8 flex flex-wrap gap-4">
                       {/* School Dropdown */}
                       <div className="flex-1 min-w-[140px]" ref={el => schoolDropdownRefs.current[job.id] = el}>
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Target Schools</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Target Schools</label>
                         <div className="relative">
                           <button
                             disabled={visibilityModes[job.id] === 'INVITE_ONLY'}

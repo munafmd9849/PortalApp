@@ -35,8 +35,8 @@ router.post('/register', [
   body('role').custom((value) => {
     if (!value) return false;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER'].includes(upper);
+  }).withMessage('Role must be STUDENT or RECRUITER'),
   body('verificationToken').optional().isString(), // Optional: verification token from OTP
 ], async (req, res) => {
   try {

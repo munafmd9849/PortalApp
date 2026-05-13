@@ -13,6 +13,9 @@ import { sendServerError } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
 import { rankCandidatesForJob } from '../services/recommendationService.js';
 import { getIO } from '../config/socket.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { applyAuditContext } from '../utils/auditContext.js';
+
 
 /**
  * Get all jobs with filters
@@ -34,6 +37,7 @@ export async function getJobs(req, res) {
       school, // Targeted school
       center, // Targeted center
       batch,  // Targeted batch
+      createdBy,
       page = 1,
       limit = 50
     } = req.query;
@@ -42,6 +46,7 @@ export async function getJobs(req, res) {
     if (status) where.status = status;
     if (recruiterId) where.recruiterId = recruiterId;
     if (companyId) where.companyId = companyId;
+    if (createdBy && createdBy !== 'ALL') where.createdBy = createdBy;
     if (isPosted !== undefined) {
       // Handle both string 'true'/'false' and boolean
       const isPostedValue = isPosted === 'true' || isPosted === true;
@@ -126,18 +131,56 @@ export async function getJobs(req, res) {
       }
     }
 
-    // Created date range filter
-    if (createdAtStart || createdAtEnd) {
-      where.createdAt = {};
-      if (createdAtStart) {
-        const startDate = new Date(createdAtStart);
-        startDate.setHours(0, 0, 0, 0);
-        where.createdAt.gte = startDate;
+    // Admin Scoping logic
+    if (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+      
+      // Merge scoping with existing filters
+      // For jobs, we check if the job targets the schools/centers the admin is allowed to see
+      // OR if the admin created the job themselves
+      const scopeConditions = [];
+      
+      if (req.user.role === 'ADMIN') {
+        const adminId = req.userId;
+        const baseScope = [];
+        
+        // Allowed schools scoping
+        if (adminScope.school) {
+          baseScope.push({ OR: [
+            ...adminScope.school.in.map(s => ({ targetSchools: { contains: s } }))
+          ]});
+        }
+        
+        // Allowed centers scoping
+        if (adminScope.center) {
+          baseScope.push({ OR: adminScope.center.in.map(c => ({ targetCenters: { contains: c } })) });
+        }
+
+        // Allowed batches scoping
+        if (adminScope.batch) {
+          baseScope.push({ OR: adminScope.batch.in.map(b => ({ targetBatches: { contains: b } })) });
+        }
+
+        // Only apply restrictions if there's a defined scope or a block signal
+        const isBlocked = adminScope.id === 'BLOCK_ALL';
+        const hasScope = baseScope.length > 0;
+
+        if (isBlocked) {
+          scopeConditions.push({ id: 'BLOCK_ALL' });
+        } else if (hasScope) {
+          // Ownership bypass: Show jobs in scope OR jobs created by this admin
+          scopeConditions.push({
+            OR: [
+              { AND: baseScope },
+              { createdBy: adminId }
+            ]
+          });
+        }
+        // If not blocked and no specific scope, admin has global access (don't add scopeConditions)
       }
-      if (createdAtEnd) {
-        const endDate = new Date(createdAtEnd);
-        endDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = endDate;
+
+      if (scopeConditions.length > 0) {
+        where.AND = [...(where.AND || []), ...scopeConditions];
       }
     }
 
@@ -222,7 +265,7 @@ export async function getTargetedJobs(req, res) {
     } else {
       const student = await prisma.student.findUnique({
         where: { userId: req.userId },
-        select: { id: true, school: true, center: true, batch: true },
+        select: { id: true, school: true, center: true, batch: true, schoolId: true, centerId: true, batchId: true },
       });
       if (student) {
         studentId = student.id;
@@ -240,7 +283,7 @@ export async function getTargetedJobs(req, res) {
     if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
       studentProfile = await prisma.student.findUnique({
         where: { id: studentId },
-        select: { id: true, school: true, center: true, batch: true },
+        select: { id: true, school: true, center: true, batch: true, schoolId: true, centerId: true, batchId: true },
       });
     }
 
@@ -248,7 +291,7 @@ export async function getTargetedJobs(req, res) {
       return res.json([]);
     }
 
-    const { school, center, batch } = studentProfile;
+    const { school, center, batch, schoolId, centerId, batchId } = studentProfile;
 
     // If student doesn't have profile yet, return all posted jobs (no targeting)
     // Only POSTED jobs are visible to students (visibility = status = POSTED AND isPosted = true)
@@ -338,11 +381,32 @@ export async function getTargetedJobs(req, res) {
       }
 
       // Match student's attributes (OPEN or PRIORITY modes)
-      const schoolMatch = targetSchools.length === 0 || targetSchools.includes(school);
-      const centerMatch = targetCenters.length === 0 || targetCenters.includes(center);
-      const batchMatch = targetBatches.length === 0 || targetBatches.includes(batch);
+      // PRIORITY 1: Match by ID (New System)
+      let targetSchoolIds = [];
+      let targetCenterIds = [];
+      let targetBatchIds = [];
+      try {
+        if (job.targetSchoolIds) targetSchoolIds = typeof job.targetSchoolIds === 'string' ? JSON.parse(job.targetSchoolIds) : job.targetSchoolIds;
+        if (job.targetCenterIds) targetCenterIds = typeof job.targetCenterIds === 'string' ? JSON.parse(job.targetCenterIds) : job.targetCenterIds;
+        if (job.targetBatchIds) targetBatchIds = typeof job.targetBatchIds === 'string' ? JSON.parse(job.targetBatchIds) : job.targetBatchIds;
+      } catch (e) { console.warn('Parse ID targeting error:', e); }
 
-      return schoolMatch && centerMatch && batchMatch;
+      // If ID targeting is present, use it
+      const hasIdTargeting = targetSchoolIds.length > 0 || targetCenterIds.length > 0 || targetBatchIds.length > 0;
+      if (hasIdTargeting) {
+        const schoolMatch = targetSchoolIds.length === 0 || targetSchoolIds.includes(schoolId);
+        const centerMatch = targetCenterIds.length === 0 || targetCenterIds.includes(centerId);
+        const batchMatch = targetBatchIds.length === 0 || targetBatchIds.includes(batchId);
+        if (schoolMatch && centerMatch && batchMatch) return true;
+        // If IDs are present but don't match, we still check names for backward compatibility
+      }
+
+      // PRIORITY 2: Match by Name (Legacy System)
+      const schoolMatchName = targetSchools.length === 0 || targetSchools.includes(school);
+      const centerMatchName = targetCenters.length === 0 || targetCenters.includes(center);
+      const batchMatchName = targetBatches.length === 0 || targetBatches.includes(batch);
+
+      return schoolMatchName && centerMatchName && batchMatchName;
     });
 
     // Map flags and limit to 100 results
@@ -533,7 +597,11 @@ export async function createJob(req, res) {
     const recruiterEmail = primaryRecruiter.email;
     const recruiterName = primaryRecruiter.name;
 
-    // Get recruiter profile (if recruiter) or use admin
+    // Handle both 'company' and 'companyName' fields from frontend
+    const companyName = (jobData.companyName || jobData.company || '').trim();
+    const normalizedRecruiterEmail = recruiterEmail ? recruiterEmail.trim().toLowerCase() : null;
+
+    // Get recruiter profile or resolve/create one (if Admin)
     let recruiterId = null;
     if (userRole === 'RECRUITER') {
       const recruiter = await prisma.recruiter.findUnique({
@@ -544,32 +612,81 @@ export async function createJob(req, res) {
         return res.status(403).json({ error: 'Recruiter profile not found' });
       }
       recruiterId = recruiter.id;
+    } else {
+      // Admin/SuperAdmin creating a job
+      if (jobData.recruiterId) {
+        recruiterId = jobData.recruiterId;
+      } else if (normalizedRecruiterEmail) {
+        // Find existing recruiter by user email
+        const recruiterUser = await prisma.user.findUnique({
+          where: { email: normalizedRecruiterEmail },
+          include: { recruiter: true }
+        });
+
+        if (recruiterUser && recruiterUser.recruiter) {
+          recruiterId = recruiterUser.recruiter.id;
+        } else {
+          // Auto-create recruiter user if admin provides an email that doesn't exist
+          try {
+            const newUser = await prisma.user.create({
+              data: {
+                email: normalizedRecruiterEmail,
+                password: 'PASSWORD_REQD_FOR_CREATE_' + Math.random().toString(36).slice(-8), // Placeholder
+                role: 'RECRUITER',
+                name: recruiterName || 'New Recruiter',
+                recruiter: {
+                  create: {
+                    companyName: companyName || 'Unknown Company',
+                  }
+                }
+              },
+              include: { recruiter: true }
+            });
+            recruiterId = newUser.recruiter.id;
+            logger.info(`Auto-created recruiter profile for ${normalizedRecruiterEmail}`);
+          } catch (createErr) {
+            logger.warn(`Could not auto-create recruiter for ${normalizedRecruiterEmail}: ${createErr.message}`);
+          }
+        }
+      }
     }
 
     // Find or create company
-    // Handle both 'company' and 'companyName' fields from frontend
-    const companyName = jobData.companyName || jobData.company;
     let companyId = jobData.companyId;
     if (!companyId && companyName) {
-      // Prepare company data including website
-      const companyData = {
-        name: companyName,
-        location: jobData.companyLocation || null,
-        website: jobData.website || null,
-      };
-
-      const company = await prisma.company.upsert({
-        where: { name: companyName },
-        update: {
-          // Update website and location if provided (but don't overwrite existing with null)
-          ...(jobData.website && { website: jobData.website }),
-          ...(jobData.companyLocation && { location: jobData.companyLocation }),
-        },
-        create: companyData,
+      // DEDUP: Search by normalized name
+      let company = await prisma.company.findFirst({
+        where: { name: { equals: companyName, mode: 'insensitive' } }
       });
+
+      if (!company) {
+        company = await prisma.company.create({
+          data: {
+            name: companyName,
+            location: jobData.companyLocation || null,
+            website: jobData.website || null,
+          }
+        });
+      } else {
+        // Update website and location if provided
+        await prisma.company.update({
+          where: { id: company.id },
+          data: {
+            ...(jobData.website && { website: jobData.website }),
+            ...(jobData.companyLocation && { location: jobData.companyLocation }),
+          }
+        });
+      }
       companyId = company.id;
+
+      // Link recruiter to company if needed
+      if (recruiterId) {
+        await prisma.recruiter.update({
+          where: { id: recruiterId },
+          data: { companyId: companyId }
+        }).catch(() => {});
+      }
     } else if (companyId && jobData.website) {
-      // If companyId exists and website is provided, update the company website
       await prisma.company.update({
         where: { id: companyId },
         data: { website: jobData.website },
@@ -618,7 +735,7 @@ export async function createJob(req, res) {
     cleanJobTitle = cleanJobTitle.replace(/^(?:job\s*description\s*)?title[:\s]*/i, '');
     cleanJobTitle = cleanJobTitle.trim();
 
-    const processedData = {
+    const processedData = applyAuditContext({
       // Required fields
       jobTitle: cleanJobTitle || '',
       description: mappedData.description || '',
@@ -628,12 +745,15 @@ export async function createJob(req, res) {
       targetSchools: Array.isArray(mappedData.targetSchools) ? JSON.stringify(mappedData.targetSchools) : (mappedData.targetSchools || '[]'),
       targetCenters: Array.isArray(mappedData.targetCenters) ? JSON.stringify(mappedData.targetCenters) : (mappedData.targetCenters || '[]'),
       targetBatches: Array.isArray(mappedData.targetBatches) ? JSON.stringify(mappedData.targetBatches) : (mappedData.targetBatches || '[]'),
+      targetSchoolIds: Array.isArray(mappedData.targetSchoolIds) ? JSON.stringify(mappedData.targetSchoolIds) : (mappedData.targetSchoolIds || '[]'),
+      targetCenterIds: Array.isArray(mappedData.targetCenterIds) ? JSON.stringify(mappedData.targetCenterIds) : (mappedData.targetCenterIds || '[]'),
+      targetBatchIds: Array.isArray(mappedData.targetBatchIds) ? JSON.stringify(mappedData.targetBatchIds) : (mappedData.targetBatchIds || '[]'),
       spocs: JSON.stringify(cleanSpocs),
       // Optional fields - use relation syntax for Prisma
       ...(companyId ? { company: { connect: { id: companyId } } } : {}),
       ...(recruiterId ? { recruiter: { connect: { id: recruiterId } } } : {}),
       companyName: companyName || null,
-      recruiterEmail: recruiterEmail, // REQUIRED: Primary email for recruiter screening access (backward compatibility)
+      recruiterEmail: normalizedRecruiterEmail || recruiterEmail, // REQUIRED: Primary email for recruiter screening access (backward compatibility)
       recruiterName: recruiterName || null, // Optional primary recruiter name (backward compatibility)
       recruiterEmails: JSON.stringify(validEmails), // Store all recruiter emails as JSON string for multiple emails support
       // Set default "As per industry standards" if salary/stipend not specified
@@ -696,14 +816,7 @@ export async function createJob(req, res) {
       isActive: false,
       isPosted: false, // Jobs are never posted directly - must be approved then posted
       submittedAt: new Date(), // All jobs are submitted for review
-      postedBy: null, // Set when admin posts the job
-      postedAt: null, // Set when admin posts the job
-      approvedBy: null, // Set when admin approves
-      approvedAt: null, // Set when admin approves
-      rejectedBy: null, // Set when admin rejects
-      rejectedAt: null, // Set when admin rejects
-      rejectionReason: null, // Set when admin rejects
-    };
+    }, userId, 'CREATE');
 
     // Create job
     const job = await prisma.job.create({
@@ -961,8 +1074,10 @@ export async function updateJob(req, res) {
       'spocs', 'status', 'isActive', 'isPosted', 'applicationDeadlineMailSent',
       'requiresScreening', 'requiresTest',
       'targetSchools', 'targetCenters', 'targetBatches',
+      'targetSchoolIds', 'targetCenterIds', 'targetBatchIds',
       'submittedAt', 'postedAt', 'postedBy', 'approvedAt', 'approvedBy',
       'rejectedAt', 'rejectedBy', 'rejectionReason', 'archivedAt', 'archivedBy',
+      'updatedBy',
     ];
 
     const finalUpdateData = {};
@@ -971,6 +1086,9 @@ export async function updateJob(req, res) {
         finalUpdateData[key] = value;
       }
     }
+
+    // Always set updatedBy
+    finalUpdateData.updatedBy = userId;
 
     // Map frontend fields to database fields
     // Map responsibilities to description if description is not provided
@@ -1150,7 +1268,7 @@ export async function updateJob(req, res) {
     // Update the job
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: finalUpdateData,
+      data: applyAuditContext(finalUpdateData, userId, 'UPDATE'),
       include: {
         company: true,
         recruiter: {
@@ -1278,18 +1396,16 @@ export async function postJob(req, res) {
     // Update job status
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: {
+      data: applyAuditContext({
         status: 'POSTED',
         isPosted: true,
-        postedAt: new Date(),
-        postedBy: adminId,
         targetSchools: targetSchoolsJson,
         targetCenters: targetCentersJson,
         targetBatches: targetBatchesJson,
         targetBranches: targetBranchesJson,
         visibilityMode,
         recommendationEnabled: visibilityMode === 'PRIORITY',
-      },
+      }, adminId, 'POST'),
       include: {
         company: true,
         recruiter: {
@@ -1463,21 +1579,17 @@ export async function approveJob(req, res) {
     // STRICT RULE: Move directly from IN_REVIEW → POSTED
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: {
+      data: applyAuditContext({
         status: 'POSTED', // Direct transition: IN_REVIEW → POSTED
         isPosted: true,   // Visible to students
         isActive: true,   // Active job
-        postedAt: new Date(),
-        postedBy: adminId,
-        approvedAt: new Date(),
-        approvedBy: adminId,
         targetSchools: targetSchoolsJson,
         targetCenters: targetCentersJson,
         targetBatches: targetBatchesJson,
         targetBranches: targetBranchesJson,
         visibilityMode,
         recommendationEnabled: visibilityMode === 'PRIORITY',
-      },
+      }, adminId, 'APPROVE'),
       include: {
         recruiter: {
           include: {
@@ -1692,7 +1804,7 @@ export async function deleteJob(req, res) {
     await logAction(req, {
       actionType: 'Delete Job',
       targetType: 'Job',
-      targetId: id,
+      targetId: jobId,
       details: `Deleted job: ${job.jobTitle}`,
     });
 
@@ -1728,14 +1840,12 @@ export async function rejectJob(req, res) {
 
     const job = await prisma.job.update({
       where: { id: jobId },
-      data: {
+      data: applyAuditContext({
         status: 'REJECTED',
         isActive: false,
         isPosted: false, // NOT visible to students
-        rejectedAt: new Date(),
-        rejectedBy: adminId,
         rejectionReason: rejectionReason || 'No reason provided',
-      },
+      }, adminId, 'REJECT'),
       include: {
         recruiter: {
           include: {
@@ -1831,7 +1941,9 @@ export async function updateJobAdminNote(req, res) {
 
     await prisma.job.update({
       where: { id: jobId },
-      data: { adminNote: note != null ? String(note) : null },
+      data: applyAuditContext({ 
+        adminNote: note != null ? String(note) : null 
+      }, req.userId, 'UPDATE'),
     });
 
     return res.json({
@@ -1883,7 +1995,9 @@ export async function updateJobRecruiterNote(req, res) {
 
     await prisma.job.update({
       where: { id: jobId },
-      data: { recruiterNote: note != null ? String(note) : null },
+      data: applyAuditContext({ 
+        recruiterNote: note != null ? String(note) : null 
+      }, userId, 'UPDATE'),
     });
 
     return res.json({
