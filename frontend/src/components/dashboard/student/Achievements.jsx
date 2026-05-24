@@ -3,7 +3,12 @@ import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
 
-const Achievements = ({ isAdminView = false }) => {
+const Achievements = ({
+  isAdminView = false,
+  viewStudentId = null,
+  initialAchievements = null,
+  initialCertifications = null,
+}) => {
   const { user } = useAuth();
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,11 +26,23 @@ const Achievements = ({ isAdminView = false }) => {
   const [isCertAddButtonActive, setIsCertAddButtonActive] = useState(false);
   const achievementsLoadedRef = useRef(false);
 
+  useEffect(() => {
+    achievementsLoadedRef.current = false;
+  }, [viewStudentId, initialAchievements, initialCertifications]);
+
   // Load achievements data once on mount
   useEffect(() => {
-    if (!user?.id) return;
-    
-    // Prevent repeated calls
+    if (initialAchievements !== null || initialCertifications !== null) {
+      const achievementsArray = Array.isArray(initialAchievements) ? initialAchievements : [];
+      const certificationsArray = Array.isArray(initialCertifications) ? initialCertifications : [];
+      setAchievements([...achievementsArray, ...certificationsArray]);
+      achievementsLoadedRef.current = true;
+      return;
+    }
+
+    const profileKey = isAdminView && viewStudentId ? viewStudentId : user?.id;
+    if (!profileKey && !user?.id) return;
+
     if (achievementsLoadedRef.current) return;
 
     let isMounted = true;
@@ -35,7 +52,7 @@ const Achievements = ({ isAdminView = false }) => {
       try {
         setLoading(true);
         console.log('🚀 [Achievements] Starting loadAchievements, isMounted:', isMounted);
-        const profile = await getStudentProfile(user.id);
+        const profile = await getStudentProfile(isAdminView && viewStudentId ? viewStudentId : user.id);
         
         // CRITICAL: Log raw API response
         console.log('📥 [Achievements] PROFILE API RESPONSE:', profile);
@@ -92,7 +109,7 @@ const Achievements = ({ isAdminView = false }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isAdminView, viewStudentId, initialAchievements, initialCertifications]);
 
   // URL normalization helper
   const normalizeUrl = (url) => {

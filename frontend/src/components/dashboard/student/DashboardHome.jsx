@@ -35,7 +35,12 @@ const DashboardHome = ({
   hideJobPostings = false,
   hideFooter = false,
   isAdminView = false,
-  profileData: propProfileData = null // Allow passing profile data from parent
+  profileData: propProfileData = null,
+  viewStudentId = null,
+  initialEducation = null,
+  initialProjects = null,
+  initialAchievements = null,
+  initialCertifications = null,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -84,8 +89,8 @@ const DashboardHome = ({
       ? studentData.stats
       : { applied: 0, shortlisted: 0, interviewed: 0, offers: 0 };
   const formattedStudentData = studentData ? {
-    id: user?.id,
     ...studentData,
+    id: isAdminView ? (viewStudentId || studentData.id) : user?.id,
     stats,
   } : null;
 
@@ -299,13 +304,26 @@ const DashboardHome = ({
       )}
 
       {/* Profile sections render with real data only; they handle their own empty states */}
-      <EducationSection isAdminView={isAdminView} />
-      <SkillsSection isAdminView={isAdminView} />
-      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
-      <Achievements isAdminView={isAdminView} />
+      <EducationSection
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialEducation={initialEducation}
+      />
+      <SkillsSection isAdminView={isAdminView} initialSkills={skillsEntries} />
+      <ProjectsSection
+        studentId={isAdminView ? viewStudentId : user?.id}
+        isAdminView={isAdminView}
+        initialProjects={initialProjects}
+      />
+      <Achievements
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialAchievements={initialAchievements}
+        initialCertifications={initialCertifications}
+      />
       <Endorsements 
         isAdminView={isAdminView} 
-        studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
+        studentId={isAdminView && viewStudentId ? viewStudentId : undefined}
         profileData={profileData}
       />
 

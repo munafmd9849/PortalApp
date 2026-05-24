@@ -21,6 +21,7 @@ import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
 import { logAction } from '../utils/auditLogger.js';
+import { recordStudentActivity } from '../services/studentDirectoryMetricsService.js';
 
 const router = express.Router();
 
@@ -336,10 +337,14 @@ router.post('/login', [
     }
 
     // Update last login
+    const loginAt = new Date();
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: loginAt },
     });
+    if (user.student?.id) {
+      recordStudentActivity(user.student.id, 'LOGIN', null, { source: 'password_login' }).catch(() => {});
+    }
 
     // Notify Super Admins when a PENDING admin tries to enter (login) — for Admit/Reject workflow
     if (user.role === 'ADMIN' && user.status === 'PENDING') {

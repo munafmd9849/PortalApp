@@ -1837,8 +1837,16 @@ export async function updateApplicationStatus(req, res) {
       },
       include: {
         job: true,
+        student: { select: { school: true } },
       },
     });
+
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(applicationId);
+    } catch (syncErr) {
+      console.warn('Pipeline sync skipped:', syncErr.message);
+    }
 
     // Update student stats
     if (oldStatus !== status) {
