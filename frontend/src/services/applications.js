@@ -16,7 +16,7 @@ export const getStudentApplications = async (studentId) => {
     // Use real API to fetch applications
     let applications;
     try {
-      applications = await api.getStudentApplications();
+      applications = await api.getStudentApplications(studentId);
       console.log('📋 [getStudentApplications] ✅ API call successful');
     } catch (apiError) {
       console.error('❌ [getStudentApplications] API call failed:', apiError);

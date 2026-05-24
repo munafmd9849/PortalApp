@@ -146,11 +146,16 @@ export default function AdminDashboard() {
       return;
     }
 
-    const tab = searchParams.get('tab') || 'dashboard';
+    let tab = searchParams.get('tab') || 'dashboard';
+    // Legacy tab names → Job Opportunities dashboard
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      tab = 'dashboard';
+      navigate('/admin?tab=dashboard', { replace: true });
+    }
     if (tab !== activeTab) {
       setActiveTab(tab);
     }
-  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage]);
+  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage, navigate]);
 
   // Listen for editProfileClicked event
   useEffect(() => {

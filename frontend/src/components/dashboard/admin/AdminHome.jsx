@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+
+import { JobOpportunitiesSection } from './JobOpportunitiesDashboard';
 // import useRef removed - unused
 import { PieChart } from 'react-minimal-pie-chart';
 import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, BarChart3, Target, DollarSign, X, Loader2 } from 'lucide-react';
 import { FaChevronDown, FaTimes, FaMapMarkerAlt, FaGraduationCap, FaUsers, FaUserShield } from 'react-icons/fa';
 import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
-import { Radar, PolarArea, Bar, Doughnut, Line } from 'react-chartjs-2';
+import { Radar } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
 import { useAuth } from '../../../hooks/useAuth';
 // import api from '../../../services/api'; // Unused import removed
@@ -17,6 +19,7 @@ export default function AdminHome() {
   const { user, role } = useAuth();
   const userRole = (role || user?.role || '').toUpperCase();
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isAdminUser = userRole === 'ADMIN' || isSuperAdmin;
   
   const [filters, setFilters] = useState({ campus: '', school: '', batch: '', admin: '' });
   const [selectedSchool, setSelectedSchool] = useState('SOT');
@@ -639,168 +642,8 @@ export default function AdminHome() {
         </div>
       )}
 
-      {/* Placement Trends and Analytics Charts */}
-      {!isLoading && dashboardData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Placement Trend Chart */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-                Placement Trends (Last 6 Months)
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="h-80">
-                {dashboardData?.chartData?.placementTrend?.labels ? (
-                  <Line 
-                    data={dashboardData.chartData.placementTrend}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'top',
-                          labels: {
-                            usePointStyle: true,
-                            padding: 15
-                          }
-                        },
-                        tooltip: {
-                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                          titleColor: '#1f2937',
-                          bodyColor: '#374151',
-                          borderColor: '#e5e7eb',
-                          borderWidth: 1
-                        }
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            color: '#6b7280'
-                          },
-                          grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                          }
-                        },
-                        x: {
-                          ticks: {
-                            color: '#6b7280'
-                          },
-                          grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                          }
-                        }
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <BarChart3 className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                      <p>No placement data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Query Volume and Recruiter Activity */}
-          <div className="space-y-6">
-            {/* Query Volume Pie Chart */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                  <MessageSquare className="w-4 h-4 mr-2" style={{ color: chartColors.purple }} />
-                  Query Volume by Type
-                </h2>
-              </div>
-              <div className="p-4">
-                <div className="h-48">
-                  {dashboardData?.chartData?.queryVolume?.length > 0 ? (
-                    <PieChart 
-                      data={dashboardData.chartData.queryVolume}
-                      lineWidth={60}
-                      radius={40}
-                      label={({ dataEntry }) => dataEntry.title}
-                      labelStyle={{
-                        fontSize: '8px',
-                        fill: '#fff',
-                        fontWeight: 'bold'
-                      }}
-                      labelPosition={70}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <div className="text-center">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">No query data</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Top Recruiters Bar Chart */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                  <Users className="w-4 h-4 mr-2" style={{ color: chartColors.green }} />
-                  Top Active Recruiters
-                </h2>
-              </div>
-              <div className="p-4">
-                <div className="h-48">
-                  {dashboardData?.chartData?.recruiterActivity?.labels ? (
-                    <Bar 
-                      data={dashboardData.chartData.recruiterActivity}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            display: false
-                          }
-                        },
-                        scales: {
-                          y: {
-                            beginAtZero: true,
-                            ticks: {
-                              color: '#6b7280',
-                              stepSize: 1
-                            },
-                            grid: {
-                              color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                          },
-                          x: {
-                            ticks: {
-                              color: '#6b7280'
-                            },
-                            grid: {
-                              display: false
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <div className="text-center">
-                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">No recruiter data</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Job Opportunities — below Key Insights / Student Statistics */}
+      {isAdminUser && <JobOpportunitiesSection embedded />}
 
       {/* School Performance Radar Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">

@@ -5,6 +5,9 @@ import { MdBlock } from 'react-icons/md';
 import { Loader, Download, Upload, SquarePen, User, LinkIcon } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { getAllStudents, updateStudentProfile, updateEducationalBackground, getStudentProfile, getEducationalBackground, getStudentSkills } from '../../../services/students';
+import { fetchStudentsWithScores } from '../../../services/adminReadiness';
+import { fetchStudentDirectory, exportStudentDirectory } from '../../../services/studentDirectory';
+import StudentDirectoryTable from './StudentDirectoryTable';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -22,6 +25,47 @@ const STATUS_OPTIONS = [
   { id: 'Inactive', name: 'Inactive' },
   { id: 'Blocked', name: 'Blocked' },
 ];
+
+const READINESS_TIER_OPTIONS = [
+  { id: '', name: 'All readiness' },
+  { id: 'ready', name: 'Ready (≥75%)' },
+  { id: 'developing', name: 'Developing' },
+  { id: 'at_risk', name: 'At risk' },
+];
+
+function PlacementScoreCell({ score, tier, components, label }) {
+  const [open, setOpen] = useState(false);
+  const tierColors = {
+    ready: 'bg-green-100 text-green-800',
+    developing: 'bg-amber-100 text-amber-800',
+    at_risk: 'bg-red-100 text-red-800',
+    high: 'bg-green-100 text-green-800',
+    medium: 'bg-blue-100 text-blue-800',
+    low: 'bg-gray-100 text-gray-700',
+  };
+  return (
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span className={`px-2 py-1 rounded-full text-xs font-bold ${tierColors[tier] || 'bg-gray-100'}`}>
+        {score != null ? `${score}%` : '—'}
+      </span>
+      {open && components && (
+        <div className="absolute z-30 left-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg p-2 text-xs">
+          <p className="font-semibold text-gray-700 mb-1">{label}</p>
+          {Object.entries(components).map(([k, v]) => (
+            <div key={k} className="flex justify-between py-0.5">
+              <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>
+              <span className="font-medium">{v}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Edit Student Modal
 const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
@@ -480,7 +524,10 @@ export default function StudentDirectory() {
     branch: '',
     minCgpa: '',
     maxCgpa: '',
+    tier: '',
+    minReadiness: '',
   });
+  const [sortByScores, setSortByScores] = useState('readiness');
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
@@ -551,8 +598,7 @@ export default function StudentDirectory() {
 
       console.log(`📡 Loading students... (attempt ${loadAttemptsRef.current})`);
 
-      // Request a high limit to get all students (backend max is now 1000)
-      const studentsData = await getAllStudents({ 
+      const queryParams = {
         limit: studentsPerPage,
         page: currentPage,
         search: appliedSearch,
@@ -562,8 +608,18 @@ export default function StudentDirectory() {
         degree: filters.degree,
         branch: filters.branch,
         minCgpa: filters.minCgpa,
-        maxCgpa: filters.maxCgpa
-      }, { retries: 2, retryDelay: 1000, returnPagination: true });
+        maxCgpa: filters.maxCgpa,
+        sortBy: sortByScores,
+        sortDir: 'desc',
+      };
+      if (filters.tier) queryParams.tier = filters.tier;
+      if (filters.minReadiness) queryParams.minReadiness = filters.minReadiness;
+
+      const studentsData = await fetchStudentDirectory(queryParams).catch(async () => {
+        return fetchStudentsWithScores(queryParams).catch(async () => {
+          return getAllStudents(queryParams, { retries: 2, retryDelay: 1000, returnPagination: true });
+        });
+      });
 
       // Reset attempts on success
       loadAttemptsRef.current = 0;
@@ -626,19 +682,33 @@ export default function StudentDirectory() {
           }
         }
 
+        let parsedBlock = blockInfo;
+        if (student.blockInfo && !parsedBlock) {
+          try {
+            parsedBlock = typeof student.blockInfo === 'string'
+              ? JSON.parse(student.blockInfo)
+              : student.blockInfo;
+          } catch {
+            parsedBlock = null;
+          }
+        }
+
         return {
           ...student,
-          status: normalizeStatus(student.user?.status || 'ACTIVE'),
-          emailVerified: student.user?.emailVerified || false,
+          status: normalizeStatus(student.status || student.user?.status || 'ACTIVE'),
+          emailVerified: student.user?.emailVerified || student.emailVerified || false,
           createdAt: student.user?.createdAt || student.createdAt,
-          blockInfo: blockInfo,
-          // Ensure all fields have safe defaults for filtering
+          blockInfo: parsedBlock,
           fullName: student.fullName || student.email || 'N/A',
           email: student.email || '',
+          phone: student.phone || student.contactNumber || '',
           enrollmentId: student.enrollmentId || null,
           center: student.center || '',
           school: student.school || '',
+          batch: student.batch || student.cohort || '',
           cgpa: student.cgpa || null,
+          placementReadiness: student.placementReadiness || null,
+          placementProbability: student.placementProbability || null,
         };
       });
 
@@ -674,7 +744,7 @@ export default function StudentDirectory() {
     } finally {
       isLoadingRef.current = false;
     }
-  }, [currentPage, appliedSearch, filters]);
+  }, [currentPage, appliedSearch, filters, sortByScores]);
 
   const setupStudentSubscription = useCallback(() => {
     clearPollingInterval();
@@ -729,7 +799,19 @@ export default function StudentDirectory() {
 
   const downloadFilteredStudents = useCallback(async (mode = 'export') => {
     try {
-      const exportResponse = await getAllStudents({
+      const exportResponse = await exportStudentDirectory({
+        search: appliedSearch,
+        center: filters.center,
+        school: filters.school,
+        status: filters.status,
+        degree: filters.degree,
+        branch: filters.branch,
+        minCgpa: filters.minCgpa,
+        maxCgpa: filters.maxCgpa,
+        tier: filters.tier,
+        limit: 2000,
+        page: 1,
+      }).catch(() => getAllStudents({
         search: appliedSearch,
         center: filters.center,
         school: filters.school,
@@ -740,7 +822,7 @@ export default function StudentDirectory() {
         maxCgpa: filters.maxCgpa,
         limit: 1000,
         page: 1,
-      });
+      }));
 
       if (exportResponse && exportResponse.error) {
         throw new Error(exportResponse.message || 'Failed to load students for export');
@@ -756,40 +838,60 @@ export default function StudentDirectory() {
       }
 
       const headers = [
-        'Full Name',
+        'Sr No',
+        'Name',
         'Email',
-        'Enrollment ID',
-        'Center',
-        'School',
-        'Degree',
-        'Branch',
-        'CGPA',
-        'Phone',
-        'Batch',
-        'Status',
-        'Highest Education Institution',
-        'Top Skills'
+        'Program',
+        'Cohort',
+        'Current Location',
+        'Contact',
+        'CS Status',
+        'Activation',
+        'Placement Status',
+        'Activity Score',
+        'AI Mock 1',
+        'AI Mock 2',
+        'SME Mock 1',
+        'SME Mock 2',
+        'Jobs Assigned',
+        'Eligible Jobs',
+        'Jobs Applied',
+        'Applied Closed',
+        'No Shows',
+        'Unapplied',
+        'Readiness %',
+        'Probability %',
+        'Risk Flags',
+        'Account Status',
       ];
 
-      const csvRows = studentsToExport.map(student => {
-        const topDegree = student.topEducationDegree || student.education?.[0]?.degree || '';
-        const topBranch = student.topEducationBranch || student.education?.[0]?.description || '';
-        return [
-          student.fullName || '',
-          student.email || '',
-          student.enrollmentId || '',
-          student.center || '',
-          student.school || '',
-          topDegree,
-          topBranch,
-          student.cgpa || '',
-          student.phone || '',
-          student.batch || '',
-          student.status || '',
-          student.education?.[0]?.institution || '',
-          student.topSkills?.join(', ') || ''
-        ];
-      });
+      const csvRows = studentsToExport.map(student => [
+        student.srNo ?? '',
+        student.fullName || '',
+        student.email || '',
+        student.program || '',
+        student.cohort || student.batch || '',
+        student.currentLocation || '',
+        student.contactNumber || student.phone || '',
+        student.csStatus?.label || '',
+        student.activation?.label || '',
+        student.placementStatus?.label || '',
+        student.activityScore ?? '',
+        student.aiMock1 ?? '',
+        student.aiMock2 ?? '',
+        student.smeMock1 ?? '',
+        student.smeMock2 ?? '',
+        student.jobsAssigned ?? '',
+        student.eligibleJobs ?? '',
+        student.jobsApplied ?? '',
+        student.appliedClosed ?? '',
+        student.noShows ?? '',
+        student.unapplied ?? '',
+        student.placementReadiness?.score ?? '',
+        student.placementProbability?.score ?? '',
+        (student.riskFlags || []).map((f) => f.label).join('; '),
+        student.status || '',
+      ]);
 
       const csvContent = [
         headers.join(','),
@@ -910,32 +1012,59 @@ export default function StudentDirectory() {
   };
 
   const handleViewProfile = async (student) => {
+    const studentId = student?.id;
+    if (!studentId) return;
+
     setSelectedStudent(student);
     setShowProfile(true);
+    setDashboardData({ loading: true, error: null, profile: null, jobs: [], applications: [], skills: [] });
 
-    // Load dashboard data for the student
     try {
-      setDashboardData({ loading: true, error: null, jobs: [], applications: [], skills: [] });
-
-      const [profile, education, skills, jobs, applications] = await Promise.all([
-        getStudentProfile(student.id),
-        getEducationalBackground(student.id),
-        getStudentSkills(student.id),
-        getTargetedJobsForStudent(student.id),
-        getStudentApplications(student.id)
+      const [profile, jobs, applications] = await Promise.all([
+        getStudentProfile(studentId),
+        getTargetedJobsForStudent(studentId),
+        getStudentApplications(studentId),
       ]);
 
+      const fullProfile = profile && profile.id ? profile : { ...student, id: studentId };
+      const mergedStudent = {
+        ...student,
+        ...fullProfile,
+        id: fullProfile.id || studentId,
+        userId: fullProfile.userId || student.userId,
+        profilePhoto: fullProfile.profilePhoto || student.profilePhoto,
+        stats: {
+          applied: fullProfile.statsApplied ?? student.statsApplied ?? applications?.length ?? 0,
+          shortlisted: fullProfile.statsShortlisted ?? student.statsShortlisted ?? 0,
+          interviewed: fullProfile.statsInterviewed ?? student.statsInterviewed ?? 0,
+          offers: fullProfile.statsOffers ?? student.statsOffers ?? 0,
+        },
+      };
+
+      setSelectedStudent(mergedStudent);
       setDashboardData({
         loading: false,
         error: null,
+        profile: fullProfile,
         jobs: jobs || [],
         applications: applications || [],
-        skills: skills || [],
-        education: education || [],
+        skills: Array.isArray(fullProfile.skills) ? fullProfile.skills : [],
+        education: Array.isArray(fullProfile.education) ? fullProfile.education : [],
+        projects: Array.isArray(fullProfile.projects) ? fullProfile.projects : [],
+        achievements: Array.isArray(fullProfile.achievements) ? fullProfile.achievements : [],
+        certifications: Array.isArray(fullProfile.certifications) ? fullProfile.certifications : [],
+        experiences: Array.isArray(fullProfile.experiences) ? fullProfile.experiences : [],
       });
     } catch (error) {
       console.error('Error loading student data:', error);
-      setDashboardData({ loading: false, error: 'Failed to load student data', jobs: [], applications: [], skills: [] });
+      setDashboardData({
+        loading: false,
+        error: 'Failed to load student profile. Please try again.',
+        profile: null,
+        jobs: [],
+        applications: [],
+        skills: [],
+      });
     }
   };
 
@@ -1094,129 +1223,6 @@ export default function StudentDirectory() {
     return { total: students.length, active, blocked, inactive };
   }, [students]);
 
-  // Memoized table rows - must be a top-level hook, NOT inside JSX (Rules of Hooks)
-  const renderedStudentRows = useMemo(() => students.map((student) => (
-    <tr key={student.id} className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="space-y-2">
-          <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={student.fullName || student.email || 'N/A'}>
-            {student.fullName || student.email || 'N/A'}
-          </div>
-          {student.phone && (
-            <div className="flex items-center gap-1.5">
-              <FaPhone className="w-3 h-3 text-gray-500" />
-              <span className="text-xs text-gray-600">{student.phone}</span>
-            </div>
-          )}
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="flex items-center gap-2">
-          <FaEnvelope className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.email}>
-            {student.email}
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded inline-block">
-          {student.enrollmentId || 'N/A'}
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="flex items-center gap-2">
-          <FaMapMarkerAlt className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-          <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={student.center || 'N/A'}>
-            {student.center || 'N/A'}
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="flex items-center gap-2">
-          <FaGraduationCap className="w-4 h-4 text-purple-600 flex-shrink-0" />
-          <div className="text-xs font-semibold text-gray-900">{student.school || 'N/A'}</div>
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-green-50 rounded-lg">
-            <FaGraduationCap className="w-4 h-4 text-green-600" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-gray-900">
-              {student.cgpa
-                ? (() => {
-                  const cgpaStr = String(student.cgpa);
-                  if (/^(10\.00|[0-9]\.[0-9]{2})$/.test(cgpaStr)) {
-                    return cgpaStr;
-                  } else if (/^\d+$/.test(cgpaStr)) {
-                    return cgpaStr + '.00';
-                  } else if (/^\d+\.\d+$/.test(cgpaStr)) {
-                    const parts = cgpaStr.split('.');
-                    return parts[0] + '.' + parts[1].padEnd(2, '0').substring(0, 2);
-                  }
-                  return cgpaStr;
-                })()
-                : 'N/A'}
-            </div>
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4 border-r border-gray-100">
-        {getStatusChip(student.status)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-center">
-        <div className="flex items-center gap-2">
-          {/* View Profile Button */}
-          <button
-            onClick={() => handleViewProfile(student)}
-            className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-            title="View Student Profile"
-          >
-            <ImEye className="w-4 h-4" />
-          </button>
-
-          {/* Edit Button */}
-          <button
-            onClick={() => handleEditStudent(student)}
-            disabled={!canModifyStudents() || operationLoading}
-            className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-            title="Edit Student"
-          >
-            {operationLoading ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <FaEdit className="w-4 h-4" />
-            )}
-          </button>
-
-          {/* Block/Unblock Button */}
-          <button
-            onClick={() => handleBlockClick(student)}
-            disabled={!canModifyStudents() || operationLoading || (student.status === 'Blocked' && student.blockInfo?.type === 'permanent' && !isSuperAdmin())}
-            className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md ${student.status === 'Blocked'
-              ? 'bg-gray-500 hover:bg-gray-600 text-white'
-              : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
-              }`}
-            title={
-              student.status === 'Blocked' && student.blockInfo?.type === 'permanent' && !isSuperAdmin()
-                ? 'Permanently blocked - only Super Admin can unblock'
-                : student.status === 'Blocked'
-                  ? 'Unblock Student'
-                  : 'Block Student'
-            }
-          >
-            {operationLoading ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <MdBlock className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </td>
-    </tr>
-  )), [students, operationLoading, getStatusChip, handleViewProfile, handleEditStudent, handleBlockClick, canModifyStudents, isSuperAdmin]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 p-4 sm:p-6">
@@ -1281,38 +1287,22 @@ export default function StudentDirectory() {
     <div className="space-y-6">
       {/* Header and Analytics */}
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Student Directory</h2>
-            <p className="text-gray-600 text-lg">Manage and monitor all student accounts</p>
+            <h2 className="text-2xl font-bold text-gray-800">Student Directory</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Learner roster with placement activity — scroll right for mock and job metrics.
+            </p>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => downloadFilteredStudents('export')}
-              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-            >
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
-            <button
-              onClick={refreshStudents}
-              disabled={loading}
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <FaChartLine className="w-4 h-4" />
-                  Refresh
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={refreshStudents}
+            disabled={loading}
+            className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2 self-start"
+          >
+            {loading ? <Loader className="w-4 h-4 animate-spin" /> : <FaChartLine className="w-4 h-4" />}
+            Refresh
+          </button>
         </div>
 
         {/* Analytics Cards - Matching Job Moderation Style */}
@@ -1392,21 +1382,6 @@ export default function StudentDirectory() {
           <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          {/* Search */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Search Students</label>
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search by name, email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              />
-            </div>
-          </div>
-
           {/* Center Filter */}
           <CustomDropdown
             label="Center"
@@ -1461,6 +1436,16 @@ export default function StudentDirectory() {
             onChange={(value) => handleFilterDropdownChange('status', value)}
             placeholder="All Status"
           />
+
+          <CustomDropdown
+            label="Readiness tier"
+            icon={FaChartLine}
+            iconColor="text-indigo-600"
+            options={READINESS_TIER_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
+            value={filters.tier}
+            onChange={(value) => handleFilterDropdownChange('tier', value)}
+            placeholder="All readiness"
+          />
         </div>
 
         {/* CGPA Range and Reset */}
@@ -1510,24 +1495,10 @@ export default function StudentDirectory() {
         </div>
       </div>
 
-      {/* Search Results Summary */}
-      {!loading && (
-        <div className="text-sm text-gray-600">
-          {appliedSearch || Object.values(filters).some(f => f) ? (
-            <span>
-              Showing {students.length} of {totalStudents} students
-              {appliedSearch && <span className="font-medium"> matching "{appliedSearch}"</span>}
-            </span>
-          ) : (
-            <span>Showing all {students.length} students</span>
-          )}
-        </div>
-      )}
-
       {/* Students Table */}
-      <div className="bg-white rounded-lg shadow border overflow-hidden">
+      <div>
         {loading ? (
-          <div className="flex justify-center items-center py-12">
+          <div className="flex justify-center items-center py-12 bg-white rounded-lg border border-gray-200">
             <Loader className="animate-spin text-blue-600 mr-3" />
             <span className="text-gray-600">Loading students...</span>
           </div>
@@ -1557,45 +1528,24 @@ export default function StudentDirectory() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
-                <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Student Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Email
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Enrollment ID
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Center
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      School
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      CGPA
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-white">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {renderedStudentRows}
-                </tbody>
-              </table>
-            </div>
+            <StudentDirectoryTable
+              rows={students}
+              showingCount={students.length}
+              totalCount={totalStudents}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onExport={() => downloadFilteredStudents('export')}
+              operationLoading={operationLoading}
+              canModifyStudents={canModifyStudents}
+              isSuperAdmin={isSuperAdmin}
+              onView={handleViewProfile}
+              onEdit={handleEditStudent}
+              onBlock={handleBlockClick}
+            />
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-t-2 border-gray-200">
+              <div className="mt-3 bg-white rounded-lg border border-gray-200 px-4 py-3">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <span className="text-gray-500">Showing</span>
@@ -1682,8 +1632,22 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   const [currentStudent, setCurrentStudent] = useState(student);
 
   React.useEffect(() => {
-    setCurrentStudent(student);
-  }, [student]);
+    if (dashboardData?.profile) {
+      setCurrentStudent({
+        ...student,
+        ...dashboardData.profile,
+        id: dashboardData.profile.id || student?.id,
+        stats: student?.stats || {
+          applied: dashboardData.profile.statsApplied ?? 0,
+          shortlisted: dashboardData.profile.statsShortlisted ?? 0,
+          interviewed: dashboardData.profile.statsInterviewed ?? 0,
+          offers: dashboardData.profile.statsOffers ?? 0,
+        },
+      });
+    } else {
+      setCurrentStudent(student);
+    }
+  }, [student, dashboardData?.profile]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -1781,14 +1745,16 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
               </div>
             ) : (
               <DashboardHome
-                studentData={{
-                  ...currentStudent,
-                  ...student,
-                  id: student.id
-                }}
+                studentData={currentStudent}
+                profileData={dashboardData.profile || currentStudent}
+                viewStudentId={currentStudent?.id || student?.id}
                 jobs={dashboardData.jobs}
                 applications={dashboardData.applications}
                 skillsEntries={dashboardData.skills}
+                initialEducation={dashboardData.education}
+                initialProjects={dashboardData.projects}
+                initialAchievements={dashboardData.achievements}
+                initialCertifications={dashboardData.certifications}
                 loadingJobs={false}
                 loadingApplications={false}
                 loadingSkills={false}

@@ -10,7 +10,7 @@ import {
   getStudentProfile
 } from '../../../services/students';
 
-const EducationSection = ({ isAdminView = false }) => {
+const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEducation = null }) => {
   const { user } = useAuth();
   const [educationEntries, setEducationEntries] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -31,11 +31,79 @@ const EducationSection = ({ isAdminView = false }) => {
   const [success, setSuccess] = useState('');
   const educationLoadedRef = useRef(false);
 
+  const mapEducationEntries = (rawEducation) => {
+    const list = Array.isArray(rawEducation)
+      ? rawEducation
+      : (rawEducation ? [rawEducation] : []);
+    return list.map((edu) => {
+      let city = '';
+      let state = '';
+      if (edu.description) {
+        try {
+          const descData = JSON.parse(edu.description);
+          if (descData.city) city = descData.city;
+          if (descData.state) state = descData.state;
+        } catch {
+          // not JSON
+        }
+      }
+      let scoreType = 'CGPA';
+      if (edu.description) {
+        try {
+          const descData = JSON.parse(edu.description);
+          if (descData.scoreType) scoreType = descData.scoreType;
+        } catch {
+          // ignore
+        }
+      }
+      let score = '';
+      if (edu.description) {
+        try {
+          const descData = JSON.parse(edu.description);
+          if (descData.scoreType === 'Percentage' && descData.originalScore) {
+            scoreType = 'Percentage';
+            score = String(descData.originalScore);
+          } else if (edu.cgpa) {
+            score = String(edu.cgpa);
+          }
+        } catch {
+          if (edu.cgpa) score = String(edu.cgpa);
+        }
+      } else if (edu.cgpa) {
+        score = String(edu.cgpa);
+      }
+      return {
+        id: edu.id,
+        institute: edu.institution || edu.institute || '',
+        city,
+        state,
+        branch: edu.degree || edu.branch || '',
+        yop: edu.endYear ? String(edu.endYear) : (edu.yop || ''),
+        scoreType,
+        score: score || (edu.score != null ? String(edu.score) : ''),
+        institution: edu.institution,
+        degree: edu.degree,
+        endYear: edu.endYear,
+        cgpa: edu.cgpa,
+      };
+    });
+  };
+
+  useEffect(() => {
+    educationLoadedRef.current = false;
+  }, [viewStudentId, initialEducation]);
+
   // Load education data once on mount
   useEffect(() => {
-    if (!user?.id) return;
-    
-    // Prevent repeated calls
+    if (initialEducation !== null) {
+      setEducationEntries(mapEducationEntries(initialEducation));
+      educationLoadedRef.current = true;
+      return;
+    }
+
+    const profileId = isAdminView && viewStudentId ? viewStudentId : user?.id;
+    if (!profileId && !user?.id) return;
+
     if (educationLoadedRef.current) return;
 
     let isMounted = true;
@@ -45,7 +113,7 @@ const EducationSection = ({ isAdminView = false }) => {
       try {
         setLoading(true);
         console.log('🚀 [EducationSection] Starting loadEducation, isMounted:', isMounted);
-        const profile = await getStudentProfile(user.id);
+        const profile = await getStudentProfile(isAdminView && viewStudentId ? viewStudentId : user.id);
         
         // CRITICAL: Log raw API response
         console.log('📥 [EducationSection] PROFILE API RESPONSE:', profile);
@@ -58,72 +126,8 @@ const EducationSection = ({ isAdminView = false }) => {
         const rawEducation = Array.isArray(profile?.education) 
           ? profile.education 
           : (profile?.education ? [profile.education] : []);
-        
-        // Map backend fields to frontend fields
-        // Backend: institution, degree, endYear, cgpa, description (may contain city/state as JSON)
-        // Frontend: institute, branch, yop, scoreType, score, city, state
-        const mappedEducation = rawEducation.map(edu => {
-          // Try to parse city/state from description (stored as JSON)
-          let city = '';
-          let state = '';
-          if (edu.description) {
-            try {
-              const descData = JSON.parse(edu.description);
-              if (descData.city) city = descData.city;
-              if (descData.state) state = descData.state;
-            } catch (e) {
-              // Not JSON, ignore
-            }
-          }
-          
-          // Determine scoreType from description (where we store it)
-          // If description has scoreType, use it; otherwise default to CGPA if cgpa exists
-          let scoreType = 'CGPA';
-          let score = '';
-          
-          // Check description first for scoreType
-          if (edu.description) {
-            try {
-              const descData = JSON.parse(edu.description);
-              if (descData.scoreType) {
-                scoreType = descData.scoreType;
-                // If percentage, use originalScore; otherwise use cgpa
-                if (descData.scoreType === 'Percentage' && descData.originalScore) {
-                  score = String(descData.originalScore);
-                } else if (edu.cgpa) {
-                  score = String(edu.cgpa);
-                }
-              } else if (edu.cgpa) {
-                // No scoreType in description but cgpa exists - default to CGPA
-                score = String(edu.cgpa);
-              }
-            } catch (e) {
-              // Not JSON, fallback to cgpa if exists
-              if (edu.cgpa) {
-                score = String(edu.cgpa);
-              }
-            }
-          } else if (edu.cgpa) {
-            // No description, use cgpa as CGPA
-            score = String(edu.cgpa);
-          }
-          
-          return {
-            ...edu,
-            institute: edu.institution || edu.institute || '',
-            branch: edu.degree || edu.branch || '',
-            yop: edu.endYear ? String(edu.endYear) : edu.yop || '',
-            scoreType: scoreType,
-            score: score,
-            city: city,
-            state: state,
-            // Preserve original fields for compatibility
-            institution: edu.institution,
-            degree: edu.degree,
-            endYear: edu.endYear,
-            cgpa: edu.cgpa,
-          };
-        });
+
+        const mappedEducation = mapEducationEntries(rawEducation);
         
         const hasRealEducation = mappedEducation.length > 0;
         
@@ -159,7 +163,7 @@ const EducationSection = ({ isAdminView = false }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isAdminView, viewStudentId, initialEducation]);
 
   const handleAddClick = () => {
     if (showForm && !editingId) {

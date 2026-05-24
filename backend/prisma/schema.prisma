@@ -133,6 +133,7 @@ model Student {
   resumeFiles                StudentResumeFile[]
   assessmentSessions         AssessmentSession[]
   mockInterviewSlots         MockInterviewSlot[]
+  activityLogs               StudentActivityLog[]
   user                       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([center])
@@ -453,6 +454,10 @@ model Application {
   revokedAt            DateTime?
   revokedReason        String?
   previousStatus       String?
+  /// Normalized placement pipeline (single source of truth for Job Opportunities dashboard)
+  pipelineStatus       String?
+  pipelineSubStatus    String?
+  segment              String?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   job                  Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -467,6 +472,8 @@ model Application {
   @@index([interviewStatus])
   @@index([screeningStatus])
   @@index([revokedBy])
+  @@index([pipelineStatus, pipelineSubStatus])
+  @@index([segment, appliedDate])
   @@map("applications")
 }
 
@@ -956,6 +963,21 @@ model RecruiterScreeningSession {
   @@index([jobId])
   @@index([expiresAt])
   @@map("recruiter_screening_sessions")
+}
+
+/// Event-sourced activity (logins, mocks, engagement). Scores are never stored on Student.
+model StudentActivityLog {
+  id           String   @id @default(uuid())
+  studentId    String
+  eventType    String
+  eventSubtype String?
+  metadata     String?
+  occurredAt   DateTime @default(now())
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, eventType])
+  @@index([studentId, occurredAt])
+  @@map("student_activity_logs")
 }
 
 model AuditLog {
