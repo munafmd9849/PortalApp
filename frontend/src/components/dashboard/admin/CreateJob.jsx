@@ -777,9 +777,10 @@ export default function CreateJob({ onCreated }) {
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
     const recruiterEmailOk = hasValidRecruiterEmail && !recruiterEmailError;
-    const stipendOk = !form.stipend?.trim() || !stipendError;
-    const durationOk = !form.duration?.trim() || !durationError;
-    const salaryOk = !form.salary?.trim() || !salaryError;
+    // Only enforce field-specific validation for the active job type
+    const stipendOk = form.jobType !== 'Internship' ? true : (!form.stipend?.trim() || !stipendError);
+    const durationOk = form.jobType !== 'Internship' ? true : (!form.duration?.trim() || !durationError);
+    const salaryOk = form.jobType !== 'Full-Time' ? true : (!form.salary?.trim() || !salaryError);
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
 
     return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
@@ -795,8 +796,18 @@ export default function CreateJob({ onCreated }) {
   }, [form.driveDateISO, form.driveDateText, form.driveDateNotDecided, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
-    return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
-  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.gapAllowed, form.backlogs, minCgpaError]);
+    const hasAtLeastOneSkill =
+      (Array.isArray(form.skills) ? form.skills.length : 0) > 0 || !!form.skillsInput?.trim();
+    return form.qualification?.trim()
+      && form.yop?.trim()
+      && form.minCgpa?.trim()
+      && hasAtLeastOneSkill
+      && form.gapAllowed?.trim()
+      && form.gapAllowed !== ''
+      && form.backlogs?.trim()
+      && form.backlogs !== ''
+      && !minCgpaError;
+  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.skillsInput, form.gapAllowed, form.backlogs, minCgpaError]);
 
   const isInterviewProcessComplete = useMemo(() => {
     // Round 1 and Round 2 are mandatory; Round 3 is optional
@@ -813,11 +824,11 @@ export default function CreateJob({ onCreated }) {
   // All validation functions
   function isValidUrl(value) {
     if (!value) return true;
-    if (value.startsWith('www.') && value.includes('.')) {
-      return true;
-    }
     try {
-      const u = new URL(value);
+      const trimmed = String(value).trim();
+      // Accept common "domain.com" style input by normalizing to https://domain.com
+      const normalized = trimmed.includes('://') ? trimmed : `https://${trimmed.replace(/^www\./i, '')}`;
+      const u = new URL(normalized);
       return u.protocol === 'http:' || u.protocol === 'https:';
     } catch {
       return false;
@@ -845,7 +856,7 @@ export default function CreateJob({ onCreated }) {
       setWebsiteError('');
       return;
     }
-    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (www.example.com or https://example.com)');
+    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (example.com, www.example.com, or https://example.com)');
   };
 
   const onLinkedInChange = (value) => {
@@ -969,6 +980,15 @@ export default function CreateJob({ onCreated }) {
 
   const onJobTypeChange = (val) => {
     update({ jobType: val });
+    // Prevent inactive fields from blocking submission when switching types
+    if (val === 'Internship') {
+      update({ salary: '' });
+      setSalaryError('');
+    } else if (val === 'Full-Time') {
+      update({ stipend: '', duration: '' });
+      setStipendError('');
+      setDurationError('');
+    }
   };
 
   const onSkillsKeyDown = (e) => {
@@ -1160,7 +1180,12 @@ export default function CreateJob({ onCreated }) {
     const companyName = (form.company || '').trim();
     const description = (form.responsibilities || '').trim();
     const jobTitle = capitalizeJobTitle((form.jobTitle || '').trim());
-    const requiredSkills = Array.isArray(form.skills) ? form.skills : [];
+    const existingSkills = Array.isArray(form.skills) ? form.skills : [];
+    const pendingSkills = (form.skillsInput || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const requiredSkills = Array.from(new Set([...existingSkills, ...pendingSkills]));
 
     // Validate required fields before building payload
     if (!companyName) {
@@ -1171,6 +1196,9 @@ export default function CreateJob({ onCreated }) {
     }
     if (!jobTitle) {
       throw new Error('Job title is required');
+    }
+    if (requiredSkills.length === 0) {
+      throw new Error('At least one required skill is needed');
     }
 
     return {
@@ -1451,7 +1479,7 @@ export default function CreateJob({ onCreated }) {
         if (!form.qualification?.trim()) details.push('• Qualification');
         if (!form.yop?.trim()) details.push('• Year of Passing');
         if (!form.minCgpa?.trim()) details.push('• Minimum CGPA/Percentage');
-        if ((form.skills?.length || 0) === 0) details.push('• Skills (type and press Enter/comma to add)');
+        if ((form.skills?.length || 0) === 0 && !form.skillsInput?.trim()) details.push('• Skills');
         if (!form.gapAllowed?.trim() || form.gapAllowed === '') details.push('• Year Gaps');
         if (!form.backlogs?.trim() || form.backlogs === '') details.push('• Active Backlogs');
         if (minCgpaError) details.push(`• ${minCgpaError}`);

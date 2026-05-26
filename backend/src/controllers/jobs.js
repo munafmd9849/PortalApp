@@ -16,6 +16,31 @@ import { getIO } from '../config/socket.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
 import { applyAuditContext } from '../utils/auditContext.js';
 
+const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
+
+async function findCompanyByNameCaseInsensitive(companyName) {
+  const name = String(companyName || '').trim();
+  if (!name) return null;
+
+  // Prisma "mode: insensitive" is not supported on SQLite.
+  if (!isSqliteDb()) {
+    return prisma.company.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+  }
+
+  // SQLite-safe fallback: raw query using lower(name).
+  try {
+    const rows = await prisma.$queryRaw`SELECT id FROM companies WHERE lower(name) = lower(${name}) LIMIT 1;`;
+    const id = Array.isArray(rows) && rows[0] && rows[0].id ? rows[0].id : null;
+    if (!id) return null;
+    return prisma.company.findUnique({ where: { id } });
+  } catch (e) {
+    // Final fallback: case-sensitive match
+    return prisma.company.findFirst({ where: { name: { equals: name } } });
+  }
+}
+
 
 /**
  * Get all jobs with filters
@@ -46,7 +71,7 @@ export async function getJobs(req, res) {
     if (status) where.status = status;
     if (recruiterId) where.recruiterId = recruiterId;
     if (companyId) where.companyId = companyId;
-    if (createdBy && createdBy !== 'ALL') where.createdBy = createdBy;
+    if (createdBy && createdBy !== 'ALL') where.creator = { is: { id: createdBy } };
     if (isPosted !== undefined) {
       // Handle both string 'true'/'false' and boolean
       const isPostedValue = isPosted === 'true' || isPosted === true;
@@ -172,7 +197,7 @@ export async function getJobs(req, res) {
           scopeConditions.push({
             OR: [
               { AND: baseScope },
-              { createdBy: adminId }
+              { creator: { is: { id: adminId } } }
             ]
           });
         }
@@ -615,8 +640,25 @@ export async function createJob(req, res) {
     } else {
       // Admin/SuperAdmin creating a job
       if (jobData.recruiterId) {
-        recruiterId = jobData.recruiterId;
-      } else if (normalizedRecruiterEmail) {
+        // Frontend/admin panels sometimes send a User.id here. Validate and map safely.
+        const directRecruiter = await prisma.recruiter.findUnique({
+          where: { id: jobData.recruiterId },
+        });
+        if (directRecruiter) {
+          recruiterId = directRecruiter.id;
+        } else {
+          const recruiterByUserId = await prisma.recruiter.findUnique({
+            where: { userId: jobData.recruiterId },
+          });
+          if (recruiterByUserId) {
+            recruiterId = recruiterByUserId.id;
+          } else {
+            recruiterId = null; // fall back to recruiterEmail resolution below
+          }
+        }
+      }
+
+      if (!recruiterId && normalizedRecruiterEmail) {
         // Find existing recruiter by user email
         const recruiterUser = await prisma.user.findUnique({
           where: { email: normalizedRecruiterEmail },
@@ -655,9 +697,7 @@ export async function createJob(req, res) {
     let companyId = jobData.companyId;
     if (!companyId && companyName) {
       // DEDUP: Search by normalized name
-      let company = await prisma.company.findFirst({
-        where: { name: { equals: companyName, mode: 'insensitive' } }
-      });
+      let company = await findCompanyByNameCaseInsensitive(companyName);
 
       if (!company) {
         company = await prisma.company.create({
@@ -1077,7 +1117,6 @@ export async function updateJob(req, res) {
       'targetSchoolIds', 'targetCenterIds', 'targetBatchIds',
       'submittedAt', 'postedAt', 'postedBy', 'approvedAt', 'approvedBy',
       'rejectedAt', 'rejectedBy', 'rejectionReason', 'archivedAt', 'archivedBy',
-      'updatedBy',
     ];
 
     const finalUpdateData = {};
@@ -1086,9 +1125,6 @@ export async function updateJob(req, res) {
         finalUpdateData[key] = value;
       }
     }
-
-    // Always set updatedBy
-    finalUpdateData.updatedBy = userId;
 
     // Map frontend fields to database fields
     // Map responsibilities to description if description is not provided

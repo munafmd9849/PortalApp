@@ -15,6 +15,7 @@ import { logAction } from '../utils/auditLogger.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
   if (profilePhotoValue === undefined) {
@@ -986,10 +987,12 @@ export async function getAllStudents(req, res) {
     if (degree || branch) {
       const educationConditions = {};
       if (degree) {
-        educationConditions.degree = { contains: degree.trim(), mode: 'insensitive' };
+        const v = degree.trim();
+        educationConditions.degree = isSqliteDb() ? { contains: v } : { contains: v, mode: 'insensitive' };
       }
       if (branch) {
-        educationConditions.description = { contains: branch.trim(), mode: 'insensitive' };
+        const v = branch.trim();
+        educationConditions.description = isSqliteDb() ? { contains: v } : { contains: v, mode: 'insensitive' };
       }
       if (Object.keys(educationConditions).length) {
         where.education = { some: educationConditions };

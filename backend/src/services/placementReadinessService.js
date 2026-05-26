@@ -51,6 +51,12 @@ function normalizeSkill(name) {
   return String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// Prisma "mode: insensitive" is not supported on SQLite.
+const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
+const eqCI = (value) => (isSqliteDb() ? { equals: value } : { equals: value, mode: 'insensitive' });
+const containsCI = (value) => (isSqliteDb() ? { contains: value } : { contains: value, mode: 'insensitive' });
+const inCI = (values) => (isSqliteDb() ? { in: values } : { in: values, mode: 'insensitive' });
+
 /**
  * Build Prisma where clause from admin query params (aligned with students controller).
  */
@@ -72,17 +78,17 @@ export function buildStudentFilterWhere(query = {}) {
 
   if (degree || branch) {
     const educationConditions = {};
-    if (degree) educationConditions.degree = { contains: degree.trim(), mode: 'insensitive' };
-    if (branch) educationConditions.description = { contains: branch.trim(), mode: 'insensitive' };
+    if (degree) educationConditions.degree = containsCI(degree.trim());
+    if (branch) educationConditions.description = containsCI(branch.trim());
     if (Object.keys(educationConditions).length) where.education = { some: educationConditions };
   }
 
   if (search) {
     const searchTerm = search.trim();
     where.OR = [
-      { fullName: { contains: searchTerm, mode: 'insensitive' } },
-      { email: { contains: searchTerm, mode: 'insensitive' } },
-      { enrollmentId: { contains: searchTerm, mode: 'insensitive' } },
+      { fullName: containsCI(searchTerm) },
+      { email: containsCI(searchTerm) },
+      { enrollmentId: containsCI(searchTerm) },
     ];
   }
 
@@ -271,12 +277,8 @@ export function computePlacementProbability(student, context) {
 /**
  * Fetch aggregated skills from active posted jobs.
  */
-const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
-
 export async function fetchActiveJobSkills() {
-  const postedStatus = isSqliteDb()
-    ? { equals: 'POSTED' }
-    : { equals: 'POSTED', mode: 'insensitive' };
+  const postedStatus = eqCI('POSTED');
   const jobs = await prisma.job.findMany({
     where: {
       OR: [{ isPosted: true }, { status: postedStatus }],
@@ -304,15 +306,13 @@ export async function fetchCohortStats(school, batch) {
   }
   const where = {};
   if (school) {
-    where.school = isSqliteDb() ? { equals: school } : { equals: school, mode: 'insensitive' };
+    where.school = eqCI(school);
   }
   if (batch) {
-    where.batch = isSqliteDb() ? { equals: batch } : { equals: batch, mode: 'insensitive' };
+    where.batch = eqCI(batch);
   }
 
-  const placedStatusFilter = isSqliteDb()
-    ? { in: PLACED_STATUSES }
-    : { in: PLACED_STATUSES, mode: 'insensitive' };
+  const placedStatusFilter = inCI(PLACED_STATUSES);
 
   const [totalStudents, placedGroups] = await Promise.all([
     prisma.student.count({ where }),
@@ -522,8 +522,8 @@ export async function getPlacementSummary(query = {}) {
 
   const placementFilter = {
     OR: [
-      { status: { in: PLACED_STATUSES, mode: 'insensitive' } },
-      { interviewStatus: { in: PLACED_STATUSES, mode: 'insensitive' } },
+      { status: inCI(PLACED_STATUSES) },
+      { interviewStatus: inCI(PLACED_STATUSES) },
     ],
   };
 
@@ -559,13 +559,13 @@ export async function getPlacementSummary(query = {}) {
     prisma.application.count({
       where: {
         student: studentWhere,
-        status: { in: SHORTLIST_STATUSES, mode: 'insensitive' },
+        status: inCI(SHORTLIST_STATUSES),
       },
     }),
     prisma.application.count({
       where: {
         student: studentWhere,
-        screeningStatus: { in: OA_CLEARED_SCREENING, mode: 'insensitive' },
+        screeningStatus: inCI(OA_CLEARED_SCREENING),
       },
     }),
     prisma.application.groupBy({
@@ -573,12 +573,12 @@ export async function getPlacementSummary(query = {}) {
       where: { student: studentWhere, ...placementFilter },
     }).then((g) => g.length),
     prisma.job.count({
-      where: { OR: [{ isPosted: true }, { status: { equals: 'POSTED', mode: 'insensitive' } }] },
+      where: { OR: [{ isPosted: true }, { status: eqCI('POSTED') }] },
     }),
     prisma.job.count({
       where: {
         isActive: true,
-        OR: [{ isPosted: true }, { status: { equals: 'POSTED', mode: 'insensitive' } }],
+        OR: [{ isPosted: true }, { status: eqCI('POSTED') }],
       },
     }),
     prisma.endorsement.count({
@@ -668,14 +668,14 @@ export async function getPlacementSummary(query = {}) {
     prisma.application.count({
       where: {
         student: studentWhere,
-        status: { in: ['SHORTLISTED', 'INTERVIEWED', 'OFFERED', 'SELECTED'], mode: 'insensitive' },
+        status: inCI(['SHORTLISTED', 'INTERVIEWED', 'OFFERED', 'SELECTED']),
       },
     }),
     prisma.job.count({
       where: {
         isPosted: true,
         applications: { some: {} },
-        NOT: { status: { in: ['ARCHIVED', 'REJECTED'], mode: 'insensitive' } },
+        NOT: { status: inCI(['ARCHIVED', 'REJECTED']) },
       },
     }),
     prisma.student.groupBy({
@@ -755,14 +755,14 @@ async function buildSchoolOverview(studentWhere, schoolGroups) {
   const schools = ['SOT', 'SOM', 'SOH'];
   const placementFilter = {
     OR: [
-      { status: { in: PLACED_STATUSES, mode: 'insensitive' } },
-      { interviewStatus: { in: PLACED_STATUSES, mode: 'insensitive' } },
+      { status: inCI(PLACED_STATUSES) },
+      { interviewStatus: inCI(PLACED_STATUSES) },
     ],
   };
 
   const results = await Promise.all(
     schools.map(async (schoolCode) => {
-      const localWhere = { ...studentWhere, school: { equals: schoolCode, mode: 'insensitive' } };
+      const localWhere = { ...studentWhere, school: eqCI(schoolCode) };
       const [students, applications, placed, ready] = await Promise.all([
         prisma.student.count({ where: localWhere }),
         prisma.application.count({ where: { student: localWhere } }),
@@ -782,8 +782,8 @@ async function buildSchoolOverview(studentWhere, schoolGroups) {
         ready,
         jobs: await prisma.job.count({
           where: {
-            OR: [{ isPosted: true }, { status: { equals: 'POSTED', mode: 'insensitive' } }],
-            targetSchools: { contains: schoolCode, mode: 'insensitive' },
+            OR: [{ isPosted: true }, { status: eqCI('POSTED') }],
+            targetSchools: containsCI(schoolCode),
           },
         }),
       };

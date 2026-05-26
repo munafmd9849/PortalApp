@@ -14,7 +14,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Load .env file from the backend root directory (parent of src/)
-dotenv.config({ path: join(__dirname, '../.env') });
+// Override any already-set env vars so switching DB providers works reliably.
+dotenv.config({ path: join(__dirname, '../.env'), override: true });
 
 // Now import modules that depend on environment variables
 import express from 'express';
