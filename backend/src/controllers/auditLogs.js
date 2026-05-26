@@ -40,10 +40,10 @@ export async function getAuditLogs(req, res) {
 
         if (search) {
             where.OR = [
-                { actorName: { contains: search, mode: 'insensitive' } },
-                { details: { contains: search, mode: 'insensitive' } },
-                { targetType: { contains: search, mode: 'insensitive' } },
-                { targetId: { contains: search, mode: 'insensitive' } },
+                { actorName: { contains: search } },
+                { details: { contains: search } },
+                { targetType: { contains: search } },
+                { targetId: { contains: search } },
             ];
         }
 

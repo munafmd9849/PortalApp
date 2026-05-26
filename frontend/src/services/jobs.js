@@ -155,7 +155,15 @@ export async function getTargetedJobsForStudent(studentId) {
           description: job.description,
           requirements: job.requirements,
           requiredSkills: Array.isArray(job.requiredSkills) ? job.requiredSkills :
-            (typeof job.requiredSkills === 'string' ? JSON.parse(job.requiredSkills || '[]') : []),
+            (typeof job.requiredSkills === 'string' ? 
+              (() => {
+                try {
+                  return JSON.parse(job.requiredSkills || '[]');
+                } catch (e) {
+                  // If not JSON, it's likely a comma-separated string
+                  return job.requiredSkills.split(',').map(s => s.trim()).filter(Boolean);
+                }
+              })() : []),
           location: job.location || job.companyLocation,
           workMode: job.workMode,
           openings: job.openings,
@@ -165,6 +173,9 @@ export async function getTargetedJobsForStudent(studentId) {
           gapAllowed: job.gapAllowed,
           gapYears: job.gapYears,
           backlogs: job.backlogs,
+          visibilityMode: job.visibilityMode || 'OPEN',
+          isRecommended: job.isRecommended || false,
+          isInvited: job.isInvited || false,
           // Parse targeting arrays (stored as JSON strings)
           targetSchools: Array.isArray(job.targetSchools) ? job.targetSchools :
             (typeof job.targetSchools === 'string' ? JSON.parse(job.targetSchools || '[]') : []),

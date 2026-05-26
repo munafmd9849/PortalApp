@@ -5,6 +5,8 @@
  */
 
 import prisma from '../config/database.js';
+import { hasPermission } from '../utils/adminScope.js';
+
 
 /**
  * Check if user has required role(s)
@@ -157,3 +159,25 @@ export function requireCompleteProfile(req, res, next) {
 
   next();
 }
+
+/**
+ * Middleware to require a specific admin permission
+ * @param {string} permission - The permission key to check
+ */
+export function requirePermission(permission) {
+  return (req, res, next) => {
+    if (req.user.role === 'SUPER_ADMIN') {
+      return next();
+    }
+
+    if (!req.user.admin || !hasPermission(req.user.admin, req.user.role, permission)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `You do not have the required permission: ${permission}`
+      });
+    }
+
+    next();
+  };
+}
+

@@ -158,10 +158,47 @@ export default function CreateJob({ onCreated }) {
   const [savedDrafts, setSavedDrafts] = useState([]);
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
 
+  const [academicOptions, setAcademicOptions] = useState({
+    schools: [],
+    centers: [],
+    batches: []
+  });
+  const [loadingAcademicOptions, setLoadingAcademicOptions] = useState(false);
+
   // Load drafts on mount (component only renders if authorized)
   useEffect(() => {
     loadDrafts();
+    loadAcademicOptions();
   }, []);
+
+  const loadAcademicOptions = async () => {
+    try {
+      setLoadingAcademicOptions(true);
+      const [s, c, b] = await Promise.all([
+        import('../../../services/api').then(m => m.default.getSchools()),
+        import('../../../services/api').then(m => m.default.getCenters()),
+        import('../../../services/api').then(m => m.default.getBatches())
+      ]);
+      setAcademicOptions({
+        schools: s || [],
+        centers: c || [],
+        batches: b || []
+      });
+
+      // Default to targeting ALL if it's a new job
+      if (!editJobId) {
+        update({
+          targetSchoolIds: (s || []).map(x => x.id),
+          targetCenterIds: (c || []).map(x => x.id),
+          targetBatchIds: (b || []).map(x => x.id)
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load academic options:', err);
+    } finally {
+      setLoadingAcademicOptions(false);
+    }
+  };
 
   // Load job for editing when editJobId is present
   useEffect(() => {
@@ -452,6 +489,10 @@ export default function CreateJob({ onCreated }) {
     // Pre-Interview Requirements
     requiresScreening: false,
     requiresTest: false,
+    // Targeting
+    targetSchoolIds: [],
+    targetCenterIds: [],
+    targetBatchIds: [],
   });
 
   // Local draft for About Drive section
@@ -736,9 +777,10 @@ export default function CreateJob({ onCreated }) {
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
     const recruiterEmailOk = hasValidRecruiterEmail && !recruiterEmailError;
-    const stipendOk = !form.stipend?.trim() || !stipendError;
-    const durationOk = !form.duration?.trim() || !durationError;
-    const salaryOk = !form.salary?.trim() || !salaryError;
+    // Only enforce field-specific validation for the active job type
+    const stipendOk = form.jobType !== 'Internship' ? true : (!form.stipend?.trim() || !stipendError);
+    const durationOk = form.jobType !== 'Internship' ? true : (!form.duration?.trim() || !durationError);
+    const salaryOk = form.jobType !== 'Full-Time' ? true : (!form.salary?.trim() || !salaryError);
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
 
     return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
@@ -754,8 +796,18 @@ export default function CreateJob({ onCreated }) {
   }, [form.driveDateISO, form.driveDateText, form.driveDateNotDecided, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
-    return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
-  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.gapAllowed, form.backlogs, minCgpaError]);
+    const hasAtLeastOneSkill =
+      (Array.isArray(form.skills) ? form.skills.length : 0) > 0 || !!form.skillsInput?.trim();
+    return form.qualification?.trim()
+      && form.yop?.trim()
+      && form.minCgpa?.trim()
+      && hasAtLeastOneSkill
+      && form.gapAllowed?.trim()
+      && form.gapAllowed !== ''
+      && form.backlogs?.trim()
+      && form.backlogs !== ''
+      && !minCgpaError;
+  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.skillsInput, form.gapAllowed, form.backlogs, minCgpaError]);
 
   const isInterviewProcessComplete = useMemo(() => {
     // Round 1 and Round 2 are mandatory; Round 3 is optional
@@ -772,11 +824,11 @@ export default function CreateJob({ onCreated }) {
   // All validation functions
   function isValidUrl(value) {
     if (!value) return true;
-    if (value.startsWith('www.') && value.includes('.')) {
-      return true;
-    }
     try {
-      const u = new URL(value);
+      const trimmed = String(value).trim();
+      // Accept common "domain.com" style input by normalizing to https://domain.com
+      const normalized = trimmed.includes('://') ? trimmed : `https://${trimmed.replace(/^www\./i, '')}`;
+      const u = new URL(normalized);
       return u.protocol === 'http:' || u.protocol === 'https:';
     } catch {
       return false;
@@ -804,7 +856,7 @@ export default function CreateJob({ onCreated }) {
       setWebsiteError('');
       return;
     }
-    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (www.example.com or https://example.com)');
+    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (example.com, www.example.com, or https://example.com)');
   };
 
   const onLinkedInChange = (value) => {
@@ -928,6 +980,15 @@ export default function CreateJob({ onCreated }) {
 
   const onJobTypeChange = (val) => {
     update({ jobType: val });
+    // Prevent inactive fields from blocking submission when switching types
+    if (val === 'Internship') {
+      update({ salary: '' });
+      setSalaryError('');
+    } else if (val === 'Full-Time') {
+      update({ stipend: '', duration: '' });
+      setStipendError('');
+      setDurationError('');
+    }
   };
 
   const onSkillsKeyDown = (e) => {
@@ -1092,12 +1153,39 @@ export default function CreateJob({ onCreated }) {
     setUploadError('');
   };
 
+  const toggleTargetId = (type, id) => {
+    const field = type === 'school' ? 'targetSchoolIds' : type === 'center' ? 'targetCenterIds' : 'targetBatchIds';
+    const current = Array.isArray(form[field]) ? form[field] : [];
+    if (current.includes(id)) {
+      update({ [field]: current.filter(x => x !== id) });
+    } else {
+      update({ [field]: [...current, id] });
+    }
+  };
+
+  const toggleAllTargets = (type) => {
+    const field = type === 'school' ? 'targetSchoolIds' : type === 'center' ? 'targetCenterIds' : 'targetBatchIds';
+    const options = type === 'school' ? academicOptions.schools : type === 'center' ? academicOptions.centers : academicOptions.batches;
+    const current = Array.isArray(form[field]) ? form[field] : [];
+
+    if (current.length === options.length) {
+      update({ [field]: [] });
+    } else {
+      update({ [field]: options.map(x => x.id) });
+    }
+  };
+
   const buildJobPayload = () => {
     // Ensure required fields are not empty strings
     const companyName = (form.company || '').trim();
     const description = (form.responsibilities || '').trim();
     const jobTitle = capitalizeJobTitle((form.jobTitle || '').trim());
-    const requiredSkills = Array.isArray(form.skills) ? form.skills : [];
+    const existingSkills = Array.isArray(form.skills) ? form.skills : [];
+    const pendingSkills = (form.skillsInput || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const requiredSkills = Array.from(new Set([...existingSkills, ...pendingSkills]));
 
     // Validate required fields before building payload
     if (!companyName) {
@@ -1108,6 +1196,9 @@ export default function CreateJob({ onCreated }) {
     }
     if (!jobTitle) {
       throw new Error('Job title is required');
+    }
+    if (requiredSkills.length === 0) {
+      throw new Error('At least one required skill is needed');
     }
 
     return {
@@ -1148,6 +1239,10 @@ export default function CreateJob({ onCreated }) {
       // Pre-Interview Requirements
       requiresScreening: form.requiresScreening || false,
       requiresTest: form.requiresTest || false,
+      // Targeting
+      targetSchoolIds: Array.isArray(form.targetSchoolIds) ? form.targetSchoolIds : [],
+      targetCenterIds: Array.isArray(form.targetCenterIds) ? form.targetCenterIds : [],
+      targetBatchIds: Array.isArray(form.targetBatchIds) ? form.targetBatchIds : [],
       // Interview process
       interviewRounds: [
         { title: `${toRoman(1)} Round`, detail: form.baseRoundDetails[0] || '' },
@@ -1384,7 +1479,7 @@ export default function CreateJob({ onCreated }) {
         if (!form.qualification?.trim()) details.push('• Qualification');
         if (!form.yop?.trim()) details.push('• Year of Passing');
         if (!form.minCgpa?.trim()) details.push('• Minimum CGPA/Percentage');
-        if ((form.skills?.length || 0) === 0) details.push('• Skills (type and press Enter/comma to add)');
+        if ((form.skills?.length || 0) === 0 && !form.skillsInput?.trim()) details.push('• Skills');
         if (!form.gapAllowed?.trim() || form.gapAllowed === '') details.push('• Year Gaps');
         if (!form.backlogs?.trim() || form.backlogs === '') details.push('• Active Backlogs');
         if (minCgpaError) details.push(`• ${minCgpaError}`);
@@ -2871,6 +2966,119 @@ export default function CreateJob({ onCreated }) {
               >
                 {isSectionCollapsed('preInterview') ? <ChevronsDown className="w-6 h-6" /> : <ChevronsUp className="w-6 h-6" />}
               </button>
+            </div>
+          </section>
+
+          {/* Section 6: Visibility & Targeting */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+              <Globe size={20} className="text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Visibility & Targeting</h3>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium mb-1">Targeting Info</p>
+                  <p>Select which branches, campuses, and batches should see this job. Students matching ANY of the selected criteria in each category will see the job.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Branch Targeting */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <GraduationCap size={16} className="text-purple-600" />
+                    Target Branches
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleAllTargets('school')}
+                    className="text-xs text-blue-600 hover:underline font-medium"
+                  >
+                    {form.targetSchoolIds?.length === academicOptions.schools.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
+                  {academicOptions.schools.map(school => (
+                    <label key={school.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={form.targetSchoolIds?.includes(school.id)}
+                        onChange={() => toggleTargetId('school', school.id)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{school.name}</span>
+                    </label>
+                  ))}
+                  {academicOptions.schools.length === 0 && <p className="text-xs text-gray-400 italic">No branches available</p>}
+                </div>
+              </div>
+
+              {/* Campus Targeting */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <MapPin size={16} className="text-blue-600" />
+                    Target Campuses
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleAllTargets('center')}
+                    className="text-xs text-blue-600 hover:underline font-medium"
+                  >
+                    {form.targetCenterIds?.length === academicOptions.centers.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
+                  {academicOptions.centers.map(center => (
+                    <label key={center.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={form.targetCenterIds?.includes(center.id)}
+                        onChange={() => toggleTargetId('center', center.id)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{center.name}</span>
+                    </label>
+                  ))}
+                  {academicOptions.centers.length === 0 && <p className="text-xs text-gray-400 italic">No campuses available</p>}
+                </div>
+              </div>
+
+              {/* Batch Targeting */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <Users size={16} className="text-indigo-600" />
+                    Target Batches
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleAllTargets('batch')}
+                    className="text-xs text-blue-600 hover:underline font-medium"
+                  >
+                    {form.targetBatchIds?.length === academicOptions.batches.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
+                  {academicOptions.batches.map(batch => (
+                    <label key={batch.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={form.targetBatchIds?.includes(batch.id)}
+                        onChange={() => toggleTargetId('batch', batch.id)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{batch.year}</span>
+                    </label>
+                  ))}
+                  {academicOptions.batches.length === 0 && <p className="text-xs text-gray-400 italic">No batches available</p>}
+                </div>
+              </div>
             </div>
           </section>
 

@@ -9,7 +9,7 @@ import {
   generateProjectContent
 } from '../../../services/students';
 
-const ProjectsSection = ({ studentId, isAdminView = false }) => {
+const ProjectsSection = ({ studentId, isAdminView = false, initialProjects = null }) => {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -30,11 +30,22 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
   const [success, setSuccess] = useState('');
   const projectsLoadedRef = useRef(false);
 
+  useEffect(() => {
+    projectsLoadedRef.current = false;
+  }, [studentId, initialProjects]);
+
   // Load projects data once on mount
   useEffect(() => {
-    if (!user?.id) return;
-    
-    // Prevent repeated calls
+    if (initialProjects !== null) {
+      const realProjects = Array.isArray(initialProjects) ? initialProjects : [];
+      setProjects(realProjects);
+      projectsLoadedRef.current = true;
+      return;
+    }
+
+    const profileKey = isAdminView && studentId ? studentId : user?.id;
+    if (!profileKey && !user?.id) return;
+
     if (projectsLoadedRef.current) return;
 
     let isMounted = true;
@@ -44,7 +55,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
       try {
         setLoading(true);
         console.log('🚀 [ProjectsSection] Starting loadProjects, isMounted:', isMounted);
-        const profile = await getStudentProfile(user.id);
+        const profile = await getStudentProfile(isAdminView && studentId ? studentId : user.id);
         
         // CRITICAL: Log raw API response
         console.log('📥 [ProjectsSection] PROFILE API RESPONSE:', profile);
@@ -91,7 +102,7 @@ const ProjectsSection = ({ studentId, isAdminView = false }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isAdminView, studentId, initialProjects]);
 
   // Normalize URL helper
   const normalizeUrl = (url) => {

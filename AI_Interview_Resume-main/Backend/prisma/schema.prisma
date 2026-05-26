@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int                @id @default(autoincrement())
+  username         String             @unique
+  email            String             @unique
+  password         String
+  interviewReports InterviewReport[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model BlacklistToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model InterviewReport {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  
+  // Inputs
+  jobTitle       String   @default("")
+  company        String   @default("")
+  jobDescription String
+  resumeText     String
+  resumeFileName String   @default("")
+
+  // ATS (Stored as JSON strings for simplicity in migration)
+  atsScore            Int      @default(0)
+  atsBreakdown        String   // JSON string: {keywordMatch, formatting, sectionCompleteness, readability, experienceAlignment}
+  matchedKeywords     String   // JSON string: string[]
+  missingKeywords     String   // JSON string: string[]
+  atsSuggestions      String   // JSON string: string[]
+  verdict             String   @default("")
+
+  // Gap analysis
+  matchPercentage     Int      @default(0)
+  strengths           String   // JSON string: string[]
+  weaknesses          String   // JSON string: string[]
+  skillGaps           String   // JSON string: SkillGap[]
+
+  // Interview questions
+  interviewQuestions  String   // JSON string: Question[]
+
+  // Prep plan
+  preparationPlan     String   // JSON string: {summary, weekByWeek}
+
+  // Raw model output
+  rawModelOutput      String   @default("")
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

@@ -81,7 +81,7 @@ export default function SuperAdminStats() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2 text-gray-700 font-semibold">
               <FaBuilding /> By Center
@@ -123,29 +123,74 @@ export default function SuperAdminStats() {
           </div>
         </div>
 
-        <div className="mt-6 bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2 text-gray-700 font-semibold">
-            <FaUsers /> Admins
+        {/* New Admin Activity Table Section */}
+        <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <FaUsers className="text-violet-600" />
+              Admin Activity Overview
+            </h2>
+            <span className="bg-violet-100 text-violet-700 px-3 py-1 rounded-full text-xs font-bold">
+              {admins.length} Total Admins
+            </span>
           </div>
-          <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-            {admins.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">No admins</div>
-            ) : (
-              admins.map((a) => (
-                <div key={a.id} className="flex justify-between items-center px-4 py-3 hover:bg-gray-50">
-                  <div>
-                    <span className="font-medium text-gray-800">{a.displayName || a.email}</span>
-                    <span className="text-sm text-gray-500 ml-2">({a.email})</span>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-sm ${a.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}
-                  >
-                    {a.status}
-                  </span>
-                </div>
-              ))
-            )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/30 text-gray-500 text-xs font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Admin Profile</th>
+                  <th className="px-6 py-4 text-center">Jobs Posted</th>
+                  <th className="px-6 py-4">Last Activity</th>
+                  <th className="px-6 py-4 text-right">Account Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {admins.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-10 text-center text-gray-400">No admin accounts found</td>
+                  </tr>
+                ) : (
+                  admins.map((a) => (
+                    <tr key={a.id} className="hover:bg-gray-50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-900 group-hover:text-violet-700 transition-colors">
+                            {a.displayName || 'Unnamed Admin'}
+                          </span>
+                          <span className="text-xs text-gray-500 font-medium">{a.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="inline-flex items-center justify-center bg-indigo-50 text-indigo-700 font-extrabold px-4 py-1.5 rounded-xl border border-indigo-100 shadow-sm min-w-[50px]">
+                          {a.jobsCount || 0}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col text-sm text-gray-600">
+                          {a.lastJobAt ? (
+                            <>
+                              <span className="font-bold text-gray-700">{new Date(a.lastJobAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                              <span className="text-[10px] text-gray-400 uppercase font-medium">{new Date(a.lastJobAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs">No jobs posted yet</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                          a.status === 'ACTIVE' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : 'bg-rose-50 text-rose-700 border-rose-200 shadow-sm shadow-rose-100'
+                        }`}>
+                          {a.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

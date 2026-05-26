@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Loader, XCircle } from 'lucide-react';
+import { CheckCircle, Loader, XCircle, Star, Mail } from 'lucide-react';
 
 export default function JobPostingsSection({
   jobs,
@@ -35,20 +35,22 @@ export default function JobPostingsSection({
     // Ensure companyName is a string
     const nameStr = typeof companyName === 'string' ? companyName : (companyName?.name || String(companyName));
     
-    // Clean company name for URL
-    const cleanName = nameStr.toLowerCase()
-      .replace(/\s+/g, '')
-      .replace(/[^a-z0-9]/g, '');
+    // Check if nameStr already looks like a domain
+    const isDomain = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/i.test(nameStr.trim());
     
-    // Try multiple logo sources
-    const logoSources = [
-      `https://logo.clearbit.com/${cleanName}.com`,
-      `https://img.logo.dev/${cleanName}.com?token=pk_X-XcVpYzThmk7wK4y3w_tQ`, // Logo.dev API
-      `https://logo.uplead.com/${cleanName}.com`,
-      `https://api.brandfetch.io/v2/search/${companyName}`, // Brandfetch API
-    ];
+    let domain = '';
+    if (isDomain) {
+      domain = nameStr.trim().toLowerCase();
+    } else {
+      // Clean company name for URL and append .com
+      const cleanName = nameStr.toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9]/g, '');
+      domain = `${cleanName}.com`;
+    }
     
-    return logoSources[0]; // Primary source: Clearbit
+    // Return Clearbit as primary - but we could rotate or try others if needed
+    return `https://logo.clearbit.com/${domain}`;
   };
 
   // Handle logo loading states
@@ -99,21 +101,20 @@ export default function JobPostingsSection({
 
     if (logoUrl && logoState !== 'error') {
       return (
-        <div className={`${sizeClass} rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0`}>
+        <div className={`${sizeClass} rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative`}>
+          {/* Fallback while loading - always present but covered by image when loaded */}
+          <div className={`absolute inset-0 rounded-full ${getCompanyColor(companyName)} flex items-center justify-center text-white font-bold ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
+            {getCompanyInitial(companyName)}
+          </div>
+          
           <img
             src={logoUrl}
             alt={`${companyName} logo`}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain relative z-10 bg-white"
             onLoad={() => handleLogoLoad(companyName)}
             onError={() => handleLogoError(companyName)}
-            style={{ display: logoState === 'error' ? 'none' : 'block' }}
+            style={{ opacity: logoState === 'loaded' ? 1 : 0 }}
           />
-          {/* Fallback while loading or on error */}
-          {(logoState === 'error' || !logoState) && (
-            <div className={`w-full h-full rounded-full ${getCompanyColor(companyName)} flex items-center justify-center text-white font-bold ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-              {getCompanyInitial(companyName)}
-            </div>
-          )}
         </div>
       );
     }
@@ -254,7 +255,13 @@ export default function JobPostingsSection({
                         openJobDetails();
                       }
                     }}
-                    className="flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md transition-all duration-200 border border-gray-200 min-w-0 overflow-hidden md:items-center cursor-pointer"
+                    className={`flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl transition-all duration-200 border min-w-0 overflow-hidden md:items-center cursor-pointer ${
+                      job.isInvited 
+                        ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
+                        : job.isRecommended 
+                          ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
+                          : 'bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md border-gray-200'
+                    }`}
                     style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
                   >
                     {/* Mobile Layout */}
@@ -265,9 +272,23 @@ export default function JobPostingsSection({
                           <span className="text-sm sm:text-base font-semibold text-black block truncate">
                             {companyName}
                           </span>
-                          <span className="text-xs sm:text-sm font-medium text-gray-700 block truncate">
-                            {job.jobTitle || job.title || 'Position Available'}
-                          </span>
+                          <div className="flex items-center flex-wrap gap-1">
+                            <span className="text-xs sm:text-sm font-medium text-gray-700 block truncate">
+                              {job.jobTitle || job.title || 'Position Available'}
+                            </span>
+                            {job.isRecommended && (
+                              <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200">
+                                <Star className="w-2.5 h-2.5 fill-current" />
+                                REC
+                              </span>
+                            )}
+                            {job.isInvited && (
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200">
+                                <Mail className="w-2.5 h-2.5" />
+                                INV
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
@@ -345,8 +366,20 @@ export default function JobPostingsSection({
                         </span>
                       </div>
 
-                      <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">
-                        <span className="truncate block">{job.jobTitle || job.title || 'Position Available'}</span>
+                      <div className="hidden md:flex items-center min-w-0 overflow-hidden gap-2">
+                        <span className="truncate block font-medium text-gray-800">{job.jobTitle || job.title || 'Position Available'}</span>
+                        {job.isRecommended && (
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shrink-0">
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                            Recommended
+                          </span>
+                        )}
+                        {job.isInvited && (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shrink-0">
+                            <Mail className="w-2.5 h-2.5" />
+                            Invited
+                          </span>
+                        )}
                       </div>
 
                       <div className="hidden md:block text-sm font-medium text-gray-800 min-w-0 overflow-hidden">

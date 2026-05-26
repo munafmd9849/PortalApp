@@ -5,7 +5,7 @@
 
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requireRole } from '../middleware/roles.js';
+import { requireRole, requirePermission } from '../middleware/roles.js';
 import * as jobController from '../controllers/jobs.js';
 import { validateJob } from '../middleware/validation.js';
 
@@ -30,17 +30,20 @@ router.put('/:jobId', authenticate, requireRole(['RECRUITER', 'ADMIN']), jobCont
 router.patch('/:jobId/recruiter-note', authenticate, requireRole(['RECRUITER']), jobController.updateJobRecruiterNote);
 
 // Post job (admin only - triggers distribution)
-router.post('/:jobId/post', authenticate, requireRole(['ADMIN']), jobController.postJob);
+router.post('/:jobId/post', authenticate, requireRole(['ADMIN']), requirePermission('jobs:post'), jobController.postJob);
 
 // Approve job (admin)
-router.post('/:jobId/approve', authenticate, requireRole(['ADMIN']), jobController.approveJob);
+router.post('/:jobId/approve', authenticate, requireRole(['ADMIN']), requirePermission('jobs:approve'), jobController.approveJob);
+
+// Analyze candidates (admin)
+router.get('/:jobId/analyze', authenticate, requireRole(['ADMIN']), jobController.analyzeCandidates);
 
 // Reject job (admin)
-router.post('/:jobId/reject', authenticate, requireRole(['ADMIN']), jobController.rejectJob);
+router.post('/:jobId/reject', authenticate, requireRole(['ADMIN']), requirePermission('jobs:reject'), jobController.rejectJob);
 
 // Auto-archive expired jobs (admin)
-router.post('/auto-archive-expired', authenticate, requireRole(['ADMIN']), jobController.autoArchiveExpiredJobs);
+router.post('/auto-archive-expired', authenticate, requireRole(['ADMIN']), requirePermission('jobs:manage'), jobController.autoArchiveExpiredJobs);
 
-router.delete('/:jobId', authenticate, requireRole(['RECRUITER', 'ADMIN']), jobController.deleteJob);
+router.delete('/:jobId', authenticate, requireRole(['RECRUITER', 'ADMIN']), requirePermission('jobs:delete'), jobController.deleteJob);
 
 export default router;

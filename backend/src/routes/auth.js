@@ -21,6 +21,7 @@ import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
 import { logAction } from '../utils/auditLogger.js';
+import { recordStudentActivity } from '../services/studentDirectoryMetricsService.js';
 
 const router = express.Router();
 
@@ -35,8 +36,8 @@ router.post('/register', [
   body('role').custom((value) => {
     if (!value) return false;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER'].includes(upper);
+  }).withMessage('Role must be STUDENT or RECRUITER'),
   body('verificationToken').optional().isString(), // Optional: verification token from OTP
 ], async (req, res) => {
   try {
@@ -336,10 +337,14 @@ router.post('/login', [
     }
 
     // Update last login
+    const loginAt = new Date();
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: loginAt },
     });
+    if (user.student?.id) {
+      recordStudentActivity(user.student.id, 'LOGIN', null, { source: 'password_login' }).catch(() => {});
+    }
 
     // Notify Super Admins when a PENDING admin tries to enter (login) — for Admit/Reject workflow
     if (user.role === 'ADMIN' && user.status === 'PENDING') {
@@ -863,28 +868,14 @@ router.post('/reset-password', [
 
     logger.info(`Password reset OTP created in database: ${otpRecord.id} for ${email}`);
 
-    // Send password reset OTP via email (asynchronously)
-    // NOTE: Send email asynchronously - don't block the response
-    // OTP is already stored in DB, so we can respond immediately
+    // Send password reset OTP via email
+    logger.info(`Attempting to send password reset OTP to ${dbEmail}`);
     try {
-      logger.info(`Attempting to send password reset OTP to ${dbEmail}`);
+      // Await email sending to ensure it completes before function terminates on Vercel
+      await sendPasswordResetOTP(dbEmail, otp);
+      logger.info(`Password reset OTP email sent successfully to ${dbEmail}`);
 
-      // Send email in background (fire and forget)
-      // If email fails, user can request OTP again
-      sendPasswordResetOTP(dbEmail, otp).then(() => {
-        logger.info(`Password reset OTP email sent successfully to ${dbEmail}`);
-      }).catch((emailError) => {
-        logger.error(`Failed to send password reset OTP email to ${dbEmail}:`, emailError);
-        logger.error(`Email error details:`, {
-          message: emailError.message,
-          stack: emailError.stack,
-          code: emailError.code,
-        });
-        // Don't delete OTP - user might have received it despite error
-      });
-
-      // Respond immediately - don't wait for email
-      logger.info(`Password reset OTP created and email sending initiated for ${dbEmail} (OTP: ${otp}, Record ID: ${otpRecord.id})`);
+      // Respond with success
       res.json({
         success: true,
         message: 'If email exists, password reset OTP sent',
@@ -892,15 +883,9 @@ router.post('/reset-password', [
         otpExpiresAt: expiresAt.toISOString(),
       });
     } catch (emailError) {
-      logger.error(`Failed to initiate password reset OTP email to ${dbEmail}:`, emailError);
-      logger.error(`Email error details:`, {
-        message: emailError.message,
-        stack: emailError.stack,
-        code: emailError.code,
-      });
-
-      // Still respond with success since OTP is in DB
-      // User can try requesting OTP again if email fails
+      logger.error(`Failed to send password reset OTP email to ${dbEmail}:`, emailError);
+      
+      // Still respond with success since OTP is in DB and user can retry
       res.json({
         success: true,
         message: 'If email exists, password reset OTP sent',
@@ -968,15 +953,10 @@ router.post('/send-otp', [
     try {
       logger.info(`Attempting to send OTP to ${email}`);
 
-      // Send email in background (fire and forget)
-      // If email fails, user can request OTP again
-      sendOTP(email, otp).catch((emailError) => {
-        logger.error(`Failed to send OTP email to ${email}:`, emailError);
-        // Don't delete OTP - user might have received it despite error
-      });
+      // Await email sending to ensure it completes before function terminates on Vercel
+      await sendOTP(email, otp);
 
-      // Respond immediately - don't wait for email
-      logger.info(`OTP created and email sending initiated for ${email}`);
+      logger.info(`OTP email sent successfully for ${email}`);
       res.json({
         success: true,
         message: 'OTP sent to your email. Please check your inbox.',

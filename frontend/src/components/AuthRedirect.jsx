@@ -52,7 +52,10 @@ export default function AuthRedirect() {
         || currentPath.startsWith('/endorse/')
         || currentPath.startsWith('/endorsement/')
         || currentPath.startsWith('/interview/')
-        || currentPath.startsWith('/recruiter/screening');
+        || currentPath.startsWith('/recruiter/screening')
+        || currentPath.startsWith('/mock-interview-room/')
+        || currentPath.startsWith('/mock-interview-precheck/')
+        || currentPath.startsWith('/assessment/');
 
       // Admin / Super Admin sub-routes that should not redirect
       const isAdminSubRoute = (roleLower === 'admin' || roleLower === 'super_admin') && (
@@ -60,8 +63,10 @@ export default function AuthRedirect() {
         currentPath.startsWith('/admin/assessment/') ||
         currentPath.startsWith('/admin/job/') ||
         currentPath.startsWith('/admin/jobs/') ||
+        currentPath.startsWith('/admin/mock-interviews') ||
         currentPath.startsWith('/super-admin') ||
-        currentPath.startsWith('/job/')
+        currentPath.startsWith('/job/') ||
+        currentPath.startsWith('/mock-interview-room/')
       );
 
       // Only redirect if:
@@ -73,7 +78,8 @@ export default function AuthRedirect() {
       if (targetDashboard && !isPublicPath && !isAdminSubRoute && currentPath !== targetDashboard && !hasRedirectedRef.current) {
         console.log(`AuthRedirect - Redirecting authenticated user from ${currentPath} to ${targetDashboard}`);
         hasRedirectedRef.current = true;
-        navigate(targetDashboard, { replace: true });
+        // Preserve query parameters during redirect
+        navigate(`${targetDashboard}${location.search}`, { replace: true });
       } else if (currentPath === targetDashboard || isAdminSubRoute || isPublicPath) {
         // We're on the correct dashboard, admin sub-route, or public path - allow navigation to stay
         hasRedirectedRef.current = false;

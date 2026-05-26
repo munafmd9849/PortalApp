@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import AboutMe from './AboutMe';
 import DashboardStatsSection from './DashboardStatsSection';
@@ -35,7 +35,12 @@ const DashboardHome = ({
   hideJobPostings = false,
   hideFooter = false,
   isAdminView = false,
-  profileData: propProfileData = null // Allow passing profile data from parent
+  profileData: propProfileData = null,
+  viewStudentId = null,
+  initialEducation = null,
+  initialProjects = null,
+  initialAchievements = null,
+  initialCertifications = null,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,7 +81,20 @@ const DashboardHome = ({
   // IMPORTANT: Production behavior — no fallback datasets.
   // UI renders from real API data only (or empty arrays while loading).
   const displayApplications = Array.isArray(applications) ? applications : [];
-  const displayJobs = Array.isArray(jobs) ? jobs : [];
+  const displayJobs = useMemo(() => {
+    const rawJobs = Array.isArray(jobs) ? jobs : [];
+    // Sort jobs: isInvited first, then isRecommended, then by date (desc)
+    return [...rawJobs].sort((a, b) => {
+      if (a.isInvited && !b.isInvited) return -1;
+      if (!a.isInvited && b.isInvited) return 1;
+      if (a.isRecommended && !b.isRecommended) return -1;
+      if (!a.isRecommended && b.isRecommended) return 1;
+      // Secondary sort by date if available
+      const dateA = new Date(a.postedAt || a.createdAt || 0);
+      const dateB = new Date(b.postedAt || b.createdAt || 0);
+      return dateB - dateA;
+    });
+  }, [jobs]);
 
   // Use parent's stats (StudentDashboard sends displayStats with funnel enforced: offers <= interviewed <= shortlisted <= applied)
   const stats =
@@ -84,8 +102,8 @@ const DashboardHome = ({
       ? studentData.stats
       : { applied: 0, shortlisted: 0, interviewed: 0, offers: 0 };
   const formattedStudentData = studentData ? {
-    id: user?.id,
     ...studentData,
+    id: isAdminView ? (viewStudentId || studentData.id) : user?.id,
     stats,
   } : null;
 
@@ -299,13 +317,26 @@ const DashboardHome = ({
       )}
 
       {/* Profile sections render with real data only; they handle their own empty states */}
-      <EducationSection isAdminView={isAdminView} />
-      <SkillsSection isAdminView={isAdminView} />
-      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
-      <Achievements isAdminView={isAdminView} />
+      <EducationSection
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialEducation={initialEducation}
+      />
+      <SkillsSection isAdminView={isAdminView} initialSkills={skillsEntries} />
+      <ProjectsSection
+        studentId={isAdminView ? viewStudentId : user?.id}
+        isAdminView={isAdminView}
+        initialProjects={initialProjects}
+      />
+      <Achievements
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialAchievements={initialAchievements}
+        initialCertifications={initialCertifications}
+      />
       <Endorsements 
         isAdminView={isAdminView} 
-        studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
+        studentId={isAdminView && viewStudentId ? viewStudentId : undefined}
         profileData={profileData}
       />
 
