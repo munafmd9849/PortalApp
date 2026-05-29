@@ -246,8 +246,7 @@ export default function AdminAssessments() {
                 </button>
                 <button 
                   onClick={() => {
-                     setSelectedLiveAssessment(item);
-                     toast.success(`Live Monitor Initialized`);
+                     navigate(`/admin/assessments/${item.id}/live-monitor`);
                   }}
                   className="px-3.5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100 rounded-xl transition-all active:scale-95"
                   title="Live Monitor"

@@ -414,6 +414,52 @@ async function uploadFile(endpoint, file, fieldName = 'file', onProgress) {
   });
 }
 
+/**
+ * Upload a proctoring screenshot (webcam frame) for an assessment session.
+ * Uses multipart/form-data and uploads directly to backend → Cloudinary (no local storage).
+ */
+async function uploadProctoringScreenshot(sessionId, blob, { flags, faceCount, captureType, event, riskFlag, violationId } = {}) {
+  const token = getAuthToken();
+  const formData = new FormData();
+  const file = blob instanceof File ? blob : new File([blob], `screenshot-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+  formData.append('screenshot', file);
+  if (flags) formData.append('flags', JSON.stringify(flags));
+  if (faceCount !== undefined && faceCount !== null) formData.append('faceCount', String(faceCount));
+  if (captureType) formData.append('captureType', captureType);
+  if (event) formData.append('event', event);
+  if (riskFlag !== undefined && riskFlag !== null) formData.append('riskFlag', riskFlag ? 'true' : 'false');
+  if (violationId) formData.append('violationId', violationId);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Invalid response from server'));
+        }
+      } else {
+        let errorMessage = `Upload failed: ${xhr.statusText || 'Bad Request'}`;
+        try {
+          if (xhr.responseText) {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.error) errorMessage = errorResponse.error;
+            else if (errorResponse.message) errorMessage = errorResponse.message;
+          }
+        } catch {
+          // ignore
+        }
+        reject(new Error(errorMessage));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.open('POST', `${API_BASE_URL}/assessments/session/screenshot/${sessionId}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
 // Export API functions
 export const api = {
   // Auth
@@ -1065,6 +1111,9 @@ export const api = {
   startAssessmentSession: (id) => apiRequest(`/assessments/session/start/${id}`, { method: 'POST' }),
   logProctoringViolation: (sessionId, data) => apiRequest(`/assessments/session/violation/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   uploadProctoringMedia: (sessionId, data) => apiRequest(`/assessments/session/media/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  uploadProctoringScreenshot: (sessionId, blob, meta) => uploadProctoringScreenshot(sessionId, blob, meta),
+  getProctoringSessionDetails: (sessionId) => apiRequest(`/assessments/session/proctoring/${sessionId}`),
+  getProctoringScreenshotUrl: (screenshotId) => apiRequest(`/assessments/session/screenshot/${screenshotId}/url`),
   completeAssessment: (sessionId, data) => apiRequest(`/assessments/session/complete/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   evaluateAssessmentCandidate: (assessmentId, studentId, data) => apiRequest(`/assessments/evaluate/${assessmentId}/${studentId}`, { method: 'POST', body: JSON.stringify(data) }),
   getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),

@@ -9,6 +9,8 @@ import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import CodeEditor from '../../components/assessment/CodeEditor';
 import ProctoringConsole from '../../components/assessment/ProctoringConsole';
+import { ProctoringEngine } from '../../proctoring-engine/ProctoringEngine';
+import { defaultProctoringConfig } from '../../proctoring-engine/constants';
 
 export default function AssessmentApp() {
   const { assessmentId } = useParams();
@@ -26,6 +28,7 @@ export default function AssessmentApp() {
   const [loading, setLoading] = useState(true);
   const [assessment, setAssessment] = useState(null);
   const [session, setSession] = useState(null);
+  const sessionRef = useRef(null);
   const [studentProfile, setStudentProfile] = useState(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState({}); // Stores MCQ options or Code snippets
@@ -35,6 +38,7 @@ export default function AssessmentApp() {
   const [lastViolationType, setLastViolationType] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
+  const submittingRef = useRef(false);
   
   // Refs
   const videoRef = useRef(null);
@@ -42,8 +46,17 @@ export default function AssessmentApp() {
   const chunksRef = useRef([]);
   const jitsiContainerRef = useRef(null);
   const timerIntervalRef = useRef(null);
-  const snapshotIntervalRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const proctorRef = useRef(null);
+  const [precheck, setPrecheck] = useState({
+    cameraReady: false,
+    fullscreen: false,
+    faceOk: false,
+    error: '',
+  });
+  const [starting, setStarting] = useState(false);
+  const precheckIntervalRef = useRef(null);
 
   const [entryStatus, setEntryStatus] = useState('ALLOWED'); // ALLOWED, TOO_EARLY, TOO_LATE, WAITING
 
@@ -112,64 +125,22 @@ export default function AssessmentApp() {
     }
   }, [loading, isPreCheckDone, isInterviewer]);
 
-  // 3. Proctoring & Snapshots
-  const captureSnapshot = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !session) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-    // In a real app, you'd upload this to S3/Cloudinary
-    // For now, we log that a snapshot was taken
-    try {
-       // We can send the dataUrl to the backend if configured
-       // await api.uploadMedia(session.id, { type: 'SNAPSHOT', url: dataUrl });
-    } catch (e) {
-       console.error('Snapshot upload failed', e);
-    }
+  useEffect(() => {
+    sessionRef.current = session;
   }, [session]);
 
-  useEffect(() => {
-    if (isPreCheckDone && !isInterviewer && assessment?.type === 'MOCK_TEST') {
-      snapshotIntervalRef.current = setInterval(captureSnapshot, 60000); // Every 60s
-      return () => clearInterval(snapshotIntervalRef.current);
-    }
-  }, [isPreCheckDone, isInterviewer, captureSnapshot, assessment]);
-
-  const logViolation = useCallback(async (type, details) => {
-    if (!session || isInterviewer) return;
+  const logViolation = useCallback(async (type, details, meta) => {
+    const sess = sessionRef.current;
+    if (!sess || isInterviewer) return;
     try {
-      await api.logProctoringViolation(session.id, { type, details });
+      await api.logProctoringViolation(sess.id, { type, details, meta });
       setViolations(v => v + 1);
       setLastViolationType(type.replace(/_/g, ' '));
       toast?.warning(`Proctoring Alert: ${type.replace(/_/g, ' ')} detected.`);
     } catch (e) {
       console.error('Violation log failed', e);
     }
-  }, [session, isInterviewer]);
-
-  useEffect(() => {
-    if (isPreCheckDone && !isInterviewer) {
-      const handleVisibility = () => {
-        if (document.hidden) logViolation('TAB_SWITCH', 'Student switched tabs');
-      };
-      const handleBlur = () => logViolation('WINDOW_BLUR', 'Student left the test window');
-      
-      document.addEventListener('visibilitychange', handleVisibility);
-      window.addEventListener('blur', handleBlur);
-      
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibility);
-        window.removeEventListener('blur', handleBlur);
-      };
-    }
-  }, [isPreCheckDone, isInterviewer, logViolation]);
+  }, [isInterviewer, toast]);
 
   // 4. Jitsi Integration (Modernized to meet.guifi.net)
   useEffect(() => {
@@ -209,26 +180,129 @@ export default function AssessmentApp() {
   };
 
   // 5. Actions
+  const getProctoringConfig = useCallback(() => {
+    try {
+      const cfg = assessment?.config ? (typeof assessment.config === 'string' ? JSON.parse(assessment.config) : assessment.config) : {};
+      const p = cfg?.proctoring || {};
+      return {
+        ...defaultProctoringConfig,
+        enabled: true,
+        cameraRequired: p.webcam !== false,
+        micRequired: p.mic === true,
+        tabSwitch: p.tabSwitch !== false,
+        windowBlur: true,
+        fullscreenRequired: p.fullscreen !== false,
+        periodicSnapshotBaseMs: 180000,
+        periodicSnapshotJitterMs: 25000,
+        screenshotDebounceMs: 8000,
+        faceMonitoring: true,
+      };
+    } catch {
+      return { ...defaultProctoringConfig };
+    }
+  }, [assessment]);
+
+  const ensureProctorEngine = useCallback(async () => {
+    if (proctorRef.current) return proctorRef.current;
+    if (!videoRef.current) throw new Error('Video element not ready');
+
+    const cfg = getProctoringConfig();
+
+    const engine = new ProctoringEngine({
+      getVideoEl: () => videoRef.current,
+      getSessionId: async () => sessionRef.current?.id,
+      logViolation: async (type, details, meta) => logViolation(type, details, meta),
+      uploadScreenshot: async (blob, meta) => {
+        const sess = sessionRef.current;
+        if (!sess?.id) return;
+        await api.uploadProctoringScreenshot(sess.id, blob, meta);
+      },
+      onWarning: ({ level, message }) => {
+        if (level === 'error') toast?.error(message);
+        else if (level === 'warn') toast?.warning(message);
+      },
+      onAutoSubmit: ({ reason }) => {
+        toast?.warning(`Auto action: ${reason}. Submitting assessment...`);
+        submitAssessment();
+      },
+      config: cfg,
+    });
+    proctorRef.current = engine;
+    return engine;
+  }, [getProctoringConfig, logViolation, session, toast]);
+
+  const startCameraPrecheck = async () => {
+    try {
+      setPrecheck((p) => ({ ...p, error: '' }));
+      const engine = await ensureProctorEngine();
+      await engine.initCamera({ withAudio: engine.cfg.micRequired || engine.cfg.audioMonitoring });
+      setPrecheck((p) => ({ ...p, cameraReady: true }));
+
+      if (precheckIntervalRef.current) clearInterval(precheckIntervalRef.current);
+      precheckIntervalRef.current = setInterval(async () => {
+        try {
+          const e = proctorRef.current;
+          if (!e) return;
+          const faceCount = e.cfg.faceMonitoring ? await e.detectFacesOnce() : 1;
+          setPrecheck((p) => ({
+            ...p,
+            fullscreen: e.cfg.fullscreenRequired ? e.isFullscreen : true,
+            faceOk: e.cfg.faceMonitoring ? faceCount === 1 : true,
+          }));
+        } catch {
+          // ignore
+        }
+      }, 2000);
+    } catch (e) {
+      setPrecheck((p) => ({ ...p, error: e?.message || 'Failed to start camera' }));
+      toast?.error('Camera access is required for proctoring');
+    }
+  };
+
+  const enterFullscreenPrecheck = async () => {
+    const engine = proctorRef.current;
+    if (!engine) return;
+    const ok = await engine.requestFullscreen();
+    setPrecheck((p) => ({ ...p, fullscreen: ok || engine.isFullscreen }));
+  };
+
   const startAssessment = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      
-      if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+      setStarting(true);
+      const engine = await ensureProctorEngine();
+      if (!precheck.cameraReady) {
+        await startCameraPrecheck();
+      }
+      if (engine.cfg.fullscreenRequired && !engine.isFullscreen) {
+        await engine.requestFullscreen();
+      }
+
+      const gate = await engine.precheck();
+      if (!gate.ok) {
+        const msg =
+          gate.reason === 'FULLSCREEN_REQUIRED' ? 'Fullscreen is required to start.' :
+            gate.reason === 'NO_FACE_DETECTED' ? 'Face not detected. Sit in front of the camera.' :
+              gate.reason === 'MULTIPLE_FACES' ? 'Multiple faces detected. Only one person should be visible.' :
+                'Pre-check failed. Please allow camera and stay in fullscreen.';
+        toast?.error(msg);
+        return;
+      }
 
       // Check if it's still before startTime
       if (assessment.startTime) {
-         const diffMins = (new Date() - new Date(assessment.startTime)) / 1000 / 60;
-         if (diffMins < 0) {
-           setEntryStatus('WAITING');
-           setIsPreCheckDone(true);
-           return;
-         }
+        const diffMins = (new Date() - new Date(assessment.startTime)) / 1000 / 60;
+        if (diffMins < 0) {
+          setEntryStatus('WAITING');
+          setIsPreCheckDone(true);
+          return;
+        }
       }
 
       await executeTestStart();
-    } catch (e) {
-      toast?.error('Camera & Mic access is required for proctoring');
+      // Start monitoring only after session exists
+      await engine.start();
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -236,18 +310,11 @@ export default function AssessmentApp() {
     try {
       setLoading(true);
       const sess = await api.startAssessmentSession(assessmentId);
+      sessionRef.current = sess;
       setSession(sess);
       if (sess.responses) setAnswers(JSON.parse(sess.responses));
       setIsPreCheckDone(true);
       setEntryStatus('ALLOWED');
-      
-      // Re-attach stream for main UI
-      setTimeout(async () => {
-         try {
-           const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-           if (videoRef.current) videoRef.current.srcObject = stream;
-         } catch(e) {}
-      }, 500);
     } catch (e) {
       if (e.response?.data?.error === 'Assessment already completed') {
          toast.error('You have already completed this assessment');
@@ -287,15 +354,33 @@ export default function AssessmentApp() {
 
   const submitAssessment = async () => {
     try {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
       // In a real app, calculate score on backend
       await api.completeAssessment(session.id, { answers: JSON.stringify(answers) });
       toast?.success('Assessment submitted successfully');
       if (document.fullscreenElement) document.exitFullscreen();
+      try {
+        proctorRef.current?.destroy?.();
+      } catch {}
       navigate('/student/dashboard');
     } catch (e) {
       toast?.error('Submission failed');
+    } finally {
+      submittingRef.current = false;
     }
   };
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (precheckIntervalRef.current) clearInterval(precheckIntervalRef.current);
+      } catch {}
+      try {
+        proctorRef.current?.destroy?.();
+      } catch {}
+    };
+  }, []);
 
   if (loading) return (
     <div className="h-screen bg-slate-950 flex flex-col items-center justify-center gap-6">
@@ -408,12 +493,73 @@ export default function AssessmentApp() {
              </div>
           </div>
 
-          <button 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Camera Preview</p>
+              <div className="rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video">
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+              </div>
+              {precheck.error && (
+                <p className="text-xs text-rose-300 mt-2">{precheck.error}</p>
+              )}
+              <div className="mt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={startCameraPrecheck}
+                  className="flex-1 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-black uppercase tracking-widest"
+                >
+                  Enable Camera
+                </button>
+                <button
+                  type="button"
+                  onClick={enterFullscreenPrecheck}
+                  className="flex-1 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-black uppercase tracking-widest"
+                >
+                  Fullscreen
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Validation Checks</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3">
+                  <span className="text-xs font-bold text-slate-200">Camera active</span>
+                  {precheck.cameraReady ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-rose-400" />}
+                </div>
+                <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3">
+                  <span className="text-xs font-bold text-slate-200">Face detectable</span>
+                  {precheck.faceOk ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-rose-400" />}
+                </div>
+                <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3">
+                  <span className="text-xs font-bold text-slate-200">Fullscreen enabled</span>
+                  {precheck.fullscreen ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-rose-400" />}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-4">
+                You can start only after all checks pass. Exiting fullscreen or leaving camera view will be logged.
+              </p>
+            </div>
+          </div>
+
+          <button
             onClick={startAssessment}
-            className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-3"
+            disabled={starting || !(precheck.cameraReady && precheck.faceOk && precheck.fullscreen)}
+            className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 ${
+              starting || !(precheck.cameraReady && precheck.faceOk && precheck.fullscreen)
+                ? 'bg-slate-700/60 text-slate-300 cursor-not-allowed border border-slate-600'
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/20'
+            }`}
           >
-            Authenticate & Start Test
-            <ChevronRight className="w-5 h-5" />
+            {starting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" /> Starting Secure Session
+              </>
+            ) : (
+              <>
+                Start Secure Test <ChevronRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </div>
       </div>

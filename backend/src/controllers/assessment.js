@@ -1,11 +1,29 @@
 import prisma from '../config/database.js';
 import { sendBulkAssessmentNotifications } from '../services/emailService.js';
 import vm from 'vm';
+import multer from 'multer';
+import { uploadToCloudinary } from '../config/cloudinary.js';
+import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * ASSESSMENT ENGINE CONTROLLER
  * Handles Mock Tests, Mock Interviews, and Proctoring Sessions
  */
+
+const screenshotUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1 * 1024 * 1024 }, // 1MB (client should compress)
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.mimetype);
+    cb(ok ? null : new Error('Invalid screenshot mime type'), ok);
+  },
+});
+
+function computeRiskLevel(count) {
+  if (count >= 7) return 'HIGH';
+  if (count >= 3) return 'MEDIUM';
+  return 'LOW';
+}
 
 // --- ADMIN MODULES ---
 
@@ -256,6 +274,23 @@ export async function startSession(req, res) {
       return res.status(404).json({ error: 'Student profile not found. Please complete your onboarding.' });
     }
 
+    // SECURITY: one active attempt per student (across assessments)
+    const otherActive = await prisma.assessmentSession.findFirst({
+      where: {
+        studentId: student.id,
+        status: 'IN_PROGRESS',
+        assessmentId: { not: assessmentId },
+      },
+      select: { id: true, assessmentId: true, startTime: true },
+    });
+    if (otherActive) {
+      return res.status(409).json({
+        error: 'Another assessment attempt is already active',
+        activeSessionId: otherActive.id,
+        activeAssessmentId: otherActive.assessmentId,
+      });
+    }
+
     let session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_studentId: { assessmentId, studentId: student.id } }
     });
@@ -296,27 +331,162 @@ export async function startSession(req, res) {
 export async function logViolation(req, res) {
   try {
     const { sessionId } = req.params;
-    const { type, details } = req.body;
+    const { type, details, meta } = req.body || {};
+
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: { student: { select: { userId: true } } },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.student?.userId !== (req.userId || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     await prisma.assessmentViolation.create({
       data: {
         sessionId,
         type,
-        details
+        details: details || null,
+        meta: meta ? (typeof meta === 'string' ? meta : JSON.stringify(meta)) : null,
       }
     });
 
     // Increment violation count in session
-    await prisma.assessmentSession.update({
+    const updated = await prisma.assessmentSession.update({
       where: { id: sessionId },
       data: {
         violationsCount: { increment: 1 }
       }
     });
 
-    res.json({ success: true });
+    // Risk engine (server-side single source of truth)
+    await prisma.assessmentSession.update({
+      where: { id: sessionId },
+      data: { riskLevel: computeRiskLevel(updated.violationsCount) },
+    });
+
+    const latest = await prisma.assessmentViolation.findFirst({
+      where: { sessionId },
+      orderBy: { timestamp: 'desc' },
+      select: { id: true, type: true, timestamp: true },
+    });
+
+    res.json({ success: true, violation: latest });
   } catch (error) {
     res.status(500).json({ error: 'Failed to log violation' });
+  }
+}
+
+export async function uploadScreenshot(req, res) {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: { student: { select: { userId: true } }, assessment: { select: { id: true } } },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.student?.userId !== (req.userId || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    screenshotUpload.single('screenshot')(req, res, async (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+      if (!req.file?.buffer) return res.status(400).json({ error: 'No screenshot provided' });
+
+      const flags = (() => {
+        try {
+          return req.body?.flags ? JSON.parse(req.body.flags) : null;
+        } catch {
+          return null;
+        }
+      })();
+      const faceCount = req.body?.faceCount ? Number(req.body.faceCount) : null;
+      const captureType = ['PERIODIC', 'EVENT'].includes(req.body?.captureType)
+        ? req.body.captureType
+        : 'PERIODIC';
+      const event = req.body?.event ? String(req.body.event).slice(0, 255) : null;
+      const riskFlag =
+        req.body?.riskFlag === 'true' ||
+        req.body?.riskFlag === true ||
+        req.body?.riskFlag === '1';
+      const violationId = req.body?.violationId ? String(req.body.violationId) : null;
+
+      const folder = `proctoring/assessments/${session.assessmentId}/sessions/${sessionId}/screenshots`;
+      const uploaded = await uploadToCloudinary(req.file.buffer, {
+        folder,
+        resource_type: 'image',
+      });
+
+      const row = await prisma.assessmentScreenshot.create({
+        data: {
+          sessionId,
+          imageUrl: uploaded.url,
+          publicId: uploaded.public_id,
+          captureType,
+          event,
+          riskFlag,
+          violationId: violationId || null,
+          flags: flags ? JSON.stringify(flags) : null,
+          faceCount: Number.isFinite(faceCount) ? faceCount : null,
+          bytes: uploaded.bytes ?? null,
+          width: uploaded.width ?? null,
+          height: uploaded.height ?? null,
+          format: uploaded.format ?? null,
+        },
+      });
+
+      res.status(201).json(row);
+    });
+  } catch (error) {
+    console.error('uploadScreenshot error:', error);
+    res.status(500).json({ error: 'Failed to upload screenshot' });
+  }
+}
+
+export async function getProctoringSessionDetails(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        student: { select: { id: true, fullName: true, enrollmentId: true, batch: true, center: true, school: true } },
+        violations: { orderBy: { timestamp: 'asc' } },
+        screenshots: { orderBy: { timestamp: 'asc' } },
+        assessment: { select: { id: true, title: true, type: true } },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (error) {
+    console.error('getProctoringSessionDetails error:', error);
+    res.status(500).json({ error: 'Failed to fetch proctoring details' });
+  }
+}
+
+export async function getSignedScreenshotUrl(req, res) {
+  try {
+    const { screenshotId } = req.params;
+    const row = await prisma.assessmentScreenshot.findUnique({
+      where: { id: screenshotId },
+      select: { id: true, publicId: true, imageUrl: true },
+    });
+    if (!row) return res.status(404).json({ error: 'Screenshot not found' });
+    if (!row.publicId) {
+      return res.json({ url: row.imageUrl });
+    }
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 60 * 5;
+    const url = cloudinary.url(row.publicId, {
+      secure: true,
+      sign_url: true,
+      expires_at: expiresAt,
+      resource_type: 'image',
+    });
+    res.json({ url, expiresAt });
+  } catch (error) {
+    console.error('getSignedScreenshotUrl error:', error);
+    res.status(500).json({ error: 'Failed to generate screenshot URL' });
   }
 }
 
@@ -518,6 +688,9 @@ export async function getLiveAssessmentSessions(req, res) {
         violations: {
           orderBy: { timestamp: 'desc' },
           take: 1
+        },
+        _count: {
+          select: { screenshots: true }
         }
       }
     });
@@ -537,6 +710,7 @@ export async function getLiveAssessmentSessions(req, res) {
         studentName: session.student.fullName,
         status: session.riskLevel || (session.violationsCount > 3 ? 'CRITICAL' : session.violationsCount > 0 ? 'WARNING' : 'ACTIVE'),
         violations: session.violationsCount,
+        screenshots: session._count?.screenshots || 0,
         lastPing,
         lastViolation: session.violations.length > 0 ? session.violations[0].type.replace(/_/g, ' ') : null
       };

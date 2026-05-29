@@ -43,6 +43,7 @@ import { ToastProvider } from './components/ui/Toast'
 import AssessmentApp from './pages/assessment/AssessmentApp'
 import AdminAssessments from './pages/admin/AdminAssessments'
 import AdminAssessmentResults from './pages/admin/AdminAssessmentResults'
+import AdminAssessmentLiveMonitor from './pages/admin/AdminAssessmentLiveMonitor'
 import MockInterviewManagement from './pages/admin/MockInterviewManagement';
 import MockInterviewCreate from './pages/admin/MockInterviewCreate';
 import MockInterviewSlots from './pages/admin/MockInterviewSlots';
@@ -254,6 +255,7 @@ function AppContent() {
           <Route path="/admin/mock-interviews/:id/slots" element={<MockInterviewSlots />} />
           <Route path="/admin/assessments" element={<AdminAssessments />} />
           <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
+          <Route path="/admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />

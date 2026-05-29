@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -1085,7 +1085,9 @@ model AssessmentViolation {
   type      String // TAB_SWITCH, NO_FACE, MULTIPLE_FACES, WINDOW_BLUR, FULLSCREEN_EXIT
   timestamp DateTime          @default(now())
   details   String?
-  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  meta         String? // JSON string: device info, face count, etc.
+  session      AssessmentSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  screenshots  AssessmentScreenshot[]
 
   @@index([sessionId])
   @@map("assessment_violations")
@@ -1104,13 +1106,26 @@ model AssessmentMedia {
 }
 
 model AssessmentScreenshot {
-  id        String            @id @default(uuid())
-  sessionId String
-  imageUrl  String
-  timestamp DateTime          @default(now())
-  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id          String               @id @default(uuid())
+  sessionId   String
+  imageUrl    String
+  publicId    String? // Cloudinary public_id (for signed/controlled access)
+  captureType String               @default("PERIODIC") // PERIODIC | EVENT
+  event       String? // TAB_SWITCH, NO_FACE_DETECTED, grouped events, etc.
+  riskFlag    Boolean              @default(false)
+  violationId String?
+  flags       String? // JSON string: { events: [], grouped: bool, ... }
+  faceCount   Int?
+  bytes       Int?
+  width       Int?
+  height      Int?
+  format      String?
+  timestamp   DateTime             @default(now())
+  session     AssessmentSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  violation   AssessmentViolation? @relation(fields: [violationId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
+  @@index([captureType])
   @@map("assessment_screenshots")
 }
 
