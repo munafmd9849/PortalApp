@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ImEye } from 'react-icons/im';
 import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaCheckCircle, FaUsers, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa';
 import { MdBlock } from 'react-icons/md';
-import { Loader, Download, Upload, SquarePen, User, LinkIcon } from 'lucide-react';
+import { Loader, Download, Upload, SquarePen, User, LinkIcon, Activity, TrendingUp, GraduationCap, BarChart2, Phone, CheckCircle2, MessageSquare, Briefcase, Code, X, Link, Tag, Folder, ExternalLink, Check } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { getAllStudents, updateStudentProfile, updateEducationalBackground, getStudentProfile, getEducationalBackground, getStudentSkills } from '../../../services/students';
 import { fetchStudentsWithScores } from '../../../services/adminReadiness';
 import { fetchStudentDirectory, exportStudentDirectory } from '../../../services/studentDirectory';
 import StudentDirectoryTable from './StudentDirectoryTable';
+import DirectoryLoadingPanel from './DirectoryLoading';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
@@ -32,6 +34,31 @@ const READINESS_TIER_OPTIONS = [
   { id: 'developing', name: 'Developing' },
   { id: 'at_risk', name: 'At risk' },
 ];
+
+const READINESS_TIER_LABELS = { ready: 'Ready', developing: 'Developing', at_risk: 'At risk' };
+const PROBABILITY_TIER_LABELS = { high: 'High', medium: 'Medium', low: 'Low' };
+
+function normalizePlacementMetric(metric) {
+  if (metric == null) return { score: null, tier: null, components: null };
+  if (typeof metric === 'number' || typeof metric === 'string') {
+    const score = parseFloat(metric);
+    return { score: Number.isFinite(score) ? score : null, tier: null, components: null };
+  }
+  const score = metric.score != null ? parseFloat(metric.score) : null;
+  return {
+    score: Number.isFinite(score) ? score : null,
+    tier: metric.tier ?? null,
+    components: metric.components ?? null,
+  };
+}
+
+function formatPlacementMetricDisplay(metric, tierLabels, fallback = '—') {
+  const { score, tier } = normalizePlacementMetric(metric);
+  if (score == null && !tier) return fallback;
+  const label = tier ? (tierLabels[tier] || String(tier).replace(/_/g, ' ')) : null;
+  if (score != null) return label ? `${score}% (${label})` : `${score}%`;
+  return label || fallback;
+}
 
 function PlacementScoreCell({ score, tier, components, label }) {
   const [open, setOpen] = useState(false);
@@ -1244,60 +1271,57 @@ export default function StudentDirectory() {
     <div className="space-y-6">
       {/* Header and Analytics */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Student Directory</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Learner roster with placement activity — scroll right for mock and job metrics.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={refreshStudents}
-            disabled={loading}
-            className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2 self-start"
-          >
-            {loading ? <Loader className="w-4 h-4 animate-spin" /> : <FaChartLine className="w-4 h-4" />}
-            Refresh
-          </button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-extrabold text-slate-900 font-outfit">Student Directory</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Monitor, evaluate, and manage student performance and placement readiness.
+          </p>
         </div>
 
-        {/* Analytics Cards - Matching Job Moderation Style */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200">
+        {/* Analytics Cards - Redesigned to be Premium */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+          <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/30 p-5 rounded-2xl shadow-sm border border-indigo-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaUsers className="w-5 h-5 text-blue-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-blue-700">{stats.total}</div>
+              <div className="p-2.5 bg-indigo-500 text-white rounded-xl">
+                <FaUsers className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-indigo-900 font-outfit">{stats.total}</div>
             </div>
-            <div className="text-sm font-medium text-blue-600">Total Students</div>
+            <div className="text-sm font-semibold text-indigo-800">Total Students</div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/30 p-5 rounded-2xl shadow-sm border border-emerald-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-green-700">{stats.active}</div>
+              <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
+                <FaCheckCircle className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-emerald-900 font-outfit">{stats.active}</div>
             </div>
-            <div className="text-sm font-medium text-green-600">Active</div>
+            <div className="text-sm font-semibold text-emerald-800">Active Learners</div>
           </div>
-          <div className="bg-gradient-to-br from-red-50 to-rose-100 p-5 rounded-xl shadow-sm border border-red-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-rose-50/60 to-rose-100/30 p-5 rounded-2xl shadow-sm border border-rose-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <MdBlock className="w-5 h-5 text-red-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-red-700">{stats.blocked}</div>
+              <div className="p-2.5 bg-rose-500 text-white rounded-xl">
+                <MdBlock className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-rose-900 font-outfit">{stats.blocked}</div>
             </div>
-            <div className="text-sm font-medium text-red-600">Blocked</div>
+            <div className="text-sm font-semibold text-rose-800">Blocked</div>
           </div>
-          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 p-5 rounded-xl shadow-sm border border-yellow-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-amber-50/60 to-amber-100/30 p-5 rounded-2xl shadow-sm border border-amber-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaUser className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-yellow-700">{stats.inactive}</div>
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl">
+                <FaUser className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-amber-900 font-outfit">{stats.inactive}</div>
             </div>
-            <div className="text-sm font-medium text-yellow-600">Inactive</div>
+            <div className="text-sm font-semibold text-amber-800">Inactive</div>
           </div>
         </div>
       </div>
 
       {/* Error Banner */}
       {error && students.length > 0 && (
-        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm">
+        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400 p-4 rounded-xl shadow-sm mb-6">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
@@ -1305,7 +1329,7 @@ export default function StudentDirectory() {
               </svg>
             </div>
             <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-yellow-800">
+              <p className="text-sm font-semibold text-yellow-800">
                 <strong>Warning:</strong> {error}
               </p>
               <p className="text-xs text-yellow-700 mt-1">
@@ -1315,13 +1339,13 @@ export default function StudentDirectory() {
             <div className="ml-auto flex-shrink-0 flex gap-2">
               <button
                 onClick={refreshStudents}
-                className="text-sm font-medium text-yellow-800 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-3 py-1 rounded-md transition-colors"
+                className="text-sm font-semibold text-yellow-850 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-250/80 px-3 py-1 rounded-lg transition-colors"
               >
                 Retry
               </button>
               <button
                 onClick={() => setError(null)}
-                className="text-sm text-yellow-800 hover:text-yellow-900 p-1 rounded-md hover:bg-yellow-100 transition-colors"
+                className="text-sm text-yellow-850 hover:text-yellow-900 p-1 rounded-lg hover:bg-yellow-100 transition-colors"
               >
                 ✕
               </button>
@@ -1330,13 +1354,11 @@ export default function StudentDirectory() {
         </div>
       )}
 
-
-
-      {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex items-center gap-2 mb-4">
-          <FaFilter className="w-5 h-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+      {/* Filters and Search - Upgraded design */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="flex items-center gap-2.5 mb-5">
+          <FaFilter className="w-4 h-4 text-indigo-500" />
+          <h3 className="text-md font-bold text-slate-800 font-outfit uppercase tracking-wider">Filters & Search</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           {/* Center Filter */}
@@ -1398,7 +1420,7 @@ export default function StudentDirectory() {
             placeholder="All readiness"
           />
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
               <FaGraduationCap className="w-4 h-4 text-blue-600" />
               Min CGPA
             </label>
@@ -1411,11 +1433,11 @@ export default function StudentDirectory() {
               step="0.01"
               value={filters.minCgpa}
               onChange={handleFilterChange}
-              className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
               <FaGraduationCap className="w-4 h-4 text-orange-600" />
               Max CGPA
             </label>
@@ -1428,13 +1450,13 @@ export default function StudentDirectory() {
               step="0.01"
               value={filters.maxCgpa}
               onChange={handleFilterChange}
-              className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer bg-white text-gray-900 font-medium hover:border-gray-400 shadow-sm hover:shadow-md"
+              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={clearFilters}
-              className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow"
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 rounded-xl transition-all duration-200 font-bold shadow-sm"
             >
               Reset Filters
             </button>
@@ -1445,10 +1467,10 @@ export default function StudentDirectory() {
       {/* Students Table */}
       <div>
         {loading ? (
-          <div className="flex justify-center items-center py-12 bg-white rounded-lg border border-gray-200">
-            <Loader className="animate-spin text-blue-600 mr-3" />
-            <span className="text-gray-600">Loading students...</span>
-          </div>
+          <DirectoryLoadingPanel
+            title="Loading students..."
+            subtitle="Please wait while we fetch the data"
+          />
         ) : students.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 max-w-md w-full border-2 border-blue-200 shadow-lg">
@@ -1577,6 +1599,7 @@ export default function StudentDirectory() {
 // Student Dashboard Panel Component - Similar to Assessment.jsx
 const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   const [currentStudent, setCurrentStudent] = useState(student);
+  const [activeTab, setActiveTab] = useState('overview');
 
   React.useEffect(() => {
     if (dashboardData?.profile) {
@@ -1619,104 +1642,506 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
 
   if (!isOpen || !student) return null;
 
-  const handleApplyToJob = () => {
-    console.log('Job application disabled in admin view');
-  };
-
-  const hasApplied = () => false;
-
   const profileImageSrc = currentStudent?.profilePhoto || currentStudent?.user?.profilePhoto;
 
-  return (
+  const getReadinessDisplay = (metric) => {
+    const { score, tier } = normalizePlacementMetric(metric);
+    if (score == null && !tier) {
+      return { text: '—', class: 'bg-slate-100 text-slate-600 border-slate-200' };
+    }
+    if (score == null && tier) {
+      const label = READINESS_TIER_LABELS[tier] || tier;
+      const tierClass =
+        tier === 'ready'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+          : tier === 'developing'
+            ? 'bg-amber-50 text-amber-800 border-amber-100'
+            : 'bg-rose-50 text-rose-700 border-rose-100';
+      return { text: label, class: tierClass, dotClass: tier === 'ready' ? 'bg-emerald-500' : tier === 'developing' ? 'bg-amber-500' : 'bg-rose-500' };
+    }
+    const numScore = score;
+    if (numScore >= 75) {
+      return {
+        text: `${numScore}% (Ready)`,
+        class: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+        dotClass: 'bg-emerald-500',
+      };
+    } else if (numScore >= 50) {
+      return {
+        text: `${numScore}% (Developing)`,
+        class: 'bg-amber-50 text-amber-800 border-amber-100',
+        dotClass: 'bg-amber-500',
+      };
+    } else {
+      return {
+        text: `${numScore}% (At Risk)`,
+        class: 'bg-rose-50 text-rose-700 border-rose-100',
+        dotClass: 'bg-rose-500',
+      };
+    }
+  };
+
+  const getApplicationStatusBadge = (status) => {
+    const norm = (status || 'applied').toLowerCase();
+    switch (norm) {
+      case 'offered':
+      case 'offer':
+      case 'hired':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-100';
+      case 'shortlisted':
+      case 'selected':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+      case 'interviewing':
+      case 'interview':
+      case 'round 1':
+      case 'round 2':
+        return 'bg-sky-50 text-sky-700 border-sky-100';
+      case 'rejected':
+      case 'declined':
+        return 'bg-rose-50 text-rose-700 border-rose-100';
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-100';
+    }
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  };
+
+  const readiness = getReadinessDisplay(currentStudent?.placementReadiness);
+
+  const panel = (
     <>
       <div
-        className={`fixed inset-0 bg-black transition-opacity duration-300 z-[9998] ${isOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
-          }`}
+        className={`fixed inset-0 bg-slate-900/60 transition-opacity duration-300 z-[9998] ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
         style={{
-          backdropFilter: isOpen ? 'blur(4px)' : 'none',
-          WebkitBackdropFilter: isOpen ? 'blur(4px)' : 'none'
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
         }}
         onClick={onClose}
+        aria-hidden={!isOpen}
       />
 
       <div
-        className={`fixed top-0 right-0 h-full w-full lg:w-[60%] bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-out overflow-hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Student profile"
+        className={`fixed inset-y-0 right-0 z-[9999] flex h-dvh max-h-dvh w-full flex-col overflow-hidden border-l border-slate-200/80 bg-slate-50 shadow-2xl transition-transform duration-300 ease-out sm:w-[88vw] md:w-[76vw] lg:w-[62vw] lg:max-w-[58rem] ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <nav className="bg-white border-b border-blue-100 sticky top-0 z-50">
-          <div className="w-full px-2 py-1">
-            <div className="px-6 py-1 rounded-xl bg-gradient-to-br from-white to-blue-300 border-2 border-gray-400">
-              <div className="flex justify-between items-center h-23 gap-2 relative">
-                <div className="flex items-center flex-1">
-                  <div className="flex-shrink-0 relative">
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg overflow-hidden w-20 h-20">
-                      {profileImageSrc ? (
-                        <img src={profileImageSrc} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="text-white w-10 h-10" />
+        {/* Navigation Header */}
+        <div className="flex-shrink-0 border-b border-slate-100 bg-white/80 px-6 py-6 shadow-sm backdrop-blur-md">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0">
+                {profileImageSrc ? (
+                  <img
+                    src={profileImageSrc}
+                    alt="Profile"
+                    className="w-16 h-16 rounded-2xl object-cover shadow-md ring-4 ring-indigo-50"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-md flex items-center justify-center text-white font-extrabold text-2xl font-outfit ring-4 ring-indigo-50">
+                    {getInitials(currentStudent?.fullName || currentStudent?.email)}
+                  </div>
+                )}
+                <span
+                  className={`absolute -bottom-1.5 -right-1.5 border-2 border-white w-4.5 h-4.5 rounded-full ${
+                    currentStudent?.status === 'Blocked' ? 'bg-rose-500' : 'bg-emerald-500'
+                  }`}
+                  title={currentStudent?.status}
+                ></span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold text-slate-900 font-outfit">
+                    {currentStudent?.fullName || 'Student Name'}
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    Learner
+                  </span>
+                </div>
+                <p className="text-sm text-slate-500 mt-0.5">{currentStudent?.email}</p>
+                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                  <Tag className="w-3.5 h-3.5" /> Batch: {currentStudent?.batch || 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const url = window.location.origin + '/public-profile/' + (currentStudent?.publicProfileId || '');
+                  navigator.clipboard.writeText(url);
+                }}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-all active:scale-95"
+                title="Copy profile link"
+              >
+                <Link className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-all active:scale-95"
+                title="Close Panel"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs List */}
+          <div className="mt-6 flex items-center gap-1 border-b border-slate-100 overflow-x-auto scrollbar-hide">
+            {[
+              { id: 'overview', label: 'Overview', icon: User },
+              { id: 'mock', label: 'Mock Interviews', icon: MessageSquare },
+              { id: 'applications', label: 'Applications', icon: Briefcase },
+              { id: 'skills', label: 'Skills & Projects', icon: Code },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`relative -mb-[2px] flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm transition-all ${
+                  activeTab === id
+                    ? 'border-indigo-600 font-semibold text-indigo-600'
+                    : 'border-transparent font-medium text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon className="h-4 w-4" strokeWidth={2} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 custom-scrollbar">
+          {dashboardData.loading ? (
+            <div className="flex flex-col items-center justify-center min-h-[300px]">
+              <Loader className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+              <span className="text-slate-500 text-sm font-medium">Fetching details...</span>
+            </div>
+          ) : dashboardData.error ? (
+            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 text-center">
+              <p className="text-rose-600 text-sm font-medium">{dashboardData.error}</p>
+            </div>
+          ) : (
+            <>
+              {/* Overview Tab Content */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-3.5 shadow-sm">
+                      <div className="p-3 bg-indigo-500 text-white rounded-xl">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-indigo-700/80 font-medium">Placement Readiness</span>
+                        <div className="mt-0.5">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${readiness.class}`}>
+                            {readiness.dotClass && <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${readiness.dotClass}`}></span>}
+                            {readiness.text}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3.5 shadow-sm">
+                      <div className="p-3 bg-emerald-500 text-white rounded-xl">
+                        <TrendingUp className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-emerald-700/80 font-medium">Placement Probability</span>
+                        <p className="text-sm font-bold text-emerald-950 font-outfit mt-1">
+                          {formatPlacementMetricDisplay(
+                            currentStudent?.placementProbability,
+                            PROBABILITY_TIER_LABELS,
+                            '—'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Academic Details */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 pb-3 border-b border-slate-100">
+                      <GraduationCap className="w-4.5 h-4.5 text-indigo-500" /> Academic Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs block">School</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.school || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">Center</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.center || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">Degree / Program</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.program || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">CGPA</span>
+                        <span className="text-slate-800 font-semibold text-indigo-600">
+                          {currentStudent?.cgpa ? `${currentStudent.cgpa} / 10.00` : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Funnel Counters */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 pb-4 border-b border-slate-100">
+                      <BarChart2 className="w-4.5 h-4.5 text-indigo-500" /> Application Funnel Stats
+                    </h3>
+                    <div className="grid grid-cols-4 divide-x divide-slate-100 text-center mt-4">
+                      <div>
+                        <span className="text-2xl font-extrabold text-slate-800 font-outfit">
+                          {dashboardData.applications?.length || 0}
+                        </span>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Applied</p>
+                      </div>
+                      <div>
+                        <span className="text-2xl font-extrabold text-amber-600 font-outfit">
+                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('shortlist') || a.status?.toLowerCase().includes('select')).length || 0}
+                        </span>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Shortlisted</p>
+                      </div>
+                      <div>
+                        <span className="text-2xl font-extrabold text-indigo-600 font-outfit">
+                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('interview')).length || 0}
+                        </span>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Interviewing</p>
+                      </div>
+                      <div>
+                        <span className="text-2xl font-extrabold text-emerald-600 font-outfit">
+                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('offer') || a.status?.toLowerCase().includes('hire')).length || 0}
+                        </span>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Offers</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact & General Info */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 pb-3 border-b border-slate-100">
+                      <Phone className="w-4.5 h-4.5 text-indigo-500" /> Contact & General Info
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs block">Contact Number</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.phone || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">Location</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.currentLocation || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">Registration Date</span>
+                        <span className="text-slate-800 font-medium">
+                          {currentStudent?.createdAt ? new Date(currentStudent.createdAt).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs block">Email Verification</span>
+                        <span className={`inline-flex items-center gap-1 font-semibold ${
+                          currentStudent?.emailVerified ? 'text-emerald-600' : 'text-slate-500'
+                        }`}>
+                          <CheckCircle2 className="w-4 h-4" /> {currentStudent?.emailVerified ? 'Verified' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mock Interviews Content */}
+              {activeTab === 'mock' && (
+                <div className="space-y-5 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <MessageSquare className="w-4.5 h-4.5 text-indigo-500" /> Interview Appraisals
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">AI Assessment Mocks</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">AI Mock 1</h5>
+                            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-indigo-100">
+                              {currentStudent?.aiMock1 ? `${currentStudent.aiMock1}` : '--'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">AI Mock 2</h5>
+                            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-indigo-100">
+                              {currentStudent?.aiMock2 ? `${currentStudent.aiMock2}` : '--'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Subject Matter Expert Mocks</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm border-l-4 border-l-indigo-500">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">SME Mock 1</h5>
+                            <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-purple-100">
+                              {currentStudent?.smeMock1 ? `${currentStudent.smeMock1}` : '--'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm border-l-4 border-l-indigo-500">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">SME Mock 2</h5>
+                            <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-purple-100">
+                              {currentStudent?.smeMock2 ? `${currentStudent.smeMock2}` : '--'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {(!currentStudent?.aiMock1 && !currentStudent?.aiMock2 && !currentStudent?.smeMock1 && !currentStudent?.smeMock2) && (
+                      <p className="text-center py-6 text-sm text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
+                        No mock interview scores recorded.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Applications Tab Content */}
+              {activeTab === 'applications' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <Briefcase className="w-4.5 h-4.5 text-indigo-500" /> Active Applications
+                    </h3>
+                    <span className="text-xs text-slate-400">Total: {dashboardData.applications?.length || 0}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {dashboardData.applications?.map((app) => (
+                      <div key={app.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                        <div className="flex justify-between items-start gap-3">
+                          <div>
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">{app.job?.title || app.jobTitle || 'Role Name'}</h5>
+                            <p className="text-xs text-slate-550 mt-0.5 font-medium">
+                              {app.job?.company || app.companyName || 'Company'} &bull; {app.job?.location || 'Remote'}
+                            </p>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border capitalize ${getApplicationStatusBadge(app.status)}`}>
+                            {app.status || 'Applied'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50 text-[11px] text-slate-400 font-medium">
+                          <span>Applied on: {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {(!dashboardData.applications || dashboardData.applications.length === 0) && (
+                      <p className="text-center py-6 text-sm text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
+                        No applications recorded for this student.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills & Projects Content */}
+              {activeTab === 'skills' && (
+                <div className="space-y-5 animate-fade-in">
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 pb-3 border-b border-slate-100">
+                      <CheckCircle2 className="w-4.5 h-4.5 text-indigo-500" /> Skills
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {dashboardData.skills?.map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100"
+                        >
+                          {typeof skill === 'string' ? skill : (skill.name || skill.title)}
+                        </span>
+                      ))}
+                      {(!dashboardData.skills || dashboardData.skills.length === 0) && (
+                        <span className="text-slate-400 text-xs font-medium">No verified skills entered.</span>
                       )}
                     </div>
                   </div>
-                  <div className="ml-4 space-y-1.5">
-                    <h2 className="text-2xl font-bold text-black">
-                      {currentStudent?.fullName || currentStudent?.user?.displayName || 'Student Name'}
-                    </h2>
-                    <p className="text-sm text-gray-600">{currentStudent?.user?.email || currentStudent?.email}</p>
-                    <p className="text-sm text-gray-600">Batch: {currentStudent?.batch || 'N/A'}</p>
+
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <Folder className="w-4.5 h-4.5 text-indigo-500" /> Projects
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      {dashboardData.projects?.map((proj, idx) => (
+                        <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">{proj.title}</h5>
+                            {proj.githubLink && (
+                              <a
+                                href={proj.githubLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-slate-400 hover:text-indigo-655 transition-colors"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1 font-medium">{proj.description}</p>
+                        </div>
+                      ))}
+                      {(!dashboardData.projects || dashboardData.projects.length === 0) && (
+                        <p className="text-center py-6 text-sm text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
+                          No projects entered.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
+              )}
+            </>
+          )}
+        </div>
 
-                <div className="flex items-center">
-                  <button
-                    onClick={onClose}
-                    className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white transition-colors flex-shrink-0"
-                  >
-                    <FaTimes size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <div className="h-[calc(100%-5rem)] overflow-y-auto">
-          <div className="p-4 lg:p-6">
-            {dashboardData.loading ? (
-              <div className="flex items-center justify-center h-full min-h-[400px]">
-                <Loader className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-              </div>
-            ) : dashboardData.error ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600">{dashboardData.error}</p>
-              </div>
-            ) : (
-              <DashboardHome
-                studentData={currentStudent}
-                profileData={dashboardData.profile || currentStudent}
-                viewStudentId={currentStudent?.id || student?.id}
-                jobs={dashboardData.jobs}
-                applications={dashboardData.applications}
-                skillsEntries={dashboardData.skills}
-                initialEducation={dashboardData.education}
-                initialProjects={dashboardData.projects}
-                initialAchievements={dashboardData.achievements}
-                initialCertifications={dashboardData.certifications}
-                loadingJobs={false}
-                loadingApplications={false}
-                loadingSkills={false}
-                handleApplyToJob={handleApplyToJob}
-                hasApplied={hasApplied}
-                applying={{}}
-                hideApplicationTracker={true}
-                hideJobPostings={true}
-                hideFooter={true}
-                isAdminView={true}
-              />
-            )}
-          </div>
+        {/* Footer status */}
+        <div className="flex-shrink-0 flex items-center gap-1.5 border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              currentStudent?.status === 'Blocked' ? 'bg-rose-500' : 'bg-emerald-500'
+            }`}
+          />
+          <span className="text-xs font-medium text-slate-500">
+            {currentStudent?.status === 'Blocked' ? 'Account blocked' : 'Active'}
+          </span>
         </div>
       </div>
     </>
   );
+
+  return createPortal(panel, document.body);
 };

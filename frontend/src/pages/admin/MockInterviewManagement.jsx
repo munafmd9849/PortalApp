@@ -4,12 +4,44 @@ import {
   Plus, Calendar, Clock, Users, ArrowRight, 
   Search, MoreHorizontal, CheckCircle2,
   Clock3, AlertCircle, Trash2, Edit2, Layout,
-  ChevronRight, Filter
+  ChevronRight
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import MockInterviewCreateModal from '../../components/dashboard/admin/MockInterviewCreateModal';
 import MockInterviewEditDriveModal from '../../components/dashboard/admin/MockInterviewEditDriveModal';
+import DirectoryLoadingPanel from '../../components/dashboard/admin/DirectoryLoading';
+
+function driveHasLiveSlots(drive) {
+  return drive.slots?.some((s) => ['WAITING', 'LIVE'].includes(s.status));
+}
+
+function driveIsActive(drive) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const driveDate = new Date(drive.date);
+  driveDate.setHours(0, 0, 0, 0);
+  const isToday = driveDate.getTime() === now.getTime();
+  return isToday || driveHasLiveSlots(drive);
+}
+
+function driveIsUpcoming(drive) {
+  if (driveHasLiveSlots(drive)) return false;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const driveDate = new Date(drive.date);
+  driveDate.setHours(0, 0, 0, 0);
+  return driveDate > now;
+}
+
+function driveIsPast(drive) {
+  if (driveHasLiveSlots(drive)) return false;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const driveDate = new Date(drive.date);
+  driveDate.setHours(0, 0, 0, 0);
+  return driveDate < now;
+}
 
 export default function MockInterviewManagement({ autoOpenCreate = false }) {
   const navigate = useNavigate();
@@ -78,30 +110,17 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
     if (searchQuery && !drive.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
     if (activeTab === 'all') return true;
-    
-    const now = new Date();
-    now.setHours(0,0,0,0);
-    const driveDate = new Date(drive.date);
-    driveDate.setHours(0,0,0,0);
-
-    if (activeTab === 'active') {
-      // Drives scheduled for today OR has live/waiting sessions
-      const isToday = driveDate.getTime() === now.getTime();
-      const hasLiveSlots = drive.slots?.some(s => ['WAITING', 'LIVE'].includes(s.status));
-      return isToday || hasLiveSlots;
-    }
-    
-    if (activeTab === 'past') {
-      // Past drives: date is before today AND no live slots
-      const isPast = driveDate < now;
-      const noLiveSlots = !drive.slots?.some(s => ['WAITING', 'LIVE'].includes(s.status));
-      return isPast && noLiveSlots;
-    }
+    if (activeTab === 'active') return driveIsActive(drive);
+    if (activeTab === 'upcoming') return driveIsUpcoming(drive);
+    if (activeTab === 'past') return driveIsPast(drive);
     return true;
   });
 
   // Calculate Header Stats
   const totalDrives = drives.length;
+  const upcomingDrivesCount = drives.filter(driveIsUpcoming).length;
+  const activeDrivesCount = drives.filter(driveIsActive).length;
+  const pastDrivesCount = drives.filter(driveIsPast).length;
   const ongoingSlots = drives.reduce((acc, d) => acc + (d.slots || []).filter(s => ['SCHEDULED', 'WAITING', 'LIVE'].includes(s.status)).length, 0);
   const waitingCandidates = drives.reduce((acc, d) => acc + (d.slots || []).filter(s => s.status === 'WAITING').length, 0);
   const completedOverall = drives.reduce((acc, d) => acc + (d.slots || []).filter(s => s.status === 'COMPLETED').length, 0);
@@ -151,54 +170,57 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
       {/* Main List Container */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-visible flex flex-col">
         {/* Toolbar */}
-        <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Pill Style Tabs */}
-          <div className="bg-slate-200/50 p-1 rounded-xl flex items-center gap-1 w-fit shadow-inner">
+        <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-200/50 p-1 shadow-inner lg:max-w-3xl lg:flex-1">
             {[
-              { id: 'all', label: 'All Drives', count: totalDrives },
-              { id: 'active', label: 'Active Sessions', count: drives.filter(d => d.slots?.some(s => ['WAITING', 'LIVE'].includes(s.status))).length },
-              { id: 'past', label: 'Past Archives', count: drives.filter(d => new Date(d.date) < new Date().setHours(0,0,0,0)).length },
-            ].map(tab => (
+              { id: 'all', label: 'All Drives', shortLabel: 'All', count: totalDrives },
+              { id: 'active', label: 'Active Sessions', shortLabel: 'Active', count: activeDrivesCount },
+              { id: 'upcoming', label: 'Upcoming Drives', shortLabel: 'Upcoming', count: upcomingDrivesCount },
+              { id: 'past', label: 'Past Archives', shortLabel: 'Past', count: pastDrivesCount },
+            ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id); }}
-                className={`px-4 py-2 text-[11px] font-bold rounded-lg transition-all flex items-center gap-2 ${
-                  activeTab === tab.id 
-                    ? 'bg-white text-indigo-600 shadow-md scale-[1.02]' 
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/40'
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-[10px] font-bold transition-all sm:gap-2 sm:px-3 sm:text-[11px] ${
+                  activeTab === tab.id
+                    ? 'bg-white text-indigo-600 shadow-md'
+                    : 'text-slate-500 hover:bg-white/40 hover:text-slate-700'
                 }`}
               >
-                {tab.label}
-                <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'}`}>
+                <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+                <span className="sm:hidden whitespace-nowrap">{tab.shortLabel}</span>
+                <span
+                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] tabular-nums ${
+                    activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
                   {tab.count}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 lg:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search by drive title..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
-              />
-            </div>
-            <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition-all shadow-sm active:scale-95">
-              <Filter className="w-4 h-4" />
-            </button>
+          <div className="relative w-full shrink-0 lg:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by drive title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+            />
           </div>
         </div>
 
         {/* Drives Content */}
-        <div className="p-0 overflow-visible rounded-b-3xl">
+        <div className="overflow-visible rounded-b-3xl">
           {loading ? (
-            <div className="py-32 flex flex-col items-center justify-center gap-4">
-              <div className="w-12 h-12 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin" />
-              <p className="text-sm font-bold text-slate-400 animate-pulse">Synchronizing Data...</p>
+            <div className="p-4 sm:p-6">
+              <DirectoryLoadingPanel
+                title="Loading mock interview drives..."
+                subtitle="Please wait while we fetch the data"
+              />
             </div>
           ) : filteredDrives.length === 0 ? (
             <div className="py-32 flex flex-col items-center justify-center gap-6 text-center animate-in fade-in zoom-in duration-300">
@@ -207,7 +229,6 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">No {activeTab} drives found</h3>
-                <p className="text-sm text-slate-500 max-w-xs mx-auto mt-2 font-medium">Try adjusting your filters or create a new mock interview drive to get started.</p>
               </div>
               {activeTab === 'all' && (
                 <button 

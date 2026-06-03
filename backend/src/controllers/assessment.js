@@ -225,20 +225,21 @@ export async function getAssessments(req, res) {
     const assessments = await prisma.assessment.findMany({
       include: {
         sessions: { select: { id: true, studentId: true, status: true, score: true } },
-        assignments: { 
-          include: { 
-            student: { 
-              select: { 
-                id: true, 
-                fullName: true, 
+        questions: { select: { id: true } },
+        assignments: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                fullName: true,
                 profileImageUrl: true,
-                user: { select: { displayName: true } }
-              } 
-            } 
-          } 
-        }
+                user: { select: { displayName: true } },
+              },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
     console.log(`[DEBUG] Found ${assessments.length} assessments`);
     res.json(assessments);

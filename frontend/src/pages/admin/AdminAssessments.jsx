@@ -13,6 +13,36 @@ import { useToast } from '../../components/ui/Toast';
 import AssessmentSettingsModal from '../../components/dashboard/admin/AssessmentSettingsModal';
 import { fromDatetimeLocalValue } from '../../utils/assessmentEntryWindow';
 import StudentSelectorModal from '../../components/dashboard/admin/StudentSelectorModal';
+import DirectoryLoadingPanel from '../../components/dashboard/admin/DirectoryLoading';
+
+const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'AUTO_SUBMITTED', 'TERMINATED']);
+
+function assessmentHasLiveSession(assessment) {
+  return (assessment.sessions || []).some((s) => s.status === 'IN_PROGRESS');
+}
+
+function assessmentIsActiveWindow(assessment) {
+  const now = new Date();
+  const start = assessment.startTime ? new Date(assessment.startTime) : null;
+  const end = assessment.endTime ? new Date(assessment.endTime) : null;
+  if (assessmentHasLiveSession(assessment)) return true;
+  if (start && end && now >= start && now <= end) return true;
+  if (start && !end && now >= start) return true;
+  return false;
+}
+
+function assessmentIsUpcoming(assessment) {
+  if (!assessment.startTime || assessmentHasLiveSession(assessment)) return false;
+  return new Date(assessment.startTime) > new Date();
+}
+
+function assessmentIsPast(assessment) {
+  if (assessmentHasLiveSession(assessment)) return false;
+  const end = assessment.endTime ? new Date(assessment.endTime) : null;
+  if (end) return end < new Date();
+  const start = assessment.startTime ? new Date(assessment.startTime) : null;
+  return start ? start < new Date() : false;
+}
 
 export default function AdminAssessments() {
   const navigate = useNavigate();
@@ -25,6 +55,8 @@ export default function AdminAssessments() {
   const [step, setStep] = useState(1);
   const [batches, setBatches] = useState([]);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const toast = useToast();
 
   const [formData, setFormData] = useState({
@@ -159,40 +191,157 @@ export default function AdminAssessments() {
     }
   };
 
+  const totalAssessments = assessments.length;
+  const upcomingScheduled = assessments.filter(assessmentIsUpcoming).length;
+  const activeSessions = assessments.reduce(
+    (acc, a) => acc + (a.sessions || []).filter((s) => s.status === 'IN_PROGRESS').length,
+    0,
+  );
+  const completedAttempts = assessments.reduce(
+    (acc, a) => acc + (a.sessions || []).filter((s) => COMPLETED_SESSION_STATUSES.has(s.status)).length,
+    0,
+  );
+  const activeAssessmentsCount = assessments.filter(
+    (a) => assessmentIsActiveWindow(a) || assessmentHasLiveSession(a),
+  ).length;
+  const pastAssessmentsCount = assessments.filter(assessmentIsPast).length;
+
+  const filteredAssessments = assessments.filter((item) => {
+    if (searchQuery && !item.title?.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    if (activeTab === 'all') return true;
+    if (activeTab === 'active') {
+      return assessmentIsActiveWindow(item) || assessmentHasLiveSession(item);
+    }
+    if (activeTab === 'upcoming') return assessmentIsUpcoming(item);
+    if (activeTab === 'past') return assessmentIsPast(item);
+    return true;
+  });
+
   return (
     <>
-      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1400px] mx-auto animate-in fade-in duration-500">
-        {/* Page Header - Clean & Professional */}
+      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Assessments</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+              Assessments
+              <span className="text-xs font-bold px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
+                Admin Portal
+              </span>
+            </h1>
             <p className="text-slate-500 text-sm mt-1 font-medium">Design, deploy and monitor student assessments</p>
           </div>
-          <div className="flex items-center gap-3">
-             <button 
-               onClick={() => { setStep(1); setShowCreateModal(true); }}
-               className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
-             >
-               <Plus className="w-4 h-4" /> Create Assessment
-             </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStep(1);
+              setShowCreateModal(true);
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> Create Assessment
+          </button>
         </div>
 
-        {/* Main List - Grid with Clean Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            [1,2,3].map(i => (
-              <div key={i} className="h-64 bg-white rounded-2xl border border-slate-200 animate-pulse" />
-            ))
-          ) : assessments.length === 0 ? (
-            <div className="col-span-full py-32 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 border-dashed">
-               <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6">
-                  <FileText className="w-10 h-10 text-slate-200" />
-               </div>
-               <h3 className="text-lg font-bold text-slate-900">No assessments found</h3>
-               <p className="text-sm text-slate-500 mt-2 font-medium">Start by creating your first mock test or coding challenge.</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+          {[
+            { label: 'Total Assessments', val: totalAssessments, icon: Layout, color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+            { label: 'Upcoming Scheduled', val: upcomingScheduled, icon: Clock, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+            { label: 'Active Sessions', val: activeSessions, icon: Users, color: 'bg-amber-50 text-amber-600 border-amber-100' },
+            { label: 'Completed', val: completedAttempts, icon: CheckCircle, color: 'bg-blue-50 text-blue-600 border-blue-100' },
+          ].map((stat, i) => (
+            <div
+              key={i}
+              className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md"
+            >
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center border ${stat.color}`}>
+                <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{stat.val}</p>
+              </div>
             </div>
-          ) : assessments.map(item => (
+          ))}
+        </div>
+
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-200/50 p-1 shadow-inner lg:max-w-3xl lg:flex-1">
+              {[
+                { id: 'all', label: 'All Assessments', shortLabel: 'All', count: totalAssessments },
+                { id: 'active', label: 'Active Now', shortLabel: 'Active', count: activeAssessmentsCount },
+                { id: 'upcoming', label: 'Upcoming', shortLabel: 'Upcoming', count: upcomingScheduled },
+                { id: 'past', label: 'Past Archives', shortLabel: 'Past', count: pastAssessmentsCount },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-[10px] font-bold transition-all sm:gap-2 sm:px-3 sm:text-[11px] ${
+                    activeTab === tab.id
+                      ? 'bg-white text-indigo-600 shadow-md'
+                      : 'text-slate-500 hover:bg-white/40 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+                  <span className="sm:hidden whitespace-nowrap">{tab.shortLabel}</span>
+                  <span
+                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] tabular-nums ${
+                      activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full shrink-0 lg:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by assessment title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6">
+            {loading ? (
+              <DirectoryLoadingPanel title="Loading assessments..." subtitle="Please wait while we fetch the data" />
+            ) : filteredAssessments.length === 0 ? (
+              <div className="py-24 flex flex-col items-center justify-center gap-6 text-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-slate-200" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">No {activeTab === 'all' ? '' : `${activeTab} `}assessments found</h3>
+                  <p className="text-sm text-slate-500 max-w-xs mx-auto mt-2 font-medium">
+                    {assessments.length === 0
+                      ? 'Create your first assessment to get started.'
+                      : 'Try another tab or adjust your search.'}
+                  </p>
+                </div>
+                {assessments.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setShowCreateModal(true);
+                    }}
+                    className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all active:scale-95"
+                  >
+                    Create Your First Assessment
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAssessments.map((item) => (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group flex flex-col h-full relative overflow-hidden">
               <div className="flex justify-between items-start mb-5">
                 <div className={`p-3 rounded-xl ${item.type === 'MOCK_TEST' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'} border border-current opacity-20`}>
@@ -238,15 +387,19 @@ export default function AdminAssessments() {
                 >
                   View Results
                 </button>
-                <button 
+                <button
+                  type="button"
                   onClick={() => setSettingsAssessment(item)}
-                  className="px-3.5 py-2.5 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-900 border border-slate-100 rounded-xl transition-all active:scale-95"
+                  className="w-full py-2.5 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-slate-100 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4" /> Settings
                 </button>
               </div>
             </div>
-          ))}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

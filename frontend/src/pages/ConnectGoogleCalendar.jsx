@@ -44,6 +44,18 @@ const ConnectGoogleCalendar = () => {
   const [errorMessage, setErrorMessage] = useState(null); // Error message state
   const popupTimeoutRef = useRef(null); // Store timeout reference for cleanup
 
+  // Prevent page scroll on connect gate (loading / not connected)
+  useEffect(() => {
+    if (connected !== true) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+    return undefined;
+  }, [connected]);
+
   // Check calendar connection status on mount and listen for OAuth result
   useEffect(() => {
     checkCalendarStatus();
@@ -324,87 +336,92 @@ const ConnectGoogleCalendar = () => {
     checkCalendarStatus();
   };
 
+  const connectGateShell = (content) => (
+    <div
+      className="-m-3 flex w-[calc(100%+1.5rem)] items-center justify-center overflow-hidden sm:-m-6 sm:w-[calc(100%+3rem)] md:-m-8 md:w-[calc(100%+4rem)]"
+      style={{ height: 'calc(100dvh - 6.5rem)', maxHeight: 'calc(100dvh - 6.5rem)' }}
+    >
+      <div className="w-full max-w-lg shrink-0 px-4">{content}</div>
+    </div>
+  );
+
   // Show loading state while checking connection
   if (connected === null) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Checking Calendar Connection</h2>
-          <p className="text-gray-600">Please wait...</p>
-        </div>
-      </div>
+    return connectGateShell(
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <FaSpinner className="mx-auto mb-4 h-9 w-9 animate-spin text-indigo-600" />
+        <h2 className="font-outfit text-xl font-bold text-slate-900">Checking calendar</h2>
+        <p className="mt-2 text-sm text-slate-500">Please wait a moment…</p>
+      </div>,
     );
   }
 
   // Show connect button if not connected
   if (connected === false) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
-          {/* Error Message */}
-          {errorMessage && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg relative">
-              <button
-                onClick={() => setErrorMessage(null)}
-                className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded transition-colors"
-                title="Dismiss"
-              >
-                <FaTimes className="text-red-600 text-sm" />
-              </button>
-              <div className="flex items-start gap-3 pr-6">
-                <FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-800">{errorMessage}</p>
-                  <button
-                    onClick={() => setErrorMessage(null)}
-                    className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
+    return connectGateShell(
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {errorMessage && (
+          <div className="relative max-h-24 overflow-y-auto border-b border-rose-100 bg-rose-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="absolute right-3 top-3 rounded-lg p-1 text-rose-500 hover:bg-rose-100"
+              title="Dismiss"
+            >
+              <FaTimes className="text-sm" />
+            </button>
+            <p className="pr-8 text-sm leading-relaxed text-rose-900 whitespace-pre-line">{errorMessage}</p>
+          </div>
+        )}
+
+        <div className="p-6">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+              <FaCalendar className="h-6 w-6" />
+            </div>
+            <h1 className="font-outfit text-2xl font-bold text-slate-900">Connect Google Calendar</h1>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+              Connect your Google Calendar to view and manage your events in one place.
+            </p>
+          </div>
+
+          {registeredEmail && (
+            <div className="mt-5 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Registered email</p>
+              <p className="mt-1 break-all text-sm font-medium text-slate-800">{registeredEmail}</p>
+              <p className="mt-1.5 text-xs text-amber-900/90">Use this exact Gmail account when signing in with Google.</p>
             </div>
           )}
 
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <FaCalendar className="text-3xl text-blue-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Connect Google Calendar</h1>
-            <p className="text-gray-600 mb-2">
-              Connect your Google Calendar to view and manage your events in one place.
+          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+            <p className="text-sm leading-relaxed text-indigo-900/95">
+              After you verify Gmail in the popup,{' '}
+              <span className="font-semibold text-indigo-950">refresh this page</span> if your calendar does not load.
             </p>
-            {registeredEmail && (
-              <p className="text-sm text-gray-500">
-                <span className="font-medium">Important:</span> You must connect using the same email address you registered with: <span className="font-semibold text-gray-700">{registeredEmail}</span>
-              </p>
-            )}
           </div>
 
-          <button
-            onClick={handleConnect}
-            disabled={connecting}
-            className="w-full py-3 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold transition-colors"
-          >
-            {connecting ? (
-              <>
-                <FaSpinner className="animate-spin" />
-                <span>Connecting...</span>
-              </>
-            ) : (
-              <>
-                <FaGoogle />
-                <span>Connect Google Calendar</span>
-              </>
-            )}
-          </button>
+          {connecting ? (
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
+              <FaSpinner className="mx-auto h-5 w-5 animate-spin text-indigo-600" />
+              <p className="mt-2 text-sm font-semibold text-slate-800">Connecting to Google…</p>
+              <p className="mt-1 text-xs text-slate-600">Complete sign-in in the popup, then refresh if needed.</p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnect}
+              className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-200/50 transition-all hover:bg-indigo-700 active:scale-[0.99]"
+            >
+              <FaGoogle className="h-4 w-4" />
+              Connect Google Calendar
+            </button>
+          )}
 
-          <p className="text-xs text-gray-500 text-center mt-4">
-            A popup window will open for authorization. Please allow popups for this site.
+          <p className="mt-3 text-center text-xs text-slate-500">
+            A popup will open for authorization. Please allow popups for this site.
           </p>
         </div>
-      </div>
+      </div>,
     );
   }
 
