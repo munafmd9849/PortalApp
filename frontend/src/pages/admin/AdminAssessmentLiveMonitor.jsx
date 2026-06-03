@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Activity, AlertCircle, ArrowLeft, Clock, Eye, Filter, Grid3x3, List, Loader2, Shield, TriangleAlert, X, ZoomIn } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Activity, AlertCircle, ArrowLeft, Clock, Eye, Filter, Grid3x3, List, Loader2, Radio, Shield, TriangleAlert, Video, X, ZoomIn } from 'lucide-react';
 import api from '../../services/api';
+import { initSocket, subscribeProctoringMonitor } from '../../services/socket';
+import { ProctoringViewer } from '../../proctoring-engine/liveProctoringRtc';
 
 function formatTime(ts) {
   try {
@@ -40,6 +42,8 @@ function buildEvidenceTimeline(screenshots) {
 export default function AdminAssessmentLiveMonitor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
 
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -49,28 +53,119 @@ export default function AdminAssessmentLiveMonitor() {
   const [timelineFilter, setTimelineFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState('table');
   const [expandedShot, setExpandedShot] = useState(null);
+  const [rtcConnected, setRtcConnected] = useState(false);
+  const [rtcConnecting, setRtcConnecting] = useState(false);
+  const liveVideoRef = useRef(null);
+  const rtcViewerRef = useRef(null);
+
+  const refreshSessions = useCallback(async (showSpinner = false) => {
+    try {
+      if (showSpinner) setLoading(true);
+      const data = await api.getLiveAssessmentSessions(id);
+      const list = Array.isArray(data) ? data : [];
+      setSessions(list);
+      if (list.length > 0) {
+        setSelectedSessionId((prev) => prev || list[0].id);
+      }
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  }, [id]);
+
+  const applyLiveScreenshot = useCallback((payload) => {
+    const shot = payload?.screenshot;
+    if (!shot?.url || !payload?.sessionId) return;
+
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === payload.sessionId
+          ? {
+              ...s,
+              latestScreenshot: {
+                id: shot.id,
+                url: shot.url,
+                timestamp: shot.timestamp,
+                captureType: shot.captureType,
+                event: shot.event,
+                riskFlag: shot.riskFlag,
+              },
+              screenshots: (s.screenshots || 0) + 1,
+            }
+          : s
+      )
+    );
+
+    if (payload.sessionId === selectedSessionId) {
+      setDetails((prev) => {
+        if (!prev) return prev;
+        const exists = prev.screenshots?.some((x) => x.id === shot.id);
+        const signed = { ...shot, signedUrl: shot.url, imageUrl: shot.url };
+        const screenshots = exists
+          ? prev.screenshots
+          : [...(prev.screenshots || []), signed];
+        return { ...prev, screenshots };
+      });
+    }
+  }, [selectedSessionId]);
 
   useEffect(() => {
-    let interval = null;
+    initSocket();
+    refreshSessions(true);
+    const interval = setInterval(() => refreshSessions(false), 2500);
+    return () => clearInterval(interval);
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    const unsub = subscribeProctoringMonitor(id, {
+      onScreenshot: applyLiveScreenshot,
+      onViolation: () => refreshSessions(false),
+    });
+    return unsub;
+  }, [id, applyLiveScreenshot, refreshSessions]);
+
+  useEffect(() => {
+    if (!selectedSessionId) {
+      rtcViewerRef.current?.stop();
+      rtcViewerRef.current = null;
+      setRtcConnected(false);
+      setRtcConnecting(false);
+      return;
+    }
+
     let cancelled = false;
+    setRtcConnecting(true);
+    setRtcConnected(false);
 
-    const run = async () => {
-      try {
-        if (!cancelled) setLoading(true);
-        const data = await api.getLiveAssessmentSessions(id);
-        if (!cancelled) setSessions(Array.isArray(data) ? data : []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+    const viewer = new ProctoringViewer({
+      sessionId: selectedSessionId,
+      assessmentId: id,
+      videoEl: liveVideoRef.current,
+      onConnected: () => {
+        if (!cancelled) {
+          setRtcConnected(true);
+          setRtcConnecting(false);
+        }
+      },
+      onDisconnected: () => {
+        if (!cancelled) {
+          setRtcConnected(false);
+          setRtcConnecting(false);
+        }
+      },
+    });
+    rtcViewerRef.current = viewer;
+    viewer.start().catch(() => {
+      if (!cancelled) setRtcConnecting(false);
+    });
 
-    run();
-    interval = setInterval(run, 5000);
     return () => {
       cancelled = true;
-      if (interval) clearInterval(interval);
+      viewer.stop();
+      if (rtcViewerRef.current === viewer) rtcViewerRef.current = null;
+      setRtcConnected(false);
+      setRtcConnecting(false);
     };
-  }, [id]);
+  }, [selectedSessionId, id]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -106,7 +201,7 @@ export default function AdminAssessmentLiveMonitor() {
       }
     };
     load();
-    const poll = setInterval(load, 8000);
+    const poll = setInterval(load, 3000);
     return () => {
       cancelled = true;
       clearInterval(poll);
@@ -119,6 +214,14 @@ export default function AdminAssessmentLiveMonitor() {
     () => buildEvidenceTimeline(details?.screenshots),
     [details?.screenshots]
   );
+
+  const latestEvidence = evidenceTimeline.length > 0 ? evidenceTimeline[evidenceTimeline.length - 1] : null;
+
+  const sessionStillActive = Boolean(
+    selectedSessionId && sessions.some((s) => s.id === selectedSessionId)
+  );
+  const showLiveBadge = sessionStillActive && rtcConnected;
+  const showConnectingBadge = sessionStillActive && rtcConnecting && !rtcConnected;
 
   const filteredTimeline = useMemo(() => {
     let rows = evidenceTimeline;
@@ -149,7 +252,7 @@ export default function AdminAssessmentLiveMonitor() {
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/admin/assessments')}
+              onClick={() => navigate(`${basePath}?tab=assessments`)}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold"
             >
               <ArrowLeft className="w-4 h-4" /> Back
@@ -165,9 +268,14 @@ export default function AdminAssessmentLiveMonitor() {
             </div>
           </div>
 
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            Polling every 5s
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right max-w-xs">
+            <div className="flex items-center justify-end gap-2">
+              <Radio className="w-4 h-4 text-emerald-500" />
+              Live video (WebRTC)
+            </div>
+            <p className="normal-case font-medium text-slate-400 mt-0.5">
+              Continuous webcam like a video call. Screenshots below are audit evidence only.
+            </p>
           </div>
         </div>
       </div>
@@ -193,11 +301,26 @@ export default function AdminAssessmentLiveMonitor() {
                   selectedSessionId === s.id ? 'bg-indigo-50/50' : 'bg-white'
                 }`}
               >
+                {s.latestScreenshot?.url ? (
+                  <div className="mb-3 rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-900">
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <img
+                      src={s.latestScreenshot.url}
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-3 rounded-lg border border-dashed border-slate-200 aspect-video flex items-center justify-center bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
+                    {selectedSessionId === s.id && rtcConnected ? 'Live video' : 'In exam — select to watch'}
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-bold text-slate-900">{s.studentName}</div>
                     <div className="flex items-center gap-2 mt-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                       <Clock className="w-3.5 h-3.5" /> {s.lastPing}
+                      <span>· {s.screenshots || 0} shots</span>
                     </div>
                   </div>
                   <div className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${
@@ -233,7 +356,10 @@ export default function AdminAssessmentLiveMonitor() {
                   <Eye className="w-6 h-6 text-slate-300" />
                 </div>
                 <div className="text-sm font-bold text-slate-900">No active sessions</div>
-                <div className="text-xs text-slate-500 mt-1">Students will appear here once they start the test.</div>
+                <div className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                  A student must click <strong>Start Secure Test</strong> (after pre-check) for monitoring to begin.
+                  Screenshots upload every ~1 min and on tab switch / blur.
+                </div>
               </div>
             )}
           </div>
@@ -258,10 +384,84 @@ export default function AdminAssessmentLiveMonitor() {
               <div className="text-sm font-bold text-slate-900">Pick a candidate to review</div>
               <div className="text-xs text-slate-500 mt-1">Periodic and event-triggered screenshots with violation context.</div>
             </div>
-          ) : detailLoading && !details ? (
-            <div className="px-6 py-16 text-center text-slate-500">Loading session…</div>
           ) : (
             <div className="p-6 space-y-6">
+              <div className="rounded-2xl border-2 border-indigo-200 overflow-hidden bg-slate-900 shadow-lg shadow-indigo-500/10">
+                <div className="px-4 py-3 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-indigo-400" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                      Live webcam (WebRTC)
+                    </span>
+                    {sessionStillActive && (
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${
+                        showLiveBadge
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : showConnectingBadge
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          showLiveBadge ? 'bg-emerald-400 animate-pulse' : showConnectingBadge ? 'bg-indigo-300 animate-pulse' : 'bg-amber-400'
+                        }`} />
+                        {showLiveBadge ? 'Live' : showConnectingBadge ? 'Connecting' : 'Waiting'}
+                      </span>
+                    )}
+                  </div>
+                  {showLiveBadge ? (
+                    <span className="text-[10px] font-bold text-emerald-400/90">Streaming · video call</span>
+                  ) : null}
+                </div>
+                <div className="relative bg-black">
+                  <video
+                    ref={liveVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full max-h-[400px] object-contain bg-black min-h-[240px]"
+                  />
+                  {!rtcConnected && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-sm px-6 bg-black/80">
+                      <Video className="w-10 h-10 text-slate-500 mb-3" />
+                      {showConnectingBadge
+                        ? 'Connecting to student webcam…'
+                        : 'Student must be in the exam with camera on. Select them once they start the test.'}
+                    </div>
+                  )}
+                </div>
+                <p className="px-4 py-2 text-[10px] text-slate-500 bg-slate-950 border-t border-slate-800">
+                  Real-time peer video (not slideshow frames). Audit screenshots and timeline are below.
+                </p>
+              </div>
+
+              {detailLoading && !details ? (
+                <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Loading evidence timeline…
+                </div>
+              ) : (
+              <>
+              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between bg-white">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    Latest capture (evidence)
+                  </span>
+                  {latestEvidence ? (
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {formatTime(latestEvidence.timestamp)} · {latestEvidence.captureType}
+                    </span>
+                  ) : null}
+                </div>
+                {latestEvidence?.imageUrl ? (
+                  <button type="button" onClick={() => setExpandedShot(latestEvidence)} className="block w-full">
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <img src={latestEvidence.imageUrl} className="w-full max-h-[200px] object-contain bg-black" alt="" />
+                  </button>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs">No evidence yet</div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="rounded-xl border border-slate-200 p-4">
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Risk</div>
@@ -411,6 +611,8 @@ export default function AdminAssessmentLiveMonitor() {
                   )}
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
         </div>

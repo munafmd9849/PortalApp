@@ -33,9 +33,9 @@ const AcademicStructureManager = () => {
     setLoading(true);
     try {
       const [s, c, b] = await Promise.all([
-        api.getSchools(),
-        api.getCenters(),
-        api.getBatches()
+        api.getSchools({ includeInactive: true }),
+        api.getCenters({ includeInactive: true }),
+        api.getBatches({ includeInactive: true }),
       ]);
       setData({
         schools: s || [],
@@ -129,6 +129,9 @@ const AcademicStructureManager = () => {
     { id: 'batches', label: 'Batches', icon: FaCalendarAlt }
   ];
 
+  const activeTabMeta = tabs.find((t) => t.id === activeTab) || tabs[0];
+  const addLabel = `Add New ${activeTabMeta.label.replace(/es$/, '').replace(/s$/, '')}`;
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
@@ -139,36 +142,41 @@ const AcademicStructureManager = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Academic Structure</h2>
-          <p className="text-gray-500">Manage institutional branches, campuses, and student batches.</p>
-        </div>
-        <button
-          onClick={() => handleOpenModal(activeTab)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-all shadow-md active:scale-95"
-        >
-          <FaPlus /> Add New {tabs.find(t => t.id === activeTab).label.slice(0, -1)}
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200">
-        {tabs.map(tab => (
+    <div className="space-y-4">
+      <div className="sticky top-[6.5rem] z-20 -mx-3 sm:-mx-6 md:-mx-8 px-3 sm:px-6 md:px-8 py-3 bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 border-b border-blue-100/80">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Academic Structure</h2>
+            <p className="text-sm text-gray-500">Manage branches, campuses, and student batches.</p>
+          </div>
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-6 py-3 font-semibold transition-all border-b-2 ${
-              activeTab === tab.id 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
+            type="button"
+            onClick={() => handleOpenModal(activeTab)}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-semibold transition-all shadow-md active:scale-95 shrink-0"
           >
-            <tab.icon />
-            {tab.label}
+            <FaPlus /> {addLabel}
           </button>
-        ))}
+        </div>
+
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-gray-200">
+          <div className="flex flex-wrap border-b border-gray-200 sm:border-b-0 -mb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 font-semibold transition-all border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <tab.icon />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Content */}
@@ -185,8 +193,17 @@ const AcademicStructureManager = () => {
           <tbody className="divide-y divide-gray-100">
             {data[activeTab].length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                  No {activeTab} defined yet. Click "Add New" to begin.
+                <td colSpan="4" className="px-6 py-12 text-center">
+                  <p className="text-gray-500 mb-4">
+                    No {activeTab} defined yet. Create your first {activeTabMeta.label.toLowerCase().replace(/es$/, '').replace(/s$/, '')} to get started.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenModal(activeTab)}
+                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold shadow-md"
+                  >
+                    <FaPlus /> {addLabel}
+                  </button>
                 </td>
               </tr>
             ) : (
@@ -249,7 +266,8 @@ const AcademicStructureManager = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <h3 className="text-xl font-bold text-gray-900">
-                {modal.type === 'add' ? 'Add' : 'Edit'} {tabs.find(t => t.id === modal.category).label.slice(0, -1)}
+                {modal.type === 'add' ? 'Add' : 'Edit'}{' '}
+                {(tabs.find((t) => t.id === modal.category) || tabs[0]).label.replace(/es$/, '').replace(/s$/, '')}
               </h3>
               <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <FaTimesCircle size={24} />

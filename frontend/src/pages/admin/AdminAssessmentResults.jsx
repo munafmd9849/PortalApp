@@ -9,6 +9,7 @@ import {
   Terminal, BookOpen, AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
+import { mcqAnswersMatch, resolveMcqOptionLabel } from '../../utils/mcqAnswers';
 import { useToast } from '../../components/ui/Toast';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 
@@ -45,12 +46,8 @@ function AdminAssessmentResultsComponent() {
   }, [fetchResults]);
 
   const handleBack = () => {
-    if (paramId) {
-      navigate('/admin/assessments');
-    } else {
-      const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
-      navigate(`${basePath}?tab=assessments`);
-    }
+    const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
+    navigate(`${basePath}?tab=assessments`);
   };
 
   const getStatusBadge = (status) => {
@@ -351,6 +348,9 @@ function AdminAssessmentResultsComponent() {
                        } catch(e) {}
 
                        const studentAnswer = answersObj[q.id];
+                       const mcqCorrect = q.type === 'MCQ' && mcqAnswersMatch(studentAnswer, q.correctAnswer, q.options);
+                       const studentMcqLabel = q.type === 'MCQ' ? resolveMcqOptionLabel(q.options, studentAnswer) : studentAnswer;
+                       const correctMcqLabel = q.type === 'MCQ' ? resolveMcqOptionLabel(q.options, q.correctAnswer) : q.correctAnswer;
                        const logData = execLogs[q.id];
 
                        return (
@@ -379,14 +379,14 @@ function AdminAssessmentResultsComponent() {
                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Candidate Selected</p>
-                                       <div className={`p-4 rounded-xl border-2 transition-all ${studentAnswer === q.correctAnswer ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
-                                          <span className="text-xs font-bold">{studentAnswer || 'NO RESPONSE'}</span>
+                                       <div className={`p-4 rounded-xl border-2 transition-all ${mcqCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                                          <span className="text-xs font-bold">{studentMcqLabel || 'NO RESPONSE'}</span>
                                        </div>
                                     </div>
                                     <div className="space-y-2">
                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Key (Correct)</p>
                                        <div className="p-4 rounded-xl border-2 bg-slate-50 border-slate-200 text-slate-700">
-                                          <span className="text-xs font-bold">{q.correctAnswer}</span>
+                                          <span className="text-xs font-bold">{correctMcqLabel ?? '—'}</span>
                                        </div>
                                     </div>
                                  </div>

@@ -4,7 +4,11 @@ import {
   ScreenshotCaptureType,
   EVENT_SCREENSHOT_VIOLATIONS,
 } from './constants';
-import { createMediaPipeFaceDetector } from './mediapipeFaceDetector';
+import {
+  createMediaPipeFaceDetector,
+  getFaceDetectorState,
+  resetFaceDetector,
+} from './mediapipeFaceDetector';
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
@@ -12,6 +16,15 @@ function clamp(n, min, max) {
 
 function nowMs() {
   return Date.now();
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('timeout')), ms);
+    }),
+  ]);
 }
 
 function isHighRiskEvent(event) {
@@ -40,6 +53,7 @@ export class ProctoringEngine {
     onRiskChange,
     onStatus,
     onError,
+    onLiveFrame,
     config = {},
   }) {
     this.getVideoEl = getVideoEl;
@@ -52,6 +66,7 @@ export class ProctoringEngine {
     this.onRiskChange = onRiskChange;
     this.onStatus = onStatus;
     this.onError = onError;
+    this.onLiveFrame = onLiveFrame;
     this.cfg = { ...defaultProctoringConfig, ...config };
 
     this._stream = null;
@@ -60,6 +75,7 @@ export class ProctoringEngine {
     this._monitoring = false;
     this._faceLoopTimer = null;
     this._periodicTimer = null;
+    this._liveFrameTimer = null;
     this._eventDebounceTimer = null;
     this._audioCtx = null;
     this._analyser = null;
@@ -74,10 +90,45 @@ export class ProctoringEngine {
     this._noFaceSince = null;
     this._multiFaceSince = null;
     this._violationCount = 0;
+    this._faceDetectorInitPromise = null;
   }
 
   get isFullscreen() {
     return Boolean(document.fullscreenElement);
+  }
+
+  isCameraActive() {
+    const video = this.getVideoEl?.();
+    const trackLive = this._stream?.getVideoTracks?.().some((t) => t.readyState === 'live');
+    return Boolean(trackLive || (video?.srcObject && video.videoWidth > 0));
+  }
+
+  getStream() {
+    return this._stream || null;
+  }
+
+  isFaceDetectorReady() {
+    return Boolean(this._faceDetector);
+  }
+
+  getFaceDetectorStatus() {
+    if (!this.cfg.faceMonitoring) return { state: 'off', error: null };
+    if (this._faceDetector) return { state: 'ready', error: null };
+    return getFaceDetectorState();
+  }
+
+  async retryFaceDetector() {
+    resetFaceDetector();
+    this._faceDetector = null;
+    this._faceDetectorInitPromise = null;
+    if (this.cfg.faceMonitoring) {
+      try {
+        this._faceDetector = await createMediaPipeFaceDetector();
+      } catch {
+        this._faceDetector = null;
+      }
+    }
+    return this.getFaceDetectorStatus();
   }
 
   async initCamera({ withAudio } = {}) {
@@ -94,16 +145,75 @@ export class ProctoringEngine {
     if (video) {
       video.srcObject = this._stream;
       await video.play().catch(() => {});
+      await this._waitForVideoFrames(video);
     }
     if (this.cfg.faceMonitoring) {
-      this._faceDetector = await createMediaPipeFaceDetector();
+      try {
+        this._faceDetector = await createMediaPipeFaceDetector();
+      } catch (err) {
+        this._faceDetector = null;
+        console.warn('[Proctoring] Face detector failed to load; camera still active.', err);
+      }
     }
     return this._stream;
   }
 
+  /** Re-bind active stream after React remounts the <video> element (e.g. pre-check → exam UI). */
+  reattachVideo() {
+    const video = this.getVideoEl?.();
+    if (!video || !this._stream) return false;
+    video.srcObject = this._stream;
+    video.play().catch(() => {});
+    return true;
+  }
+
+  async _waitForVideoFrames(video, timeoutMs = 8000) {
+    if (!video) return false;
+    if (video.videoWidth > 0 && video.readyState >= 2) return true;
+    return new Promise((resolve) => {
+      const finish = () => resolve(video.videoWidth > 0);
+      const timer = setTimeout(finish, timeoutMs);
+      const onReady = () => {
+        if (video.videoWidth > 0) {
+          clearTimeout(timer);
+          video.removeEventListener('loadeddata', onReady);
+          video.removeEventListener('playing', onReady);
+          resolve(true);
+        }
+      };
+      video.addEventListener('loadeddata', onReady);
+      video.addEventListener('playing', onReady);
+    });
+  }
+
   async detectFacesOnce() {
     const video = this.getVideoEl?.();
-    if (!video?.videoWidth || !this._faceDetector) return 0;
+    if (!video) return 0;
+    if (!video.videoWidth) {
+      await this._waitForVideoFrames(video, 3000);
+    }
+    if (!this._faceDetector && this.cfg.faceMonitoring) {
+      const { state } = getFaceDetectorState();
+      if (state === 'failed') return 0;
+      if (!this._faceDetectorInitPromise) {
+        this._faceDetectorInitPromise = createMediaPipeFaceDetector()
+          .then((d) => {
+            this._faceDetector = d;
+            return d;
+          })
+          .catch(() => null)
+          .finally(() => {
+            this._faceDetectorInitPromise = null;
+          });
+      }
+      try {
+        await withTimeout(this._faceDetectorInitPromise, 5000);
+      } catch {
+        return 0;
+      }
+      if (!this._faceDetector) return 0;
+    }
+    if (!this._faceDetector) return this.cfg.faceMonitoring ? 0 : 1;
     try {
       const faces = await this._faceDetector.detect(video, nowMs());
       return Array.isArray(faces) ? faces.length : 0;
@@ -128,10 +238,17 @@ export class ProctoringEngine {
     if (this.cfg.fullscreenRequired && !this.isFullscreen) {
       return { ok: false, reason: 'FULLSCREEN_REQUIRED' };
     }
+    if (!this.isCameraActive()) {
+      return { ok: false, reason: 'CAMERA_REQUIRED' };
+    }
     if (this.cfg.faceMonitoring) {
-      const count = await this.detectFacesOnce();
-      if (count === 0) return { ok: false, reason: 'NO_FACE_DETECTED' };
-      if (count > 1) return { ok: false, reason: 'MULTIPLE_FACES' };
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const count = await this.detectFacesOnce();
+        if (count === 1) return { ok: true };
+        if (count > 1) return { ok: false, reason: 'MULTIPLE_FACES' };
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return { ok: false, reason: 'NO_FACE_DETECTED' };
     }
     return { ok: true };
   }
@@ -143,7 +260,13 @@ export class ProctoringEngine {
     this._attachDomListeners();
     if (this.cfg.faceMonitoring) this._startFaceLoop();
     if (this.cfg.audioMonitoring) this._startAudioMonitor();
-    this._scheduleNextPeriodicCapture();
+    // Immediate evidence capture when session monitoring starts
+    this._captureAndUpload({
+      captureType: ScreenshotCaptureType.PERIODIC,
+      event: 'SESSION_START',
+      riskFlag: false,
+    }).finally(() => this._scheduleNextPeriodicCapture());
+    this._startLiveFrameLoop();
     this._emitStatus?.('Monitoring active');
   }
 
@@ -324,6 +447,47 @@ export class ProctoringEngine {
       flags: { events, grouped: events.length > 1 },
       faceCount: pending.faceCount,
     });
+  }
+
+  _startLiveFrameLoop() {
+    if (!this.cfg.liveFrameToAdmin || !this.onLiveFrame) return;
+    if (this._liveFrameTimer) clearInterval(this._liveFrameTimer);
+    const interval = this.cfg.liveFrameIntervalMs ?? 1000;
+    let inFlight = false;
+    const tick = async () => {
+      if (!this._running || inFlight) return;
+      inFlight = true;
+      try {
+        const frame = await this._captureFrameDataUrl(
+          this.cfg.liveFrameMaxWidth ?? 400,
+          this.cfg.liveFrameJpegQuality ?? 0.45
+        );
+        if (!frame) return;
+        const sessionId = await this.getSessionId?.();
+        if (!sessionId) return;
+        this.onLiveFrame?.({ frame, sessionId, at: Date.now() });
+      } catch {
+        /* skip frame */
+      } finally {
+        inFlight = false;
+      }
+    };
+    tick();
+    this._liveFrameTimer = setInterval(tick, interval);
+  }
+
+  async _captureFrameDataUrl(maxW = 400, quality = 0.45) {
+    const video = this.getVideoEl?.();
+    if (!video?.videoWidth) return null;
+    const scale = Math.min(1, maxW / video.videoWidth);
+    const w = Math.round(video.videoWidth * scale);
+    const h = Math.round(video.videoHeight * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', quality);
   }
 
   async _captureFrameBlob() {

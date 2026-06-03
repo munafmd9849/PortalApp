@@ -5,7 +5,8 @@ export default function ProctoringConsole({
   videoRef, 
   violations = 0, 
   status = 'active', 
-  lastViolationType = null 
+  lastViolationType = null,
+  cameraLive = false,
 }) {
   return (
     <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-[2rem] p-6 shadow-2xl">
@@ -36,11 +37,21 @@ export default function ProctoringConsole({
           className="w-full h-full object-cover grayscale brightness-75 contrast-125 transition-all group-hover:grayscale-0 group-hover:brightness-100" 
         />
         <div className="absolute top-3 right-3 flex items-center gap-2">
-           <div className="px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
-              <span className="text-[8px] font-black text-white tracking-widest">LIVE FEED</span>
+           <div className={`px-2 py-1 backdrop-blur-md rounded-md border flex items-center gap-1.5 ${
+             cameraLive ? 'bg-black/60 border-white/10' : 'bg-amber-950/80 border-amber-500/30'
+           }`}>
+              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${cameraLive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className="text-[8px] font-black text-white tracking-widest">
+                {cameraLive ? 'LIVE FEED' : 'NO SIGNAL'}
+              </span>
            </div>
         </div>
+        {!cameraLive && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 pointer-events-none">
+            <Camera className="w-8 h-8 text-slate-600" />
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Camera reconnecting…</span>
+          </div>
+        )}
         
         {violations > 0 && (
           <div className="absolute inset-0 bg-rose-500/10 border-2 border-rose-500/50 pointer-events-none animate-pulse" />

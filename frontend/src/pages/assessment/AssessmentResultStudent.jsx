@@ -7,6 +7,7 @@ import {
   Info, AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
+import { mcqAnswersMatch, resolveMcqOptionLabel } from '../../utils/mcqAnswers';
 import { useToast } from '../../components/ui/Toast';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 
@@ -185,9 +186,17 @@ function AssessmentResultStudentComponent() {
            <div className="space-y-8">
               {questions.map((q, i) => {
                  const studentAnswer = rawAnswers[q.id];
-                 const isCorrect = q.type === 'MCQ' ? studentAnswer === q.correctAnswer : true; // Coding/Descriptive logic below
+                 const isCorrect = q.type === 'MCQ'
+                   ? mcqAnswersMatch(studentAnswer, q.correctAnswer, q.options)
+                   : true;
                  const logData = executionLogs[q.id];
-                 const isWrongMCQ = q.type === 'MCQ' && studentAnswer !== q.correctAnswer;
+                 const isWrongMCQ = q.type === 'MCQ' && !isCorrect;
+                 const studentAnswerLabel = q.type === 'MCQ'
+                   ? resolveMcqOptionLabel(q.options, studentAnswer)
+                   : studentAnswer;
+                 const correctAnswerLabel = q.type === 'MCQ'
+                   ? resolveMcqOptionLabel(q.options, q.correctAnswer)
+                   : q.correctAnswer;
 
                  return (
                     <div key={q.id} className="bg-white rounded-[24px] border border-slate-200 overflow-hidden shadow-sm hover:border-indigo-200 transition-all group/card">
@@ -227,7 +236,7 @@ function AssessmentResultStudentComponent() {
                                    <div className={`p-5 rounded-[20px] border-2 transition-all ${
                                       isCorrect ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800' : 'bg-rose-50/50 border-rose-200 text-rose-800'
                                    }`}>
-                                      <p className="text-sm font-bold leading-relaxed">{studentAnswer || 'NO ATTEMPT RECORDED'}</p>
+                                      <p className="text-sm font-bold leading-relaxed">{studentAnswerLabel || 'NO ATTEMPT RECORDED'}</p>
                                    </div>
                                 </div>
                                 {isWrongMCQ && (
@@ -236,7 +245,7 @@ function AssessmentResultStudentComponent() {
                                          <Target className="w-3.5 h-3.5" /> Correct Answer Reference
                                       </p>
                                       <div className="p-5 rounded-[20px] border-2 bg-indigo-50/50 border-indigo-200 text-indigo-800">
-                                         <p className="text-sm font-bold leading-relaxed">{q.correctAnswer}</p>
+                                         <p className="text-sm font-bold leading-relaxed">{correctAnswerLabel ?? '—'}</p>
                                       </div>
                                    </div>
                                 )}

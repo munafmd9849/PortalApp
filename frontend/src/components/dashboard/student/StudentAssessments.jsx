@@ -103,7 +103,10 @@ export default function StudentAssessments() {
         {assessments.map((item) => {
           const session = item.sessions?.[0];
           const isCompleted = session?.status === 'COMPLETED';
-          const assignment = item.assignments?.[0];
+          const assignment =
+            item.assignments?.find((a) => a.scheduledAt) ||
+            item.assignments?.find((a) => a.studentId) ||
+            item.assignments?.[0];
           const scheduledAt = assignment?.scheduledAt;
           const status = getStatusConfig(session?.status);
           

@@ -622,6 +622,8 @@ model MockInterviewDrive {
   id               String   @id @default(uuid())
   title            String
   category         String // HR, TECHNICAL, BEHAVIORAL, etc.
+  enableCodeConsole Boolean @default(false) // live room code editor / tech board
+  codingQuestions  String?  // JSON array: { id, title, description, starterCode, language }
   description      String?
   instructions     String?
   date             DateTime
@@ -652,6 +654,10 @@ model MockInterviewSlot {
   status        String   @default("AVAILABLE") // AVAILABLE, SCHEDULED, WAITING, LIVE, COMPLETED, MISSED, NO_SHOW, CANCELLED
   meetingRoomId String?  @unique
   joinLink      String?
+  liveCode           String?  @db.Text
+  liveCodeLanguage   String?  @default("javascript")
+  activeQuestionId   String?
+  extraQuestions     String?  // JSON — questions added live in the room
 
   drive      MockInterviewDrive       @relation(fields: [driveId], references: [id], onDelete: Cascade)
   student    Student?                 @relation(fields: [studentId], references: [id])

@@ -23,7 +23,6 @@ import AcademicStructureManager from '../../components/dashboard/admin/AcademicS
 import AdminAssessments from '../admin/AdminAssessments';
 import AdminAssessmentResults from '../admin/AdminAssessmentResults';
 import MockInterviewManagement from '../admin/MockInterviewManagement';
-import MockInterviewCreate from '../admin/MockInterviewCreate';
 import MockInterviewSlots from '../admin/MockInterviewSlots';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2, UserPlus, History, BarChart3, LayoutDashboard, ShieldCheck } from 'lucide-react';
@@ -396,7 +395,7 @@ export default function AdminDashboard() {
         if (!isAdminOnly) {
           return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can create mock interviews.</div>;
         }
-        return <MockInterviewCreate />;
+        return <MockInterviewManagement autoOpenCreate />;
       case 'mockInterviews-slots':
         if (!isAdminOnly) {
           return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage mock interview slots.</div>;

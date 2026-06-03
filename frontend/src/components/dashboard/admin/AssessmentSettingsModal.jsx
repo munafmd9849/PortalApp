@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock, Trash2, Save, AlertTriangle } from 'lucide-react';
 import api from '../../../services/api';
 import { useToast } from '../../ui/Toast';
+import { fromDatetimeLocalValue, toDatetimeLocalValue } from '../../../utils/assessmentEntryWindow';
 
 export default function AssessmentSettingsModal({ assessment, onClose, onUpdate }) {
   const toast = useToast();
@@ -10,18 +11,29 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
   const [formData, setFormData] = useState({
     title: assessment.title || '',
     duration: assessment.duration || 60,
-    startTime: assessment.startTime ? new Date(assessment.startTime).toISOString().slice(0, 16) : '',
-    endTime: assessment.endTime ? new Date(assessment.endTime).toISOString().slice(0, 16) : '',
+    startTime: toDatetimeLocalValue(assessment.startTime),
+    endTime: toDatetimeLocalValue(assessment.endTime),
   });
 
   const handleSave = async () => {
     try {
       setLoading(true);
-      // Backend needs an update route - assuming we will add it
-      await api.updateAssessment(assessment.id, formData);
+      const startIso = fromDatetimeLocalValue(formData.startTime);
+      const endIso = fromDatetimeLocalValue(formData.endTime);
+      if (startIso && endIso && new Date(endIso) <= new Date(startIso)) {
+        toast.error('End time must be after start time');
+        setLoading(false);
+        return;
+      }
+      await api.updateAssessment(assessment.id, {
+        title: formData.title,
+        duration: formData.duration,
+        startTime: startIso,
+        endTime: endIso,
+      });
       toast.success('Assessment updated successfully');
-      onUpdate();
-      onClose();
+      onUpdate?.();
+      onClose?.();
     } catch (error) {
       toast.error(error.message || 'Failed to update assessment');
     } finally {
@@ -34,8 +46,8 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
       setLoading(true);
       await api.deleteAssessment(assessment.id);
       toast.success('Assessment deleted permanently');
-      onUpdate();
-      onClose();
+      onUpdate?.();
+      onClose?.();
     } catch (error) {
       toast.error(error.message || 'Failed to delete assessment');
     } finally {
@@ -94,6 +106,10 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
               />
             </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 font-medium">
+            Times use your browser timezone. Students may enter from 10 minutes before start until the end time.
+          </p>
 
           <div className="space-y-3">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

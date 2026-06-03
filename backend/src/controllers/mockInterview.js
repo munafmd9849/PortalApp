@@ -1,4 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import {
+  parseCodingQuestions,
+  serializeCodingQuestions,
+  hydrateSlot,
+  hydrateDrive,
+} from '../utils/mockInterviewCoding.js';
+
 const prisma = new PrismaClient();
 
 // --- DRIVE & SLOT MANAGEMENT ---
@@ -13,14 +20,21 @@ export async function createMockInterviewDrive(req, res) {
       title, category, description, instructions, 
       date, startTime, endTime, 
       slotDuration, breakDuration, bufferTime,
-      targetBatches, targetBranches, targetStudentIds 
+      targetBatches, targetBranches, targetStudentIds,
+      enableCodeConsole,
+      codingQuestions,
     } = req.body;
+
+    const codeConsoleEnabled = enableCodeConsole === true || enableCodeConsole === 'true';
+    const questions = parseCodingQuestions(codingQuestions);
 
     // 1. Create the Drive
     const drive = await prisma.mockInterviewDrive.create({
       data: {
         title,
         category,
+        enableCodeConsole: codeConsoleEnabled,
+        codingQuestions: codeConsoleEnabled ? serializeCodingQuestions(questions) : null,
         description,
         instructions,
         date: new Date(date),
@@ -70,7 +84,7 @@ export async function createMockInterviewDrive(req, res) {
     }
 
     res.status(201).json({ 
-      drive, 
+      drive: hydrateDrive(drive), 
       slotsGenerated: slots.length,
       studentsAssigned: Math.min(slots.length, students.length)
     });
@@ -91,9 +105,10 @@ export async function getMockInterviewDrives(req, res) {
           select: { slots: true }
         },
         slots: {
+          orderBy: { startTime: 'asc' },
           include: {
             student: {
-              select: { fullName: true, email: true, batch: true }
+              select: { id: true, fullName: true, email: true, batch: true }
             }
           }
         }
@@ -246,7 +261,7 @@ export async function getMockInterviewSlot(req, res) {
 
     if (!slot) return res.status(404).json({ error: 'Slot not found' });
 
-    res.json(slot);
+    res.json(hydrateSlot(slot));
   } catch (error) {
     console.error('Fetch Slot Error:', error);
     res.status(500).json({ error: 'Failed to fetch slot details' });
@@ -261,20 +276,86 @@ export async function updateMockInterviewSlot(req, res) {
     const { slotId } = req.params;
     const { startTime, endTime } = req.body;
 
+    if (!startTime || !endTime) {
+      return res.status(400).json({ error: 'startTime and endTime are required' });
+    }
+
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid date or time' });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({ error: 'End time must be after start time' });
+    }
+
     const updatedSlot = await prisma.mockInterviewSlot.update({
       where: { id: slotId },
-      data: {
-        startTime: new Date(startTime),
-        endTime: new Date(endTime)
-      }
+      data: { startTime: start, endTime: end },
+      include: {
+        student: {
+          select: { id: true, fullName: true, email: true, batch: true },
+        },
+      },
     });
 
     res.json(updatedSlot);
   } catch (error) {
     console.error('Update Slot Error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Slot not found' });
+    }
     res.status(500).json({ error: 'Failed to update slot timing' });
   }
 }
+/**
+ * Update drive metadata (title, category, instructions, coding config).
+ * Does not change schedule or regenerate slots.
+ */
+export async function updateMockInterviewDrive(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      category,
+      description,
+      instructions,
+      enableCodeConsole,
+      codingQuestions,
+    } = req.body;
+
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const codeConsoleEnabled =
+      enableCodeConsole === true || enableCodeConsole === 'true';
+    const questions = parseCodingQuestions(codingQuestions);
+
+    const updated = await prisma.mockInterviewDrive.update({
+      where: { id },
+      data: {
+        title: title.trim(),
+        category: category || 'TECHNICAL',
+        description: description ?? null,
+        instructions: instructions ?? null,
+        enableCodeConsole: codeConsoleEnabled,
+        codingQuestions: codeConsoleEnabled ? serializeCodingQuestions(questions) : null,
+      },
+    });
+
+    res.json(hydrateDrive(updated));
+  } catch (error) {
+    console.error('Update Drive Error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Drive not found' });
+    }
+    res.status(500).json({ error: 'Failed to update mock interview drive' });
+  }
+}
+
 /**
  * Delete a mock interview drive and all associated slots
  */

@@ -8,6 +8,7 @@ import {
   updateSlotStatus,
   getMockInterviewSlot,
   updateMockInterviewSlot,
+  updateMockInterviewDrive,
   deleteMockInterviewDrive
 } from '../controllers/mockInterview.js';
 import { authenticate, authorize } from '../middleware/auth.js';
@@ -24,6 +25,7 @@ router.get('/all', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getMockInt
 router.post('/assign', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), assignStudentToSlot);
 router.post('/update-status', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateSlotStatus);
 router.post('/feedback', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), submitMockFeedback);
+router.put('/drives/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateMockInterviewDrive);
 router.delete('/drives/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteMockInterviewDrive);
 
 // Student Routes

@@ -179,10 +179,11 @@ export default function CreateJob({ onCreated }) {
         import('../../../services/api').then(m => m.default.getCenters()),
         import('../../../services/api').then(m => m.default.getBatches())
       ]);
+      const { filterActiveAcademicRecords } = await import('../../../utils/academicOptions');
       setAcademicOptions({
-        schools: s || [],
-        centers: c || [],
-        batches: b || []
+        schools: filterActiveAcademicRecords(s),
+        centers: filterActiveAcademicRecords(c),
+        batches: filterActiveAcademicRecords(b),
       });
 
       // Default to targeting ALL if it's a new job

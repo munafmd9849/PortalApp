@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Calendar, Clock, Users, ArrowRight, 
   Search, MoreHorizontal, CheckCircle2,
-  Clock3, AlertCircle, Video, Trash2, Edit2, Layout,
+  Clock3, AlertCircle, Trash2, Edit2, Layout,
   ChevronRight, Filter
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
+import MockInterviewCreateModal from '../../components/dashboard/admin/MockInterviewCreateModal';
+import MockInterviewEditDriveModal from '../../components/dashboard/admin/MockInterviewEditDriveModal';
 
-export default function MockInterviewManagement() {
+export default function MockInterviewManagement({ autoOpenCreate = false }) {
   const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -17,6 +19,16 @@ export default function MockInterviewManagement() {
   const [activeTab, setActiveTab] = useState('all');
   const [showMenu, setShowMenu] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(autoOpenCreate);
+  const [editDrive, setEditDrive] = useState(null);
+
+  const openCreateModal = () => {
+    setShowCreateModal(true);
+  };
+
+  useEffect(() => {
+    if (autoOpenCreate) setShowCreateModal(true);
+  }, [autoOpenCreate]);
 
   const loadDrives = useCallback(async () => {
     try {
@@ -32,10 +44,16 @@ export default function MockInterviewManagement() {
 
   useEffect(() => {
     loadDrives();
-    const handleClickAway = () => setShowMenu(null);
-    window.addEventListener('click', handleClickAway);
-    return () => window.removeEventListener('click', handleClickAway);
   }, [loadDrives]);
+
+  useEffect(() => {
+    const handleClickAway = (e) => {
+      if (e.target.closest('[data-drive-menu-root]')) return;
+      setShowMenu(null);
+    };
+    document.addEventListener('click', handleClickAway);
+    return () => document.removeEventListener('click', handleClickAway);
+  }, []);
 
   const handleDeleteDrive = async (id) => {
     if (!window.confirm('Are you sure you want to delete this drive? All associated slots and data will be permanently removed.')) return;
@@ -89,6 +107,7 @@ export default function MockInterviewManagement() {
   const completedOverall = drives.reduce((acc, d) => acc + (d.slots || []).filter(s => s.status === 'COMPLETED').length, 0);
 
   return (
+    <>
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -102,7 +121,7 @@ export default function MockInterviewManagement() {
           <p className="text-slate-500 text-sm mt-1 font-medium">Manage scheduling, candidates, and 1:1 session results</p>
         </div>
         <button 
-          onClick={() => navigate('/admin?tab=mockInterviews-create')}
+          onClick={openCreateModal}
           className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
         >
           <Plus className="w-4 h-4" /> Create New Drive
@@ -130,7 +149,7 @@ export default function MockInterviewManagement() {
       </div>
 
       {/* Main List Container */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-visible flex flex-col">
         {/* Toolbar */}
         <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Pill Style Tabs */}
@@ -175,7 +194,7 @@ export default function MockInterviewManagement() {
         </div>
 
         {/* Drives Content */}
-        <div className="p-0">
+        <div className="p-0 overflow-visible rounded-b-3xl">
           {loading ? (
             <div className="py-32 flex flex-col items-center justify-center gap-4">
               <div className="w-12 h-12 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin" />
@@ -192,7 +211,7 @@ export default function MockInterviewManagement() {
               </div>
               {activeTab === 'all' && (
                 <button 
-                  onClick={() => navigate('/admin?tab=mockInterviews-create')}
+                  onClick={openCreateModal}
                   className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-900/10"
                 >
                   Create Your First Drive
@@ -207,7 +226,7 @@ export default function MockInterviewManagement() {
                 const hasActiveSession = drive.slots?.some(s => ['WAITING', 'LIVE'].includes(s.status));
 
                 return (
-                  <div key={drive.id} className="p-6 sm:p-8 hover:bg-slate-50/40 transition-all group relative text-left">
+                  <div key={drive.id} className="p-6 sm:p-8 hover:bg-slate-50/40 transition-all group relative text-left overflow-visible">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="flex gap-6">
                         {/* Date Mini-Card */}
@@ -273,28 +292,39 @@ export default function MockInterviewManagement() {
                           <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
                         </button>
                         
-                        <div className="relative">
+                        <div className="relative z-20" data-drive-menu-root>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); setShowMenu(showMenu === drive.id ? null : drive.id); }}
+                            type="button"
+                            onClick={() => setShowMenu(showMenu === drive.id ? null : drive.id)}
                             className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all border border-transparent hover:border-slate-200 active:scale-95"
+                            aria-expanded={showMenu === drive.id}
+                            aria-haspopup="menu"
                           >
                             <MoreHorizontal className="w-4 h-4" />
                           </button>
                           
                           {showMenu === drive.id && (
-                            <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right">
+                            <div
+                              role="menu"
+                              className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-[200] animate-in fade-in zoom-in duration-200 origin-top-right"
+                            >
                               <div className="px-4 py-2 mb-1 border-b border-slate-50">
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-left">Drive Management</p>
                               </div>
-                              <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowMenu(null);
+                                  setEditDrive(drive);
+                                }}
+                                className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                              >
                                 <Edit2 className="w-4 h-4 text-slate-400" /> Edit Details
-                              </button>
-                              <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors">
-                                <Video className="w-4 h-4 text-slate-400" /> Proctor Console
                               </button>
                               <div className="h-px bg-slate-50 my-1.5" />
                               <button 
-                                onClick={(e) => { e.stopPropagation(); handleDeleteDrive(drive.id); }}
+                                type="button"
+                                onClick={() => { setShowMenu(null); handleDeleteDrive(drive.id); }}
                                 className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-3 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4 text-rose-400" /> Delete Drive
@@ -312,5 +342,19 @@ export default function MockInterviewManagement() {
         </div>
       </div>
     </div>
+
+    <MockInterviewCreateModal
+      isOpen={showCreateModal}
+      onClose={() => setShowCreateModal(false)}
+      onSuccess={loadDrives}
+    />
+
+    <MockInterviewEditDriveModal
+      drive={editDrive}
+      isOpen={Boolean(editDrive)}
+      onClose={() => setEditDrive(null)}
+      onSuccess={loadDrives}
+    />
+    </>
   );
 }

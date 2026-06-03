@@ -41,6 +41,11 @@ export const defaultProctoringConfig = Object.freeze({
   snapshotJpegQuality: 0.6,
   snapshotMaxWidth: 640,
   snapshotMaxHeight: 360,
+  /** Legacy JPEG frames over socket — use WebRTC live video instead */
+  liveFrameToAdmin: false,
+  liveFrameIntervalMs: 1000,
+  liveFrameMaxWidth: 400,
+  liveFrameJpegQuality: 0.45,
   audioMonitoring: false,
   audioRmsThreshold: 0.25,
   audioSpikeConsecutiveSamples: 5,

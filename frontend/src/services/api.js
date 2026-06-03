@@ -122,7 +122,7 @@ async function refreshAccessToken() {
  * @returns {Promise} API response data
  */
 async function apiRequest(endpoint, options = {}) {
-  const { silent = false, showSuccess = false, ...fetchOptions } = options;
+  const { silent = false, showSuccess = false, noCache = false, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
   const token = getAuthToken();
 
@@ -168,7 +168,7 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   // 2. Cache Lookup for GETs
-  if (method === 'GET' && !fetchOptions.body) {
+  if (method === 'GET' && !fetchOptions.body && !noCache) {
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -309,7 +309,7 @@ async function apiRequest(endpoint, options = {}) {
     const data = await response.json();
 
     // --- UNIVERSAL CACHE: SAVE ---
-    if (method === 'GET' && !fetchOptions.body) {
+    if (method === 'GET' && !fetchOptions.body && !noCache) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify({
           data,
@@ -1075,19 +1075,20 @@ export const api = {
   },
 
   // Academic Structure
-  getSchools: () => apiRequest('/academic/schools'),
-  getCenters: () => apiRequest('/academic/centers'),
-  getBatches: () => apiRequest('/academic/batches'),
+  getSchools: (opts) =>
+    apiRequest(`/academic/schools${opts?.includeInactive ? '?includeInactive=true' : ''}`),
+  getCenters: (opts) =>
+    apiRequest(`/academic/centers${opts?.includeInactive ? '?includeInactive=true' : ''}`),
+  getBatches: (opts) =>
+    apiRequest(`/academic/batches${opts?.includeInactive ? '?includeInactive=true' : ''}`),
   createSchool: (data) => apiRequest('/academic/schools', { method: 'POST', body: JSON.stringify(data) }),
   updateSchool: (id, data) => apiRequest(`/academic/schools/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSchool: (id) => apiRequest(`/academic/schools/${id}`, { method: 'DELETE' }),
 
-  getCenters: () => apiRequest('/academic/centers'),
   createCenter: (data) => apiRequest('/academic/centers', { method: 'POST', body: JSON.stringify(data) }),
   updateCenter: (id, data) => apiRequest(`/academic/centers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCenter: (id) => apiRequest(`/academic/centers/${id}`, { method: 'DELETE' }),
 
-  getBatches: () => apiRequest('/academic/batches'),
   createBatch: (data) => apiRequest('/academic/batches', { method: 'POST', body: JSON.stringify(data) }),
   updateBatch: (id, data) => apiRequest(`/academic/batches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteBatch: (id) => apiRequest(`/academic/batches/${id}`, { method: 'DELETE' }),
@@ -1107,7 +1108,8 @@ export const api = {
   getAssessments: () => apiRequest('/assessments/all'),
   getAssessmentDetails: (id) => apiRequest(`/assessments/details/${id}`),
   getAssessmentResults: (sessionId) => apiRequest(`/assessments/results/${sessionId}`),
-  getStudentAssessments: () => apiRequest('/assessments/my-assignments'),
+  getStudentAssessments: () =>
+    apiRequest('/assessments/my-assignments', { noCache: true }),
   startAssessmentSession: (id) => apiRequest(`/assessments/session/start/${id}`, { method: 'POST' }),
   logProctoringViolation: (sessionId, data) => apiRequest(`/assessments/session/violation/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   uploadProctoringMedia: (sessionId, data) => apiRequest(`/assessments/session/media/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
@@ -1115,6 +1117,8 @@ export const api = {
   getProctoringSessionDetails: (sessionId) => apiRequest(`/assessments/session/proctoring/${sessionId}`),
   getProctoringScreenshotUrl: (screenshotId) => apiRequest(`/assessments/session/screenshot/${screenshotId}/url`),
   completeAssessment: (sessionId, data) => apiRequest(`/assessments/session/complete/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  runCode: (data) => apiRequest('/code/run', { method: 'POST', body: JSON.stringify(data) }),
+  evaluateCode: (data) => apiRequest('/code/evaluate', { method: 'POST', body: JSON.stringify(data) }),
   evaluateAssessmentCandidate: (assessmentId, studentId, data) => apiRequest(`/assessments/evaluate/${assessmentId}/${studentId}`, { method: 'POST', body: JSON.stringify(data) }),
   getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
   getLiveAssessmentSessions: (id) => apiRequest(`/assessments/${id}/live-sessions`),
@@ -1122,11 +1126,13 @@ export const api = {
 
   // Mock Interview System
   createMockInterviewDrive: (data) => apiRequest('/mock-interviews/create', { method: 'POST', body: JSON.stringify(data) }),
-  getMockInterviewDrives: () => apiRequest('/mock-interviews/all'),
+  getMockInterviewDrives: (opts = {}) => apiRequest('/mock-interviews/all', { noCache: true, ...opts }),
   assignStudentToSlot: (data) => apiRequest('/mock-interviews/assign', { method: 'POST', body: JSON.stringify(data) }),
   updateMockSlotStatus: (data) => apiRequest('/mock-interviews/update-status', { method: 'POST', body: JSON.stringify(data) }),
   getStudentMockInterviews: () => apiRequest('/mock-interviews/my-sessions'),
   submitMockFeedback: (data) => apiRequest('/mock-interviews/feedback', { method: 'POST', body: JSON.stringify(data) }),
+  updateMockInterviewDrive: (id, data) =>
+    apiRequest(`/mock-interviews/drives/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMockInterviewDrive: (id) => apiRequest(`/mock-interviews/drives/${id}`, { method: 'DELETE' }),
   getMockInterviewSlot: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}`),
   updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),

@@ -61,6 +61,7 @@ export default function AuthRedirect() {
       const isAdminSubRoute = (roleLower === 'admin' || roleLower === 'super_admin') && (
         currentPath.startsWith('/admin/interview-session/') ||
         currentPath.startsWith('/admin/assessment/') ||
+        currentPath.startsWith('/admin/assessments/') ||
         currentPath.startsWith('/admin/job/') ||
         currentPath.startsWith('/admin/jobs/') ||
         currentPath.startsWith('/admin/mock-interviews') ||

@@ -12,11 +12,11 @@ import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
 import { API_BASE_URL } from '../../../config/api';
 import CustomDropdown from '../../common/CustomDropdown';
-import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 import StudentDetailsModal from '../../common/StudentDetailsModal';
 import BlockModal from '../../common/BlockModal';
 import DashboardHome from '../../dashboard/student/DashboardHome';
 import { getTargetedJobsForStudent } from '../../../services/jobs';
+import { fetchAcademicOptions, buildStandardFilterOptions } from '../../../utils/academicOptions';
 import { getStudentApplications } from '../../../services/applications';
 // TODO: Replace Firebase operations with API calls
 
@@ -520,8 +520,7 @@ export default function StudentDirectory() {
     center: '',
     school: '',
     status: '',
-    degree: '',
-    branch: '',
+    batch: '',
     minCgpa: '',
     maxCgpa: '',
     tier: '',
@@ -544,21 +543,22 @@ export default function StudentDirectory() {
   const [lastErrorTime, setLastErrorTime] = useState(null);
   const loadAttemptsRef = useRef(0);
   const isLoadingRef = useRef(false); // Track if a load is in progress
-  const [academicOptions, setAcademicOptions] = useState({ schools: [], centers: [] });
+  const [academicFilterOptions, setAcademicFilterOptions] = useState({
+    schools: [],
+    centers: [],
+    batches: [],
+  });
 
   useEffect(() => {
-    const fetchAcademicOptions = async () => {
+    const loadAcademicFilters = async () => {
       try {
-        const [s, c] = await Promise.all([
-          api.getSchools(),
-          api.getCenters()
-        ]);
-        setAcademicOptions({ schools: s || [], centers: c || [] });
+        const raw = await fetchAcademicOptions();
+        setAcademicFilterOptions(buildStandardFilterOptions(raw));
       } catch (err) {
         console.error('Failed to load academic options for directory filters:', err);
       }
     };
-    fetchAcademicOptions();
+    loadAcademicFilters();
   }, []);
 
   useEffect(() => {
@@ -605,8 +605,7 @@ export default function StudentDirectory() {
         center: filters.center,
         school: filters.school,
         status: filters.status,
-        degree: filters.degree,
-        branch: filters.branch,
+        batch: filters.batch,
         minCgpa: filters.minCgpa,
         maxCgpa: filters.maxCgpa,
         sortBy: sortByScores,
@@ -804,8 +803,7 @@ export default function StudentDirectory() {
         center: filters.center,
         school: filters.school,
         status: filters.status,
-        degree: filters.degree,
-        branch: filters.branch,
+        batch: filters.batch,
         minCgpa: filters.minCgpa,
         maxCgpa: filters.maxCgpa,
         tier: filters.tier,
@@ -816,8 +814,7 @@ export default function StudentDirectory() {
         center: filters.center,
         school: filters.school,
         status: filters.status,
-        degree: filters.degree,
-        branch: filters.branch,
+        batch: filters.batch,
         minCgpa: filters.minCgpa,
         maxCgpa: filters.maxCgpa,
         limit: 1000,
@@ -944,31 +941,16 @@ export default function StudentDirectory() {
     setFilters({
       center: '',
       school: '',
+      batch: '',
       status: '',
       minCgpa: '',
       maxCgpa: '',
+      tier: '',
+      minReadiness: '',
     });
   };
 
   // Get status styling - matching job moderation style
-  const uniqueDegrees = useMemo(() => {
-    const degreeSet = new Set();
-    students.forEach((student) => {
-      const degree = student.topEducationDegree || student.education?.[0]?.degree;
-      if (degree) degreeSet.add(degree.trim());
-    });
-    return Array.from(degreeSet).sort();
-  }, [students]);
-
-  const uniqueBranches = useMemo(() => {
-    const branchSet = new Set();
-    students.forEach((student) => {
-      const branch = student.topEducationBranch || student.education?.[0]?.description;
-      if (branch) branchSet.add(branch.trim());
-    });
-    return Array.from(branchSet).sort();
-  }, [students]);
-
   const getStatusChip = (status) => {
     const statusStyles = {
       active: {
@@ -1190,31 +1172,6 @@ export default function StudentDirectory() {
     }
   };
 
-  // Get unique values for filter dropdowns
-  const filterCenterOptions = useMemo(() => {
-    // Start with dynamic options
-    const merged = academicOptions.centers.map(c => ({ id: c.name, name: c.name }));
-    // Add unique ones found in current student list (for backward compatibility/consistency)
-    const uniqueCenters = [...new Set(students.map(s => s.center).filter(c => c && c !== 'N/A'))];
-    uniqueCenters.forEach((center) => {
-      if (!merged.some(option => option.id === center)) {
-        merged.push({ id: center, name: center });
-      }
-    });
-    return merged;
-  }, [academicOptions.centers, students]);
-
-  const filterSchoolOptions = useMemo(() => {
-    const merged = academicOptions.schools.map(s => ({ id: s.name, name: s.name }));
-    const uniqueSchools = [...new Set(students.map(s => s.school).filter(s => s && s !== 'N/A'))];
-    uniqueSchools.forEach((school) => {
-      if (!merged.some(option => option.id === school)) {
-        merged.push({ id: school, name: school });
-      }
-    });
-    return merged;
-  }, [academicOptions.schools, students]);
-
   // Calculate statistics from ALL students (not filtered) - must be before conditional returns to follow Rules of Hooks
   const stats = useMemo(() => {
     const active = students.filter(s => s.status === 'Active').length;
@@ -1381,13 +1338,13 @@ export default function StudentDirectory() {
           <FaFilter className="w-5 h-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           {/* Center Filter */}
           <CustomDropdown
             label="Center"
             icon={FaMapMarkerAlt}
             iconColor="text-indigo-600"
-            options={filterCenterOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+            options={academicFilterOptions.centers.map((opt) => ({ value: opt.id, label: opt.name }))}
             value={filters.center}
             onChange={(value) => handleFilterDropdownChange('center', value)}
             placeholder="All Centers"
@@ -1398,32 +1355,24 @@ export default function StudentDirectory() {
             label="School"
             icon={FaGraduationCap}
             iconColor="text-purple-600"
-            options={filterSchoolOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+            options={academicFilterOptions.schools.map((opt) => ({ value: opt.id, label: opt.name }))}
             value={filters.school}
             onChange={(value) => handleFilterDropdownChange('school', value)}
             placeholder="All Schools"
           />
 
-          {/* Degree Filter */}
+          {/* Batch Filter */}
           <CustomDropdown
-            label="Degree"
-            icon={FaGraduationCap}
-            iconColor="text-sky-600"
-            options={uniqueDegrees.map(degree => ({ value: degree, label: degree }))}
-            value={filters.degree}
-            onChange={(value) => handleFilterDropdownChange('degree', value)}
-            placeholder="All Degrees"
-          />
-
-          {/* Branch Filter */}
-          <CustomDropdown
-            label="Branch"
-            icon={FaGraduationCap}
+            label="Batch"
+            icon={FaCalendarAlt}
             iconColor="text-fuchsia-600"
-            options={uniqueBranches.map(branch => ({ value: branch, label: branch }))}
-            value={filters.branch}
-            onChange={(value) => handleFilterDropdownChange('branch', value)}
-            placeholder="All Branches"
+            options={academicFilterOptions.batches.map((opt) => ({
+              value: opt.id,
+              label: opt.label || opt.name,
+            }))}
+            value={filters.batch}
+            onChange={(value) => handleFilterDropdownChange('batch', value)}
+            placeholder="All Batches"
           />
 
           {/* Status Filter */}
@@ -1436,7 +1385,9 @@ export default function StudentDirectory() {
             onChange={(value) => handleFilterDropdownChange('status', value)}
             placeholder="All Status"
           />
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <CustomDropdown
             label="Readiness tier"
             icon={FaChartLine}
@@ -1446,10 +1397,6 @@ export default function StudentDirectory() {
             onChange={(value) => handleFilterDropdownChange('tier', value)}
             placeholder="All readiness"
           />
-        </div>
-
-        {/* CGPA Range and Reset */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
               <FaGraduationCap className="w-4 h-4 text-blue-600" />

@@ -266,6 +266,7 @@ function AppContent() {
           <Route path="/super-admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/super-admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/super-admin/assessments/:id/results" element={<AdminAssessmentResults />} />
+          <Route path="/super-admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
           <Route path="/super-admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/super-admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/super-admin" element={<AdminDashboard />} />

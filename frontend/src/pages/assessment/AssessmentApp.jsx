@@ -7,10 +7,23 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
-import CodeEditor from '../../components/assessment/CodeEditor';
+import {
+  CodingWorkspace,
+  parseCodingAnswer,
+  serializeCodingAnswer,
+  parseTestCases,
+} from '../../coding-engine';
 import ProctoringConsole from '../../components/assessment/ProctoringConsole';
 import { ProctoringEngine } from '../../proctoring-engine/ProctoringEngine';
 import { defaultProctoringConfig } from '../../proctoring-engine/constants';
+import {
+  getAssessmentEntryStatus,
+  formatAssessmentWindow,
+} from '../../utils/assessmentEntryWindow';
+import { getJitsiDomain } from '../../utils/jitsiMeet';
+import { normalizeMcqAnswer } from '../../utils/mcqAnswers';
+import { initSocket } from '../../services/socket';
+import { ProctoringBroadcaster } from '../../proctoring-engine/liveProctoringRtc';
 
 export default function AssessmentApp() {
   const { assessmentId } = useParams();
@@ -32,6 +45,7 @@ export default function AssessmentApp() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState({}); // Stores MCQ options or Code snippets
+  const [cameraLive, setCameraLive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isPreCheckDone, setIsPreCheckDone] = useState(false);
   const [violations, setViolations] = useState(0);
@@ -45,14 +59,19 @@ export default function AssessmentApp() {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const jitsiContainerRef = useRef(null);
+  const jitsiApiRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const canvasRef = useRef(null);
 
   const proctorRef = useRef(null);
+  const proctorRtcRef = useRef(null);
   const [precheck, setPrecheck] = useState({
     cameraReady: false,
     fullscreen: false,
     faceOk: false,
+    faceLoading: false,
+    faceDetectorFailed: false,
+    faceHint: '',
     error: '',
   });
   const [starting, setStarting] = useState(false);
@@ -77,27 +96,13 @@ export default function AssessmentApp() {
           setIsPreCheckDone(true);
           setLoading(false);
         } else {
-          // Check Timing logic
-          if (details.startTime) {
-             const now = new Date();
-             const start = new Date(details.startTime);
-             const diffMins = (now - start) / 1000 / 60;
-             
-             if (diffMins < -10) {
-               setEntryStatus('TOO_EARLY');
-               setLoading(false);
-               return;
-             }
-             if (diffMins > 5) {
-               setEntryStatus('TOO_LATE');
-               setLoading(false);
-               return;
-             }
-          }
+          const entry = getAssessmentEntryStatus(details);
+          setEntryStatus(entry.status);
 
           // Fetch details but DO NOT start the session if they haven't finished PreCheck
           // The session will be started in startAssessment()
           setLoading(false);
+          if (entry.status !== 'ALLOWED') return;
         }
       } catch (e) {
         console.error('Init failed:', e);
@@ -142,29 +147,71 @@ export default function AssessmentApp() {
     }
   }, [isInterviewer, toast]);
 
-  // 4. Jitsi Integration (Modernized to meet.guifi.net)
+  // 4. Jitsi Integration (Configurable and robust)
   useEffect(() => {
     if (!loading && assessment?.type === 'MOCK_INTERVIEW_LIVE' && isPreCheckDone) {
       loadJitsiScript();
     }
+    return () => {
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose();
+        jitsiApiRef.current = null;
+      }
+    };
   }, [loading, assessment, isPreCheckDone]);
 
   const loadJitsiScript = () => {
+    const jitsiDomain = getJitsiDomain();
     const scriptId = 'jitsi-external-api';
-    if (document.getElementById(scriptId)) {
-      initJitsi();
+    
+    const onScriptLoad = () => {
+      if (window.temp_define) {
+        window.define = window.temp_define;
+        delete window.temp_define;
+      }
+      initJitsi(jitsiDomain);
+    };
+
+    if (window.JitsiMeetExternalAPI) {
+      onScriptLoad();
       return;
     }
-    const script = document.createElement('script');
+
+    let script = document.getElementById(scriptId);
+    if (script) {
+      const interval = setInterval(() => {
+        if (window.JitsiMeetExternalAPI) {
+          clearInterval(interval);
+          onScriptLoad();
+        }
+      }, 100);
+      return;
+    }
+
+    if (window.define && window.define.amd) {
+      window.temp_define = window.define;
+      window.define = undefined;
+    }
+
+    script = document.createElement('script');
     script.id = scriptId;
-    script.src = 'https://meet.guifi.net/external_api.js';
+    script.src = `https://${jitsiDomain}/external_api.js`;
     script.async = true;
-    script.onload = initJitsi;
+    script.onload = onScriptLoad;
+    script.onerror = () => {
+      if (window.temp_define) {
+        window.define = window.temp_define;
+        delete window.temp_define;
+      }
+    };
     document.head.appendChild(script);
   };
 
-  const initJitsi = () => {
+  const initJitsi = (domain) => {
     if (!window.JitsiMeetExternalAPI || !jitsiContainerRef.current) return;
+    
+    jitsiContainerRef.current.innerHTML = '';
+    
     const roomName = `PWIOI_Assessment_${assessmentId}_${isInterviewer ? studentIdParam : session?.studentId}`;
     const options = {
       roomName,
@@ -175,8 +222,8 @@ export default function AssessmentApp() {
       configOverwrite: { prejoinPageEnabled: false, disableDeepLinking: true, enableWelcomePage: false },
       interfaceConfigOverwrite: { SHOW_JITSI_WATERMARK: false, SHOW_WATERMARK_FOR_GUESTS: false }
     };
-    const apiInstance = new window.JitsiMeetExternalAPI('meet.guifi.net', options);
-    return () => apiInstance.dispose();
+    const apiInstance = new window.JitsiMeetExternalAPI(domain, options);
+    jitsiApiRef.current = apiInstance;
   };
 
   // 5. Actions
@@ -192,9 +239,10 @@ export default function AssessmentApp() {
         tabSwitch: p.tabSwitch !== false,
         windowBlur: true,
         fullscreenRequired: p.fullscreen !== false,
-        periodicSnapshotBaseMs: 180000,
-        periodicSnapshotJitterMs: 25000,
+        periodicSnapshotBaseMs: Math.max(25000, (Number(p.snapshotInterval) || 45) * 1000),
+        periodicSnapshotJitterMs: Math.min(15000, Math.max(5000, Math.round((Number(p.snapshotInterval) || 60) * 1000 * 0.15))),
         screenshotDebounceMs: 8000,
+        liveFrameToAdmin: false,
         faceMonitoring: true,
       };
     } catch {
@@ -229,41 +277,112 @@ export default function AssessmentApp() {
     });
     proctorRef.current = engine;
     return engine;
-  }, [getProctoringConfig, logViolation, session, toast]);
+  }, [getProctoringConfig, logViolation, session, toast, assessmentId]);
+
+  const runPrecheckValidation = useCallback(async () => {
+    const e = proctorRef.current;
+    if (!e) return;
+    const streamActive = e.isCameraActive();
+    const detector = e.getFaceDetectorStatus();
+    const faceCount = e.cfg.faceMonitoring && detector.state === 'ready'
+      ? await e.detectFacesOnce()
+      : e.cfg.faceMonitoring
+        ? 0
+        : 1;
+
+    let faceHint = '';
+    if (e.cfg.faceMonitoring && detector.state === 'ready') {
+      if (faceCount === 0) faceHint = 'No face detected — center yourself in the frame with good lighting.';
+      else if (faceCount > 1) faceHint = 'Multiple faces detected — only you should be visible on camera.';
+    }
+
+    setPrecheck((p) => ({
+      ...p,
+      cameraReady: streamActive,
+      fullscreen: e.cfg.fullscreenRequired ? e.isFullscreen : true,
+      faceLoading: e.cfg.faceMonitoring && detector.state === 'loading' && streamActive,
+      faceDetectorFailed: detector.state === 'failed',
+      faceOk: e.cfg.faceMonitoring ? faceCount === 1 : true,
+      faceHint,
+      error:
+        detector.state === 'failed'
+          ? detector.error || 'Face detection could not load. Check your internet and click Retry below.'
+          : streamActive
+            ? ''
+            : p.error,
+    }));
+  }, []);
+
+  const retryFaceDetection = async () => {
+    const e = proctorRef.current;
+    if (!e) return;
+    setPrecheck((p) => ({ ...p, faceLoading: true, faceDetectorFailed: false, error: '', faceHint: '' }));
+    await e.retryFaceDetector();
+    await runPrecheckValidation();
+  };
 
   const startCameraPrecheck = async () => {
     try {
-      setPrecheck((p) => ({ ...p, error: '' }));
+      setPrecheck((p) => ({ ...p, error: '', faceLoading: true }));
       const engine = await ensureProctorEngine();
       await engine.initCamera({ withAudio: engine.cfg.micRequired || engine.cfg.audioMonitoring });
-      setPrecheck((p) => ({ ...p, cameraReady: true }));
+      await runPrecheckValidation();
 
       if (precheckIntervalRef.current) clearInterval(precheckIntervalRef.current);
-      precheckIntervalRef.current = setInterval(async () => {
-        try {
-          const e = proctorRef.current;
-          if (!e) return;
-          const faceCount = e.cfg.faceMonitoring ? await e.detectFacesOnce() : 1;
-          setPrecheck((p) => ({
-            ...p,
-            fullscreen: e.cfg.fullscreenRequired ? e.isFullscreen : true,
-            faceOk: e.cfg.faceMonitoring ? faceCount === 1 : true,
-          }));
-        } catch {
-          // ignore
-        }
-      }, 2000);
+      precheckIntervalRef.current = setInterval(() => {
+        runPrecheckValidation().catch(() => {});
+      }, 1500);
     } catch (e) {
-      setPrecheck((p) => ({ ...p, error: e?.message || 'Failed to start camera' }));
+      const msg =
+        e?.name === 'NotAllowedError'
+          ? 'Camera permission denied. Allow camera access in browser settings and try again.'
+          : e?.message || 'Failed to start camera';
+      setPrecheck((p) => ({ ...p, error: msg, cameraReady: false, faceLoading: false }));
       toast?.error('Camera access is required for proctoring');
     }
   };
+
+  useEffect(() => {
+    if (isPreCheckDone || isInterviewer || loading) return;
+    import('../../proctoring-engine/mediapipeFaceDetector')
+      .then((m) => m.ensureFaceDetector())
+      .catch(() => {});
+  }, [isPreCheckDone, isInterviewer, loading]);
+
+  // Re-attach camera stream when exam UI mounts (new <video> DOM node after pre-check)
+  useEffect(() => {
+    if (!isPreCheckDone || isInterviewer || loading || !session) return;
+    const attach = () => proctorRef.current?.reattachVideo();
+    attach();
+    const t = setTimeout(attach, 100);
+    const t2 = setTimeout(attach, 500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+    };
+  }, [isPreCheckDone, isInterviewer, loading, session?.id]);
+
+  useEffect(() => {
+    if (!isPreCheckDone || isInterviewer) return;
+    const tick = () => setCameraLive(proctorRef.current?.isCameraActive() ?? false);
+    tick();
+    const id = setInterval(tick, 800);
+    return () => clearInterval(id);
+  }, [isPreCheckDone, isInterviewer, session?.id]);
+
+  useEffect(() => {
+    if (isPreCheckDone || isInterviewer) return;
+    const onFsChange = () => runPrecheckValidation().catch(() => {});
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [isPreCheckDone, isInterviewer, runPrecheckValidation]);
 
   const enterFullscreenPrecheck = async () => {
     const engine = proctorRef.current;
     if (!engine) return;
     const ok = await engine.requestFullscreen();
     setPrecheck((p) => ({ ...p, fullscreen: ok || engine.isFullscreen }));
+    runPrecheckValidation().catch(() => {});
   };
 
   const startAssessment = async () => {
@@ -281,26 +400,44 @@ export default function AssessmentApp() {
       if (!gate.ok) {
         const msg =
           gate.reason === 'FULLSCREEN_REQUIRED' ? 'Fullscreen is required to start.' :
-            gate.reason === 'NO_FACE_DETECTED' ? 'Face not detected. Sit in front of the camera.' :
-              gate.reason === 'MULTIPLE_FACES' ? 'Multiple faces detected. Only one person should be visible.' :
-                'Pre-check failed. Please allow camera and stay in fullscreen.';
+            gate.reason === 'CAMERA_REQUIRED' ? 'Camera is not active. Click Enable Camera and allow permission.' :
+              gate.reason === 'NO_FACE_DETECTED' ? 'Face not detected. Sit in front of the camera with good lighting.' :
+                gate.reason === 'MULTIPLE_FACES' ? 'Multiple faces detected. Only one person should be visible.' :
+                  'Pre-check failed. Please allow camera and stay in fullscreen.';
         toast?.error(msg);
         return;
       }
 
-      // Check if it's still before startTime
-      if (assessment.startTime) {
-        const diffMins = (new Date() - new Date(assessment.startTime)) / 1000 / 60;
-        if (diffMins < 0) {
-          setEntryStatus('WAITING');
-          setIsPreCheckDone(true);
-          return;
-        }
+      const fresh = await api.getAssessmentDetails(assessmentId);
+      setAssessment(fresh);
+      const entry = getAssessmentEntryStatus(fresh);
+      if (entry.status === 'TOO_EARLY') {
+        setEntryStatus('WAITING');
+        setIsPreCheckDone(true);
+        return;
+      }
+      if (entry.status === 'TOO_LATE') {
+        setEntryStatus('TOO_LATE');
+        toast?.error('The assessment entry window has closed.');
+        return;
       }
 
       await executeTestStart();
-      // Start monitoring only after session exists
+      initSocket();
       await engine.start();
+
+      if (proctorRtcRef.current) {
+        proctorRtcRef.current.stop();
+      }
+      const sess = sessionRef.current;
+      if (sess?.id) {
+        proctorRtcRef.current = new ProctoringBroadcaster({
+          sessionId: sess.id,
+          assessmentId,
+          getStream: () => proctorRef.current?.getStream?.() ?? null,
+        });
+        await proctorRtcRef.current.start();
+      }
     } finally {
       setStarting(false);
     }
@@ -361,6 +498,7 @@ export default function AssessmentApp() {
       toast?.success('Assessment submitted successfully');
       if (document.fullscreenElement) document.exitFullscreen();
       try {
+        proctorRtcRef.current?.stop();
         proctorRef.current?.destroy?.();
       } catch {}
       navigate('/student/dashboard');
@@ -377,6 +515,7 @@ export default function AssessmentApp() {
         if (precheckIntervalRef.current) clearInterval(precheckIntervalRef.current);
       } catch {}
       try {
+        proctorRtcRef.current?.stop();
         proctorRef.current?.destroy?.();
       } catch {}
     };
@@ -409,17 +548,54 @@ export default function AssessmentApp() {
     );
   }
 
+  const recheckEntryWindow = async () => {
+    try {
+      setLoading(true);
+      const fresh = await api.getAssessmentDetails(assessmentId);
+      setAssessment(fresh);
+      const entry = getAssessmentEntryStatus(fresh);
+      setEntryStatus(entry.status);
+      if (entry.status === 'ALLOWED') {
+        toast?.success('You can enter the assessment now.');
+      }
+    } catch {
+      toast?.error('Could not refresh assessment schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (entryStatus === 'TOO_LATE') {
+    const entry = assessment ? getAssessmentEntryStatus(assessment) : null;
     return (
       <div className="h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <div className="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-6 border border-rose-500/30 shadow-2xl shadow-rose-500/20">
            <Ban className="w-10 h-10 text-rose-400" />
         </div>
         <h2 className="text-3xl font-black text-white tracking-tight mb-3">Entry Closed</h2>
-        <p className="text-slate-400 max-w-md mx-auto">The 5-minute late entry window has expired. You are no longer permitted to start this assessment.</p>
-        <button onClick={() => navigate('/student/dashboard')} className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm">
-          Return to Dashboard
-        </button>
+        <p className="text-slate-400 max-w-md mx-auto">
+          {assessment?.endTime
+            ? `The assessment window ended at ${formatAssessmentWindow(assessment.endTime)}.`
+            : 'The late entry window after the scheduled start has expired.'}
+        </p>
+        {assessment?.startTime && (
+          <p className="text-slate-500 text-xs mt-3 max-w-md">
+            Scheduled: {formatAssessmentWindow(assessment.startTime)}
+            {assessment.endTime ? ` — ${formatAssessmentWindow(assessment.endTime)}` : ''}
+          </p>
+        )}
+        <div className="mt-8 flex flex-wrap gap-3 justify-center">
+          <button
+            type="button"
+            onClick={recheckEntryWindow}
+            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all text-sm"
+          >
+            Check again
+          </button>
+          <button onClick={() => navigate('/student/dashboard')} className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm">
+            Return to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
@@ -529,8 +705,23 @@ export default function AssessmentApp() {
                 </div>
                 <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3">
                   <span className="text-xs font-bold text-slate-200">Face detectable</span>
-                  {precheck.faceOk ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-rose-400" />}
+                  {precheck.faceLoading ? (
+                    <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                  ) : precheck.faceOk ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-400" />
+                  )}
                 </div>
+                {precheck.faceDetectorFailed && (
+                  <button
+                    type="button"
+                    onClick={retryFaceDetection}
+                    className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Retry face detection
+                  </button>
+                )}
                 <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3">
                   <span className="text-xs font-bold text-slate-200">Fullscreen enabled</span>
                   {precheck.fullscreen ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-rose-400" />}
@@ -538,6 +729,8 @@ export default function AssessmentApp() {
               </div>
               <p className="text-[11px] text-slate-500 mt-4">
                 You can start only after all checks pass. Exiting fullscreen or leaving camera view will be logged.
+                {precheck.faceLoading ? ' Loading face detection (first time may take up to 20s)…' : ''}
+                {precheck.faceHint ? ` ${precheck.faceHint}` : ''}
               </p>
             </div>
           </div>
@@ -668,48 +861,100 @@ export default function AssessmentApp() {
               <div className="flex-1 min-h-[400px]">
                 {currentQuestion?.type === 'MCQ' ? (
                   <div className="grid gap-4">
-                    {JSON.parse(currentQuestion.options || '[]').map((opt, i) => (
+                    {JSON.parse(currentQuestion.options || '[]').map((opt, i) => {
+                      const opts = currentQuestion.options;
+                      const selected = normalizeMcqAnswer(answers[currentQuestion.id], opts) === String(i);
+                      return (
                       <button
                         key={i}
-                        onClick={() => handleAnswerChange(currentQuestion.id, opt)}
+                        type="button"
+                        onClick={() => handleAnswerChange(currentQuestion.id, String(i))}
                         className={`group p-6 text-left rounded-3xl border-2 transition-all flex items-center gap-6 ${
-                          answers[currentQuestion.id] === opt 
+                          selected
                           ? 'bg-indigo-600/10 border-indigo-500 text-white shadow-xl shadow-indigo-500/5' 
                           : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800/50'
                         }`}
                       >
                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black transition-all ${
-                          answers[currentQuestion.id] === opt 
+                          selected
                           ? 'bg-indigo-600 text-white' 
                           : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700'
                         }`}>
                           {String.fromCharCode(65 + i)}
                         </div>
                         <span className="text-sm font-bold flex-1">{opt}</span>
-                        {answers[currentQuestion.id] === opt && <CheckCircle className="w-5 h-5 text-indigo-500" />}
+                        {selected && <CheckCircle className="w-5 h-5 text-indigo-500" />}
                       </button>
-                    ))}
+                    );})}
                   </div>
                 ) : currentQuestion?.type === 'CODING' ? (
-                  <div className="h-[500px] flex flex-col gap-4">
-                    <div className="flex items-center justify-between px-2">
-                       <div className="flex items-center gap-3">
-                          <Terminal className="w-4 h-4 text-slate-500" />
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Main Workspace</span>
-                       </div>
-                       <div className="flex items-center gap-4">
-                          <select className="bg-slate-800 border-none rounded-lg px-3 py-1 text-[10px] font-bold text-slate-300 focus:ring-0">
-                             <option>JavaScript</option>
-                             <option>Python</option>
-                             <option>Java</option>
-                          </select>
-                       </div>
-                    </div>
-                    <CodeEditor 
-                      value={answers[currentQuestion.id] || ''}
-                      onChange={(val) => handleAnswerChange(currentQuestion.id, val)}
-                      language="javascript"
-                    />
+                  <div className="h-[min(560px,65vh)] flex flex-col rounded-2xl overflow-hidden border border-slate-800">
+                    {(() => {
+                      const parsed = parseCodingAnswer(
+                        answers[currentQuestion.id],
+                        'javascript'
+                      );
+                      const codeVal = answers[currentQuestion.id]
+                        ? parsed.code
+                        : (currentQuestion.starterCode || parsed.code);
+                      const lang = parsed.language || 'javascript';
+                      return (
+                        <CodingWorkspace
+                          code={codeVal}
+                          language={lang}
+                          onCodeChange={(newCode) => {
+                            const next = serializeCodingAnswer({
+                              ...parseCodingAnswer(answers[currentQuestion.id], lang),
+                              code: newCode,
+                              language: lang,
+                            });
+                            handleAnswerChange(currentQuestion.id, next);
+                          }}
+                          onLanguageChange={(newLang) => {
+                            const next = serializeCodingAnswer({
+                              ...parseCodingAnswer(answers[currentQuestion.id], newLang),
+                              language: newLang,
+                            });
+                            handleAnswerChange(currentQuestion.id, next);
+                          }}
+                          customInput={parsed.customInput}
+                          onCustomInputChange={(input) => {
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer({ ...parsed, customInput: input })
+                            );
+                          }}
+                          showSubmit
+                          testCases={parseTestCases(currentQuestion.testCases)}
+                          questionTitle={currentQuestion.questionText}
+                          questionDescription={currentQuestion.description}
+                          onSubmit={(payload) => {
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer(payload)
+                            );
+                            toast?.success('Coding answer saved');
+                          }}
+                          onRunComplete={(run) => {
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer({ ...parsed, code: codeVal, language: lang, lastRun: run })
+                            );
+                          }}
+                          onEvaluateComplete={(ev) => {
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer({
+                                ...parsed,
+                                code: codeVal,
+                                language: lang,
+                                evaluation: ev,
+                              })
+                            );
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="h-full bg-slate-900/50 border border-slate-800 rounded-3xl flex flex-col items-center justify-center p-12 gap-8">
@@ -758,6 +1003,7 @@ export default function AssessmentApp() {
               videoRef={videoRef}
               violations={violations}
               lastViolationType={lastViolationType}
+              cameraLive={cameraLive}
            />
 
            <div className="bg-slate-800/30 rounded-[2rem] p-6 border border-slate-800/50 flex-1">

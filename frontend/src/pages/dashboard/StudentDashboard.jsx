@@ -512,16 +512,11 @@ export default function StudentDashboard() {
       const loadOptions = async () => {
         try {
           setLoadingAcademicOptions(true);
-          const [s, c, b] = await Promise.all([
-            api.getSchools(),
-            api.getCenters(),
-            api.getBatches()
-          ]);
-          setAcademicOptions({
-            schools: (s || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-            centers: (c || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-            batches: (b || []).map(item => ({ value: item.year, label: item.year, id: item.id }))
-          });
+          const { fetchAcademicOptions, buildDropdownAcademicOptions } = await import(
+            '../../utils/academicOptions'
+          );
+          const raw = await fetchAcademicOptions();
+          setAcademicOptions(buildDropdownAcademicOptions(raw));
         } catch (err) {
           console.error('Failed to load academic options:', err);
         } finally {

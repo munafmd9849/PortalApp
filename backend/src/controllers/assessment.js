@@ -1,6 +1,11 @@
 import prisma from '../config/database.js';
 import { sendBulkAssessmentNotifications } from '../services/emailService.js';
-import vm from 'vm';
+import { mcqAnswersMatch } from '../utils/mcqGrading.js';
+import {
+  findStudentsForBatchIds,
+  resolveStudentAssignmentScope,
+} from '../utils/studentAssignmentScope.js';
+import { gradeCodingAnswer } from '../coding-engine/index.js';
 import multer from 'multer';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import { v2 as cloudinary } from 'cloudinary';
@@ -25,6 +30,27 @@ function computeRiskLevel(count) {
   return 'LOW';
 }
 
+function signedScreenshotUrl(row) {
+  if (!row) return null;
+  if (!row.publicId) return row.imageUrl;
+  const expiresAt = Math.floor(Date.now() / 1000) + 60 * 5;
+  return cloudinary.url(row.publicId, {
+    secure: true,
+    sign_url: true,
+    expires_at: expiresAt,
+    resource_type: 'image',
+  });
+}
+
+function emitProctoringLiveUpdate(assessmentId, payload) {
+  if (!assessmentId) return;
+  import('../config/socket.js')
+    .then(({ getIO }) => {
+      getIO().to(`proctoring:assessment:${assessmentId}`).emit('proctoring:update', payload);
+    })
+    .catch(() => {});
+}
+
 // --- ADMIN MODULES ---
 
 // Create Assessment
@@ -33,20 +59,38 @@ export async function createAssessment(req, res) {
     const { title, description, type, difficulty, duration, startTime, endTime, instructions, config, questions, targetBatchIds, targetStudentIds, scheduledAtMap } = req.body;
 
     // Prepare assignments data
-    const batchAssignments = (targetBatchIds || []).map(batchId => ({ batchId }));
-    
+    const batchAssignments = (targetBatchIds || []).map((batchId) => ({ batchId }));
+
     // Resolve studentIds from studentUserIds (passed from frontend)
     let studentAssignments = [];
     if (targetStudentIds && targetStudentIds.length > 0) {
       const targetStudents = await prisma.student.findMany({
         where: { userId: { in: targetStudentIds } },
-        select: { id: true, userId: true }
+        select: { id: true, userId: true },
       });
-      
-      studentAssignments = targetStudents.map(s => ({ 
+
+      studentAssignments = targetStudents.map((s) => ({
         studentId: s.id,
-        scheduledAt: scheduledAtMap?.[s.userId] ? new Date(scheduledAtMap[s.userId]) : null
+        scheduledAt: scheduledAtMap?.[s.userId]
+          ? new Date(scheduledAtMap[s.userId])
+          : null,
       }));
+    }
+
+    // Also assign each student in targeted batches (covers profiles with batch string only)
+    if (targetBatchIds?.length) {
+      const batchStudents = await findStudentsForBatchIds(targetBatchIds);
+      const seen = new Set(studentAssignments.map((a) => a.studentId));
+      for (const s of batchStudents) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        studentAssignments.push({
+          studentId: s.id,
+          scheduledAt: scheduledAtMap?.[s.userId]
+            ? new Date(scheduledAtMap[s.userId])
+            : null,
+        });
+      }
     }
 
     const assessment = await prisma.assessment.create({
@@ -85,16 +129,21 @@ export async function createAssessment(req, res) {
       const { getIO } = await import('../config/socket.js');
       const io = getIO();
       
-      // Find all targeted students (from batches OR individual selection)
-      const students = await prisma.student.findMany({
-        where: { 
-          OR: [
-            { batchId: { in: targetBatchIds || [] } },
-            { userId: { in: targetStudentIds || [] } }
-          ]
-        },
-        include: { user: { select: { email: true } } }
+      const batchStudents = targetBatchIds?.length
+        ? await findStudentsForBatchIds(targetBatchIds)
+        : [];
+      const individualStudents =
+        targetStudentIds?.length
+          ? await prisma.student.findMany({
+              where: { userId: { in: targetStudentIds } },
+              include: { user: { select: { email: true } } },
+            })
+          : [];
+      const byUserId = new Map();
+      [...batchStudents, ...individualStudents].forEach((s) => {
+        byUserId.set(s.userId, s);
       });
+      const students = [...byUserId.values()];
 
       // Create persistent notifications in DB
       await prisma.notification.createMany({
@@ -103,7 +152,7 @@ export async function createAssessment(req, res) {
           title: 'New Assessment Assigned',
           body: `You have been assigned a new ${type.replace('_', ' ').toLowerCase()}: ${title}`,
           type: 'ASSESSMENT',
-          link: `/student/dashboard?tab=assessments`
+          link: `/student?tab=assessments`
         }))
       });
 
@@ -187,15 +236,22 @@ export async function updateAssessment(req, res) {
   try {
     const { id } = req.params;
     const { title, duration, startTime, endTime } = req.body;
+    const { parseAssessmentDateInput } = await import('../utils/assessmentEntryWindow.js');
+
+    const parsedStart = parseAssessmentDateInput(startTime);
+    const parsedEnd = parseAssessmentDateInput(endTime);
+    if (parsedStart && parsedEnd && parsedEnd <= parsedStart) {
+      return res.status(400).json({ error: 'End time must be after start time' });
+    }
 
     const assessment = await prisma.assessment.update({
       where: { id },
       data: {
-        ...(title && { title }),
-        ...(duration && { duration: parseInt(duration) }),
-        ...(startTime !== undefined && { startTime: startTime ? new Date(startTime) : null }),
-        ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
-      }
+        ...(title !== undefined && title !== '' && { title }),
+        ...(duration !== undefined && duration !== '' && { duration: parseInt(duration, 10) }),
+        ...(startTime !== undefined && { startTime: parsedStart }),
+        ...(endTime !== undefined && { endTime: parsedEnd }),
+      },
     });
 
     res.json({ message: 'Assessment updated successfully', assessment });
@@ -225,38 +281,40 @@ export async function deleteAssessment(req, res) {
 // Get Assigned Assessments for Student
 export async function getStudentAssessments(req, res) {
   try {
+    const userId = req.userId || req.user?.id;
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id }
+      where: { userId },
     });
 
-    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (!student) {
+      return res.status(404).json({
+        error: 'Student profile not found. Please complete your onboarding.',
+      });
+    }
 
-    // Find assessments assigned specifically to student or their batch/school
+    const { assignmentMatch } = await resolveStudentAssignmentScope(student);
+
     const assessments = await prisma.assessment.findMany({
       where: {
         assignments: {
-          some: {
-            OR: [
-              { studentId: student.id },
-              { batchId: student.batchId },
-              { schoolId: student.schoolId }
-            ]
-          }
-        }
+          some: { OR: assignmentMatch },
+        },
       },
       include: {
         sessions: {
-          where: { studentId: student.id }
+          where: { studentId: student.id },
         },
         assignments: {
-          where: { studentId: student.id },
-          select: { scheduledAt: true }
-        }
+          where: { OR: assignmentMatch },
+          select: { scheduledAt: true, studentId: true, batchId: true },
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     res.json(assessments);
   } catch (error) {
+    console.error('getStudentAssessments error:', error);
     res.status(500).json({ error: 'Failed to fetch assigned assessments' });
   }
 }
@@ -265,6 +323,24 @@ export async function getStudentAssessments(req, res) {
 export async function startSession(req, res) {
   try {
     const { assessmentId } = req.params;
+    const { getAssessmentEntryStatus } = await import('../utils/assessmentEntryWindow.js');
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: { id: true, startTime: true, endTime: true, title: true },
+    });
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const entry = getAssessmentEntryStatus(assessment);
+    if (entry.status === 'TOO_EARLY') {
+      return res.status(403).json({ error: 'Assessment has not started yet' });
+    }
+    if (entry.status === 'TOO_LATE') {
+      return res.status(403).json({ error: 'Assessment entry window has closed' });
+    }
+
     const student = await prisma.student.findUnique({ 
       where: { userId: req.userId || req.user.id } 
     });
@@ -335,7 +411,7 @@ export async function logViolation(req, res) {
 
     const session = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
-      include: { student: { select: { userId: true } } },
+      include: { student: { select: { userId: true, fullName: true } } },
     });
     if (!session) return res.status(404).json({ error: 'Session not found' });
     if (session.student?.userId !== (req.userId || req.user?.id)) {
@@ -371,6 +447,14 @@ export async function logViolation(req, res) {
       select: { id: true, type: true, timestamp: true },
     });
 
+    emitProctoringLiveUpdate(session.assessmentId, {
+      assessmentId: session.assessmentId,
+      kind: 'violation',
+      sessionId,
+      violation: latest,
+      violationsCount: updated.violationsCount,
+    });
+
     res.json({ success: true, violation: latest });
   } catch (error) {
     res.status(500).json({ error: 'Failed to log violation' });
@@ -383,7 +467,10 @@ export async function uploadScreenshot(req, res) {
 
     const session = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
-      include: { student: { select: { userId: true } }, assessment: { select: { id: true } } },
+      include: {
+        student: { select: { userId: true, fullName: true } },
+        assessment: { select: { id: true } },
+      },
     });
     if (!session) return res.status(404).json({ error: 'Session not found' });
     if (session.student?.userId !== (req.userId || req.user?.id)) {
@@ -433,6 +520,23 @@ export async function uploadScreenshot(req, res) {
           width: uploaded.width ?? null,
           height: uploaded.height ?? null,
           format: uploaded.format ?? null,
+        },
+      });
+
+      const signedUrl = signedScreenshotUrl(row);
+      emitProctoringLiveUpdate(session.assessment.id, {
+        assessmentId: session.assessment.id,
+        kind: 'screenshot',
+        sessionId,
+        studentName: session.student?.fullName,
+        screenshot: {
+          id: row.id,
+          url: signedUrl,
+          timestamp: row.timestamp,
+          captureType: row.captureType,
+          event: row.event,
+          riskFlag: row.riskFlag,
+          faceCount: row.faceCount,
         },
       });
 
@@ -536,55 +640,20 @@ export async function completeAssessment(req, res) {
       if (!studentAnswer) continue;
 
       if (q.type === 'MCQ') {
-        if (studentAnswer === q.correctAnswer) {
+        if (mcqAnswersMatch(studentAnswer, q.correctAnswer, q.options)) {
           calculatedScore += q.points;
         }
       } 
       else if (q.type === 'CODING') {
         try {
-          const testCases = typeof q.testCases === 'string' ? JSON.parse(q.testCases) : (q.testCases || []);
-          let passedCases = 0;
-          let logs = [];
-
-          // Sandbox Execution loop
-          for (const tc of testCases) {
-            let parsedInput = tc.input;
-            try { parsedInput = JSON.parse(tc.input); } catch(e) {} // Handle arrays/objects if valid JSON
-            
-            try {
-              const context = { console: { log: () => {} } }; // Silent console
-              vm.createContext(context);
-              
-              const script = new vm.Script(`
-                ${studentAnswer}
-                // Try calling 'solution' function with input
-                if (typeof solution === 'function') {
-                  solution(${JSON.stringify(parsedInput)});
-                } else {
-                  null;
-                }
-              `);
-              
-              // 1 second timeout to prevent infinite loops
-              const result = script.runInContext(context, { timeout: 1000 });
-              
-              const isCorrect = String(result).trim() === String(tc.output).trim();
-              if (isCorrect) passedCases++;
-              
-              logs.push({ input: tc.input, expected: tc.output, actual: result, passed: isCorrect });
-            } catch (err) {
-              logs.push({ input: tc.input, expected: tc.output, error: err.message, passed: false });
-            }
-          }
-
-          executionLogs[q.id] = { passed: passedCases, total: testCases.length, logs };
-          
-          // Calculate partial points based on passed test cases
-          if (testCases.length > 0) {
-             const pointsEarned = Math.floor((passedCases / testCases.length) * q.points);
-             calculatedScore += pointsEarned;
-          }
-
+          const graded = await gradeCodingAnswer(q, studentAnswer);
+          calculatedScore += graded.pointsEarned;
+          executionLogs[q.id] = {
+            passed: graded.passed,
+            total: graded.total,
+            logs: graded.results,
+            language: graded.language,
+          };
         } catch (e) {
           console.error(`Coding evaluation failed for Q${q.id}:`, e);
           executionLogs[q.id] = { error: 'Evaluation Engine Failure' };
@@ -689,6 +758,19 @@ export async function getLiveAssessmentSessions(req, res) {
           orderBy: { timestamp: 'desc' },
           take: 1
         },
+        screenshots: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            imageUrl: true,
+            publicId: true,
+            timestamp: true,
+            captureType: true,
+            event: true,
+            riskFlag: true,
+          },
+        },
         _count: {
           select: { screenshots: true }
         }
@@ -705,6 +787,7 @@ export async function getLiveAssessmentSessions(req, res) {
       let lastPing = 'Just now';
       if (secondsAgo > 60) lastPing = `${Math.floor(secondsAgo / 60)}m ago`;
 
+      const latest = session.screenshots?.[0] || null;
       return {
         id: session.id,
         studentName: session.student.fullName,
@@ -712,7 +795,17 @@ export async function getLiveAssessmentSessions(req, res) {
         violations: session.violationsCount,
         screenshots: session._count?.screenshots || 0,
         lastPing,
-        lastViolation: session.violations.length > 0 ? session.violations[0].type.replace(/_/g, ' ') : null
+        lastViolation: session.violations.length > 0 ? session.violations[0].type.replace(/_/g, ' ') : null,
+        latestScreenshot: latest
+          ? {
+              id: latest.id,
+              url: signedScreenshotUrl(latest),
+              timestamp: latest.timestamp,
+              captureType: latest.captureType,
+              event: latest.event,
+              riskFlag: latest.riskFlag,
+            }
+          : null,
       };
     });
 

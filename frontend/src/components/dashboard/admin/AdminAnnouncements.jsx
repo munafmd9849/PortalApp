@@ -98,10 +98,11 @@ export default function AdminAnnouncements() {
           api.getBatches()
         ]);
         setList(annRes?.announcements || []);
+        const { filterActiveAcademicRecords } = await import('../../../utils/academicOptions');
         setAcademicOptions({
-          schools: s || [],
-          centers: c || [],
-          batches: b || []
+          schools: filterActiveAcademicRecords(s),
+          centers: filterActiveAcademicRecords(c),
+          batches: filterActiveAcademicRecords(b),
         });
       } catch (e) {
         console.error('Failed to load data for announcements:', e);

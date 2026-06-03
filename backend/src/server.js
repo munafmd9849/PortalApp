@@ -55,6 +55,7 @@ import adminStudentDirectoryRoutes from './routes/adminStudentDirectory.js';
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
 import assessmentRoutes from './routes/assessment.js';
+import codeRoutes from './routes/code.js';
 import academicRoutes from './routes/academic.js';
 import publicRoutes from './routes/public.js';
 import resumeViewRoutes from './routes/resumeView.js';
@@ -282,6 +283,7 @@ app.use('/api/admin/student-directory', adminStudentDirectoryRoutes); // Student
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
 app.use('/api/assessments', assessmentRoutes); // Assessment Engine: Tests, Interviews, Proctoring
+app.use('/api/code', codeRoutes); // Coding engine: run & evaluate
 app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only
 app.use('/api/mock-interviews', mockInterviewRoutes); // Dedicated Mock Interview System
 
