@@ -11,6 +11,7 @@ import {
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import AssessmentSettingsModal from '../../components/dashboard/admin/AssessmentSettingsModal';
+import { fromDatetimeLocalValue } from '../../utils/assessmentEntryWindow';
 import StudentSelectorModal from '../../components/dashboard/admin/StudentSelectorModal';
 
 export default function AdminAssessments() {
@@ -39,8 +40,9 @@ export default function AdminAssessments() {
     targetStudentIds: [],
     scheduledAtMap: {},
     config: {
-      proctoring: { webcam: true, mic: true, tabSwitch: true, fullscreen: true, snapshotInterval: 60 }
-    }
+      proctoring: { webcam: true, mic: true, tabSwitch: true, fullscreen: true, snapshotInterval: 60 },
+      joinWindow: { opensMinutesBeforeStart: 10, closesMinutesAfterStart: 10 },
+    },
   });
 
   const fetchBatches = useCallback(async () => {
@@ -99,7 +101,13 @@ export default function AdminAssessments() {
 
   const handleCreate = async () => {
     try {
-      await api.createAssessment(formData);
+      await api.createAssessment({
+        ...formData,
+        startTime: fromDatetimeLocalValue(formData.startTime),
+        endTime: fromDatetimeLocalValue(formData.endTime),
+        joinOpensMinutesBeforeStart: formData.config?.joinWindow?.opensMinutesBeforeStart,
+        joinClosesMinutesAfterStart: formData.config?.joinWindow?.closesMinutesAfterStart,
+      });
       toast?.success('Assessment created successfully');
       setShowCreateModal(false);
       fetchAssessments();
@@ -157,7 +165,7 @@ export default function AdminAssessments() {
         {/* Page Header - Clean & Professional */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Assessment Engine</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Assessments</h1>
             <p className="text-slate-500 text-sm mt-1 font-medium">Design, deploy and monitor student assessments</p>
           </div>
           <div className="flex items-center gap-3">
@@ -323,19 +331,75 @@ export default function AdminAssessments() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                        {[
                          { label: 'Duration (Min)', type: 'number', key: 'duration' },
-                         { label: 'Start Window', type: 'datetime-local', key: 'startTime' },
-                         { label: 'End Window', type: 'datetime-local', key: 'endTime' }
-                       ].map(field => (
+                         { label: 'Scheduled Start', type: 'datetime-local', key: 'startTime' },
+                         { label: 'Overall End (optional)', type: 'datetime-local', key: 'endTime' },
+                       ].map((field) => (
                          <div key={field.key} className="space-y-2.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{field.label}</label>
-                            <input 
+                            <input
                               type={field.type}
                               value={formData[field.key]}
-                              onChange={e => setFormData({...formData, [field.key]: e.target.value})}
-                              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 ring-indigo-500/10 outline-none font-bold text-slate-900 transition-all text-xs" 
+                              onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 ring-indigo-500/10 outline-none font-bold text-slate-900 transition-all text-xs"
                             />
                          </div>
                        ))}
+                    </div>
+
+                    <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-4">
+                      <p className="text-xs font-bold text-indigo-900">Join window (when students can enter)</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Can join before start (minutes)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={formData.config.joinWindow.opensMinutesBeforeStart}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                config: {
+                                  ...formData.config,
+                                  joinWindow: {
+                                    ...formData.config.joinWindow,
+                                    opensMinutesBeforeStart: parseInt(e.target.value, 10) || 0,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Must join within after start (minutes)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={formData.config.joinWindow.closesMinutesAfterStart}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                config: {
+                                  ...formData.config,
+                                  joinWindow: {
+                                    ...formData.config.joinWindow,
+                                    closesMinutesAfterStart: parseInt(e.target.value, 10) || 0,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        Example: start 10:00, join within 10 min after start → students must enter by 10:10.
+                        Pre-check can open 10 min early if you set 10 above.
+                      </p>
                     </div>
                  </div>
                )}

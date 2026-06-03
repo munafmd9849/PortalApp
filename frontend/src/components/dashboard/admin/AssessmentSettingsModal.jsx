@@ -2,17 +2,25 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock, Trash2, Save, AlertTriangle } from 'lucide-react';
 import api from '../../../services/api';
 import { useToast } from '../../ui/Toast';
-import { fromDatetimeLocalValue, toDatetimeLocalValue } from '../../../utils/assessmentEntryWindow';
+import {
+  fromDatetimeLocalValue,
+  toDatetimeLocalValue,
+  getJoinWindowSettings,
+  joinWindowSummary,
+} from '../../../utils/assessmentEntryWindow';
 
 export default function AssessmentSettingsModal({ assessment, onClose, onUpdate }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const initialJoin = getJoinWindowSettings(assessment);
   const [formData, setFormData] = useState({
     title: assessment.title || '',
     duration: assessment.duration || 60,
     startTime: toDatetimeLocalValue(assessment.startTime),
     endTime: toDatetimeLocalValue(assessment.endTime),
+    joinOpensMinutesBeforeStart: initialJoin.opensMinutesBeforeStart,
+    joinClosesMinutesAfterStart: initialJoin.closesMinutesAfterStart,
   });
 
   const handleSave = async () => {
@@ -30,6 +38,8 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
         duration: formData.duration,
         startTime: startIso,
         endTime: endIso,
+        joinOpensMinutesBeforeStart: formData.joinOpensMinutesBeforeStart,
+        joinClosesMinutesAfterStart: formData.joinClosesMinutesAfterStart,
       });
       toast.success('Assessment updated successfully');
       onUpdate?.();
@@ -107,9 +117,59 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-500 font-medium">
-            Times use your browser timezone. Students may enter from 10 minutes before start until the end time.
-          </p>
+          <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl space-y-4">
+            <p className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Join window</p>
+            <p className="text-[11px] text-slate-600 font-medium">
+              Editable after publish — extend late join if students need more time.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Join opens (min before start)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={formData.joinOpensMinutesBeforeStart}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      joinOpensMinutesBeforeStart: parseInt(e.target.value, 10) || 0,
+                    })
+                  }
+                  className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Last join (min after start)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={formData.joinClosesMinutesAfterStart}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      joinClosesMinutesAfterStart: parseInt(e.target.value, 10) || 0,
+                    })
+                  }
+                  className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold"
+                />
+              </div>
+            </div>
+            {formData.startTime && (
+              <p className="text-[11px] text-indigo-700 font-medium">
+                {joinWindowSummary({
+                  ...assessment,
+                  startTime: fromDatetimeLocalValue(formData.startTime),
+                  endTime: fromDatetimeLocalValue(formData.endTime),
+                  config: JSON.stringify({
+                    joinWindow: {
+                      opensMinutesBeforeStart: formData.joinOpensMinutesBeforeStart,
+                      closesMinutesAfterStart: formData.joinClosesMinutesAfterStart,
+                    },
+                  }),
+                })}
+              </p>
+            )}
+          </div>
 
           <div className="space-y-3">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

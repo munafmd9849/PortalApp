@@ -6,6 +6,17 @@ import {
   resolveStudentAssignmentScope,
 } from '../utils/studentAssignmentScope.js';
 import { gradeCodingAnswer } from '../coding-engine/index.js';
+import {
+  normalizeStoredScore,
+  pointsToPercent,
+  totalQuestionPoints,
+  withNormalizedScore,
+} from '../utils/assessmentScoring.js';
+import {
+  getAssessmentEntryStatus,
+  mergeJoinWindowIntoConfig,
+  parseAssessmentDateInput,
+} from '../utils/assessmentEntryWindow.js';
 import multer from 'multer';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import { v2 as cloudinary } from 'cloudinary';
@@ -56,7 +67,27 @@ function emitProctoringLiveUpdate(assessmentId, payload) {
 // Create Assessment
 export async function createAssessment(req, res) {
   try {
-    const { title, description, type, difficulty, duration, startTime, endTime, instructions, config, questions, targetBatchIds, targetStudentIds, scheduledAtMap } = req.body;
+    const {
+      title,
+      description,
+      type,
+      difficulty,
+      duration,
+      startTime,
+      endTime,
+      instructions,
+      config,
+      questions,
+      targetBatchIds,
+      targetStudentIds,
+      scheduledAtMap,
+      joinOpensMinutesBeforeStart,
+      joinClosesMinutesAfterStart,
+    } = req.body;
+    const mergedConfig = mergeJoinWindowIntoConfig(config, {
+      opensMinutesBeforeStart: joinOpensMinutesBeforeStart,
+      closesMinutesAfterStart: joinClosesMinutesAfterStart,
+    });
 
     // Prepare assignments data
     const batchAssignments = (targetBatchIds || []).map((batchId) => ({ batchId }));
@@ -103,7 +134,7 @@ export async function createAssessment(req, res) {
         startTime: startTime ? new Date(startTime) : null,
         endTime: endTime ? new Date(endTime) : null,
         instructions,
-        config: JSON.stringify(config || {}),
+        config: JSON.stringify(mergedConfig),
         questions: {
           create: (questions || []).map((q, index) => ({
             questionText: q.text,
@@ -235,14 +266,31 @@ export async function getAssessmentDetails(req, res) {
 export async function updateAssessment(req, res) {
   try {
     const { id } = req.params;
-    const { title, duration, startTime, endTime } = req.body;
-    const { parseAssessmentDateInput } = await import('../utils/assessmentEntryWindow.js');
+    const {
+      title,
+      duration,
+      startTime,
+      endTime,
+      joinOpensMinutesBeforeStart,
+      joinClosesMinutesAfterStart,
+    } = req.body;
+    const existing = await prisma.assessment.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Assessment not found' });
 
     const parsedStart = parseAssessmentDateInput(startTime);
     const parsedEnd = parseAssessmentDateInput(endTime);
     if (parsedStart && parsedEnd && parsedEnd <= parsedStart) {
       return res.status(400).json({ error: 'End time must be after start time' });
     }
+
+    const joinTouched =
+      joinOpensMinutesBeforeStart !== undefined || joinClosesMinutesAfterStart !== undefined;
+    const nextConfig = joinTouched
+      ? mergeJoinWindowIntoConfig(existing.config, {
+          opensMinutesBeforeStart: joinOpensMinutesBeforeStart,
+          closesMinutesAfterStart: joinClosesMinutesAfterStart,
+        })
+      : undefined;
 
     const assessment = await prisma.assessment.update({
       where: { id },
@@ -251,6 +299,7 @@ export async function updateAssessment(req, res) {
         ...(duration !== undefined && duration !== '' && { duration: parseInt(duration, 10) }),
         ...(startTime !== undefined && { startTime: parsedStart }),
         ...(endTime !== undefined && { endTime: parsedEnd }),
+        ...(nextConfig && { config: JSON.stringify(nextConfig) }),
       },
     });
 
@@ -323,11 +372,9 @@ export async function getStudentAssessments(req, res) {
 export async function startSession(req, res) {
   try {
     const { assessmentId } = req.params;
-    const { getAssessmentEntryStatus } = await import('../utils/assessmentEntryWindow.js');
-
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, startTime: true, endTime: true, title: true },
+      select: { id: true, startTime: true, endTime: true, title: true, config: true },
     });
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
@@ -335,10 +382,19 @@ export async function startSession(req, res) {
 
     const entry = getAssessmentEntryStatus(assessment);
     if (entry.status === 'TOO_EARLY') {
-      return res.status(403).json({ error: 'Assessment has not started yet' });
+      return res.status(403).json({
+        error: 'Assessment entry has not opened yet',
+        entryOpensAt: entry.entryOpensAt,
+        entryClosesAt: entry.entryClosesAt,
+        joinWindow: entry.joinWindow,
+      });
     }
     if (entry.status === 'TOO_LATE') {
-      return res.status(403).json({ error: 'Assessment entry window has closed' });
+      return res.status(403).json({
+        error: 'Assessment entry window has closed',
+        entryClosesAt: entry.entryClosesAt,
+        joinWindow: entry.joinWindow,
+      });
     }
 
     const student = await prisma.student.findUnique({ 
@@ -664,17 +720,30 @@ export async function completeAssessment(req, res) {
       }
     }
 
+    const maxPoints = totalQuestionPoints(questions);
+    const scorePercent = pointsToPercent(calculatedScore, questions);
+
     const updatedSession = await prisma.assessmentSession.update({
       where: { id: sessionId },
       data: {
         status: hasDescriptive ? 'PENDING_REVIEW' : 'COMPLETED',
         endTime: new Date(),
-        score: calculatedScore,
-        responses: JSON.stringify({ rawAnswers: answers, executionLogs })
-      }
+        score: scorePercent,
+        responses: JSON.stringify({
+          rawAnswers: answers,
+          executionLogs,
+          pointsEarned: calculatedScore,
+          maxPoints,
+        }),
+      },
     });
 
-    res.json(updatedSession);
+    res.json(
+      withNormalizedScore({
+        ...updatedSession,
+        assessment: session.assessment,
+      }),
+    );
   } catch (error) {
     console.error('Complete Assessment Error:', error);
     res.status(500).json({ error: 'Failed to complete assessment' });
@@ -696,7 +765,7 @@ export async function getSessionResults(req, res) {
         media: true
       }
     });
-    res.json(session);
+    res.json(withNormalizedScore(session));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch session results' });
   }
@@ -733,8 +802,13 @@ export async function getAssessmentResults(req, res) {
       console.log(`[DEBUG] getAssessmentResults: Assessment not found for id ${id}`);
       return res.status(404).json({ error: 'Assessment not found' });
     }
+    const questions = assessment.questions || [];
+    const sessions = (assessment.sessions || []).map((s) => ({
+      ...s,
+      score: normalizeStoredScore(s.score, questions),
+    }));
     console.log(`[DEBUG] getAssessmentResults: Successfully fetched leaderboard for ${id}`);
-    res.json(assessment);
+    res.json({ ...assessment, sessions });
   } catch (error) {
     console.error(`[ERROR] Failed to fetch assessment leaderboard for ${req.params.id}:`, error);
     console.error('Failed to fetch assessment leaderboard:', error);
@@ -948,8 +1022,8 @@ export async function getStudentSessionResults(req, res) {
     }
 
     res.json({
-      ...session,
-      duration
+      ...withNormalizedScore(session),
+      duration,
     });
   } catch (error) {
     console.error('getStudentSessionResults Error:', error);

@@ -198,7 +198,7 @@ export default function AdminDashboard() {
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'mockInterviews', label: 'Mock Interviews', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
-    { id: 'assessments', label: 'Assessment Engine', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
+    { id: 'assessments', label: 'Assessments', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
     { id: 'createDisableAdmins', label: 'Manage Admins', icon: UserPlus, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
     { id: 'auditLogs', label: 'Audit Logs', icon: History, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only

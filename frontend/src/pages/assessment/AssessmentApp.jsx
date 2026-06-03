@@ -113,6 +113,25 @@ export default function AssessmentApp() {
     init();
   }, [assessmentId, isInterviewer, studentIdParam]);
 
+  useEffect(() => {
+    if (isInterviewer || loading) return;
+    if (entryStatus !== 'TOO_EARLY' && entryStatus !== 'TOO_LATE') return;
+
+    const tick = async () => {
+      try {
+        const fresh = await api.getAssessmentDetails(assessmentId);
+        setAssessment(fresh);
+        const entry = getAssessmentEntryStatus(fresh);
+        setEntryStatus(entry.status);
+      } catch {
+        /* ignore poll errors */
+      }
+    };
+
+    const id = setInterval(tick, 15000);
+    return () => clearInterval(id);
+  }, [assessmentId, entryStatus, isInterviewer, loading]);
+
   // 2. Timer Logic
   useEffect(() => {
     if (!loading && isPreCheckDone && timeLeft > 0 && !isInterviewer) {
@@ -521,34 +540,7 @@ export default function AssessmentApp() {
     };
   }, []);
 
-  if (loading) return (
-    <div className="h-screen bg-slate-950 flex flex-col items-center justify-center gap-6">
-      <div className="relative">
-        <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Shield className="w-6 h-6 text-indigo-500 animate-pulse" />
-        </div>
-      </div>
-      <p className="text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Initializing Secure Environment</p>
-    </div>
-  );
-
-  if (entryStatus === 'TOO_EARLY') {
-    return (
-      <div className="h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <div className="w-24 h-24 bg-indigo-500/20 rounded-full flex items-center justify-center mb-6 border border-indigo-500/30 shadow-2xl shadow-indigo-500/20">
-           <Clock className="w-10 h-10 text-indigo-400" />
-        </div>
-        <h2 className="text-3xl font-black text-white tracking-tight mb-3">You're Early</h2>
-        <p className="text-slate-400 max-w-md mx-auto">The secure exam window hasn't opened yet. The Pre-Check gate opens exactly 10 minutes before the scheduled start time.</p>
-        <button onClick={() => navigate('/student/dashboard')} className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm">
-          Return to Dashboard
-        </button>
-      </div>
-    );
-  }
-
-  const recheckEntryWindow = async () => {
+  const recheckEntryWindow = useCallback(async () => {
     try {
       setLoading(true);
       const fresh = await api.getAssessmentDetails(assessmentId);
@@ -563,7 +555,49 @@ export default function AssessmentApp() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assessmentId, toast]);
+
+  if (loading) return (
+    <div className="h-screen bg-slate-950 flex flex-col items-center justify-center gap-6">
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Shield className="w-6 h-6 text-indigo-500 animate-pulse" />
+        </div>
+      </div>
+      <p className="text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Initializing Secure Environment</p>
+    </div>
+  );
+
+  if (entryStatus === 'TOO_EARLY') {
+    const entry = assessment ? getAssessmentEntryStatus(assessment) : null;
+    return (
+      <div className="h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <div className="w-24 h-24 bg-indigo-500/20 rounded-full flex items-center justify-center mb-6 border border-indigo-500/30 shadow-2xl shadow-indigo-500/20">
+           <Clock className="w-10 h-10 text-indigo-400" />
+        </div>
+        <h2 className="text-3xl font-black text-white tracking-tight mb-3">You're Early</h2>
+        <p className="text-slate-400 max-w-md mx-auto">
+          Entry opens at{' '}
+          <span className="text-white font-bold">{formatAssessmentWindow(entry?.entryOpensAt)}</span>.
+          {entry?.joinWindow && (
+            <> ( {entry.joinWindow.opensMinutesBeforeStart} minutes before the scheduled start).</>
+          )}
+        </p>
+        {assessment?.startTime && (
+          <p className="text-slate-500 text-xs mt-3">Scheduled start: {formatAssessmentWindow(assessment.startTime)}</p>
+        )}
+        <div className="mt-8 flex flex-wrap gap-3 justify-center">
+          <button type="button" onClick={recheckEntryWindow} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all text-sm">
+            Check again
+          </button>
+          <button onClick={() => navigate('/student')} className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm">
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (entryStatus === 'TOO_LATE') {
     const entry = assessment ? getAssessmentEntryStatus(assessment) : null;
@@ -574,14 +608,16 @@ export default function AssessmentApp() {
         </div>
         <h2 className="text-3xl font-black text-white tracking-tight mb-3">Entry Closed</h2>
         <p className="text-slate-400 max-w-md mx-auto">
-          {assessment?.endTime
-            ? `The assessment window ended at ${formatAssessmentWindow(assessment.endTime)}.`
-            : 'The late entry window after the scheduled start has expired.'}
+          The last time to join was{' '}
+          <span className="text-white font-bold">{formatAssessmentWindow(entry?.entryClosesAt)}</span>.
+          {entry?.joinWindow && (
+            <> ({entry.joinWindow.closesMinutesAfterStart} minutes after scheduled start).</>
+          )}
         </p>
         {assessment?.startTime && (
           <p className="text-slate-500 text-xs mt-3 max-w-md">
-            Scheduled: {formatAssessmentWindow(assessment.startTime)}
-            {assessment.endTime ? ` — ${formatAssessmentWindow(assessment.endTime)}` : ''}
+            Scheduled start: {formatAssessmentWindow(assessment.startTime)}
+            {assessment.endTime ? ` · Overall end: ${formatAssessmentWindow(assessment.endTime)}` : ''}
           </p>
         )}
         <div className="mt-8 flex flex-wrap gap-3 justify-center">

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Trophy, Clock, Shield, CheckCircle, 
-  XCircle, AlertTriangle, FileText, Code, Activity,
-  Target, BarChart3, ChevronRight, Terminal, BookOpen,
+  XCircle, AlertTriangle, FileText, Code,
+  Target, BarChart3, Terminal, BookOpen,
   Info, AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
@@ -319,25 +319,6 @@ function AssessmentResultStudentComponent() {
                  );
               })}
            </div>
-        </div>
-
-        {/* Footer CTA */}
-        <div className="bg-white rounded-[32px] p-8 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm">
-           <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
-                 <Activity className="w-7 h-7 text-indigo-600" />
-              </div>
-              <div>
-                 <h4 className="text-lg font-bold text-slate-900 leading-tight">Want to improve?</h4>
-                 <p className="text-sm text-slate-500 font-medium mt-0.5">Check out recommended study paths based on your gaps.</p>
-              </div>
-           </div>
-           <button 
-              onClick={() => navigate('/student')}
-              className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-900/10 active:scale-95 transition-all flex items-center justify-center gap-3"
-           >
-              Return to Student Hub <ChevronRight className="w-4 h-4" />
-           </button>
         </div>
       </div>
     </div>
