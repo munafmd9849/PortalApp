@@ -60,6 +60,8 @@ export async function getStudentProfile(req, res) {
         user: {
           select: {
             profilePhoto: true,
+            emailVerified: true,
+            lastLoginAt: true,
           },
         },
         skills: true,
@@ -124,9 +126,12 @@ export async function getStudentProfile(req, res) {
       experiences: Array.isArray(student.experiences) ? student.experiences : [],
       codingProfiles: Array.isArray(student.codingProfiles) ? student.codingProfiles : [],
       profilePhoto: student.user?.profilePhoto || null,
+      emailVerified: Boolean(
+        student.user?.emailVerified || student.user?.lastLoginAt,
+      ),
     };
 
-    // Remove user relation from response (we only need profilePhoto)
+    // Remove user relation from response (flattened above)
     delete normalizedData.user;
 
     // CRITICAL: Log counts before sending response
@@ -1029,6 +1034,7 @@ export async function getAllStudents(req, res) {
             select: {
               status: true,
               emailVerified: true,
+              lastLoginAt: true,
               createdAt: true,
               blockInfo: true,
             },
@@ -1055,7 +1061,12 @@ export async function getAllStudents(req, res) {
       // Prepare user object with safe defaults and serialized dates
       const user = student.user ? {
         status: student.user.status || 'ACTIVE',
-        emailVerified: student.user.emailVerified || false,
+        emailVerified: Boolean(
+          student.user.emailVerified || student.user.lastLoginAt,
+        ),
+        lastLoginAt: student.user.lastLoginAt
+          ? new Date(student.user.lastLoginAt).toISOString()
+          : null,
         createdAt: student.user.createdAt
           ? new Date(student.user.createdAt).toISOString()
           : (student.createdAt ? new Date(student.createdAt).toISOString() : new Date().toISOString()),

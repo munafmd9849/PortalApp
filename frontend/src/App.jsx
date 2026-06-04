@@ -40,6 +40,7 @@ import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
 import { ToastProvider } from './components/ui/Toast'
+import { isAllowedCalendarOAuthOrigin } from './utils/calendarOAuth'
 import AssessmentApp from './pages/assessment/AssessmentApp'
 import AdminAssessments from './pages/admin/AdminAssessments'
 import AdminAssessmentResults from './pages/admin/AdminAssessmentResults'
@@ -48,9 +49,11 @@ import MockInterviewManagement from './pages/admin/MockInterviewManagement';
 import MockInterviewCreate from './pages/admin/MockInterviewCreate';
 import MockInterviewSlots from './pages/admin/MockInterviewSlots';
 import MockInterviewStudentDashboard from './pages/student/MockInterviewStudentDashboard';
+import MockInterviewResultStudent from './pages/student/MockInterviewResultStudent';
 import MockInterviewPreCheck from './pages/assessment/MockInterviewPreCheck';
 import MockInterviewRoom from './pages/assessment/MockInterviewRoom';
 import AssessmentResultStudent from './pages/assessment/AssessmentResultStudent';
+import AdminMockInterviewResults from './pages/admin/AdminMockInterviewResults';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -189,9 +192,9 @@ function AppContent() {
   // Global listener for calendar OAuth popup - survives tab switches so we always receive the result
   useEffect(() => {
     const handleMessage = (event) => {
-      if (event.data?.type === 'GOOGLE_CALENDAR_RESULT') {
-        window.dispatchEvent(new CustomEvent('calendar-oauth-complete', { detail: event.data }));
-      }
+      if (event.data?.type !== 'GOOGLE_CALENDAR_RESULT') return;
+      if (!isAllowedCalendarOAuthOrigin(event.origin)) return;
+      window.dispatchEvent(new CustomEvent('calendar-oauth-complete', { detail: event.data }));
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
@@ -233,6 +236,7 @@ function AppContent() {
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/onboarding" element={<StudentOnboarding />} />
           <Route path="/student/mock-interviews" element={<MockInterviewStudentDashboard />} />
+          <Route path="/mock-interview/results/:slotId" element={<MockInterviewResultStudent />} />
         </Route>
 
         <Route element={<ProtectedRoute allowRoles={['student', 'admin', 'recruiter', 'super_admin']} />}>
@@ -253,6 +257,7 @@ function AppContent() {
           <Route path="/admin/mock-interviews" element={<MockInterviewManagement />} />
           <Route path="/admin/mock-interviews/create" element={<MockInterviewCreate />} />
           <Route path="/admin/mock-interviews/:id/slots" element={<MockInterviewSlots />} />
+          <Route path="/admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
           <Route path="/admin/assessments" element={<AdminAssessments />} />
           <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
@@ -267,6 +272,7 @@ function AppContent() {
           <Route path="/super-admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/super-admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/super-admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
+          <Route path="/super-admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
           <Route path="/super-admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/super-admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/super-admin" element={<AdminDashboard />} />

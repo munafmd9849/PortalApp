@@ -13,6 +13,20 @@ import { mcqAnswersMatch, resolveMcqOptionLabel } from '../../utils/mcqAnswers';
 import { useToast } from '../../components/ui/Toast';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 
+function formatSessionTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function formatSessionDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
 function AdminAssessmentResultsComponent() {
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
@@ -24,6 +38,8 @@ function AdminAssessmentResultsComponent() {
   const [loading, setLoading] = useState(true);
   const [assessment, setAssessment] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [proctoringDetails, setProctoringDetails] = useState(null);
+  const [proctoringLoading, setProctoringLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
   const fetchResults = useCallback(async () => {
@@ -44,6 +60,48 @@ function AdminAssessmentResultsComponent() {
   useEffect(() => {
     fetchResults();
   }, [fetchResults]);
+
+  useEffect(() => {
+    if (!selectedSession?.id) {
+      setProctoringDetails(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setProctoringLoading(true);
+        const d = await api.getProctoringSessionDetails(selectedSession.id);
+        const screenshots = Array.isArray(d?.screenshots) ? d.screenshots : [];
+        const urls = await Promise.all(
+          screenshots.map(async (s) => {
+            try {
+              const r = await api.getProctoringScreenshotUrl(s.id);
+              return { id: s.id, url: r?.url || s.imageUrl };
+            } catch {
+              return { id: s.id, url: s.imageUrl };
+            }
+          })
+        );
+        const urlById = new Map(urls.map((u) => [u.id, u.url]));
+        if (!cancelled) {
+          setProctoringDetails({
+            ...d,
+            screenshots: screenshots.map((s) => ({
+              ...s,
+              signedUrl: urlById.get(s.id) || s.imageUrl,
+            })),
+          });
+        }
+      } catch {
+        if (!cancelled) setProctoringDetails(null);
+      } finally {
+        if (!cancelled) setProctoringLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSession?.id]);
 
   const handleBack = () => {
     const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
@@ -296,13 +354,16 @@ function AdminAssessmentResultsComponent() {
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <Shield className="w-3.5 h-3.5 text-indigo-600" /> Proctoring Log
                       </h4>
-                      <span className="text-[10px] font-bold text-slate-500">Live Snapshot History (3)</span>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        Snapshot History ({proctoringDetails?.screenshots?.length ?? 0})
+                        {proctoringLoading ? ' · loading…' : ''}
+                      </span>
                    </div>
                    
                    {selectedSession.violations?.length > 0 ? (
                      <div className="grid gap-3">
-                        {selectedSession.violations.map((v, i) => (
-                           <div key={i} className="flex items-start gap-4 p-5 bg-rose-50/50 border border-rose-100 rounded-2xl group hover:border-rose-300 transition-all">
+                        {selectedSession.violations.map((v) => (
+                           <div key={v.id || v.timestamp} className="flex items-start gap-4 p-5 bg-rose-50/50 border border-rose-100 rounded-2xl group hover:border-rose-300 transition-all">
                               <div className="w-10 h-10 bg-white rounded-xl border border-rose-100 flex items-center justify-center shrink-0">
                                  <AlertCircle className="w-5 h-5 text-rose-500" />
                               </div>
@@ -310,7 +371,7 @@ function AdminAssessmentResultsComponent() {
                                  <div className="flex justify-between items-start">
                                     <p className="text-xs font-bold text-rose-900 uppercase tracking-wide">{v.type?.replace(/_/g, ' ')}</p>
                                     <span className="text-[9px] font-bold text-rose-400 bg-white px-2 py-0.5 rounded border border-rose-100 tabular-nums">
-                                       {new Date(v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                       {formatSessionTime(v.timestamp)}
                                     </span>
                                  </div>
                                  <p className="text-[11px] font-medium text-rose-600/80 mt-1.5 leading-relaxed">{v.details}</p>
@@ -327,6 +388,32 @@ function AdminAssessmentResultsComponent() {
                            <p className="text-sm font-bold">Standard Integrity Observed</p>
                            <p className="text-xs font-medium opacity-70 mt-0.5">No critical proctoring violations were logged during this attempt.</p>
                         </div>
+                     </div>
+                   )}
+
+                   {proctoringDetails?.screenshots?.length > 0 && (
+                     <div className="flex gap-2 overflow-x-auto pb-2 pt-1">
+                       {proctoringDetails.screenshots.map((shot) => (
+                         <a
+                           key={shot.id}
+                           href={shot.signedUrl || shot.imageUrl}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                           title={[
+                             shot.captureType,
+                             shot.event?.replace(/_/g, ' '),
+                             formatSessionTime(shot.timestamp),
+                           ].filter(Boolean).join(' · ')}
+                         >
+                           <img
+                             src={shot.signedUrl || shot.imageUrl}
+                             alt="Proctoring snapshot"
+                             className="h-20 w-32 object-cover"
+                             loading="lazy"
+                           />
+                         </a>
+                       ))}
                      </div>
                    )}
                 </div>

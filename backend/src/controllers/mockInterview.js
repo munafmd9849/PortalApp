@@ -5,6 +5,7 @@ import {
   hydrateSlot,
   hydrateDrive,
 } from '../utils/mockInterviewCoding.js';
+import { buildMockSlotResult } from '../utils/mockInterviewFeedback.js';
 
 const prisma = new PrismaClient();
 
@@ -265,6 +266,115 @@ export async function getMockInterviewSlot(req, res) {
   } catch (error) {
     console.error('Fetch Slot Error:', error);
     res.status(500).json({ error: 'Failed to fetch slot details' });
+  }
+}
+
+/**
+ * Mock interview results for one slot (student own session or admin).
+ */
+export async function getMockInterviewSlotResults(req, res) {
+  try {
+    const { slotId } = req.params;
+    const slot = await prisma.mockInterviewSlot.findUnique({
+      where: { id: slotId },
+      include: {
+        drive: true,
+        feedback: true,
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            enrollmentId: true,
+            batch: true,
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!slot) return res.status(404).json({ error: 'Session not found' });
+
+    const role = (req.user?.role || '').toUpperCase();
+    if (role === 'STUDENT') {
+      const student = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!student || slot.studentId !== student.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else if (!['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (slot.status !== 'COMPLETED' || !slot.feedback) {
+      return res.status(404).json({
+        error: 'Results not available yet. Interviewer feedback has not been submitted.',
+      });
+    }
+
+    res.json(buildMockSlotResult(slot));
+  } catch (error) {
+    console.error('getMockInterviewSlotResults Error:', error);
+    res.status(500).json({ error: 'Failed to fetch mock interview results' });
+  }
+}
+
+/**
+ * Drive-level results leaderboard (completed slots with feedback).
+ */
+export async function getMockInterviewDriveResults(req, res) {
+  try {
+    const { driveId } = req.params;
+    const drive = await prisma.mockInterviewDrive.findUnique({
+      where: { id: driveId },
+      include: {
+        slots: {
+          where: {
+            status: 'COMPLETED',
+            feedback: { isNot: null },
+          },
+          include: {
+            feedback: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                enrollmentId: true,
+                batch: true,
+              },
+            },
+          },
+          orderBy: { startTime: 'asc' },
+        },
+      },
+    });
+
+    if (!drive) return res.status(404).json({ error: 'Drive not found' });
+
+    const sessions = drive.slots
+      .map(buildMockSlotResult)
+      .sort((a, b) => (b.scorePercent || 0) - (a.scorePercent || 0));
+
+    const avgScore =
+      sessions.length > 0
+        ? Math.round(
+            sessions.reduce((acc, s) => acc + (s.scorePercent || 0), 0) / sessions.length,
+          )
+        : 0;
+
+    res.json({
+      drive: hydrateDrive(drive),
+      sessions,
+      stats: {
+        totalAttempts: sessions.length,
+        avgScore,
+      },
+    });
+  } catch (error) {
+    console.error('getMockInterviewDriveResults Error:', error);
+    res.status(500).json({ error: 'Failed to fetch drive results' });
   }
 }
 

@@ -288,7 +288,11 @@ export default function MockInterviewSlots() {
                       </button>
                     )}
                     {slot.status === 'COMPLETED' && (
-                      <button className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-indigo-100 transition-all active:scale-95">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/mock-interviews/${id}/results?slot=${slot.id}`)}
+                        className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-indigo-100 transition-all active:scale-95"
+                      >
                         <CheckCircle2 className="w-3.5 h-3.5" /> View Feedback
                       </button>
                     )}

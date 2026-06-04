@@ -55,6 +55,8 @@ export default function AuthRedirect() {
         || currentPath.startsWith('/recruiter/screening')
         || currentPath.startsWith('/mock-interview-room/')
         || currentPath.startsWith('/mock-interview-precheck/')
+        || currentPath.startsWith('/mock-interview/results/')
+        || currentPath.startsWith('/student/mock-interviews')
         || currentPath.startsWith('/assessment/');
 
       // Admin / Super Admin sub-routes that should not redirect

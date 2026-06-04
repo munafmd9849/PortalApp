@@ -19,7 +19,7 @@ import {
 } from '../utils/assessmentEntryWindow.js';
 import multer from 'multer';
 import { uploadToCloudinary } from '../config/cloudinary.js';
-import { v2 as cloudinary } from 'cloudinary';
+import { signedScreenshotUrl } from '../utils/proctoringScreenshots.js';
 
 /**
  * ASSESSMENT ENGINE CONTROLLER
@@ -39,18 +39,6 @@ function computeRiskLevel(count) {
   if (count >= 7) return 'HIGH';
   if (count >= 3) return 'MEDIUM';
   return 'LOW';
-}
-
-function signedScreenshotUrl(row) {
-  if (!row) return null;
-  if (!row.publicId) return row.imageUrl;
-  const expiresAt = Math.floor(Date.now() / 1000) + 60 * 5;
-  return cloudinary.url(row.publicId, {
-    secure: true,
-    sign_url: true,
-    expires_at: expiresAt,
-    resource_type: 'image',
-  });
 }
 
 function emitProctoringLiveUpdate(assessmentId, payload) {
@@ -633,18 +621,8 @@ export async function getSignedScreenshotUrl(req, res) {
       select: { id: true, publicId: true, imageUrl: true },
     });
     if (!row) return res.status(404).json({ error: 'Screenshot not found' });
-    if (!row.publicId) {
-      return res.json({ url: row.imageUrl });
-    }
-
-    const expiresAt = Math.floor(Date.now() / 1000) + 60 * 5;
-    const url = cloudinary.url(row.publicId, {
-      secure: true,
-      sign_url: true,
-      expires_at: expiresAt,
-      resource_type: 'image',
-    });
-    res.json({ url, expiresAt });
+    const url = signedScreenshotUrl(row);
+    res.json({ url, expiresAt: Math.floor(Date.now() / 1000) + 60 * 5 });
   } catch (error) {
     console.error('getSignedScreenshotUrl error:', error);
     res.status(500).json({ error: 'Failed to generate screenshot URL' });

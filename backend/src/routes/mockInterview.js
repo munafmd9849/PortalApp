@@ -7,6 +7,8 @@ import {
   submitMockFeedback,
   updateSlotStatus,
   getMockInterviewSlot,
+  getMockInterviewSlotResults,
+  getMockInterviewDriveResults,
   updateMockInterviewSlot,
   updateMockInterviewDrive,
   deleteMockInterviewDrive
@@ -14,6 +16,20 @@ import {
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Results (assessment-style read APIs)
+router.get(
+  '/results/slot/:slotId',
+  authenticate,
+  authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']),
+  getMockInterviewSlotResults,
+);
+router.get(
+  '/results/drive/:driveId',
+  authenticate,
+  authorize(['ADMIN', 'SUPER_ADMIN']),
+  getMockInterviewDriveResults,
+);
 
 // Common Routes
 router.get('/slot/:slotId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getMockInterviewSlot);

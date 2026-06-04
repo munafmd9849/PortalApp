@@ -6,11 +6,10 @@ import { initSocket, subscribeProctoringMonitor } from '../../services/socket';
 import { ProctoringViewer } from '../../proctoring-engine/liveProctoringRtc';
 
 function formatTime(ts) {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  } catch {
-    return '';
-  }
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function normalizeType(t) {

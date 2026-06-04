@@ -1135,6 +1135,8 @@ export const api = {
     apiRequest(`/mock-interviews/drives/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMockInterviewDrive: (id) => apiRequest(`/mock-interviews/drives/${id}`, { method: 'DELETE' }),
   getMockInterviewSlot: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}`),
+  getMockInterviewSlotResults: (slotId) => apiRequest(`/mock-interviews/results/slot/${slotId}`),
+  getMockInterviewDriveResults: (driveId) => apiRequest(`/mock-interviews/results/drive/${driveId}`),
   updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Generic HTTP methods for calendar and other services

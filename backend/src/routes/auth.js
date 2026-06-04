@@ -336,12 +336,20 @@ router.post('/login', [
       return res.status(403).json({ error: 'Account is blocked' });
     }
 
-    // Update last login
+    // Update last login; students who can log in are email-verified (OTP at registration)
     const loginAt = new Date();
+    const loginUpdate = { lastLoginAt: loginAt };
+    if (user.role === 'STUDENT' && !user.emailVerified) {
+      loginUpdate.emailVerified = true;
+      loginUpdate.emailVerifiedAt = loginAt;
+    }
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: loginAt },
+      data: loginUpdate,
     });
+    if (user.role === 'STUDENT' && !user.emailVerified) {
+      user.emailVerified = true;
+    }
     if (user.student?.id) {
       recordStudentActivity(user.student.id, 'LOGIN', null, { source: 'password_login' }).catch(() => {});
     }

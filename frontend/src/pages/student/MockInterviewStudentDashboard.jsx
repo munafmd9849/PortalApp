@@ -88,6 +88,7 @@ export default function MockInterviewStudentDashboard() {
                 {slots.map((slot) => {
                   const driveDate = new Date(slot.startTime);
                   const isCompleted = slot.status === 'COMPLETED';
+                  const hasFeedback = Boolean(slot.feedback);
 
                   return (
                     <div key={slot.id} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative border-l-4 border-l-indigo-600">
@@ -130,13 +131,18 @@ export default function MockInterviewStudentDashboard() {
                               >
                                 <Video className="w-4 h-4" /> Enter Room
                               </button>
-                            ) : (
-                              <button 
-                                onClick={() => toast.info('Feedback report will be available shortly!')}
+                            ) : hasFeedback ? (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/mock-interview/results/${slot.id}`)}
                                 className="px-6 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
                               >
                                 <Trophy className="w-4 h-4" /> View Report
                               </button>
+                            ) : (
+                              <span className="px-4 py-2.5 text-xs font-semibold text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
+                                Awaiting feedback
+                              </span>
                             )}
                             <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all border border-transparent hover:border-slate-200">
                                <Info className="w-4 h-4" />

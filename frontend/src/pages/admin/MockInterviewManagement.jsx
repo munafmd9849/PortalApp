@@ -305,7 +305,15 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
 
                       {/* Actions */}
                       <div className="flex items-center gap-3 ml-auto md:ml-0">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/admin/mock-interviews/${drive.id}/results`)}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95"
+                        >
+                          View Results
+                        </button>
                         <button 
+                          type="button"
                           onClick={() => navigate(`/admin?tab=mockInterviews-slots&id=${drive.id}`)}
                           className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm group/btn active:scale-95"
                         >

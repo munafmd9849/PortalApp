@@ -24,3 +24,8 @@ export async function exportStudentDirectory(params = {}) {
   const res = await api.get(`/admin/student-directory/export${buildQuery(params)}`);
   return res?.data ?? res;
 }
+
+export async function fetchStudentPanelExtras(studentId) {
+  const res = await api.get(`/admin/student-directory/${studentId}/panel`, { noCache: true });
+  return res?.data ?? res;
+}

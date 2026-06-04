@@ -42,14 +42,8 @@ const BASIC_COLUMNS = [
   { key: 'activation', label: 'Activation', minW: 100, badge: 'activation' },
 ];
 
-const AI_MOCK_COLUMNS = [
-  { key: 'aiMock1', label: 'AI Mock 1', minW: 88 },
-  { key: 'aiMock2', label: 'AI Mock 2', minW: 88 },
-];
-
-const SME_MOCK_COLUMNS = [
-  { key: 'smeMock1', label: 'SME Mock 1', minW: 96 },
-  { key: 'smeMock2', label: 'SME Mock 2', minW: 96 },
+const MOCK_INTERVIEW_COLUMN = [
+  { key: 'mockInterviews', label: 'Mock Interviews', minW: 120 },
 ];
 
 const STATS_COLUMNS = [
@@ -71,8 +65,6 @@ const METRIC_TEXT = {
 };
 
 function headerClass(col) {
-  if (col.group === 'ai') return 'bg-violet-50/80 text-violet-900 border-violet-100';
-  if (col.group === 'sme') return 'bg-sky-50/80 text-sky-900 border-sky-100';
   return 'bg-slate-50 text-slate-700 border-slate-200/60';
 }
 
@@ -96,8 +88,12 @@ function cellContent(row, col) {
   if (col.badge === 'placementStatus') {
     return <StatusBadge label={row.placementStatus?.label} variant={row.placementStatus?.variant} />;
   }
-  if (col.key === 'aiMock1' || col.key === 'aiMock2' || col.key === 'smeMock1' || col.key === 'smeMock2') {
-    return <span className="text-sm font-semibold text-slate-500">{displayMock(row[col.key])}</span>;
+  if (col.key === 'mockInterviews') {
+    return (
+      <span className="text-sm font-semibold text-slate-600 tabular-nums">
+        {displayMock(row.mockInterviews)}
+      </span>
+    );
   }
   if (col.metric) {
     const val = row[col.key];
@@ -198,8 +194,7 @@ export default function StudentDirectoryTable({
   const allScrollColumns = useMemo(
     () => [
       ...BASIC_COLUMNS,
-      ...AI_MOCK_COLUMNS.map((c) => ({ ...c, group: 'ai' })),
-      ...SME_MOCK_COLUMNS.map((c) => ({ ...c, group: 'sme' })),
+      ...MOCK_INTERVIEW_COLUMN,
       ...STATS_COLUMNS,
     ],
     [],

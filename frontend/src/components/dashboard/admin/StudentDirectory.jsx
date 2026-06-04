@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { ImEye } from 'react-icons/im';
 import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaUser, FaEnvelope, FaPhone, FaGraduationCap, FaMapMarkerAlt, FaCalendarAlt, FaIdCard, FaInfoCircle, FaCheckCircle, FaUsers, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa';
 import { MdBlock } from 'react-icons/md';
-import { Loader, Download, Upload, SquarePen, User, LinkIcon, Activity, TrendingUp, GraduationCap, BarChart2, Phone, CheckCircle2, MessageSquare, Briefcase, Code, X, Link, Tag, Folder, ExternalLink, Check } from 'lucide-react';
+import { Loader, Download, Upload, SquarePen, User, Activity, TrendingUp, GraduationCap, BarChart2, Phone, CheckCircle2, MessageSquare, Briefcase, Code, X, Tag, Folder, ExternalLink, Check, ClipboardList } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { getAllStudents, updateStudentProfile, updateEducationalBackground, getStudentProfile, getEducationalBackground, getStudentSkills } from '../../../services/students';
 import { fetchStudentsWithScores } from '../../../services/adminReadiness';
-import { fetchStudentDirectory, exportStudentDirectory } from '../../../services/studentDirectory';
+import { fetchStudentDirectory, exportStudentDirectory, fetchStudentPanelExtras } from '../../../services/studentDirectory';
 import StudentDirectoryTable from './StudentDirectoryTable';
 import DirectoryLoadingPanel from './DirectoryLoading';
 import { useAuth } from '../../../hooks/useAuth';
@@ -722,7 +722,9 @@ export default function StudentDirectory() {
         return {
           ...student,
           status: normalizeStatus(student.status || student.user?.status || 'ACTIVE'),
-          emailVerified: student.user?.emailVerified || student.emailVerified || false,
+          emailVerified: Boolean(
+            student.emailVerified ?? student.user?.emailVerified ?? student.user?.lastLoginAt,
+          ),
           createdAt: student.user?.createdAt || student.createdAt,
           blockInfo: parsedBlock,
           fullName: student.fullName || student.email || 'N/A',
@@ -873,10 +875,7 @@ export default function StudentDirectory() {
         'Activation',
         'Placement Status',
         'Activity Score',
-        'AI Mock 1',
-        'AI Mock 2',
-        'SME Mock 1',
-        'SME Mock 2',
+        'Mock Interviews',
         'Jobs Assigned',
         'Eligible Jobs',
         'Jobs Applied',
@@ -901,10 +900,7 @@ export default function StudentDirectory() {
         student.activation?.label || '',
         student.placementStatus?.label || '',
         student.activityScore ?? '',
-        student.aiMock1 ?? '',
-        student.aiMock2 ?? '',
-        student.smeMock1 ?? '',
-        student.smeMock2 ?? '',
+        student.mockInterviews ?? '',
         student.jobsAssigned ?? '',
         student.eligibleJobs ?? '',
         student.jobsApplied ?? '',
@@ -1029,10 +1025,14 @@ export default function StudentDirectory() {
     setDashboardData({ loading: true, error: null, profile: null, jobs: [], applications: [], skills: [] });
 
     try {
-      const [profile, jobs, applications] = await Promise.all([
+      const [profile, jobs, applications, panelExtras] = await Promise.all([
         getStudentProfile(studentId),
         getTargetedJobsForStudent(studentId),
         getStudentApplications(studentId),
+        fetchStudentPanelExtras(studentId).catch((err) => {
+          console.error('Student panel extras failed:', err);
+          return null;
+        }),
       ]);
 
       const fullProfile = profile && profile.id ? profile : { ...student, id: studentId };
@@ -1041,6 +1041,9 @@ export default function StudentDirectory() {
         ...fullProfile,
         id: fullProfile.id || studentId,
         userId: fullProfile.userId || student.userId,
+        emailVerified: Boolean(
+          fullProfile.emailVerified ?? student.emailVerified ?? student.user?.lastLoginAt,
+        ),
         profilePhoto: fullProfile.profilePhoto || student.profilePhoto,
         stats: {
           applied: fullProfile.statsApplied ?? student.statsApplied ?? applications?.length ?? 0,
@@ -1063,6 +1066,8 @@ export default function StudentDirectory() {
         achievements: Array.isArray(fullProfile.achievements) ? fullProfile.achievements : [],
         certifications: Array.isArray(fullProfile.certifications) ? fullProfile.certifications : [],
         experiences: Array.isArray(fullProfile.experiences) ? fullProfile.experiences : [],
+        mockInterviews: panelExtras?.mockInterviews || { interviews: [], completedCount: 0 },
+        assessments: panelExtras?.assessments || [],
       });
     } catch (error) {
       console.error('Error loading student data:', error);
@@ -1596,6 +1601,41 @@ export default function StudentDirectory() {
   );
 }
 
+function InterviewAppraisalCard({ interview }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm border-l-4 border-l-indigo-500">
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h5 className="font-bold text-slate-800 text-sm font-outfit">{interview.driveTitle}</h5>
+          {interview.driveCategory && (
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600 mt-0.5">
+              {interview.driveCategory}
+            </p>
+          )}
+          {interview.date && (
+            <p className="text-xs text-slate-500 mt-1">
+              {new Date(interview.date).toLocaleString()}
+            </p>
+          )}
+        </div>
+        {interview.score && (
+          <span className="shrink-0 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700 font-outfit">
+            {interview.score}
+          </span>
+        )}
+      </div>
+      {interview.result && (
+        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          Result: <span className="text-slate-700">{interview.result.replace(/_/g, ' ')}</span>
+        </p>
+      )}
+      {interview.remarks && (
+        <p className="mt-2 text-xs leading-relaxed text-slate-600">{interview.remarks}</p>
+      )}
+    </div>
+  );
+}
+
 // Student Dashboard Panel Component - Similar to Assessment.jsx
 const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   const [currentStudent, setCurrentStudent] = useState(student);
@@ -1607,6 +1647,11 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
         ...student,
         ...dashboardData.profile,
         id: dashboardData.profile.id || student?.id,
+        emailVerified: Boolean(
+          dashboardData.profile.emailVerified
+            ?? student?.emailVerified
+            ?? student?.user?.lastLoginAt,
+        ),
         stats: student?.stats || {
           applied: dashboardData.profile.statsApplied ?? 0,
           shortlisted: dashboardData.profile.statsShortlisted ?? 0,
@@ -1781,16 +1826,6 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  const url = window.location.origin + '/public-profile/' + (currentStudent?.publicProfileId || '');
-                  navigator.clipboard.writeText(url);
-                }}
-                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-all active:scale-95"
-                title="Copy profile link"
-              >
-                <Link className="w-4 h-4" />
-              </button>
-              <button
                 onClick={onClose}
                 className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-all active:scale-95"
                 title="Close Panel"
@@ -1805,6 +1840,7 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
             {[
               { id: 'overview', label: 'Overview', icon: User },
               { id: 'mock', label: 'Mock Interviews', icon: MessageSquare },
+              { id: 'assessments', label: 'Assessments', icon: ClipboardList },
               { id: 'applications', label: 'Applications', icon: Briefcase },
               { id: 'skills', label: 'Skills & Projects', icon: Code },
             ].map(({ id, label, icon: Icon }) => (
@@ -1967,63 +2003,94 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                 </div>
               )}
 
-              {/* Mock Interviews Content */}
+              {/* Mock Interviews — manual drives with interviewer feedback */}
               {activeTab === 'mock' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="space-y-4 animate-fade-in">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                      <MessageSquare className="w-4.5 h-4.5 text-indigo-500" /> Interview Appraisals
+                      <MessageSquare className="w-4.5 h-4.5 text-indigo-500" /> Mock Interview Feedback
                     </h3>
+                    <span className="text-xs text-slate-400">
+                      Completed: {dashboardData.mockInterviews?.completedCount ?? 0}
+                    </span>
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">AI Assessment Mocks</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-                          <div className="flex justify-between items-start gap-2">
-                            <h5 className="font-bold text-slate-800 text-sm font-outfit">AI Mock 1</h5>
-                            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-indigo-100">
-                              {currentStudent?.aiMock1 ? `${currentStudent.aiMock1}` : '--'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-                          <div className="flex justify-between items-start gap-2">
-                            <h5 className="font-bold text-slate-800 text-sm font-outfit">AI Mock 2</h5>
-                            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-indigo-100">
-                              {currentStudent?.aiMock2 ? `${currentStudent.aiMock2}` : '--'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Scores and remarks from completed mock interview drives (interviewer-submitted feedback).
+                  </p>
 
-                    <div className="pt-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Subject Matter Expert Mocks</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm border-l-4 border-l-indigo-500">
-                          <div className="flex justify-between items-start gap-2">
-                            <h5 className="font-bold text-slate-800 text-sm font-outfit">SME Mock 1</h5>
-                            <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-purple-100">
-                              {currentStudent?.smeMock1 ? `${currentStudent.smeMock1}` : '--'}
-                            </span>
+                  <div className="space-y-3">
+                    {(dashboardData.mockInterviews?.interviews || []).map((interview) => (
+                      <InterviewAppraisalCard key={interview.id} interview={interview} />
+                    ))}
+
+                    {(!dashboardData.mockInterviews?.interviews ||
+                      dashboardData.mockInterviews.interviews.length === 0) && (
+                      <p className="text-center py-8 text-sm text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
+                        No completed mock interviews with feedback yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Assessments Tab */}
+              {activeTab === 'assessments' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <ClipboardList className="w-4.5 h-4.5 text-indigo-500" /> Assessments
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      Total: {dashboardData.assessments?.length || 0}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {dashboardData.assessments?.map((session) => (
+                      <div key={session.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0">
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit truncate">
+                              {session.title}
+                            </h5>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {session.type?.replace(/_/g, ' ') || 'Assessment'}
+                              {session.difficulty ? ` · ${session.difficulty}` : ''}
+                            </p>
                           </div>
+                          {session.score != null ? (
+                            <span className="shrink-0 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-sm font-bold text-indigo-700">
+                              {session.score}%
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                              {session.status?.replace(/_/g, ' ') || 'Pending'}
+                            </span>
+                          )}
                         </div>
-                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm border-l-4 border-l-indigo-500">
-                          <div className="flex justify-between items-start gap-2">
-                            <h5 className="font-bold text-slate-800 text-sm font-outfit">SME Mock 2</h5>
-                            <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-outfit border border-purple-100">
-                              {currentStudent?.smeMock2 ? `${currentStudent.smeMock2}` : '--'}
+                        <div className="mt-3 flex flex-wrap gap-3 border-t border-slate-50 pt-2.5 text-[11px] text-slate-400 font-medium">
+                          <span>
+                            Started:{' '}
+                            {session.startTime
+                              ? new Date(session.startTime).toLocaleString()
+                              : 'N/A'}
+                          </span>
+                          {session.endTime && (
+                            <span>Ended: {new Date(session.endTime).toLocaleString()}</span>
+                          )}
+                          {session.violationsCount > 0 && (
+                            <span className="text-amber-600">
+                              Violations: {session.violationsCount}
                             </span>
-                          </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                    
-                    {(!currentStudent?.aiMock1 && !currentStudent?.aiMock2 && !currentStudent?.smeMock1 && !currentStudent?.smeMock2) && (
+                    ))}
+
+                    {(!dashboardData.assessments || dashboardData.assessments.length === 0) && (
                       <p className="text-center py-6 text-sm text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
-                        No mock interview scores recorded.
+                        No assessment attempts recorded for this student.
                       </p>
                     )}
                   </div>
