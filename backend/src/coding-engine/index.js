@@ -3,6 +3,12 @@ import { runJavaScript } from './runners/javascript.js';
 import { runPython } from './runners/python.js';
 import { runJava } from './runners/java.js';
 import { runCpp } from './runners/cpp.js';
+import {
+  parseTestCasesRaw,
+  outputsMatch,
+} from './testCaseStorage.js';
+
+export { parseTestCasesRaw, outputsMatch, splitPublicAndHidden } from './testCaseStorage.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 const SUPPORTED = new Set(['javascript', 'python', 'java', 'cpp']);
@@ -33,25 +39,7 @@ export async function runCode({ language, code, input = '' }, options = {}) {
 }
 
 export function normalizeTestCases(raw) {
-  let cases = raw;
-  if (typeof raw === 'string') {
-    try {
-      cases = JSON.parse(raw);
-    } catch {
-      cases = [];
-    }
-  }
-  if (!Array.isArray(cases)) return [];
-  return cases.map((tc, i) => ({
-    input: tc.input ?? tc.stdin ?? '',
-    expectedOutput: String(tc.expectedOutput ?? tc.output ?? tc.expected ?? '').trim(),
-    label: tc.label || `Case ${i + 1}`,
-    hidden: Boolean(tc.hidden),
-  }));
-}
-
-function outputsMatch(actual, expected) {
-  return String(actual ?? '').trim() === String(expected ?? '').trim();
+  return parseTestCasesRaw(raw);
 }
 
 export async function evaluateTestCases({ language, code, testCases }, options = {}) {

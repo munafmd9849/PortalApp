@@ -56,18 +56,4 @@ export function serializeCodingAnswer(payload) {
   });
 }
 
-export function parseTestCases(raw) {
-  if (!raw) return [];
-  try {
-    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!Array.isArray(arr)) return [];
-    return arr.map((tc, i) => ({
-      input: tc.input ?? '',
-      expectedOutput: tc.expectedOutput ?? tc.output ?? tc.expected ?? '',
-      label: tc.label || `Case ${i + 1}`,
-      hidden: Boolean(tc.hidden),
-    }));
-  } catch {
-    return [];
-  }
-}
+export { parseTestCases, parseExamples, getPublicTestCases, emptyTestCase, emptyExample } from './testCaseUtils.js';

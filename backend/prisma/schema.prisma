@@ -1201,7 +1201,9 @@ model AssessmentQuestion {
   order         Int        @default(0)
   difficulty    String     @default("MEDIUM")
   starterCode   String? // For coding questions
-  testCases     String? // JSON for coding test cases
+  constraints   String?    @db.Text // Coding: limits (time, memory, input bounds)
+  examples      String? // JSON: [{ input, output, explanation }] — shown to students
+  testCases     String? // JSON: [{ input, expectedOutput, hidden }] — judge cases
   assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])

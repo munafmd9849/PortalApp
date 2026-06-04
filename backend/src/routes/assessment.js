@@ -24,13 +24,13 @@ import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// --- Admin Routes ---
-router.get('/:id/live-sessions', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getLiveAssessmentSessions);
+// --- Admin Routes (static paths before /:id params) ---
+router.get('/all', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getAssessments);
+router.post('/create', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), createAssessment);
+router.get('/details/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getAssessmentDetails);
 router.get('/session/proctoring/:sessionId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getProctoringSessionDetails);
 router.get('/session/screenshot/:screenshotId/url', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getSignedScreenshotUrl);
-router.post('/create', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), createAssessment);
-router.get('/all', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getAssessments);
-router.get('/details/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getAssessmentDetails);
+router.get('/:id/live-sessions', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getLiveAssessmentSessions);
 router.get('/results/:sessionId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getSessionResults);
 router.get('/dashboard/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getAssessmentResults);
 router.get('/:assessmentId/candidates', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'RECRUITER']), getAssessmentCandidates);

@@ -103,6 +103,23 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
     }
   };
 
+  const handleDeleteAiInterview = async (id, title) => {
+    if (
+      !window.confirm(
+        `Delete "${title}"?\n\nAll questions, enrollments, recordings, reviews, and proctoring data will be permanently removed.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.deleteAiMockInterview(id);
+      toast.success('AI interview deleted');
+      loadDrives();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete AI interview');
+    }
+  };
+
   const getDriveStats = (drive) => {
     const total = drive._count?.slots || 0;
     const assigned = drive.slots?.filter(s => s.status !== 'AVAILABLE').length || 0;
@@ -187,9 +204,19 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
                     <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
                       <Sparkles className="w-5 h-5" />
                     </div>
-                    <span className="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border bg-white text-slate-600 border-slate-200">
-                      {iv.status || 'PUBLISHED'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border bg-white text-slate-600 border-slate-200">
+                        {iv.status || 'PUBLISHED'}
+                      </span>
+                      <button
+                        type="button"
+                        title="Delete AI interview"
+                        onClick={() => handleDeleteAiInterview(iv.id, iv.title)}
+                        className="w-9 h-9 rounded-lg border border-rose-100 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                     {iv.title}
@@ -205,13 +232,22 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
                     <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-4">
                       <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${rate}%` }} />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/admin/mock-interviews/${iv.id}/review`)}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-md shadow-indigo-600/20 active:scale-95"
-                    >
-                      Review submissions
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/mock-interviews/${iv.id}/review`)}
+                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-md shadow-indigo-600/20 active:scale-95"
+                      >
+                        Review submissions
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAiInterview(iv.id, iv.title)}
+                        className="px-4 py-3 border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white hover:border-rose-600 rounded-xl text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

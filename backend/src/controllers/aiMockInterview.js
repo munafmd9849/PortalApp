@@ -207,6 +207,30 @@ export async function updateAiMockInterview(req, res) {
   }
 }
 
+export async function deleteAiMockInterview(req, res) {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.aiMockInterview.findUnique({
+      where: { id },
+      select: { id: true, title: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    await prisma.aiMockInterview.delete({ where: { id } });
+
+    res.json({
+      message: 'AI mock interview deleted successfully',
+      id: existing.id,
+      title: existing.title,
+    });
+  } catch (error) {
+    console.error('deleteAiMockInterview:', error);
+    res.status(500).json({ error: 'Failed to delete AI mock interview' });
+  }
+}
+
 export async function listAiMockInterviews(req, res) {
   try {
     const interviews = await prisma.aiMockInterview.findMany({

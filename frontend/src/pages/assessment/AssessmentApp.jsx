@@ -12,7 +12,9 @@ import {
   parseCodingAnswer,
   serializeCodingAnswer,
   parseTestCases,
+  parseExamples,
 } from '../../coding-engine';
+import CodingProblemPanel from '../../components/coding/CodingProblemPanel';
 import ProctoringConsole from '../../components/assessment/ProctoringConsole';
 import { ProctoringEngine } from '../../proctoring-engine/ProctoringEngine';
 import { defaultProctoringConfig } from '../../proctoring-engine/constants';
@@ -882,16 +884,18 @@ export default function AssessmentApp() {
                  </span>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-2xl font-black text-white leading-tight tracking-tight">
-                  {currentQuestion?.questionText}
-                </h3>
-                {currentQuestion?.description && (
-                  <p className="text-slate-400 text-sm leading-relaxed font-medium">
-                    {currentQuestion.description}
-                  </p>
-                )}
-              </div>
+              {currentQuestion?.type !== 'CODING' && (
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-black text-white leading-tight tracking-tight">
+                    {currentQuestion?.questionText}
+                  </h3>
+                  {currentQuestion?.description && (
+                    <p className="text-slate-400 text-sm leading-relaxed font-medium">
+                      {currentQuestion.description}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Interaction Area */}
               <div className="flex-1 min-h-[400px]">
@@ -924,7 +928,29 @@ export default function AssessmentApp() {
                     );})}
                   </div>
                 ) : currentQuestion?.type === 'CODING' ? (
-                  <div className="h-[min(560px,65vh)] flex flex-col rounded-2xl overflow-hidden border border-slate-800">
+                  <div className="h-[min(720px,72vh)] flex flex-col lg:flex-row rounded-2xl overflow-hidden border border-slate-800 bg-[#0d1117]">
+                    <div className="lg:hidden max-h-[40vh] shrink-0 border-b border-slate-800 overflow-hidden">
+                      <CodingProblemPanel
+                        title={currentQuestion.questionText}
+                        problem={currentQuestion.description}
+                        constraints={currentQuestion.constraints}
+                        examples={parseExamples(currentQuestion.examples)}
+                        difficulty={currentQuestion.difficulty}
+                        points={currentQuestion.points}
+                      />
+                    </div>
+                    <div className="hidden lg:block w-[42%] min-w-[280px] max-w-[480px] shrink-0 border-r border-slate-800">
+                      <CodingProblemPanel
+                        title={currentQuestion.questionText}
+                        problem={currentQuestion.description}
+                        constraints={currentQuestion.constraints}
+                        examples={parseExamples(currentQuestion.examples)}
+                        difficulty={currentQuestion.difficulty}
+                        points={currentQuestion.points}
+                        className="h-full"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 min-h-[360px]">
                     {(() => {
                       const parsed = parseCodingAnswer(
                         answers[currentQuestion.id],
@@ -938,6 +964,7 @@ export default function AssessmentApp() {
                         <CodingWorkspace
                           code={codeVal}
                           language={lang}
+                          showProblemHeader={false}
                           onCodeChange={(newCode) => {
                             const next = serializeCodingAnswer({
                               ...parseCodingAnswer(answers[currentQuestion.id], lang),
@@ -961,15 +988,24 @@ export default function AssessmentApp() {
                             );
                           }}
                           showSubmit
-                          testCases={parseTestCases(currentQuestion.testCases)}
-                          questionTitle={currentQuestion.questionText}
-                          questionDescription={currentQuestion.description}
+                          testCases={currentQuestion.testCases}
+                          onTestsEmpty={() =>
+                            toast?.error('No judge test cases configured for this question.')
+                          }
+                          onError={(msg) => toast?.error(msg)}
                           onSubmit={(payload) => {
                             handleAnswerChange(
                               currentQuestion.id,
                               serializeCodingAnswer(payload)
                             );
-                            toast?.success('Coding answer saved');
+                            const ev = payload.evaluation;
+                            if (ev?.total > 0) {
+                              toast?.success(
+                                `Saved · Tests ${ev.passed}/${ev.total}${ev.score != null ? ` (${ev.score}%)` : ''}`
+                              );
+                            } else {
+                              toast?.success('Coding answer saved');
+                            }
                           }}
                           onRunComplete={(run) => {
                             handleAnswerChange(
@@ -991,6 +1027,7 @@ export default function AssessmentApp() {
                         />
                       );
                     })()}
+                    </div>
                   </div>
                 ) : (
                   <div className="h-full bg-slate-900/50 border border-slate-800 rounded-3xl flex flex-col items-center justify-center p-12 gap-8">

@@ -2,6 +2,7 @@ import express from 'express';
 import {
   createAiMockInterview,
   updateAiMockInterview,
+  deleteAiMockInterview,
   listAiMockInterviews,
   getAiMockInterview,
   getAiInterviewReviewDashboard,
@@ -42,5 +43,6 @@ router.get('/', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), listAiMockInt
 router.get('/:id/review', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getAiInterviewReviewDashboard);
 router.get('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getAiMockInterview);
 router.put('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateAiMockInterview);
+router.delete('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteAiMockInterview);
 
 export default router;

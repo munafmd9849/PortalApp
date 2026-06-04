@@ -1127,7 +1127,7 @@ export const api = {
   getAssessmentCandidates: (assessmentId) => apiRequest(`/assessments/${assessmentId}/candidates`),
   updateAssessment: (id, data) => apiRequest(`/assessments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAssessment: (id) => apiRequest(`/assessments/${id}`, { method: 'DELETE' }),
-  getAssessments: () => apiRequest('/assessments/all'),
+  getAssessments: () => apiRequest('/assessments/all', { noCache: true }),
   getAssessmentDetails: (id) => apiRequest(`/assessments/details/${id}`),
   getAssessmentResults: (sessionId) => apiRequest(`/assessments/results/${sessionId}`),
   getStudentAssessments: () =>
@@ -1166,6 +1166,8 @@ export const api = {
     apiRequest('/ai-mock-interviews', { method: 'POST', body: JSON.stringify(data) }),
   updateAiMockInterview: (id, data) =>
     apiRequest(`/ai-mock-interviews/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAiMockInterview: (id) =>
+    apiRequest(`/ai-mock-interviews/${id}`, { method: 'DELETE' }),
   getAiMockInterviews: () => apiRequest('/ai-mock-interviews', { noCache: true }),
   getAiMockInterview: (id) => apiRequest(`/ai-mock-interviews/${id}`),
   getAiInterviewReview: (id) => apiRequest(`/ai-mock-interviews/${id}/review`),

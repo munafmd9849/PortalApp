@@ -276,6 +276,7 @@ function AppContent() {
         <Route element={<ProtectedRoute allowRoles={['super_admin']} />}>
           <Route path="/super-admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/super-admin/assessment/:interviewId/:roundName" element={<Assessment />} />
+          <Route path="/super-admin/assessments" element={<AdminAssessments />} />
           <Route path="/super-admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/super-admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
           <Route path="/super-admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />

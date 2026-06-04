@@ -7,6 +7,10 @@ import {
 } from '../utils/studentAssignmentScope.js';
 import { gradeCodingAnswer } from '../coding-engine/index.js';
 import {
+  serializeTestCasesForStorage,
+  serializeExamplesForStorage,
+} from '../coding-engine/testCaseStorage.js';
+import {
   normalizeStoredScore,
   pointsToPercent,
   totalQuestionPoints,
@@ -132,8 +136,10 @@ export async function createAssessment(req, res) {
             correctAnswer: q.correctAnswer,
             points: parseInt(q.points) || 1,
             difficulty: q.difficulty || 'MEDIUM',
-            starterCode: q.starterCode,
-            testCases: JSON.stringify(q.testCases || []),
+            starterCode: q.starterCode || null,
+            constraints: q.constraints || null,
+            examples: serializeExamplesForStorage(q.examples || []),
+            testCases: serializeTestCasesForStorage(q.testCases || []),
             order: index
           }))
         },

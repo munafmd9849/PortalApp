@@ -14,6 +14,7 @@ import AssessmentSettingsModal from '../../components/dashboard/admin/Assessment
 import { fromDatetimeLocalValue } from '../../utils/assessmentEntryWindow';
 import StudentSelectorModal from '../../components/dashboard/admin/StudentSelectorModal';
 import DirectoryLoadingPanel from '../../components/dashboard/admin/DirectoryLoading';
+import CodingQuestionEditor from '../../components/admin/CodingQuestionEditor';
 
 const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'AUTO_SUBMITTED', 'TERMINATED']);
 
@@ -90,9 +91,11 @@ export default function AdminAssessments() {
     try {
       setLoading(true);
       const data = await api.getAssessments();
-      setAssessments(data);
+      const list = Array.isArray(data) ? data : (data?.assessments || []);
+      setAssessments(list);
     } catch (e) {
-      toast?.error('Failed to load assessments');
+      toast?.error(e?.message || 'Failed to load assessments');
+      setAssessments([]);
     } finally {
       setLoading(false);
     }
@@ -102,6 +105,17 @@ export default function AdminAssessments() {
     fetchAssessments();
     fetchBatches();
   }, [fetchAssessments, fetchBatches]);
+
+  // Drop stale localStorage cache from before assessments existed (5-min TTL hid new items)
+  useEffect(() => {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.includes('api_cache_/assessments/all')) localStorage.removeItem(key);
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const [availableStudents, setAvailableStudents] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
@@ -132,6 +146,19 @@ export default function AdminAssessments() {
     : [];
 
   const handleCreate = async () => {
+    const codingQs = (formData.questions || []).filter((q) => q.type === 'CODING');
+    for (const q of codingQs) {
+      if (!q.text?.trim()) {
+        toast?.error('Each coding question needs a title');
+        return;
+      }
+      const cases = Array.isArray(q.testCases) ? q.testCases : [];
+      const valid = cases.filter((tc) => String(tc.input ?? '').trim() && String(tc.expectedOutput ?? tc.output ?? '').trim());
+      if (valid.length === 0) {
+        toast?.error(`"${q.text || 'Coding question'}": add at least one judge test case with input and expected output`);
+        return;
+      }
+    }
     try {
       await api.createAssessment({
         ...formData,
@@ -163,8 +190,10 @@ export default function AdminAssessments() {
           correctAnswer: '', 
           points: 1,
           difficulty: 'MEDIUM',
-          starterCode: '',
-          testCases: [{ input: '', output: '', isPublic: true }]
+          starterCode: `function solution(input) {\n  // your code\n  return input;\n}\n`,
+          constraints: '',
+          examples: [{ input: '', output: '', explanation: '' }],
+          testCases: [{ input: '', expectedOutput: '', hidden: false }]
         }
       ]
     });
@@ -351,7 +380,7 @@ export default function AdminAssessments() {
                    <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${
                      item.type === 'MOCK_TEST' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
                    }`}>
-                     {item.type.replace('_', ' ')}
+                     {item.type?.replace(/_/g, ' ')}
                    </span>
                 </div>
               </div>
@@ -587,6 +616,7 @@ export default function AdminAssessments() {
                             </button>
 
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                               {q.type !== 'CODING' && (
                                <div className="md:col-span-8 space-y-2.5">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Question {idx + 1}</label>
                                   <input 
@@ -596,6 +626,8 @@ export default function AdminAssessments() {
                                      placeholder="Enter question text here..." 
                                   />
                                </div>
+                               )}
+                               {q.type === 'CODING' && <div className="md:col-span-8" />}
                                <div className="md:col-span-4 space-y-2.5">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Type & Points</label>
                                   <div className="flex gap-2">
@@ -676,26 +708,14 @@ export default function AdminAssessments() {
                             )}
 
                             {q.type === 'CODING' && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Starter Code</label>
-                                    <textarea 
-                                      value={q.starterCode || ''}
-                                      onChange={e => updateQuestion(idx, 'starterCode', e.target.value)}
-                                      className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl h-48 border border-slate-800 outline-none focus:ring-2 ring-indigo-500/20"
-                                      placeholder="function solve() { \n  // logic \n}"
-                                    />
-                                 </div>
-                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Test Cases (JSON)</label>
-                                    <textarea 
-                                      value={typeof q.testCases === 'string' ? q.testCases : JSON.stringify(q.testCases || [], null, 2)}
-                                      onChange={e => updateQuestion(idx, 'testCases', e.target.value)}
-                                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[10px] h-48 outline-none focus:ring-2 ring-indigo-500/20"
-                                      placeholder='[{"input": "5", "output": "120"}]'
-                                    />
-                                 </div>
-                              </div>
+                              <CodingQuestionEditor
+                                question={q}
+                                onChange={(updated) => {
+                                  const newQuestions = [...formData.questions];
+                                  newQuestions[idx] = { ...newQuestions[idx], ...updated };
+                                  setFormData({ ...formData, questions: newQuestions });
+                                }}
+                              />
                             )}
                          </div>
                        ))}
