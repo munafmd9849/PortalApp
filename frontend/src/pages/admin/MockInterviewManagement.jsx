@@ -4,7 +4,7 @@ import {
   Plus, Calendar, Clock, Users, ArrowRight, 
   Search, MoreHorizontal, CheckCircle2,
   Clock3, AlertCircle, Trash2, Edit2, Layout,
-  ChevronRight
+  ChevronRight, Sparkles,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
@@ -53,6 +53,7 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(autoOpenCreate);
   const [editDrive, setEditDrive] = useState(null);
+  const [aiInterviews, setAiInterviews] = useState([]);
 
   const openCreateModal = () => {
     setShowCreateModal(true);
@@ -65,8 +66,12 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
   const loadDrives = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getMockInterviewDrives();
+      const [data, ai] = await Promise.all([
+        api.getMockInterviewDrives(),
+        api.getAiMockInterviews().catch(() => []),
+      ]);
       setDrives(data);
+      setAiInterviews(Array.isArray(ai) ? ai : []);
     } catch (err) {
       toast.error('Failed to load mock interview drives');
     } finally {
@@ -139,13 +144,81 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
           </h1>
           <p className="text-slate-500 text-sm mt-1 font-medium">Manage scheduling, candidates, and 1:1 session results</p>
         </div>
-        <button 
-          onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> Create New Drive
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/mock-interviews/create-ai-interview')}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-md shadow-slate-900/10 active:scale-95"
+          >
+            <Sparkles className="w-4 h-4" /> AI Video Interview
+          </button>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> Live 1:1 Drive
+          </button>
+        </div>
       </div>
+
+      {aiInterviews.length > 0 && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600" /> AI video mock interviews
+            </h2>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {aiInterviews.length} active assignment{aiInterviews.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {aiInterviews.map((iv) => {
+              const rate =
+                iv.stats?.assigned > 0
+                  ? Math.round(((iv.stats?.completed ?? 0) / iv.stats.assigned) * 100)
+                  : 0;
+              return (
+                <div
+                  key={iv.id}
+                  className="bg-slate-50/50 rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:shadow-slate-200/50 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <span className="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border bg-white text-slate-600 border-slate-200">
+                      {iv.status || 'PUBLISHED'}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                    {iv.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">
+                    {iv.interviewType?.replace(/_/g, ' ')} · {iv.stats?.completed ?? 0}/{iv.stats?.assigned ?? 0} completed
+                  </p>
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Completion</span>
+                      <span className="text-sm font-bold text-indigo-600 tabular-nums">{rate}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-4">
+                      <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${rate}%` }} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/mock-interviews/${iv.id}/review`)}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-md shadow-indigo-600/20 active:scale-95"
+                    >
+                      Review submissions
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Statistics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">

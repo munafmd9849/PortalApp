@@ -54,6 +54,9 @@ import MockInterviewPreCheck from './pages/assessment/MockInterviewPreCheck';
 import MockInterviewRoom from './pages/assessment/MockInterviewRoom';
 import AssessmentResultStudent from './pages/assessment/AssessmentResultStudent';
 import AdminMockInterviewResults from './pages/admin/AdminMockInterviewResults';
+import AiMockInterviewCreate from './pages/admin/AiMockInterviewCreate';
+import AiMockInterviewReview from './pages/admin/AiMockInterviewReview';
+import AiMockInterviewSession from './pages/student/AiMockInterviewSession';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -236,6 +239,7 @@ function AppContent() {
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/onboarding" element={<StudentOnboarding />} />
           <Route path="/student/mock-interviews" element={<MockInterviewStudentDashboard />} />
+          <Route path="/student/interviews/:id" element={<AiMockInterviewSession />} />
           <Route path="/mock-interview/results/:slotId" element={<MockInterviewResultStudent />} />
         </Route>
 
@@ -256,8 +260,10 @@ function AppContent() {
           <Route path="/admin/assessment/:interviewId/:roundName" element={<Assessment />} />
           <Route path="/admin/mock-interviews" element={<MockInterviewManagement />} />
           <Route path="/admin/mock-interviews/create" element={<MockInterviewCreate />} />
+          <Route path="/admin/mock-interviews/create-ai-interview" element={<AiMockInterviewCreate />} />
           <Route path="/admin/mock-interviews/:id/slots" element={<MockInterviewSlots />} />
           <Route path="/admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
+          <Route path="/admin/mock-interviews/:id/review" element={<AiMockInterviewReview />} />
           <Route path="/admin/assessments" element={<AdminAssessments />} />
           <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />

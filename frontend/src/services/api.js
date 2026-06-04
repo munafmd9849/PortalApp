@@ -460,6 +460,28 @@ async function uploadProctoringScreenshot(sessionId, blob, { flags, faceCount, c
   });
 }
 
+async function uploadAiInterviewMultipart(url, formData) {
+  const token = getAuthToken();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Invalid response'));
+        }
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.open('POST', `${API_BASE_URL}${url}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
 // Export API functions
 export const api = {
   // Auth
@@ -1138,6 +1160,64 @@ export const api = {
   getMockInterviewSlotResults: (slotId) => apiRequest(`/mock-interviews/results/slot/${slotId}`),
   getMockInterviewDriveResults: (driveId) => apiRequest(`/mock-interviews/results/drive/${driveId}`),
   updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // AI Video Mock Interviews (one-way)
+  createAiMockInterview: (data) =>
+    apiRequest('/ai-mock-interviews', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiMockInterview: (id, data) =>
+    apiRequest(`/ai-mock-interviews/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getAiMockInterviews: () => apiRequest('/ai-mock-interviews', { noCache: true }),
+  getAiMockInterview: (id) => apiRequest(`/ai-mock-interviews/${id}`),
+  getAiInterviewReview: (id) => apiRequest(`/ai-mock-interviews/${id}/review`),
+  getAiEnrollmentDetail: (enrollmentId) => apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/detail`),
+  saveAiEnrollmentReview: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  regenerateAiInsights: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/regenerate-ai`, { method: 'POST' }),
+  getStudentAiInterviews: () => apiRequest('/ai-mock-interviews/student/my-interviews'),
+  getStudentAiInterviewSession: (interviewId) =>
+    apiRequest(`/ai-mock-interviews/student/session/${interviewId}`),
+  startAiInterviewSession: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/start`, { method: 'POST' }),
+  updateAiInterviewProgress: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  submitAiInterviewAnswer: (enrollmentId, blob, { questionId, durationSeconds }) => {
+    const formData = new FormData();
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `answer-${Date.now()}.webm`, { type: blob.type || 'video/webm' });
+    formData.append('recording', file);
+    formData.append('questionId', questionId);
+    if (durationSeconds != null) formData.append('durationSeconds', String(durationSeconds));
+    return uploadAiInterviewMultipart(`/ai-mock-interviews/enrollment/${enrollmentId}/answer`, formData);
+  },
+  completeAiInterview: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/complete`, { method: 'POST' }),
+  logAiInterviewViolation: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/violation`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  uploadAiInterviewScreenshot: (enrollmentId, blob, meta = {}) => {
+    const formData = new FormData();
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `shot-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+    formData.append('screenshot', file);
+    if (meta.captureType) formData.append('captureType', meta.captureType);
+    if (meta.event) formData.append('event', meta.event);
+    if (meta.riskFlag != null) formData.append('riskFlag', meta.riskFlag ? 'true' : 'false');
+    if (meta.faceCount != null) formData.append('faceCount', String(meta.faceCount));
+    return uploadAiInterviewMultipart(`/ai-mock-interviews/enrollment/${enrollmentId}/screenshot`, formData);
+  },
 
   // Generic HTTP methods for calendar and other services
   get: (endpoint, config = {}) => {

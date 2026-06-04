@@ -5,7 +5,8 @@ import {
   ChevronRight, AlertCircle, CheckCircle2,
   Timer, Star, MessageSquare, ArrowRight,
   Shield, User, PlayCircle, Clock3, Ban,
-  Layout, Info, Trophy, Target
+  Layout, Info, Trophy, Target, Sparkles,
+  Camera, Lock, FileText,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
@@ -15,12 +16,17 @@ export default function MockInterviewStudentDashboard() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState([]);
+  const [aiInterviews, setAiInterviews] = useState([]);
 
   const loadSlots = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getStudentMockInterviews();
+      const [data, ai] = await Promise.all([
+        api.getStudentMockInterviews(),
+        api.getStudentAiInterviews().catch(() => []),
+      ]);
       setSlots(data);
+      setAiInterviews(Array.isArray(ai) ? ai : []);
     } catch (err) {
       toast.error('Failed to load your mock interviews');
     } finally {
@@ -49,7 +55,7 @@ export default function MockInterviewStudentDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">My Mock Interviews</h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium">Prepare for your dream placements with 1:1 expert sessions</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Live 1:1 sessions and AI video mock interviews</p>
         </div>
         <div className="flex items-center gap-3">
            <div className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 flex items-center gap-2 shadow-sm shadow-indigo-500/5">
@@ -62,9 +68,93 @@ export default function MockInterviewStudentDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Left Column: Timeline */}
         <div className="lg:col-span-2 space-y-6">
+           {aiInterviews.length > 0 && (
+             <div className="space-y-6">
+               <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-2xl shadow-indigo-900/10">
+                 <div className="relative z-10 space-y-3">
+                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                     <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                     <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Secure video session</span>
+                   </div>
+                   <h2 className="text-xl font-bold tracking-tight">AI Video Mock Interviews</h2>
+                   <p className="text-slate-400 text-sm font-medium max-w-lg">
+                     Proctored one-way interviews with timed questions. Use a quiet room, camera, and fullscreen.
+                   </p>
+                 </div>
+                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[80px] -mr-24 -mt-24 rounded-full" />
+               </div>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                 {aiInterviews.map((iv) => {
+                   const isCompleted = iv.status === 'COMPLETED';
+                   const statusColor = isCompleted
+                     ? 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                     : iv.status === 'IN_PROGRESS'
+                       ? 'text-amber-600 bg-amber-50 border-amber-100'
+                       : 'text-indigo-600 bg-indigo-50 border-indigo-100';
+                   const statusLabel = isCompleted
+                     ? 'Completed'
+                     : iv.status === 'IN_PROGRESS'
+                       ? 'In Progress'
+                       : 'Not Started';
+                   return (
+                     <div
+                       key={iv.enrollmentId}
+                       className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group flex flex-col h-full"
+                     >
+                       <div className="flex justify-between items-start mb-6">
+                         <div className={`p-3 rounded-xl border shadow-sm ${statusColor}`}>
+                           <Camera className="w-5 h-5" />
+                         </div>
+                         <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${statusColor}`}>
+                           {statusLabel}
+                         </div>
+                       </div>
+                       <div className="flex-1 space-y-2">
+                         <span className="text-[9px] font-bold uppercase text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                           {iv.interviewType?.replace(/_/g, ' ')}
+                         </span>
+                         <h3 className="text-lg font-bold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors">
+                           {iv.title}
+                         </h3>
+                         <p className="text-sm text-slate-500 font-medium">
+                           {iv.questionCount} questions · {iv.progressPercent ?? 0}% progress
+                         </p>
+                       </div>
+                       <div className="mt-8 pt-6 border-t border-slate-100">
+                         {isCompleted ? (
+                           <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 uppercase">
+                             <FileText className="w-4 h-4" /> Submitted for review
+                           </div>
+                         ) : iv.canStart ? (
+                           <button
+                             type="button"
+                             onClick={() => navigate(`/student/interviews/${iv.interviewId}`)}
+                             className="w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-slate-900 text-white shadow-lg shadow-slate-900/10 hover:bg-indigo-600 hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                           >
+                             <PlayCircle className="w-4 h-4" />
+                             {iv.status === 'IN_PROGRESS' ? 'Resume session' : 'Enter secure portal'}
+                           </button>
+                         ) : (
+                           <button
+                             type="button"
+                             disabled
+                             className="w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
+                           >
+                             <Lock className="w-4 h-4" />
+                             Opens {new Date(iv.startDate).toLocaleDateString()}
+                           </button>
+                         )}
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             </div>
+           )}
+
            <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                 <Calendar className="w-4 h-4" /> Upcoming Sessions
+                 <Calendar className="w-4 h-4" /> Live 1:1 Sessions
               </h2>
            </div>
 

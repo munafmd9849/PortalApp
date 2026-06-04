@@ -61,6 +61,7 @@ import publicRoutes from './routes/public.js';
 import resumeViewRoutes from './routes/resumeView.js';
 import auditLogRoutes from './routes/auditLogs.js';
 import mockInterviewRoutes from './routes/mockInterview.js';
+import aiMockInterviewRoutes from './routes/aiMockInterview.js';
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -286,6 +287,7 @@ app.use('/api/assessments', assessmentRoutes); // Assessment Engine: Tests, Inte
 app.use('/api/code', codeRoutes); // Coding engine: run & evaluate
 app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only
 app.use('/api/mock-interviews', mockInterviewRoutes); // Dedicated Mock Interview System
+app.use('/api/ai-mock-interviews', aiMockInterviewRoutes); // One-way AI video mock interviews
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code
