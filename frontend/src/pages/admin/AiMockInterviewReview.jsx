@@ -285,7 +285,7 @@ function AiMockInterviewReviewComponent() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/admin?tab=mockInterviews')}
+              onClick={() => navigate('/admin?tab=mockInterviews&mode=ai')}
               className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 bg-slate-50 rounded-lg border border-slate-200"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -307,7 +307,7 @@ function AiMockInterviewReviewComponent() {
             <div className="space-y-6">
               <div>
                 <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest text-indigo-300 border border-white/5">
-                  {interview?.interviewType?.replace(/_/g, ' ') || 'AI'} · Video mock
+                  AI Video Mock Interview
                 </span>
                 <h2 className="text-4xl font-bold mt-4 leading-tight">{completionRate}% Completion</h2>
                 <p className="text-slate-400 text-sm mt-3 font-medium">

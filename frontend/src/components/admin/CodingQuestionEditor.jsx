@@ -1,13 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { CODING_LANGUAGES } from '../../coding-engine/constants';
+import {
+  parseStarterCodesByLang,
+  createEmptyStarterCodesByLang,
+} from '../../coding-engine/starterCodeStorage';
 import { emptyExample, emptyTestCase } from '../../coding-engine/testCaseUtils';
 
 export default function CodingQuestionEditor({ question, onChange }) {
   const q = question || {};
   const examples = Array.isArray(q.examples) ? q.examples : [];
   const testCases = Array.isArray(q.testCases) ? q.testCases : [];
+  const starterCodes = parseStarterCodesByLang(q.starterCodes ?? q.starterCode);
+  const [activeLang, setActiveLang] = useState('javascript');
 
   const patch = (field, value) => onChange({ ...q, [field]: value });
+
+  const patchStarter = (lang, code) => {
+    const next = { ...starterCodes, [lang]: code };
+    onChange({ ...q, starterCodes: next, starterCode: undefined });
+  };
 
   const updateExample = (idx, field, value) => {
     const next = [...examples];
@@ -109,72 +121,100 @@ export default function CodingQuestionEditor({ question, onChange }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
-            Starter code
+      <div className="space-y-3 p-4 bg-white border border-slate-200 rounded-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Starter code (per language)
           </label>
-          <textarea
-            value={q.starterCode || ''}
-            onChange={(e) => patch('starterCode', e.target.value)}
-            className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl h-52 border border-slate-800"
-            placeholder={'function solution(input) {\n  // your code\n}'}
-          />
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Judge test cases
-            </label>
-            <button
-              type="button"
-              onClick={() => patch('testCases', [...testCases, emptyTestCase()])}
-              className="text-[10px] font-bold text-indigo-600 flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add case
-            </button>
-          </div>
-          <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
-            {testCases.map((tc, idx) => (
-              <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-500">Case {idx + 1}</span>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 text-[10px]">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(tc.hidden)}
-                        onChange={(e) => updateTestCase(idx, 'hidden', e.target.checked)}
-                      />
-                      Hidden
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => patch('testCases', testCases.filter((_, i) => i !== idx))}
-                      className="text-rose-500"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={tc.input}
-                  onChange={(e) => updateTestCase(idx, 'input', e.target.value)}
-                  className="w-full p-2 border rounded font-mono h-12"
-                  placeholder="Input"
-                />
-                <textarea
-                  value={tc.expectedOutput}
-                  onChange={(e) => updateTestCase(idx, 'expectedOutput', e.target.value)}
-                  className="w-full p-2 border rounded font-mono h-12"
-                  placeholder="Expected output"
-                />
-              </div>
+          <div className="flex flex-wrap gap-1.5">
+            {CODING_LANGUAGES.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => setActiveLang(l.id)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                  activeLang === l.id
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {l.label}
+              </button>
             ))}
-            {testCases.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">Add at least one judge test case.</p>
-            )}
           </div>
+        </div>
+        <p className="text-[10px] text-slate-500 font-medium">
+          Provide a template for each language you may allow students to use. Test cases below are
+          shared across all languages.
+        </p>
+        <textarea
+          value={starterCodes[activeLang] || ''}
+          onChange={(e) => patchStarter(activeLang, e.target.value)}
+          className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl h-52 border border-slate-800"
+          placeholder={`${activeLang} starter template...`}
+        />
+        <button
+          type="button"
+          onClick={() => patchStarter(activeLang, createEmptyStarterCodesByLang()[activeLang])}
+          className="text-[10px] font-bold text-slate-500 hover:text-indigo-600"
+        >
+          Reset {CODING_LANGUAGES.find((l) => l.id === activeLang)?.label} to default template
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Judge test cases (all languages)
+          </label>
+          <button
+            type="button"
+            onClick={() => patch('testCases', [...testCases, emptyTestCase()])}
+            className="text-[10px] font-bold text-indigo-600 flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add case
+          </button>
+        </div>
+        <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+          {testCases.map((tc, idx) => (
+            <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-500">Case {idx + 1}</span>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1 text-[10px]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(tc.hidden)}
+                      onChange={(e) => updateTestCase(idx, 'hidden', e.target.checked)}
+                    />
+                    Hidden
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => patch('testCases', testCases.filter((_, i) => i !== idx))}
+                    className="text-rose-500"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <textarea
+                value={tc.input}
+                onChange={(e) => updateTestCase(idx, 'input', e.target.value)}
+                className="w-full p-2 border rounded font-mono h-12"
+                placeholder="Input"
+              />
+              <textarea
+                value={tc.expectedOutput}
+                onChange={(e) => updateTestCase(idx, 'expectedOutput', e.target.value)}
+                className="w-full p-2 border rounded font-mono h-12"
+                placeholder="Expected output"
+              />
+            </div>
+          ))}
+          {testCases.length === 0 && (
+            <p className="text-xs text-slate-400 text-center py-4">Add at least one judge test case.</p>
+          )}
         </div>
       </div>
     </div>

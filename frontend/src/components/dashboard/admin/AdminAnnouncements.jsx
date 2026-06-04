@@ -311,7 +311,12 @@ export default function AdminAnnouncements() {
                 )}
               </div>
             </div>
-            <p className="text-xs text-slate-500 self-center">Leave empty = all students</p>
+            <span
+              className="inline-flex items-center shrink-0 px-3 py-2.5 rounded-lg text-sm font-medium border-2 border-slate-300 bg-slate-50 text-slate-600 whitespace-nowrap"
+              title="No school, batch, or center selected — announcement goes to every student"
+            >
+              Leave empty = all students
+            </span>
           </div>
 
           <h2 className="text-xl font-bold text-gray-900 pt-2" style={{ color: COLORS.purple }}>

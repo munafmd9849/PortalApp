@@ -17,6 +17,7 @@ import {
   evaluateAssessmentCandidate,
   getAssessmentCandidates,
   updateAssessment,
+  publishAssessment,
   deleteAssessment,
   getStudentSessionResults
 } from '../controllers/assessment.js';
@@ -35,6 +36,7 @@ router.get('/results/:sessionId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN
 router.get('/dashboard/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getAssessmentResults);
 router.get('/:assessmentId/candidates', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'RECRUITER']), getAssessmentCandidates);
 router.post('/evaluate/:assessmentId/:studentId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), evaluateAssessmentCandidate);
+router.post('/:id/publish', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), publishAssessment);
 router.put('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateAssessment);
 router.delete('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteAssessment);
 

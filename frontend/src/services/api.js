@@ -1126,6 +1126,7 @@ export const api = {
   getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
   getAssessmentCandidates: (assessmentId) => apiRequest(`/assessments/${assessmentId}/candidates`),
   updateAssessment: (id, data) => apiRequest(`/assessments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  publishAssessment: (id) => apiRequest(`/assessments/${id}/publish`, { method: 'POST' }),
   deleteAssessment: (id) => apiRequest(`/assessments/${id}`, { method: 'DELETE' }),
   getAssessments: () => apiRequest('/assessments/all', { noCache: true }),
   getAssessmentDetails: (id) => apiRequest(`/assessments/details/${id}`),
@@ -1148,6 +1149,8 @@ export const api = {
 
   // Mock Interview System
   createMockInterviewDrive: (data) => apiRequest('/mock-interviews/create', { method: 'POST', body: JSON.stringify(data) }),
+  publishMockInterviewDrive: (id) =>
+    apiRequest(`/mock-interviews/drives/${id}/publish`, { method: 'POST' }),
   getMockInterviewDrives: (opts = {}) => apiRequest('/mock-interviews/all', { noCache: true, ...opts }),
   assignStudentToSlot: (data) => apiRequest('/mock-interviews/assign', { method: 'POST', body: JSON.stringify(data) }),
   updateMockSlotStatus: (data) => apiRequest('/mock-interviews/update-status', { method: 'POST', body: JSON.stringify(data) }),

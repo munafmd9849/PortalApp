@@ -1331,7 +1331,7 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'assessments', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'mockInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -2052,8 +2052,8 @@ export default function StudentDashboard() {
     { id: 'jobs', label: 'Explore Jobs', icon: Briefcase },
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
+    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
     { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },

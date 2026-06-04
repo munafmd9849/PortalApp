@@ -9,89 +9,204 @@ import { buildMockSlotResult } from '../utils/mockInterviewFeedback.js';
 
 const prisma = new PrismaClient();
 
+function defaultDraftSchedule() {
+  const start = new Date();
+  start.setDate(start.getDate() + 7);
+  start.setHours(9, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(17, 0, 0, 0);
+  return { date: start, startTime: start, endTime: end };
+}
+
+function resolveDriveSchedule(body) {
+  const { date, startTime, endTime } = body;
+  if (date && startTime && endTime) {
+    return {
+      date: new Date(date),
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+    };
+  }
+  return defaultDraftSchedule();
+}
+
+function buildSlotsForDrive(drive, targetStudentIds = []) {
+  const slotDuration = parseInt(drive.slotDuration, 10) || 30;
+  const breakDuration = parseInt(drive.breakDuration, 10) || 0;
+  const slots = [];
+  let currentStartTime = new Date(drive.startTime);
+  const finalEndTime = new Date(drive.endTime);
+  const students = targetStudentIds;
+  let studentIndex = 0;
+
+  while (currentStartTime.getTime() + slotDuration * 60000 <= finalEndTime.getTime()) {
+    const slotEndTime = new Date(currentStartTime.getTime() + slotDuration * 60000);
+    const studentId = students[studentIndex] || null;
+
+    slots.push({
+      driveId: drive.id,
+      startTime: new Date(currentStartTime),
+      endTime: new Date(slotEndTime),
+      status: studentId ? 'SCHEDULED' : 'AVAILABLE',
+      studentId,
+      meetingRoomId: studentId ? `Room_${drive.id}_${studentId}_${Date.now()}` : null,
+      joinLink: studentId ? `/mock-interview-room/Room_${drive.id}_${studentId}` : null,
+    });
+
+    studentIndex++;
+    currentStartTime = new Date(slotEndTime.getTime() + breakDuration * 60000);
+  }
+
+  return slots;
+}
+
 // --- DRIVE & SLOT MANAGEMENT ---
 
 /**
- * Create a Mock Interview Drive and auto-generate slots
- * If targetStudentIds are provided, it auto-assigns them to slots
+ * Create a Mock Interview Drive and auto-generate slots when published.
+ * If publish === false, saves as DRAFT without slots.
  */
 export async function createMockInterviewDrive(req, res) {
   try {
-    const { 
-      title, category, description, instructions, 
-      date, startTime, endTime, 
-      slotDuration, breakDuration, bufferTime,
-      targetBatches, targetBranches, targetStudentIds,
+    const {
+      title,
+      category,
+      description,
+      instructions,
+      date,
+      startTime,
+      endTime,
+      slotDuration,
+      breakDuration,
+      bufferTime,
+      targetBatches,
+      targetBranches,
+      targetStudentIds,
       enableCodeConsole,
       codingQuestions,
+      publish,
     } = req.body;
+
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Interview title is required' });
+    }
+
+    const isDraft = publish === false;
+    const schedule = resolveDriveSchedule({ date, startTime, endTime });
+
+    if (!isDraft) {
+      if (!date || !startTime || !endTime) {
+        return res.status(400).json({ error: 'Date and time window are required to publish' });
+      }
+      if (schedule.endTime <= schedule.startTime) {
+        return res.status(400).json({ error: 'End time must be after start time' });
+      }
+      const mins =
+        (schedule.endTime.getTime() - schedule.startTime.getTime()) / 60000;
+      const block = parseInt(slotDuration, 10) || 30;
+      if (block <= 0 || mins < block) {
+        return res.status(400).json({ error: 'Time window is too short for at least one slot' });
+      }
+    }
 
     const codeConsoleEnabled = enableCodeConsole === true || enableCodeConsole === 'true';
     const questions = parseCodingQuestions(codingQuestions);
+    const students = targetStudentIds || [];
 
-    // 1. Create the Drive
     const drive = await prisma.mockInterviewDrive.create({
       data: {
-        title,
-        category,
+        title: title.trim(),
+        category: category || 'TECHNICAL',
         enableCodeConsole: codeConsoleEnabled,
         codingQuestions: codeConsoleEnabled ? serializeCodingQuestions(questions) : null,
         description,
         instructions,
-        date: new Date(date),
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        slotDuration: parseInt(slotDuration),
-        breakDuration: parseInt(breakDuration),
-        bufferTime: parseInt(bufferTime),
+        date: schedule.date,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        slotDuration: parseInt(slotDuration, 10) || 30,
+        breakDuration: parseInt(breakDuration, 10) || 0,
+        bufferTime: parseInt(bufferTime, 10) || 0,
         targetBatches: JSON.stringify(targetBatches || []),
         targetBranches: JSON.stringify(targetBranches || []),
-        targetStudentIds: JSON.stringify(targetStudentIds || []),
-        status: 'PUBLISHED'
-      }
+        targetStudentIds: JSON.stringify(students),
+        status: isDraft ? 'DRAFT' : 'PUBLISHED',
+      },
     });
 
-    // 2. Auto-generate Slots
-    const slots = [];
-    let currentStartTime = new Date(startTime);
-    const finalEndTime = new Date(endTime);
-    const students = targetStudentIds || [];
-    let studentIndex = 0;
-
-    while (currentStartTime.getTime() + (slotDuration * 60000) <= finalEndTime.getTime()) {
-      const slotEndTime = new Date(currentStartTime.getTime() + (slotDuration * 60000));
-      
-      const studentId = students[studentIndex] || null;
-      
-      slots.push({
-        driveId: drive.id,
-        startTime: new Date(currentStartTime),
-        endTime: new Date(slotEndTime),
-        status: studentId ? 'SCHEDULED' : 'AVAILABLE',
-        studentId: studentId,
-        meetingRoomId: studentId ? `Room_${drive.id}_${studentId}_${Date.now()}` : null,
-        joinLink: studentId ? `/mock-interview-room/Room_${drive.id}_${studentId}` : null
-      });
-
-      studentIndex++;
-      // Move to next slot: current slot end + break duration
-      currentStartTime = new Date(slotEndTime.getTime() + (breakDuration * 60000));
+    let slots = [];
+    if (!isDraft) {
+      slots = buildSlotsForDrive(drive, students);
+      if (slots.length > 0) {
+        await prisma.mockInterviewSlot.createMany({ data: slots });
+      }
     }
 
-    if (slots.length > 0) {
-      await prisma.mockInterviewSlot.createMany({
-        data: slots
-      });
-    }
-
-    res.status(201).json({ 
-      drive: hydrateDrive(drive), 
+    res.status(201).json({
+      drive: hydrateDrive(drive),
       slotsGenerated: slots.length,
-      studentsAssigned: Math.min(slots.length, students.length)
+      studentsAssigned: Math.min(slots.length, students.length),
+      status: drive.status,
     });
   } catch (error) {
     console.error('Create Mock Drive Error:', error);
     res.status(500).json({ error: 'Failed to create mock interview drive' });
+  }
+}
+
+/**
+ * Publish a draft drive: generate slots and set status PUBLISHED.
+ */
+export async function publishMockInterviewDrive(req, res) {
+  try {
+    const { id } = req.params;
+    const drive = await prisma.mockInterviewDrive.findUnique({ where: { id } });
+    if (!drive) return res.status(404).json({ error: 'Drive not found' });
+
+    if (drive.status === 'PUBLISHED') {
+      const existingCount = await prisma.mockInterviewSlot.count({ where: { driveId: id } });
+      return res.json({
+        drive: hydrateDrive(drive),
+        slotsGenerated: existingCount,
+        message: 'Drive is already published',
+      });
+    }
+
+    if (drive.endTime <= drive.startTime) {
+      return res.status(400).json({ error: 'Set a valid schedule before publishing' });
+    }
+
+    const slotDuration = parseInt(drive.slotDuration, 10) || 30;
+    const mins = (new Date(drive.endTime).getTime() - new Date(drive.startTime).getTime()) / 60000;
+    if (mins < slotDuration) {
+      return res.status(400).json({ error: 'Time window is too short for at least one slot' });
+    }
+
+    let targetStudentIds = [];
+    try {
+      targetStudentIds = JSON.parse(drive.targetStudentIds || '[]');
+    } catch {
+      targetStudentIds = [];
+    }
+
+    const slots = buildSlotsForDrive(drive, targetStudentIds);
+    if (slots.length > 0) {
+      await prisma.mockInterviewSlot.createMany({ data: slots });
+    }
+
+    const updated = await prisma.mockInterviewDrive.update({
+      where: { id },
+      data: { status: 'PUBLISHED' },
+    });
+
+    res.json({
+      drive: hydrateDrive(updated),
+      slotsGenerated: slots.length,
+      studentsAssigned: Math.min(slots.length, targetStudentIds.length),
+    });
+  } catch (error) {
+    console.error('Publish Mock Drive Error:', error);
+    res.status(500).json({ error: 'Failed to publish mock interview drive' });
   }
 }
 

@@ -13,6 +13,9 @@ import {
   serializeCodingAnswer,
   parseTestCases,
   parseExamples,
+  parseStarterCodesByLang,
+  getStarterForLanguage,
+  parseAllowedCodingLanguages,
 } from '../../coding-engine';
 import CodingProblemPanel from '../../components/coding/CodingProblemPanel';
 import ProctoringConsole from '../../components/assessment/ProctoringConsole';
@@ -87,7 +90,13 @@ export default function AssessmentApp() {
       try {
         setLoading(true);
         const details = await api.getAssessmentDetails(assessmentId);
-        setAssessment(details);
+        const allowedCodingLanguages = parseAllowedCodingLanguages(details.config);
+        const questions = (details.questions || []).map((q) => ({
+          ...q,
+          testCases: parseTestCases(q.testCases),
+          starterCodesByLang: parseStarterCodesByLang(q.starterCode),
+        }));
+        setAssessment({ ...details, questions, allowedCodingLanguages });
         setTimeLeft(details.duration * 60);
         
         if (isInterviewer) {
@@ -952,33 +961,54 @@ export default function AssessmentApp() {
                     </div>
                     <div className="flex-1 min-w-0 min-h-[360px]">
                     {(() => {
+                      const allowed =
+                        assessment?.allowedCodingLanguages?.length > 0
+                          ? assessment.allowedCodingLanguages
+                          : ['javascript'];
+                      const defaultLang = allowed[0];
                       const parsed = parseCodingAnswer(
                         answers[currentQuestion.id],
-                        'javascript'
+                        defaultLang
                       );
+                      let lang = parsed.language || defaultLang;
+                      if (!allowed.includes(lang)) lang = defaultLang;
+                      const starters = currentQuestion.starterCodesByLang;
                       const codeVal = answers[currentQuestion.id]
                         ? parsed.code
-                        : (currentQuestion.starterCode || parsed.code);
-                      const lang = parsed.language || 'javascript';
+                        : parsed.codesByLang?.[lang] ?? getStarterForLanguage(starters, lang);
                       return (
                         <CodingWorkspace
                           code={codeVal}
                           language={lang}
+                          allowedLanguages={allowed}
                           showProblemHeader={false}
                           onCodeChange={(newCode) => {
-                            const next = serializeCodingAnswer({
-                              ...parseCodingAnswer(answers[currentQuestion.id], lang),
-                              code: newCode,
-                              language: lang,
-                            });
-                            handleAnswerChange(currentQuestion.id, next);
+                            const cur = parseCodingAnswer(answers[currentQuestion.id], lang);
+                            const codesByLang = { ...cur.codesByLang, [lang]: newCode };
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer({
+                                ...cur,
+                                code: newCode,
+                                language: lang,
+                                codesByLang,
+                              })
+                            );
                           }}
                           onLanguageChange={(newLang) => {
-                            const next = serializeCodingAnswer({
-                              ...parseCodingAnswer(answers[currentQuestion.id], newLang),
-                              language: newLang,
-                            });
-                            handleAnswerChange(currentQuestion.id, next);
+                            const cur = parseCodingAnswer(answers[currentQuestion.id], lang);
+                            const codesByLang = { ...cur.codesByLang, [lang]: cur.code };
+                            const nextCode =
+                              codesByLang[newLang] ?? getStarterForLanguage(starters, newLang);
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              serializeCodingAnswer({
+                                ...cur,
+                                code: nextCode,
+                                language: newLang,
+                                codesByLang,
+                              })
+                            );
                           }}
                           customInput={parsed.customInput}
                           onCustomInputChange={(input) => {

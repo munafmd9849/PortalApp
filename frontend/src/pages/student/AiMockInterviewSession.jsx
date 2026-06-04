@@ -429,10 +429,6 @@ export default function AiMockInterviewSession() {
           <div>
             <h2 className="text-base font-black text-white tracking-tight">{session?.title}</h2>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                {session?.interviewType?.replace(/_/g, ' ')}
-              </span>
-              <div className="w-1 h-1 bg-slate-700 rounded-full" />
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">

@@ -7,6 +7,7 @@ import {
   serializeTestCasesForStorage,
   serializeExamplesForStorage,
 } from '../src/coding-engine/testCaseStorage.js';
+import { serializeStarterCodesForStorage } from '../src/coding-engine/starterCodeStorage.js';
 import { findStudentsForBatchIds } from '../src/utils/studentAssignmentScope.js';
 
 const BATCH_YEAR = '2024-2028';
@@ -156,6 +157,7 @@ async function main() {
         '1. Read each problem in the left panel.\n2. Implement solution(input).\n3. Use Run tests before Submit.\n4. Fullscreen and camera proctoring apply if enabled.',
       config: JSON.stringify({
         joinWindow: { opensMinutesBeforeStart: 60, closesMinutesAfterStart: 120 },
+        coding: { allowedLanguages: ['javascript', 'python'] },
       }),
       questions: {
         create: QUESTIONS.map((q, index) => ({
@@ -166,7 +168,7 @@ async function main() {
           correctAnswer: null,
           points: q.points,
           difficulty: q.difficulty,
-          starterCode: q.starterCode,
+          starterCode: serializeStarterCodesForStorage({ javascript: q.starterCode }),
           constraints: q.constraints,
           examples: serializeExamplesForStorage(q.examples),
           testCases: serializeTestCasesForStorage(q.testCases),

@@ -139,31 +139,57 @@ export default function MockInterviewCreateModal({ isOpen, onClose, onSuccess })
     setStep((s) => Math.min(3, s + 1));
   };
 
+  const buildPayload = (publish) => {
+    const startDateTime =
+      formData.date && formData.startTime
+        ? new Date(`${formData.date}T${formData.startTime}`)
+        : null;
+    const endDateTime =
+      formData.date && formData.endTime
+        ? new Date(`${formData.date}T${formData.endTime}`)
+        : null;
+    return {
+      ...formData,
+      date: formData.date || undefined,
+      slotDuration: parseInt(formData.slotDuration, 10) || 30,
+      breakDuration: 0,
+      bufferTime: parseInt(formData.bufferTime, 10) || 0,
+      startTime: startDateTime?.toISOString(),
+      endTime: endDateTime?.toISOString(),
+      targetStudentIds: selectedStudents,
+      enableCodeConsole: Boolean(formData.enableCodeConsole),
+      codingQuestions: formData.enableCodeConsole ? codingQuestions : [],
+      publish,
+    };
+  };
+
+  const handleSaveDraft = async () => {
+    if (!validateStep(1)) return;
+    setSubmitting(true);
+    try {
+      const res = await api.createMockInterviewDrive(buildPayload(false));
+      toast.success('Draft saved — publish when schedule is ready');
+      onSuccess?.();
+      onClose?.();
+    } catch (err) {
+      toast.error(err.message || 'Failed to save draft');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handlePublish = async () => {
     if (!validateStep(1) || !validateStep(2)) return;
     setSubmitting(true);
     try {
-      const startDateTime = new Date(`${formData.date}T${formData.startTime}`);
-      const endDateTime = new Date(`${formData.date}T${formData.endTime}`);
-      const payload = {
-        ...formData,
-        slotDuration: parseInt(formData.slotDuration, 10) || 30,
-        breakDuration: 0,
-        bufferTime: parseInt(formData.bufferTime, 10) || 0,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
-        targetStudentIds: selectedStudents,
-        enableCodeConsole: Boolean(formData.enableCodeConsole),
-        codingQuestions: formData.enableCodeConsole ? codingQuestions : [],
-      };
-      const res = await api.createMockInterviewDrive(payload);
+      const res = await api.createMockInterviewDrive(buildPayload(true));
       toast.success(
-        `Created ${res.slotsGenerated} slots · ${res.studentsAssigned} students assigned`
+        `Published · ${res.slotsGenerated} slots · ${res.studentsAssigned} students assigned`
       );
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      toast.error(err.message || 'Failed to create mock interview drive');
+      toast.error(err.message || 'Failed to publish mock interview drive');
     } finally {
       setSubmitting(false);
     }
@@ -581,17 +607,27 @@ export default function MockInterviewCreateModal({ isOpen, onClose, onSuccess })
                 Next Step <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={handlePublish}
-                disabled={submitting}
-                className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 flex items-center gap-2"
-              >
-                {submitting ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : null}
-                Publish Drive
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={submitting}
+                  className="px-6 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-50 flex items-center gap-2"
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={submitting}
+                  className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {submitting ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : null}
+                  Publish drive
+                </button>
+              </>
             )}
           </div>
         </div>

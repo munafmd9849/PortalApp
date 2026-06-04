@@ -19,6 +19,7 @@ export default function CodingWorkspace({
   showSubmit = false,
   onSubmit,
   testCases = [],
+  allowedLanguages = null,
   showProblemHeader = true,
   questionTitle = '',
   questionDescription = '',
@@ -44,6 +45,11 @@ export default function CodingWorkspace({
   );
 
   const parsedCases = useMemo(() => parseTestCases(testCases), [testCases]);
+
+  const languageOptions = useMemo(() => {
+    if (!allowedLanguages?.length) return CODING_LANGUAGES;
+    return CODING_LANGUAGES.filter((l) => allowedLanguages.includes(l.id));
+  }, [allowedLanguages]);
 
   const displayOutput = useMemo(() => {
     if (runResult?.error) {
@@ -118,10 +124,8 @@ export default function CodingWorkspace({
 
   const handleLanguageSwitch = (lang) => {
     if (readOnly) return;
+    if (!languageOptions.some((l) => l.id === lang)) return;
     onLanguageChange?.(lang);
-    if (!code?.trim() || Object.values(DEFAULT_STARTERS).some((s) => s === code)) {
-      onCodeChange?.(DEFAULT_STARTERS[lang] || DEFAULT_STARTERS.javascript);
-    }
   };
 
   return (
@@ -156,7 +160,7 @@ export default function CodingWorkspace({
             onChange={(e) => handleLanguageSwitch(e.target.value)}
             className="bg-[#0d1117] border border-white/10 rounded-md px-2 py-1 text-[10px] font-bold text-indigo-300 uppercase"
           >
-            {CODING_LANGUAGES.map((l) => (
+            {languageOptions.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label}
               </option>

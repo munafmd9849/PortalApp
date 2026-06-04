@@ -89,15 +89,26 @@ export async function createAiMockInterview(req, res) {
     } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Interview name is required' });
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start and end date/time are required' });
+    }
+    const startAt = new Date(startDate);
+    const endAt = new Date(endDate);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+      return res.status(400).json({ error: 'Invalid start or end date/time' });
+    }
+    if (endAt <= startAt) {
+      return res.status(400).json({ error: 'End must be after start' });
+    }
 
     const interview = await prisma.aiMockInterview.create({
       data: {
         title: title.trim(),
         description: description || null,
-        interviewType: interviewType || 'MIXED',
+        interviewType: interviewType || 'AI_VIDEO',
         instructions: instructions || null,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: startAt,
+        endDate: endAt,
         targetBatches: JSON.stringify(targetBatches || []),
         targetBranches: JSON.stringify(targetBranches || []),
         targetCenters: JSON.stringify(targetCenters || []),
@@ -157,6 +168,14 @@ export async function updateAiMockInterview(req, res) {
     if (rest.instructions != null) data.instructions = rest.instructions;
     if (rest.startDate != null) data.startDate = new Date(rest.startDate);
     if (rest.endDate != null) data.endDate = new Date(rest.endDate);
+    if (rest.startDate != null || rest.endDate != null) {
+      const existing = await prisma.aiMockInterview.findUnique({ where: { id } });
+      const start = data.startDate ?? existing?.startDate;
+      const end = data.endDate ?? existing?.endDate;
+      if (start && end && new Date(end) <= new Date(start)) {
+        return res.status(400).json({ error: 'End must be after start' });
+      }
+    }
     if (rest.targetBatches != null) data.targetBatches = JSON.stringify(rest.targetBatches);
     if (rest.targetBranches != null) data.targetBranches = JSON.stringify(rest.targetBranches);
     if (rest.targetCenters != null) data.targetCenters = JSON.stringify(rest.targetCenters);

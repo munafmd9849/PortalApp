@@ -15,6 +15,13 @@ import { fromDatetimeLocalValue } from '../../utils/assessmentEntryWindow';
 import StudentSelectorModal from '../../components/dashboard/admin/StudentSelectorModal';
 import DirectoryLoadingPanel from '../../components/dashboard/admin/DirectoryLoading';
 import CodingQuestionEditor from '../../components/admin/CodingQuestionEditor';
+import AllowedCodingLanguagesPicker from '../../components/admin/AllowedCodingLanguagesPicker';
+import {
+  createEmptyStarterCodesByLang,
+  parseStarterCodesByLang,
+  mergeCodingIntoConfig,
+  ALL_CODING_LANGUAGE_IDS,
+} from '../../coding-engine/starterCodeStorage';
 
 const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'AUTO_SUBMITTED', 'TERMINATED']);
 
@@ -22,7 +29,12 @@ function assessmentHasLiveSession(assessment) {
   return (assessment.sessions || []).some((s) => s.status === 'IN_PROGRESS');
 }
 
+function assessmentIsDraft(assessment) {
+  return assessment.status === 'DRAFT';
+}
+
 function assessmentIsActiveWindow(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
   const now = new Date();
   const start = assessment.startTime ? new Date(assessment.startTime) : null;
   const end = assessment.endTime ? new Date(assessment.endTime) : null;
@@ -33,11 +45,13 @@ function assessmentIsActiveWindow(assessment) {
 }
 
 function assessmentIsUpcoming(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
   if (!assessment.startTime || assessmentHasLiveSession(assessment)) return false;
   return new Date(assessment.startTime) > new Date();
 }
 
 function assessmentIsPast(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
   if (assessmentHasLiveSession(assessment)) return false;
   const end = assessment.endTime ? new Date(assessment.endTime) : null;
   if (end) return end < new Date();
@@ -75,8 +89,13 @@ export default function AdminAssessments() {
     config: {
       proctoring: { webcam: true, mic: true, tabSwitch: true, fullscreen: true, snapshotInterval: 60 },
       joinWindow: { opensMinutesBeforeStart: 10, closesMinutesAfterStart: 10 },
+      coding: { allowedLanguages: [...ALL_CODING_LANGUAGE_IDS] },
     },
   });
+
+  const hasCodingQuestions =
+    formData.type === 'CODING_TEST' ||
+    (formData.questions || []).some((q) => q.type === 'CODING');
 
   const fetchBatches = useCallback(async () => {
     try {
@@ -145,33 +164,113 @@ export default function AdminAssessments() {
       )
     : [];
 
-  const handleCreate = async () => {
+  const allowedLangs =
+    formData.config?.coding?.allowedLanguages?.length > 0
+      ? formData.config.coding.allowedLanguages
+      : [...ALL_CODING_LANGUAGE_IDS];
+
+  const validateCodingQuestions = (forPublish = true) => {
     const codingQs = (formData.questions || []).filter((q) => q.type === 'CODING');
+    if (!codingQs.length) return true;
+
+    if (forPublish) {
+      if (allowedLangs.length < 1) {
+        toast?.error('Select at least one allowed coding language');
+        return false;
+      }
+    }
+
     for (const q of codingQs) {
       if (!q.text?.trim()) {
         toast?.error('Each coding question needs a title');
-        return;
+        return false;
       }
-      const cases = Array.isArray(q.testCases) ? q.testCases : [];
-      const valid = cases.filter((tc) => String(tc.input ?? '').trim() && String(tc.expectedOutput ?? tc.output ?? '').trim());
-      if (valid.length === 0) {
-        toast?.error(`"${q.text || 'Coding question'}": add at least one judge test case with input and expected output`);
-        return;
+      if (forPublish) {
+        const starters = parseStarterCodesByLang(q.starterCodes ?? q.starterCode);
+        for (const lang of allowedLangs) {
+          if (!String(starters[lang] ?? '').trim()) {
+            toast?.error(
+              `"${q.text}": add starter code for ${lang}`
+            );
+            return false;
+          }
+        }
+        const cases = Array.isArray(q.testCases) ? q.testCases : [];
+        const valid = cases.filter(
+          (tc) =>
+            String(tc.input ?? '').trim() &&
+            String(tc.expectedOutput ?? tc.output ?? '').trim()
+        );
+        if (valid.length === 0) {
+          toast?.error(
+            `"${q.text || 'Coding question'}": add at least one judge test case with input and expected output`
+          );
+          return false;
+        }
       }
     }
+    return true;
+  };
+
+  const buildAssessmentPayload = (publish) => ({
+    ...formData,
+    title: formData.title?.trim(),
+    config: mergeCodingIntoConfig(formData.config, {
+      allowedLanguages: hasCodingQuestions ? allowedLangs : undefined,
+    }),
+    questions: (formData.questions || []).map((q) =>
+      q.type === 'CODING'
+        ? { ...q, starterCodes: parseStarterCodesByLang(q.starterCodes ?? q.starterCode) }
+        : q
+    ),
+    startTime: fromDatetimeLocalValue(formData.startTime),
+    endTime: fromDatetimeLocalValue(formData.endTime),
+    joinOpensMinutesBeforeStart: formData.config?.joinWindow?.opensMinutesBeforeStart,
+    joinClosesMinutesAfterStart: formData.config?.joinWindow?.closesMinutesAfterStart,
+    allowedCodingLanguages: hasCodingQuestions ? allowedLangs : undefined,
+    publish,
+  });
+
+  const handleSaveDraft = async () => {
+    if (!formData.title?.trim()) {
+      toast?.error('Assessment title is required');
+      return;
+    }
     try {
-      await api.createAssessment({
-        ...formData,
-        startTime: fromDatetimeLocalValue(formData.startTime),
-        endTime: fromDatetimeLocalValue(formData.endTime),
-        joinOpensMinutesBeforeStart: formData.config?.joinWindow?.opensMinutesBeforeStart,
-        joinClosesMinutesAfterStart: formData.config?.joinWindow?.closesMinutesAfterStart,
-      });
-      toast?.success('Assessment created successfully');
+      await api.createAssessment(buildAssessmentPayload(false));
+      toast?.success('Draft saved');
       setShowCreateModal(false);
+      setStep(1);
       fetchAssessments();
     } catch (e) {
-      toast?.error('Failed to create assessment');
+      toast?.error(e?.message || 'Failed to save draft');
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!formData.title?.trim()) {
+      toast?.error('Assessment title is required');
+      return;
+    }
+    if (!validateCodingQuestions(true)) return;
+    try {
+      await api.createAssessment(buildAssessmentPayload(true));
+      toast?.success('Assessment published');
+      setShowCreateModal(false);
+      setStep(1);
+      fetchAssessments();
+    } catch (e) {
+      toast?.error(e?.message || 'Failed to publish assessment');
+    }
+  };
+
+  const handlePublishExisting = async (id) => {
+    try {
+      await api.publishAssessment(id);
+      toast?.success('Assessment published');
+      fetchAssessments();
+    } catch (e) {
+      toast?.error(e?.message || 'Failed to publish');
     }
   };
 
@@ -190,7 +289,7 @@ export default function AdminAssessments() {
           correctAnswer: '', 
           points: 1,
           difficulty: 'MEDIUM',
-          starterCode: `function solution(input) {\n  // your code\n  return input;\n}\n`,
+          starterCodes: createEmptyStarterCodesByLang(),
           constraints: '',
           examples: [{ input: '', output: '', explanation: '' }],
           testCases: [{ input: '', expectedOutput: '', hidden: false }]
@@ -253,11 +352,8 @@ export default function AdminAssessments() {
       <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
               Assessments
-              <span className="text-xs font-bold px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
-                Admin Portal
-              </span>
             </h1>
             <p className="text-slate-500 text-sm mt-1 font-medium">Design, deploy and monitor student assessments</p>
           </div>
@@ -376,7 +472,12 @@ export default function AdminAssessments() {
                 <div className={`p-3 rounded-xl ${item.type === 'MOCK_TEST' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'} border border-current opacity-20`}>
                   {getAssessmentTypeIcon(item.type)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                   {assessmentIsDraft(item) && (
+                     <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border bg-amber-50 border-amber-100 text-amber-700">
+                       Draft
+                     </span>
+                   )}
                    <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${
                      item.type === 'MOCK_TEST' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
                    }`}>
@@ -403,19 +504,32 @@ export default function AdminAssessments() {
               </div>
 
               <div className="pt-5 border-t border-slate-100 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate(`${basePath}/assessments/${item.id}/live-monitor`)}
-                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <Video className="w-4 h-4" /> Live Monitor (webcam & violations)
-                </button>
-                <button 
-                  onClick={() => navigate(`${basePath}?tab=assessmentResults&assessmentId=${item.id}`)}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10 active:scale-95"
-                >
-                  View Results
-                </button>
+                {assessmentIsDraft(item) ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePublishExisting(item.id)}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Publish assessment
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${basePath}/assessments/${item.id}/live-monitor`)}
+                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Video className="w-4 h-4" /> Live Monitor (webcam & violations)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${basePath}?tab=assessmentResults&assessmentId=${item.id}`)}
+                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10 active:scale-95"
+                    >
+                      View Results
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => setSettingsAssessment(item)}
@@ -769,6 +883,20 @@ export default function AdminAssessments() {
                        </div>
                     </div>
 
+                    {hasCodingQuestions && (
+                      <AllowedCodingLanguagesPicker
+                        selected={allowedLangs}
+                        onChange={(ids) =>
+                          setFormData({
+                            ...formData,
+                            config: mergeCodingIntoConfig(formData.config, {
+                              allowedLanguages: ids,
+                            }),
+                          })
+                        }
+                      />
+                    )}
+
                     <div className="bg-white border border-slate-200 rounded-3xl p-8 space-y-6">
                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
@@ -838,12 +966,22 @@ export default function AdminAssessments() {
                      Next Step <ChevronRight className="w-4 h-4" />
                    </button>
                  ) : (
-                   <button 
-                     onClick={handleCreate}
-                     className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
-                   >
-                     Deploy Assessment
-                   </button>
+                   <>
+                     <button
+                       type="button"
+                       onClick={handleSaveDraft}
+                       className="px-6 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-white"
+                     >
+                       Save draft
+                     </button>
+                     <button
+                       type="button"
+                       onClick={handlePublish}
+                       className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                     >
+                       Publish assessment
+                     </button>
+                   </>
                  )}
                </div>
             </div>

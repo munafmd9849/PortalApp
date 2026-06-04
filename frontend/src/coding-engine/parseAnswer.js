@@ -5,15 +5,25 @@ export function parseCodingAnswer(raw, defaultLanguage = 'javascript') {
     return {
       code: DEFAULT_STARTERS[defaultLanguage] || DEFAULT_STARTERS.javascript,
       language: defaultLanguage,
+      codesByLang: {},
       customInput: '',
       lastRun: null,
       evaluation: null,
     };
   }
   if (typeof raw === 'object') {
+    const lang = raw.language || defaultLanguage;
+    const codesByLang =
+      raw.codesByLang && typeof raw.codesByLang === 'object' ? { ...raw.codesByLang } : {};
+    if (raw.code != null && lang) codesByLang[lang] = raw.code;
     return {
-      code: raw.code ?? DEFAULT_STARTERS[raw.language || defaultLanguage],
-      language: raw.language || defaultLanguage,
+      code:
+        codesByLang[lang] ??
+        raw.code ??
+        DEFAULT_STARTERS[lang] ||
+        DEFAULT_STARTERS.javascript,
+      language: lang,
+      codesByLang,
       customInput: raw.customInput || '',
       lastRun: raw.lastRun || null,
       evaluation: raw.evaluation || null,
@@ -46,9 +56,13 @@ export function parseCodingAnswer(raw, defaultLanguage = 'javascript') {
 }
 
 export function serializeCodingAnswer(payload) {
+  const lang = payload.language;
+  const codesByLang = { ...(payload.codesByLang || {}) };
+  if (lang && payload.code != null) codesByLang[lang] = payload.code;
   return JSON.stringify({
     code: payload.code,
-    language: payload.language,
+    language: lang,
+    codesByLang,
     customInput: payload.customInput || '',
     lastRun: payload.lastRun || null,
     evaluation: payload.evaluation || null,

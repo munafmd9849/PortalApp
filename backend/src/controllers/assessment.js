@@ -11,6 +11,12 @@ import {
   serializeExamplesForStorage,
 } from '../coding-engine/testCaseStorage.js';
 import {
+  serializeStarterCodesForStorage,
+  mergeCodingIntoConfig,
+  parseAllowedCodingLanguages,
+  parseStarterCodesByLang,
+} from '../coding-engine/starterCodeStorage.js';
+import {
   normalizeStoredScore,
   pointsToPercent,
   totalQuestionPoints,
@@ -45,6 +51,37 @@ function computeRiskLevel(count) {
   return 'LOW';
 }
 
+function validateCodingAssessmentForPublish(questions, configRaw) {
+  const codingQs = (questions || []).filter((q) => q.type === 'CODING');
+  if (!codingQs.length) return null;
+
+  const allowed = parseAllowedCodingLanguages(configRaw);
+  if (!allowed.length) {
+    return 'Select at least one allowed coding language';
+  }
+
+  for (const q of codingQs) {
+    const title = q.questionText || q.text || 'Coding question';
+    const starters = parseStarterCodesByLang(q.starterCodes ?? q.starterCode);
+    for (const lang of allowed) {
+      if (!String(starters[lang] ?? '').trim()) {
+        return `"${title}": starter code required for ${lang}`;
+      }
+    }
+    const cases = q.testCases || [];
+    const arr = Array.isArray(cases) ? cases : [];
+    const valid = arr.filter(
+      (tc) =>
+        String(tc?.input ?? '').trim() &&
+        String(tc?.expectedOutput ?? tc?.output ?? '').trim()
+    );
+    if (!valid.length) {
+      return `"${title}": at least one judge test case is required`;
+    }
+  }
+  return null;
+}
+
 function emitProctoringLiveUpdate(assessmentId, payload) {
   if (!assessmentId) return;
   import('../config/socket.js')
@@ -55,6 +92,60 @@ function emitProctoringLiveUpdate(assessmentId, payload) {
 }
 
 // --- ADMIN MODULES ---
+
+async function notifyAssessmentAssigned(assessment, { targetBatchIds = [], targetStudentIds = [] }) {
+  try {
+    const { getIO } = await import('../config/socket.js');
+    const io = getIO();
+    const { type, title } = assessment;
+
+    const batchStudents = targetBatchIds?.length
+      ? await findStudentsForBatchIds(targetBatchIds)
+      : [];
+    const individualStudents = targetStudentIds?.length
+      ? await prisma.student.findMany({
+          where: { userId: { in: targetStudentIds } },
+          include: { user: { select: { email: true } } },
+        })
+      : [];
+    const byUserId = new Map();
+    [...batchStudents, ...individualStudents].forEach((s) => {
+      byUserId.set(s.userId, s);
+    });
+    const students = [...byUserId.values()];
+    if (!students.length) return;
+
+    await prisma.notification.createMany({
+      data: students.map((s) => ({
+        userId: s.userId,
+        title: 'New Assessment Assigned',
+        body: `You have been assigned a new ${type.replace('_', ' ').toLowerCase()}: ${title}`,
+        type: 'ASSESSMENT',
+        link: `/student?tab=assessments`,
+      })),
+    });
+
+    students.forEach((s) => {
+      io.to(`user:${s.userId}`).emit('notification', {
+        title: 'New Assessment',
+        message: `A new ${type.replace('_', ' ').toLowerCase()} has been assigned to you.`,
+        type: 'ASSESSMENT',
+      });
+    });
+
+    const studentEmailData = students.map((s) => ({
+      ...s,
+      email: s.user?.email,
+      fullName: s.fullName || 'Student',
+    }));
+
+    sendBulkAssessmentNotifications(studentEmailData, assessment).catch((err) =>
+      console.error('Email notification background error:', err)
+    );
+  } catch (notificationError) {
+    console.error('Multi-channel notification failed:', notificationError);
+  }
+}
 
 // Create Assessment
 export async function createAssessment(req, res) {
@@ -75,11 +166,27 @@ export async function createAssessment(req, res) {
       scheduledAtMap,
       joinOpensMinutesBeforeStart,
       joinClosesMinutesAfterStart,
+      allowedCodingLanguages,
+      publish,
     } = req.body;
-    const mergedConfig = mergeJoinWindowIntoConfig(config, {
+
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Assessment title is required' });
+    }
+
+    const isDraft = publish === false;
+    let mergedConfig = mergeJoinWindowIntoConfig(config, {
       opensMinutesBeforeStart: joinOpensMinutesBeforeStart,
       closesMinutesAfterStart: joinClosesMinutesAfterStart,
     });
+    if (allowedCodingLanguages?.length) {
+      mergedConfig = mergeCodingIntoConfig(mergedConfig, allowedCodingLanguages);
+    }
+
+    if (!isDraft) {
+      const codingErr = validateCodingAssessmentForPublish(questions, mergedConfig);
+      if (codingErr) return res.status(400).json({ error: codingErr });
+    }
 
     // Prepare assignments data
     const batchAssignments = (targetBatchIds || []).map((batchId) => ({ batchId }));
@@ -118,14 +225,15 @@ export async function createAssessment(req, res) {
 
     const assessment = await prisma.assessment.create({
       data: {
-        title,
+        title: title.trim(),
         description,
         type,
         difficulty: difficulty || 'MEDIUM',
-        duration: parseInt(duration),
+        duration: parseInt(duration, 10) || 60,
         startTime: startTime ? new Date(startTime) : null,
         endTime: endTime ? new Date(endTime) : null,
         instructions,
+        status: isDraft ? 'DRAFT' : 'PUBLISHED',
         config: JSON.stringify(mergedConfig),
         questions: {
           create: (questions || []).map((q, index) => ({
@@ -136,7 +244,10 @@ export async function createAssessment(req, res) {
             correctAnswer: q.correctAnswer,
             points: parseInt(q.points) || 1,
             difficulty: q.difficulty || 'MEDIUM',
-            starterCode: q.starterCode || null,
+            starterCode:
+              q.type === 'CODING'
+                ? serializeStarterCodesForStorage(q.starterCodes ?? q.starterCode)
+                : null,
             constraints: q.constraints || null,
             examples: serializeExamplesForStorage(q.examples || []),
             testCases: serializeTestCasesForStorage(q.testCases || []),
@@ -149,60 +260,8 @@ export async function createAssessment(req, res) {
       }
     });
 
-    // --- NOTIFICATION LOGIC ---
-    try {
-      const { getIO } = await import('../config/socket.js');
-      const io = getIO();
-      
-      const batchStudents = targetBatchIds?.length
-        ? await findStudentsForBatchIds(targetBatchIds)
-        : [];
-      const individualStudents =
-        targetStudentIds?.length
-          ? await prisma.student.findMany({
-              where: { userId: { in: targetStudentIds } },
-              include: { user: { select: { email: true } } },
-            })
-          : [];
-      const byUserId = new Map();
-      [...batchStudents, ...individualStudents].forEach((s) => {
-        byUserId.set(s.userId, s);
-      });
-      const students = [...byUserId.values()];
-
-      // Create persistent notifications in DB
-      await prisma.notification.createMany({
-        data: students.map(s => ({
-          userId: s.userId,
-          title: 'New Assessment Assigned',
-          body: `You have been assigned a new ${type.replace('_', ' ').toLowerCase()}: ${title}`,
-          type: 'ASSESSMENT',
-          link: `/student?tab=assessments`
-        }))
-      });
-
-      // Emit real-time socket events
-      students.forEach(s => {
-        io.to(`user:${s.userId}`).emit('notification', {
-          title: 'New Assessment',
-          message: `A new ${type.replace('_', ' ').toLowerCase()} has been assigned to you.`,
-          type: 'ASSESSMENT'
-        });
-      });
-
-      // Dispatch Email Notifications
-      const studentEmailData = students.map(s => ({
-        ...s,
-        email: s.user?.email,
-        fullName: s.fullName || 'Student'
-      }));
-      
-      sendBulkAssessmentNotifications(studentEmailData, assessment).catch(err => 
-        console.error('Email notification background error:', err)
-      );
-
-    } catch (notificationError) {
-      console.error('Multi-channel notification failed:', notificationError);
+    if (!isDraft) {
+      await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
     }
 
     res.status(201).json(assessment);
@@ -252,9 +311,61 @@ export async function getAssessmentDetails(req, res) {
       include: { questions: true }
     });
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+    const role = req.user?.role;
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+    if (!isAdmin && assessment.status === 'DRAFT') {
+      return res.status(403).json({ error: 'Assessment not available' });
+    }
     res.json(assessment);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch assessment details' });
+  }
+}
+
+export async function publishAssessment(req, res) {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.assessment.findUnique({
+      where: { id },
+      include: {
+        assignments: {
+          select: { batchId: true, student: { select: { userId: true } } },
+        },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: 'Assessment not found' });
+
+    if (existing.status === 'PUBLISHED') {
+      return res.json({ message: 'Assessment is already published', assessment: existing });
+    }
+
+    const full = await prisma.assessment.findUnique({
+      where: { id },
+      include: { questions: true },
+    });
+    const codingErr = validateCodingAssessmentForPublish(full.questions, full.config);
+    if (codingErr) return res.status(400).json({ error: codingErr });
+
+    const assessment = await prisma.assessment.update({
+      where: { id },
+      data: { status: 'PUBLISHED' },
+    });
+
+    const targetBatchIds = [
+      ...new Set(existing.assignments.map((a) => a.batchId).filter(Boolean)),
+    ];
+    const targetStudentIds = [
+      ...new Set(
+        existing.assignments.map((a) => a.student?.userId).filter(Boolean)
+      ),
+    ];
+
+    await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
+
+    res.json({ message: 'Assessment published', assessment });
+  } catch (error) {
+    console.error(`[ERROR] Failed to publish assessment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Failed to publish assessment' });
   }
 }
 
@@ -268,6 +379,7 @@ export async function updateAssessment(req, res) {
       endTime,
       joinOpensMinutesBeforeStart,
       joinClosesMinutesAfterStart,
+      publish,
     } = req.body;
     const existing = await prisma.assessment.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Assessment not found' });
@@ -287,6 +399,7 @@ export async function updateAssessment(req, res) {
         })
       : undefined;
 
+    const wasDraft = existing.status === 'DRAFT';
     const assessment = await prisma.assessment.update({
       where: { id },
       data: {
@@ -295,8 +408,26 @@ export async function updateAssessment(req, res) {
         ...(startTime !== undefined && { startTime: parsedStart }),
         ...(endTime !== undefined && { endTime: parsedEnd }),
         ...(nextConfig && { config: JSON.stringify(nextConfig) }),
+        ...(publish === true && { status: 'PUBLISHED' }),
+      },
+      include: {
+        assignments: {
+          select: { batchId: true, student: { select: { userId: true } } },
+        },
       },
     });
+
+    if (wasDraft && assessment.status === 'PUBLISHED') {
+      const targetBatchIds = [
+        ...new Set(assessment.assignments.map((a) => a.batchId).filter(Boolean)),
+      ];
+      const targetStudentIds = [
+        ...new Set(
+          assessment.assignments.map((a) => a.student?.userId).filter(Boolean)
+        ),
+      ];
+      await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
+    }
 
     res.json({ message: 'Assessment updated successfully', assessment });
   } catch (error) {
@@ -340,6 +471,7 @@ export async function getStudentAssessments(req, res) {
 
     const assessments = await prisma.assessment.findMany({
       where: {
+        status: 'PUBLISHED',
         assignments: {
           some: { OR: assignmentMatch },
         },
@@ -369,10 +501,13 @@ export async function startSession(req, res) {
     const { assessmentId } = req.params;
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, startTime: true, endTime: true, title: true, config: true },
+      select: { id: true, startTime: true, endTime: true, title: true, config: true, status: true },
     });
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
+    }
+    if (assessment.status === 'DRAFT') {
+      return res.status(403).json({ error: 'This assessment is not published yet', code: 'DRAFT' });
     }
 
     const entry = getAssessmentEntryStatus(assessment);
