@@ -27,6 +27,10 @@ import {
   mergeJoinWindowIntoConfig,
   parseAssessmentDateInput,
 } from '../utils/assessmentEntryWindow.js';
+import {
+  enrichSessionWithTimer,
+  allowsPracticeTimerReset,
+} from '../utils/assessmentTimer.js';
 import multer from 'multer';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import { signedScreenshotUrl } from '../utils/proctoringScreenshots.js';
@@ -495,13 +499,59 @@ export async function getStudentAssessments(req, res) {
   }
 }
 
+async function markSessionAutoSubmitted(sessionId) {
+  await prisma.assessmentSession.update({
+    where: { id: sessionId },
+    data: {
+      status: 'COMPLETED',
+      endTime: new Date(),
+    },
+  });
+}
+
+async function respondWithExistingSession(session, assessment, res) {
+  if (session.status !== 'IN_PROGRESS') {
+    return res.status(403).json({ error: 'Assessment already completed' });
+  }
+
+  const payload = enrichSessionWithTimer(session, assessment.duration);
+  if (!payload.timeExpired) {
+    return res.json(payload);
+  }
+
+  if (allowsPracticeTimerReset(assessment)) {
+    const reset = await prisma.assessmentSession.update({
+      where: { id: session.id },
+      data: { startTime: new Date() },
+    });
+    return res.json(enrichSessionWithTimer(reset, assessment.duration));
+  }
+
+  await markSessionAutoSubmitted(session.id);
+  return res.status(403).json({
+    error: 'Assessment time has expired',
+    code: 'TIME_EXPIRED',
+    autoSubmitted: true,
+    session: payload,
+  });
+}
+
 // Start Assessment Session
 export async function startSession(req, res) {
   try {
     const { assessmentId } = req.params;
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, startTime: true, endTime: true, title: true, config: true, status: true },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        title: true,
+        config: true,
+        status: true,
+        duration: true,
+        type: true,
+      },
     });
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
@@ -558,10 +608,7 @@ export async function startSession(req, res) {
     });
 
     if (session) {
-      if (session.status !== 'IN_PROGRESS') {
-        return res.status(403).json({ error: 'Assessment already completed' });
-      }
-      return res.json(session);
+      return respondWithExistingSession(session, assessment, res);
     }
 
     try {
@@ -578,12 +625,15 @@ export async function startSession(req, res) {
         session = await prisma.assessmentSession.findUnique({
           where: { assessmentId_studentId: { assessmentId, studentId: student.id } }
         });
+        if (session) {
+          return respondWithExistingSession(session, assessment, res);
+        }
       } else {
         throw createError;
       }
     }
 
-    res.status(201).json(session);
+    res.status(201).json(enrichSessionWithTimer(session, assessment.duration));
   } catch (error) {
     res.status(500).json({ error: 'Failed to start session' });
   }

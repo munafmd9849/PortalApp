@@ -20,7 +20,7 @@ export function parseCodingAnswer(raw, defaultLanguage = 'javascript') {
       code:
         codesByLang[lang] ??
         raw.code ??
-        DEFAULT_STARTERS[lang] ||
+        DEFAULT_STARTERS[lang] ??
         DEFAULT_STARTERS.javascript,
       language: lang,
       codesByLang,

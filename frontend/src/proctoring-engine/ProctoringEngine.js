@@ -90,6 +90,7 @@ export class ProctoringEngine {
     this._noFaceSince = null;
     this._multiFaceSince = null;
     this._violationCount = 0;
+    this._autoSubmitFired = false;
     this._faceDetectorInitPromise = null;
   }
 
@@ -372,7 +373,12 @@ export class ProctoringEngine {
     }
 
     const threshold = this.cfg.autoSubmit?.threshold ?? 10;
-    if (this.cfg.autoSubmit?.enabled && this._violationCount >= threshold) {
+    if (
+      this.cfg.autoSubmit?.enabled &&
+      !this._autoSubmitFired &&
+      this._violationCount >= threshold
+    ) {
+      this._autoSubmitFired = true;
       this.onAutoSubmit?.({ reason: 'Violation threshold exceeded' });
     }
 

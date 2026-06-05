@@ -10,23 +10,26 @@ export default function CodingProblemPanel({
   examples = [],
   difficulty,
   points,
+  hideHeaderMeta = false,
   className = '',
 }) {
   return (
     <div className={`flex flex-col h-full min-h-0 overflow-y-auto bg-[#f8f9fb] text-slate-900 ${className}`}>
       <div className="px-5 py-4 border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          {difficulty && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-              {difficulty}
-            </span>
-          )}
-          {points != null && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
-              {points} pts
-            </span>
-          )}
-        </div>
+        {!hideHeaderMeta && (difficulty || points != null) && (
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            {difficulty && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                {difficulty}
+              </span>
+            )}
+            {points != null && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
+                {points} pts
+              </span>
+            )}
+          </div>
+        )}
         <h2 className="text-lg font-bold text-slate-900 leading-snug">{title || 'Coding problem'}</h2>
       </div>
 

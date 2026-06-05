@@ -1133,7 +1133,8 @@ export const api = {
   getAssessmentResults: (sessionId) => apiRequest(`/assessments/results/${sessionId}`),
   getStudentAssessments: () =>
     apiRequest('/assessments/my-assignments', { noCache: true }),
-  startAssessmentSession: (id) => apiRequest(`/assessments/session/start/${id}`, { method: 'POST' }),
+  startAssessmentSession: (id, options = {}) =>
+    apiRequest(`/assessments/session/start/${id}`, { method: 'POST', ...options }),
   logProctoringViolation: (sessionId, data) => apiRequest(`/assessments/session/violation/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   uploadProctoringMedia: (sessionId, data) => apiRequest(`/assessments/session/media/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   uploadProctoringScreenshot: (sessionId, blob, meta) => uploadProctoringScreenshot(sessionId, blob, meta),

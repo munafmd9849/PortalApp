@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { 
   ChevronLeft, Users, Clock, AlertTriangle, 
   CheckCircle, FileText, Code, Shield, X,
-  Download, Share2, Filter, Search, ChevronRight,
-  MoreHorizontal, Activity, Target, Trophy,
+  Download, Filter, Search, ChevronRight, ChevronDown,
+  MoreHorizontal, Activity, Trophy,
   Terminal, BookOpen, AlertCircle
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../../services/api';
 import { mcqAnswersMatch, resolveMcqOptionLabel } from '../../utils/mcqAnswers';
 import { useToast } from '../../components/ui/Toast';
@@ -27,6 +28,74 @@ function formatSessionDate(ts) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function normalizeSessionStatus(status) {
+  if (status === 'AUTO_SUBMITTED') return 'COMPLETED';
+  return status;
+}
+
+function formatSessionStatus(status) {
+  return normalizeSessionStatus(status)?.replace(/_/g, ' ') || '';
+}
+
+function summarizeViolations(violations) {
+  const counts = {};
+  for (const v of violations || []) {
+    const key = v.type || 'UNKNOWN';
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+/** % of candidates who scored lower than this session (ties share the same value). */
+function computeSessionPercentiles(sessions) {
+  const list = sessions || [];
+  const scores = list.map((s) => s.score ?? 0);
+  const n = scores.length;
+  const byId = new Map();
+
+  for (const session of list) {
+    const score = session.score ?? 0;
+    if (n === 0) {
+      byId.set(session.id, 0);
+    } else if (n === 1) {
+      byId.set(session.id, 100);
+    } else {
+      const below = scores.filter((s) => s < score).length;
+      byId.set(session.id, Math.round((below / (n - 1)) * 100));
+    }
+  }
+
+  return byId;
+}
+
+function computeAssessmentStats(assessment) {
+  const sessions = assessment?.sessions || [];
+  const totalAttempts = sessions.length;
+
+  if (!totalAttempts) {
+    return {
+      totalAttempts: 0,
+      avgScore: '0%',
+      violationsRate: '0%',
+    };
+  }
+
+  const avgScore = Math.round(
+    sessions.reduce((acc, s) => acc + (s.score || 0), 0) / totalAttempts
+  );
+
+  const sessionsWithViolations = sessions.filter(
+    (s) => (s.violations?.length ?? s.violationsCount ?? 0) > 0
+  ).length;
+  const violationsRate = Math.round((sessionsWithViolations / totalAttempts) * 100);
+
+  return {
+    totalAttempts,
+    avgScore: `${avgScore}%`,
+    violationsRate: `${violationsRate}%`,
+  };
+}
+
 function AdminAssessmentResultsComponent() {
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
@@ -41,6 +110,13 @@ function AdminAssessmentResultsComponent() {
   const [proctoringDetails, setProctoringDetails] = useState(null);
   const [proctoringLoading, setProctoringLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [violationsOpen, setViolationsOpen] = useState(false);
+
+  const stats = useMemo(() => computeAssessmentStats(assessment), [assessment]);
+  const sessionPercentiles = useMemo(
+    () => computeSessionPercentiles(assessment?.sessions),
+    [assessment?.sessions]
+  );
 
   const fetchResults = useCallback(async () => {
     if (!id) return;
@@ -103,13 +179,61 @@ function AdminAssessmentResultsComponent() {
     };
   }, [selectedSession?.id]);
 
+  useEffect(() => {
+    const count = selectedSession?.violations?.length ?? 0;
+    setViolationsOpen(count > 0 && count <= 5);
+  }, [selectedSession?.id, selectedSession?.violations?.length]);
+
   const handleBack = () => {
     const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
     navigate(`${basePath}?tab=assessments`);
   };
 
+  const handleExportExcel = () => {
+    const sessions = assessment?.sessions || [];
+    if (!sessions.length) {
+      toast?.error('No results to export');
+      return;
+    }
+
+    const rows = sessions.map((session, idx) => {
+      const started = session.startTime ? new Date(session.startTime) : null;
+      const ended = session.endTime ? new Date(session.endTime) : null;
+      const timeSpentMin =
+        started && ended && !Number.isNaN(started.getTime()) && !Number.isNaN(ended.getTime())
+          ? Math.floor((ended.getTime() - started.getTime()) / 60000)
+          : '';
+
+      return {
+        Rank: idx + 1,
+        'Candidate Name': session.student?.fullName || 'Anonymous',
+        'Enrollment ID': session.student?.enrollmentId || '',
+        Batch: session.student?.batch || '',
+        'Score (%)': session.score ?? 0,
+        Status: formatSessionStatus(session.status),
+        Violations: session.violations?.length ?? 0,
+        'Started At': started && !Number.isNaN(started.getTime()) ? started.toLocaleString() : '',
+        'Ended At': ended && !Number.isNaN(ended.getTime()) ? ended.toLocaleString() : '',
+        'Time Spent (min)': timeSpentMin,
+      };
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Results');
+
+    const safeTitle = (assessment?.title || 'assessment')
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .slice(0, 40) || 'assessment';
+
+    XLSX.writeFile(workbook, `${safeTitle}-results.xlsx`);
+    toast?.success('Results exported to Excel');
+  };
+
   const getStatusBadge = (status) => {
-    switch (status) {
+    switch (normalizeSessionStatus(status)) {
       case 'COMPLETED': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
       case 'PENDING_REVIEW': return 'bg-amber-50 text-amber-600 border-amber-100';
       case 'DISQUALIFIED': return 'bg-rose-50 text-rose-600 border-rose-100';
@@ -161,23 +285,22 @@ function AdminAssessmentResultsComponent() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <button className="h-10 px-4 bg-white text-slate-600 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 active:scale-95">
-             <Download className="w-4 h-4" /> Export
-          </button>
-          <button className="h-10 px-6 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 active:scale-95">
-             <Share2 className="w-4 h-4" /> Publish Results
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={!assessment?.sessions?.length}
+          className="h-10 px-4 bg-white text-slate-600 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Download className="w-4 h-4" /> Export Excel
+        </button>
       </div>
 
       {/* Statistics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         {[
-          { label: 'Total Attempts', val: assessment?.sessions?.length || 0, icon: Users, color: 'indigo' },
-          { label: 'Avg Score', val: `${assessment?.sessions?.length ? Math.round(assessment.sessions.reduce((acc, s) => acc + (s.score || 0), 0) / assessment.sessions.length) : 0}%`, icon: Trophy, color: 'emerald' },
-          { label: 'Violations Rate', val: (assessment?.sessions?.length ? (assessment.sessions.reduce((acc, s) => acc + (s.violations?.length || 0), 0) / assessment.sessions.length).toFixed(1) : 0), icon: AlertTriangle, color: 'amber' },
-          { label: 'Pass Rate', val: '72%', icon: Target, color: 'purple' }
+          { label: 'Total Attempts', val: stats.totalAttempts, icon: Users, color: 'indigo' },
+          { label: 'Avg Score', val: stats.avgScore, icon: Trophy, color: 'emerald' },
+          { label: 'Violations Rate', val: stats.violationsRate, icon: AlertTriangle, color: 'amber' },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 group hover:border-indigo-200 transition-all">
              <div className={`w-12 h-12 bg-${stat.color}-50 rounded-xl flex items-center justify-center text-${stat.color}-600 border border-${stat.color}-100`}>
@@ -243,13 +366,15 @@ function AdminAssessmentResultsComponent() {
                   <td className="px-6 py-4 text-center">
                     <div className="inline-flex flex-col items-center">
                        <span className="text-lg font-bold text-indigo-600 tabular-nums leading-none">{session.score || 0}</span>
-                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">PERCENTILE: {95 - idx}%</span>
+                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                         PERCENTILE: {sessionPercentiles.get(session.id) ?? 0}%
+                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex flex-col items-center gap-2">
                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${getStatusBadge(session.status)}`}>
-                         {session.status?.replace('_', ' ')}
+                         {formatSessionStatus(session.status)}
                        </span>
                        <div className="flex items-center gap-1.5">
                           <AlertTriangle className={`w-3 h-3 ${session.violations?.length > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
@@ -260,10 +385,10 @@ function AdminAssessmentResultsComponent() {
                   <td className="px-6 py-4">
                      <div className="flex flex-col">
                         <span className="text-xs font-semibold text-slate-600">
-                           {new Date(session.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                           {formatSessionDate(session.startTime)}
                         </span>
                         <span className="text-[10px] font-medium text-slate-400">
-                           {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                           {formatSessionTime(session.startTime)}
                         </span>
                      </div>
                   </td>
@@ -342,80 +467,119 @@ function AdminAssessmentResultsComponent() {
                       <div className="text-right space-y-3">
                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Security Clearance</p>
                          <span className={`inline-block px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border ${getStatusBadge(selectedSession.status)} shadow-sm`}>
-                            {selectedSession.status?.replace('_', ' ')}
+                            {formatSessionStatus(selectedSession.status)}
                          </span>
                       </div>
                    </div>
                 </div>
 
-                {/* Proctored Logs */}
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <Shield className="w-3.5 h-3.5 text-indigo-600" /> Proctoring Log
-                      </h4>
-                      <span className="text-[10px] font-bold text-slate-500">
-                        Snapshot History ({proctoringDetails?.screenshots?.length ?? 0})
-                        {proctoringLoading ? ' · loading…' : ''}
+                {/* Proctoring log — collapsible at top */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setViolationsOpen((o) => !o)}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Shield className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">
+                        Proctoring Log
                       </span>
-                   </div>
-                   
-                   {selectedSession.violations?.length > 0 ? (
-                     <div className="grid gap-3">
-                        {selectedSession.violations.map((v) => (
-                           <div key={v.id || v.timestamp} className="flex items-start gap-4 p-5 bg-rose-50/50 border border-rose-100 rounded-2xl group hover:border-rose-300 transition-all">
-                              <div className="w-10 h-10 bg-white rounded-xl border border-rose-100 flex items-center justify-center shrink-0">
-                                 <AlertCircle className="w-5 h-5 text-rose-500" />
-                              </div>
-                              <div className="flex-1">
-                                 <div className="flex justify-between items-start">
-                                    <p className="text-xs font-bold text-rose-900 uppercase tracking-wide">{v.type?.replace(/_/g, ' ')}</p>
-                                    <span className="text-[9px] font-bold text-rose-400 bg-white px-2 py-0.5 rounded border border-rose-100 tabular-nums">
-                                       {formatSessionTime(v.timestamp)}
-                                    </span>
-                                 </div>
-                                 <p className="text-[11px] font-medium text-rose-600/80 mt-1.5 leading-relaxed">{v.details}</p>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-                   ) : (
-                     <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-5 text-emerald-700 shadow-sm shadow-emerald-500/5">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-emerald-100 shadow-sm">
-                           <CheckCircle className="w-6 h-6 text-emerald-500" />
-                        </div>
-                        <div>
-                           <p className="text-sm font-bold">Standard Integrity Observed</p>
-                           <p className="text-xs font-medium opacity-70 mt-0.5">No critical proctoring violations were logged during this attempt.</p>
-                        </div>
-                     </div>
-                   )}
+                      <span className="text-[10px] font-bold text-slate-400">
+                        ({selectedSession.violations?.length ?? 0} events)
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${violationsOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
 
-                   {proctoringDetails?.screenshots?.length > 0 && (
-                     <div className="flex gap-2 overflow-x-auto pb-2 pt-1">
-                       {proctoringDetails.screenshots.map((shot) => (
-                         <a
-                           key={shot.id}
-                           href={shot.signedUrl || shot.imageUrl}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
-                           title={[
-                             shot.captureType,
-                             shot.event?.replace(/_/g, ' '),
-                             formatSessionTime(shot.timestamp),
-                           ].filter(Boolean).join(' · ')}
-                         >
-                           <img
-                             src={shot.signedUrl || shot.imageUrl}
-                             alt="Proctoring snapshot"
-                             className="h-20 w-32 object-cover"
-                             loading="lazy"
-                           />
-                         </a>
-                       ))}
-                     </div>
-                   )}
+                  {selectedSession.violations?.length > 0 ? (
+                    <div className="px-5 pb-4 pt-1 border-t border-slate-100 bg-white">
+                      <div className="flex flex-wrap gap-2 py-3">
+                        {summarizeViolations(selectedSession.violations).map(([type, count]) => (
+                          <span
+                            key={type}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-100 text-[10px] font-bold text-rose-700 uppercase tracking-wide"
+                          >
+                            {type.replace(/_/g, ' ')}
+                            <span className="tabular-nums text-rose-500">{count}</span>
+                          </span>
+                        ))}
+                      </div>
+
+                      {violationsOpen && (
+                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
+                          {selectedSession.violations.map((v) => (
+                            <div
+                              key={v.id || `${v.type}-${v.timestamp}`}
+                              className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-[11px]"
+                            >
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                              <span className="font-bold text-rose-800 uppercase tracking-wide shrink-0">
+                                {v.type?.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-slate-500 truncate flex-1 min-w-0">{v.details}</span>
+                              <span className="text-[9px] font-bold text-slate-400 tabular-nums shrink-0">
+                                {formatSessionTime(v.timestamp)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {!violationsOpen && (
+                        <p className="text-[10px] text-slate-400 font-medium pb-2">
+                          Expand to view full event timeline
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="px-5 py-4 border-t border-slate-100 flex items-center gap-3 text-emerald-700 bg-emerald-50/50">
+                      <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                      <p className="text-xs font-medium">No proctoring violations logged.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Snapshots */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-indigo-600" /> Camera Snapshots
+                    </h4>
+                    <span className="text-[10px] font-bold text-slate-500">
+                      {proctoringDetails?.screenshots?.length ?? 0} captured
+                      {proctoringLoading ? ' · loading…' : ''}
+                    </span>
+                  </div>
+                  {proctoringDetails?.screenshots?.length > 0 ? (
+                    <div className="flex gap-2 overflow-x-auto pb-2 pt-1">
+                      {proctoringDetails.screenshots.map((shot) => (
+                        <a
+                          key={shot.id}
+                          href={shot.signedUrl || shot.imageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                          title={[
+                            shot.captureType,
+                            shot.event?.replace(/_/g, ' '),
+                            formatSessionTime(shot.timestamp),
+                          ].filter(Boolean).join(' · ')}
+                        >
+                          <img
+                            src={shot.signedUrl || shot.imageUrl}
+                            alt="Proctoring snapshot"
+                            className="h-20 w-32 object-cover"
+                            loading="lazy"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 font-medium py-2">No snapshots stored for this session.</p>
+                  )}
                 </div>
 
                 {/* Submissions Section */}
@@ -552,19 +716,6 @@ function AdminAssessmentResultsComponent() {
                      })}
                    </div>
                 </div>
-             </div>
-
-             {/* Panel Footer */}
-             <div className="px-8 py-6 border-t border-slate-100 bg-white flex justify-between items-center">
-                <button className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest flex items-center gap-2">
-                   <AlertCircle className="w-4 h-4" /> Void Attempt
-                </button>
-                <button 
-                   onClick={() => setSelectedSession(null)}
-                   className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-widest active:scale-95 transition-all"
-                >
-                   Close Insight
-                </button>
              </div>
           </div>
         </div>,

@@ -66,22 +66,36 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+    <div
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="w-full max-w-xl max-h-[min(90vh,900px)] bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="assessment-settings-title"
+      >
+        {/* Header — always visible */}
+        <div className="shrink-0 p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h2 className="text-xl font-black text-slate-900">Assessment Settings</h2>
+            <h2 id="assessment-settings-title" className="text-xl font-black text-slate-900">Assessment Settings</h2>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Configure & Manage</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-xl transition-all">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-slate-200 rounded-xl transition-all"
+            aria-label="Close assessment settings"
+          >
             <X className="w-5 h-5 text-slate-400" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-8 space-y-6">
+        {/* Body — scrolls when content is tall */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-8 space-y-6">
           <div className="space-y-3">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assessment Title</label>
             <input 
@@ -210,15 +224,17 @@ export default function AssessmentSettingsModal({ assessment, onClose, onUpdate 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
-          <button 
+        {/* Footer — always visible */}
+        <div className="shrink-0 p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+          <button
+            type="button"
             onClick={onClose}
             className="px-6 py-3 bg-white text-slate-600 font-bold text-xs rounded-xl border border-slate-200 hover:bg-slate-50 transition-all"
           >
             Cancel
           </button>
-          <button 
+          <button
+            type="button"
             onClick={handleSave}
             disabled={loading}
             className="px-8 py-3 bg-indigo-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-2"

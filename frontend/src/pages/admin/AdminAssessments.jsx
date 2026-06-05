@@ -23,7 +23,7 @@ import {
   ALL_CODING_LANGUAGE_IDS,
 } from '../../coding-engine/starterCodeStorage';
 
-const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'AUTO_SUBMITTED', 'TERMINATED']);
+const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'COMPLETED', 'PENDING_REVIEW', 'TERMINATED']);
 
 function assessmentHasLiveSession(assessment) {
   return (assessment.sessions || []).some((s) => s.status === 'IN_PROGRESS');
