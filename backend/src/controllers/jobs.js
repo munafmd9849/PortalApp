@@ -11,7 +11,7 @@ import { createNotification } from './notifications.js';
 import logger from '../config/logger.js';
 import { sendServerError } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
-import { rankCandidatesForJob } from '../services/recommendationService.js';
+//import { rankCandidatesForJob } from '../services/recommendationService.js';
 import { getIO } from '../config/socket.js';
 
 /**
