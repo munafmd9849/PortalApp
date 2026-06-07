@@ -110,10 +110,10 @@ export async function deleteJob(jobId) {
  * Get targeted jobs for student
  * Replaces real-time subscription with one-time API call
  */
-export async function getTargetedJobsForStudent(studentId) {
+export async function getTargetedJobsForStudent(studentId, options = {}) {
   try {
     // Call real API to get targeted jobs
-    const jobs = await api.getTargetedJobs(studentId);
+    const jobs = await api.getTargetedJobs(studentId, options);
 
     if (jobs && jobs.length > 0) {
       // Transform jobs to match expected format
@@ -135,6 +135,7 @@ export async function getTargetedJobsForStudent(studentId) {
           stipend: job.stipend,
           company: job.companyName || job.company?.name || job.company,
           companyName: job.companyName || job.company?.name || job.company,
+          companyId: job.companyId || job.company?.id || null,
           companyLocation: job.companyLocation || job.location || job.company?.location,
           companyDetails: job.company,
           website: job.website || job.company?.website,
@@ -170,6 +171,7 @@ export async function getTargetedJobsForStudent(studentId) {
           qualification: job.qualification,
           specialization: job.specialization,
           minCgpa: job.minCgpa || job.cgpaRequirement,
+          yop: job.yop,
           gapAllowed: job.gapAllowed,
           gapYears: job.gapYears,
           backlogs: job.backlogs,

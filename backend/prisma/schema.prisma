@@ -1120,12 +1120,13 @@ model Batch {
 }
 
 model RecruiterScreeningSession {
-  id        String   @id @default(uuid())
-  jobId     String   @unique
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  jobId       String    @unique
+  token       String    @unique
+  expiresAt   DateTime
+  finalizedAt DateTime?
+  createdAt   DateTime  @default(now())
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([jobId])

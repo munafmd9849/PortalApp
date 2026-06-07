@@ -5,10 +5,15 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '../../../services/api';
-import { Loader, Building2, Briefcase, Users, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, LockOpen, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock, ChevronRight, Info } from 'lucide-react';
+import { Loader, Building2, Briefcase, Users, User, Plus, X, Mail, Save, CheckCircle, AlertCircle, Lock, LockOpen, PlayCircle, Calendar, GraduationCap, MapPin, Settings, View, Clock, ChevronRight, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
+import {
+  getInterviewDriveStatusBadges,
+  isDriveFinished,
+  isInterviewConfigurationComplete,
+} from '../../../utils/interviewDriveStatus';
 
 export default function InterviewScheduling() {
   const navigate = useNavigate();
@@ -20,7 +25,7 @@ export default function InterviewScheduling() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(false);
-  const [completedSessions, setCompletedSessions] = useState(new Set()); // Track completed sessions
+  const [sessionsByJobId, setSessionsByJobId] = useState({});
   const [jobsPage, setJobsPage] = useState(1);
   const JOBS_PER_PAGE = 10;
 
@@ -88,16 +93,19 @@ export default function InterviewScheduling() {
         jobsList.map(job => api.get(`/interview-sessions/${job.id}`, { silent: true }))
       );
       
-      const completedSet = new Set();
+      const sessionMap = {};
       sessionResults.forEach((res, index) => {
         if (res.status === 'fulfilled' && res.value) {
           const sessionData = res.value.session ?? res.value.data?.session;
-          if (sessionData && (sessionData.status === 'COMPLETED' || sessionData.status === 'INCOMPLETE')) {
-            completedSet.add(jobsList[index].id);
+          if (sessionData) {
+            sessionMap[jobsList[index].id] = {
+              status: sessionData.status,
+              rounds: Array.isArray(sessionData.rounds) ? sessionData.rounds : [],
+            };
           }
         }
       });
-      setCompletedSessions(completedSet);
+      setSessionsByJobId(sessionMap);
     } catch (error) {
       console.error('Error loading jobs:', error);
     } finally {
@@ -129,10 +137,14 @@ export default function InterviewScheduling() {
       setSession(data.session);
       setRounds(Array.isArray(data.session.rounds) ? data.session.rounds : []);
       setInterviewerEmails(data.session.interviewerInvites?.map(inv => inv.email) || []);
-      
-      if (data.session.status === 'COMPLETED' || data.session.status === 'INCOMPLETE') {
-        setCompletedSessions(prev => new Set([...prev, job.id]));
-      }
+
+      setSessionsByJobId((prev) => ({
+        ...prev,
+        [job.id]: {
+          status: data.session.status,
+          rounds: Array.isArray(data.session.rounds) ? data.session.rounds : [],
+        },
+      }));
       
       if (Array.isArray(data.session.rounds) && data.session.rounds.length === 0 && data.session.suggestedRounds?.length > 0) {
         setRounds(data.session.suggestedRounds);
@@ -179,7 +191,8 @@ export default function InterviewScheduling() {
     try {
       setConfiguringRounds(true);
       const data = await api.post(`/admin/interview-scheduling/session/${session.id}/rounds`, { rounds: safeRounds });
-      setRounds(Array.isArray(data.rounds) ? data.rounds : []);
+      const payload = data?.data || data;
+      setRounds(Array.isArray(payload.rounds) ? payload.rounds : []);
       toast.success('Rounds configured');
     } catch (error) {
       toast.error('Failed to configure rounds');
@@ -299,18 +312,11 @@ export default function InterviewScheduling() {
             <div className="space-y-4">
               {paginatedJobs.map((job) => {
                 const isSelected = selectedJob?.id === job.id;
-                const hasCompletedSession = completedSessions.has(job.id);
+                const jobSession = sessionsByJobId[job.id] || null;
+                const statusBadges = getInterviewDriveStatusBadges(job, jobSession);
+                const driveFinished = isDriveFinished(jobSession);
+                const configurationComplete = isInterviewConfigurationComplete(jobSession);
                 const driveDate = job.driveDate ? new Date(job.driveDate) : null;
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                
-                let dateStatus = 'FUTURE';
-                if (driveDate) {
-                  const d = new Date(driveDate);
-                  d.setHours(0,0,0,0);
-                  if (d.getTime() < today.getTime()) dateStatus = 'PAST';
-                  else if (d.getTime() === today.getTime()) dateStatus = 'TODAY';
-                }
 
                 return (
                   <div 
@@ -326,19 +332,15 @@ export default function InterviewScheduling() {
                           {getInitials(job.company?.name || job.companyName || 'Job')}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border ${
-                              dateStatus === 'TODAY' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                              dateStatus === 'PAST' ? 'bg-slate-50 text-slate-500 border-slate-200' :
-                              'bg-emerald-50 text-emerald-600 border-emerald-200'
-                            }`}>
-                              {dateStatus === 'TODAY' ? 'Drive Today' : dateStatus === 'PAST' ? 'Drive Finished' : 'Upcoming Drive'}
-                            </span>
-                            {hasCompletedSession && (
-                              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-full text-[9px] font-bold uppercase tracking-widest">
-                                Finalized
+                          <div className="flex items-center flex-wrap gap-2 mb-1.5">
+                            {statusBadges.map((badge) => (
+                              <span
+                                key={badge.key}
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border ${badge.className}`}
+                              >
+                                {badge.label}
                               </span>
-                            )}
+                            ))}
                           </div>
                           <h3 className="text-lg font-semibold text-slate-900 tracking-tight truncate group-hover:text-indigo-600 transition-colors">
                             {job.company?.name || job.companyName}
@@ -366,23 +368,35 @@ export default function InterviewScheduling() {
                           <View className="w-5 h-5" />
                         </button>
                         
-                        {!hasCompletedSession ? (
+                        {driveFinished ? (
+                          <div className="px-8 py-4 bg-slate-100 text-slate-600 border border-slate-200 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center gap-3">
+                            <CheckCircle className="w-4 h-4 text-slate-500" />
+                            Drive Finished
+                          </div>
+                        ) : configurationComplete ? (
                           <button
                             onClick={() => handleSelectJob(job)}
                             className={`px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 border ${
-                              isSelected 
-                                ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100' 
+                              isSelected
+                                ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {isSelected ? <Settings className="w-4 h-4 text-slate-500" /> : <CheckCircle className="w-4 h-4 text-emerald-500" />}
+                            {isSelected ? 'Manage Session' : 'Session Ready'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSelectJob(job)}
+                            className={`px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 border ${
+                              isSelected
+                                ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                                 : 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
                             }`}
                           >
                             {isSelected ? <Settings className="w-4 h-4 text-slate-500" /> : <PlayCircle className="w-4 h-4 text-indigo-500" />}
                             {isSelected ? 'Manage Session' : 'Setup Session'}
                           </button>
-                        ) : (
-                          <div className="px-8 py-4 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center gap-3">
-                            <CheckCircle className="w-4 h-4 text-emerald-500" />
-                            Session Ready
-                          </div>
                         )}
                       </div>
                     </div>

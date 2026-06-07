@@ -5,7 +5,7 @@ import { FaSearch, FaFilter, FaChevronLeft, FaChevronRight, FaTimes, FaEdit, FaU
 import { MdBlock } from 'react-icons/md';
 import { Loader, Download, Upload, SquarePen, User, Activity, TrendingUp, GraduationCap, BarChart2, Phone, CheckCircle2, MessageSquare, Briefcase, Code, X, Tag, Folder, ExternalLink, Check, ClipboardList } from 'lucide-react';
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
-import { getAllStudents, updateStudentProfile, updateEducationalBackground, getStudentProfile, getEducationalBackground, getStudentSkills } from '../../../services/students';
+import { getAllStudents, updateStudentProfile } from '../../../services/students';
 import { fetchStudentsWithScores } from '../../../services/adminReadiness';
 import { fetchStudentDirectory, exportStudentDirectory, fetchStudentPanelExtras } from '../../../services/studentDirectory';
 import StudentDirectoryTable from './StudentDirectoryTable';
@@ -16,10 +16,7 @@ import { API_BASE_URL } from '../../../config/api';
 import CustomDropdown from '../../common/CustomDropdown';
 import StudentDetailsModal from '../../common/StudentDetailsModal';
 import BlockModal from '../../common/BlockModal';
-import DashboardHome from '../../dashboard/student/DashboardHome';
-import { getTargetedJobsForStudent } from '../../../services/jobs';
 import { fetchAcademicOptions, buildStandardFilterOptions } from '../../../utils/academicOptions';
-import { getStudentApplications } from '../../../services/applications';
 // TODO: Replace Firebase operations with API calls
 
 const STATUS_OPTIONS = [
@@ -1022,52 +1019,46 @@ export default function StudentDirectory() {
 
     setSelectedStudent(student);
     setShowProfile(true);
-    setDashboardData({ loading: true, error: null, profile: null, jobs: [], applications: [], skills: [] });
+    setDashboardData({ loading: true, error: null });
 
     try {
-      const [profile, jobs, applications, panelExtras] = await Promise.all([
-        getStudentProfile(studentId),
-        getTargetedJobsForStudent(studentId),
-        getStudentApplications(studentId),
-        fetchStudentPanelExtras(studentId).catch((err) => {
-          console.error('Student panel extras failed:', err);
-          return null;
-        }),
-      ]);
+      const panel = await fetchStudentPanelExtras(studentId);
+      if (!panel?.profile?.id) {
+        throw new Error('Student profile not found');
+      }
 
-      const fullProfile = profile && profile.id ? profile : { ...student, id: studentId };
       const mergedStudent = {
         ...student,
-        ...fullProfile,
-        id: fullProfile.id || studentId,
-        userId: fullProfile.userId || student.userId,
-        emailVerified: Boolean(
-          fullProfile.emailVerified ?? student.emailVerified ?? student.user?.lastLoginAt,
-        ),
-        profilePhoto: fullProfile.profilePhoto || student.profilePhoto,
-        stats: {
-          applied: fullProfile.statsApplied ?? student.statsApplied ?? applications?.length ?? 0,
-          shortlisted: fullProfile.statsShortlisted ?? student.statsShortlisted ?? 0,
-          interviewed: fullProfile.statsInterviewed ?? student.statsInterviewed ?? 0,
-          offers: fullProfile.statsOffers ?? student.statsOffers ?? 0,
-        },
+        ...panel.profile,
+        program: panel.program || student.program || panel.education?.[0]?.degree || null,
+        branch: panel.branch || panel.education?.[0]?.description || student.branch || null,
+        currentLocation: panel.currentLocation || student.currentLocation || null,
+        placementReadiness: panel.metricsAvailable ? panel.placementReadiness : null,
+        placementProbability: panel.metricsAvailable ? panel.placementProbability : null,
+        metricsAvailable: panel.metricsAvailable !== false,
       };
 
       setSelectedStudent(mergedStudent);
       setDashboardData({
         loading: false,
         error: null,
-        profile: fullProfile,
-        jobs: jobs || [],
-        applications: applications || [],
-        skills: Array.isArray(fullProfile.skills) ? fullProfile.skills : [],
-        education: Array.isArray(fullProfile.education) ? fullProfile.education : [],
-        projects: Array.isArray(fullProfile.projects) ? fullProfile.projects : [],
-        achievements: Array.isArray(fullProfile.achievements) ? fullProfile.achievements : [],
-        certifications: Array.isArray(fullProfile.certifications) ? fullProfile.certifications : [],
-        experiences: Array.isArray(fullProfile.experiences) ? fullProfile.experiences : [],
-        mockInterviews: panelExtras?.mockInterviews || { interviews: [], completedCount: 0 },
-        assessments: panelExtras?.assessments || [],
+        profile: panel.profile,
+        applications: panel.applications || [],
+        skills: panel.skills || [],
+        education: panel.education || [],
+        projects: panel.projects || [],
+        achievements: panel.achievements || [],
+        certifications: panel.certifications || [],
+        experiences: panel.experiences || [],
+        mockInterviews: panel.mockInterviews || { interviews: [], completedCount: 0 },
+        assessments: panel.assessments || [],
+        funnelStats: panel.funnelStats || {
+          applied: panel.profile.statsApplied ?? 0,
+          shortlisted: panel.profile.statsShortlisted ?? 0,
+          interviewed: panel.profile.statsInterviewed ?? 0,
+          offers: panel.profile.statsOffers ?? 0,
+        },
+        metricsAvailable: panel.metricsAvailable !== false,
       });
     } catch (error) {
       console.error('Error loading student data:', error);
@@ -1075,9 +1066,9 @@ export default function StudentDirectory() {
         loading: false,
         error: 'Failed to load student profile. Please try again.',
         profile: null,
-        jobs: [],
         applications: [],
         skills: [],
+        metricsAvailable: false,
       });
     }
   };
@@ -1085,7 +1076,7 @@ export default function StudentDirectory() {
   const handleViewPublicProfile = (student) => {
     const publicProfileId = student.publicProfileId || student.user?.publicProfileId;
     if (publicProfileId) {
-      const publicProfileUrl = `${window.location.origin} /profile/${publicProfileId} `;
+      const publicProfileUrl = `${window.location.origin}/profile/${publicProfileId}`;
       window.open(publicProfileUrl, '_blank', 'noopener,noreferrer');
     } else {
       alert('This student has not generated a public profile link yet.');
@@ -1647,22 +1638,25 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
         ...student,
         ...dashboardData.profile,
         id: dashboardData.profile.id || student?.id,
+        program: student?.program || dashboardData.profile.program || dashboardData.education?.[0]?.degree || null,
+        branch: student?.branch || dashboardData.profile.branch || dashboardData.education?.[0]?.description || null,
+        currentLocation: dashboardData.profile.currentLocation || student?.currentLocation || null,
+        placementReadiness: dashboardData.metricsAvailable === false
+          ? null
+          : (student?.placementReadiness ?? dashboardData.profile.placementReadiness ?? null),
+        placementProbability: dashboardData.metricsAvailable === false
+          ? null
+          : (student?.placementProbability ?? dashboardData.profile.placementProbability ?? null),
         emailVerified: Boolean(
           dashboardData.profile.emailVerified
             ?? student?.emailVerified
             ?? student?.user?.lastLoginAt,
         ),
-        stats: student?.stats || {
-          applied: dashboardData.profile.statsApplied ?? 0,
-          shortlisted: dashboardData.profile.statsShortlisted ?? 0,
-          interviewed: dashboardData.profile.statsInterviewed ?? 0,
-          offers: dashboardData.profile.statsOffers ?? 0,
-        },
       });
     } else {
       setCurrentStudent(student);
     }
-  }, [student, dashboardData?.profile]);
+  }, [student, dashboardData?.profile, dashboardData?.metricsAvailable, dashboardData?.education]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -1692,7 +1686,7 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
   const getReadinessDisplay = (metric) => {
     const { score, tier } = normalizePlacementMetric(metric);
     if (score == null && !tier) {
-      return { text: '—', class: 'bg-slate-100 text-slate-600 border-slate-200' };
+      return { text: 'Not Available', class: 'bg-slate-100 text-slate-600 border-slate-200' };
     }
     if (score == null && tier) {
       const label = READINESS_TIER_LABELS[tier] || tier;
@@ -1760,7 +1754,15 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
       .toUpperCase();
   };
 
-  const readiness = getReadinessDisplay(currentStudent?.placementReadiness);
+  const readiness = getReadinessDisplay(
+    dashboardData?.metricsAvailable === false ? null : currentStudent?.placementReadiness,
+  );
+  const funnel = dashboardData?.funnelStats || {
+    applied: currentStudent?.statsApplied ?? dashboardData?.applications?.length ?? 0,
+    shortlisted: currentStudent?.statsShortlisted ?? 0,
+    interviewed: currentStudent?.statsInterviewed ?? 0,
+    offers: currentStudent?.statsOffers ?? 0,
+  };
 
   const panel = (
     <>
@@ -1900,11 +1902,13 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                       <div>
                         <span className="text-xs text-emerald-700/80 font-medium">Placement Probability</span>
                         <p className="text-sm font-bold text-emerald-950 font-outfit mt-1">
-                          {formatPlacementMetricDisplay(
-                            currentStudent?.placementProbability,
-                            PROBABILITY_TIER_LABELS,
-                            '—'
-                          )}
+                          {dashboardData?.metricsAvailable === false
+                            ? 'Not Available'
+                            : formatPlacementMetricDisplay(
+                                currentStudent?.placementProbability,
+                                PROBABILITY_TIER_LABELS,
+                                'Not Available',
+                              )}
                         </p>
                       </div>
                     </div>
@@ -1926,7 +1930,7 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs block">Degree / Program</span>
-                        <span className="text-slate-800 font-medium">{currentStudent?.program || 'N/A'}</span>
+                        <span className="text-slate-800 font-medium">{currentStudent?.program || dashboardData?.education?.[0]?.degree || 'Not Available'}</span>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs block">CGPA</span>
@@ -1945,25 +1949,25 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                     <div className="grid grid-cols-4 divide-x divide-slate-100 text-center mt-4">
                       <div>
                         <span className="text-2xl font-extrabold text-slate-800 font-outfit">
-                          {dashboardData.applications?.length || 0}
+                          {funnel.applied ?? 0}
                         </span>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Applied</p>
                       </div>
                       <div>
                         <span className="text-2xl font-extrabold text-amber-600 font-outfit">
-                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('shortlist') || a.status?.toLowerCase().includes('select')).length || 0}
+                          {funnel.shortlisted ?? 0}
                         </span>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Shortlisted</p>
                       </div>
                       <div>
                         <span className="text-2xl font-extrabold text-indigo-600 font-outfit">
-                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('interview')).length || 0}
+                          {funnel.interviewed ?? 0}
                         </span>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Interviewing</p>
                       </div>
                       <div>
                         <span className="text-2xl font-extrabold text-emerald-600 font-outfit">
-                          {dashboardData.applications?.filter(a => a.status?.toLowerCase().includes('offer') || a.status?.toLowerCase().includes('hire')).length || 0}
+                          {funnel.offers ?? 0}
                         </span>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mt-1">Offers</p>
                       </div>
@@ -2112,9 +2116,12 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                       <div key={app.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
                         <div className="flex justify-between items-start gap-3">
                           <div>
-                            <h5 className="font-bold text-slate-800 text-sm font-outfit">{app.job?.title || app.jobTitle || 'Role Name'}</h5>
+                            <h5 className="font-bold text-slate-800 text-sm font-outfit">
+                              {app.jobTitle || app.job?.jobTitle || app.job?.title || 'Not Available'}
+                            </h5>
                             <p className="text-xs text-slate-550 mt-0.5 font-medium">
-                              {app.job?.company || app.companyName || 'Company'} &bull; {app.job?.location || 'Remote'}
+                              {app.companyName || app.job?.company?.name || 'Not Available'}
+                              {app.location || app.job?.location ? ` · ${app.location || app.job?.location}` : ''}
                             </p>
                           </div>
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border capitalize ${getApplicationStatusBadge(app.status)}`}>
@@ -2122,7 +2129,12 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                           </span>
                         </div>
                         <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50 text-[11px] text-slate-400 font-medium">
-                          <span>Applied on: {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : 'N/A'}</span>
+                          <span>
+                            Applied on:{' '}
+                            {app.appliedDate || app.createdAt
+                              ? new Date(app.appliedDate || app.createdAt).toLocaleDateString()
+                              : 'Not Available'}
+                          </span>
                         </div>
                       </div>
                     ))}

@@ -14,6 +14,7 @@ import Notifications from '../../components/dashboard/admin/Notifications';
 import AdminProfile from '../../components/dashboard/admin/AdminProfile';
 import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
 import AdminJobApplications from '../../components/dashboard/admin/AdminJobApplications';
+import AdminJobApplicationDetail from '../../components/dashboard/admin/AdminJobApplicationDetail';
 import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
 import AdminAnnouncements from '../../components/dashboard/admin/AdminAnnouncements';
 import CreateDisableAdmins from '../../components/dashboard/admin/CreateDisableAdmins';
@@ -66,18 +67,56 @@ export default function AdminDashboard() {
   }, []);
 
   const location = useLocation();
-  const isJobDetailPage = location.pathname.includes('/job/');
-  const isJobApplicationsPage = location.pathname.includes('/jobs/') && location.pathname.endsWith('/applications');
+  const basePath = useMemo(
+    () => (location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin'),
+    [location.pathname]
+  );
+  const isJobApplicationDetailPage = useMemo(
+    () => /\/jobs\/[^/]+\/applications\/[^/]+\/?$/.test(location.pathname),
+    [location.pathname]
+  );
+  const isJobApplicationsPage = useMemo(
+    () => /\/jobs\/[^/]+\/applications\/?$/.test(location.pathname),
+    [location.pathname]
+  );
+  const isJobDetailPage = useMemo(
+    () => /\/job\/[^/]+\/?$/.test(location.pathname) && !isJobApplicationsPage,
+    [location.pathname, isJobApplicationsPage]
+  );
 
-  // Sync activeTab with URL tab parameter
+  const contentRoute = useMemo(() => {
+    if (isJobApplicationDetailPage) return { kind: 'jobApplicationDetail', tab: 'jobApplications' };
+    if (isJobApplicationsPage) return { kind: 'jobApplications', tab: 'jobApplications' };
+    if (isJobDetailPage) return { kind: 'jobDetail', tab: 'manageJobs' };
+    let tab = searchParams.get('tab') || 'dashboard';
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      tab = 'dashboard';
+    }
+    return { kind: 'tab', tab };
+  }, [isJobApplicationDetailPage, isJobApplicationsPage, isJobDetailPage, searchParams]);
+
+  // Keep sidebar highlight in sync with URL (pathname + ?tab=)
+  useEffect(() => {
+    if (contentRoute.tab !== activeTab) {
+      setActiveTab(contentRoute.tab);
+    }
+  }, [contentRoute.tab, activeTab]);
+
+  // Legacy tab aliases → dashboard
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && tab !== activeTab) {
-      setActiveTab(tab);
-    } else if (!tab && activeTab !== 'dashboard') {
-      setActiveTab('dashboard');
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      navigate(`${basePath}?tab=dashboard`, { replace: true });
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams, basePath, navigate]);
+
+  useEffect(() => {
+    const handleEditProfileClick = () => {
+      navigate(`${basePath}?tab=profile`);
+    };
+    window.addEventListener('editProfileClicked', handleEditProfileClick);
+    return () => window.removeEventListener('editProfileClicked', handleEditProfileClick);
+  }, [navigate, basePath]);
 
   // MANDATORY: Hard block unauthorized access on mount
   useEffect(() => {
@@ -133,43 +172,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // Sync activeTab with URL params
-  useEffect(() => {
-    // Special pages are driven by pathname, not ?tab=...
-    if (isJobApplicationsPage) {
-      if (activeTab !== 'jobApplications') setActiveTab('jobApplications');
-      return;
-    }
-    if (isJobDetailPage) {
-      if (activeTab !== 'manageJobs') setActiveTab('manageJobs');
-      return;
-    }
-
-    let tab = searchParams.get('tab') || 'dashboard';
-    // Legacy tab names → Job Opportunities dashboard
-    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
-      tab = 'dashboard';
-      navigate('/admin?tab=dashboard', { replace: true });
-    }
-    if (tab !== activeTab) {
-      setActiveTab(tab);
-    }
-  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage, navigate]);
-
-  // Listen for editProfileClicked event
-  useEffect(() => {
-    const handleEditProfileClick = () => {
-      setActiveTab('profile');
-      // Ensure we leave special sub-routes like /admin/job/:id or /admin/jobs/:id/applications
-      navigate(`${basePath}?tab=profile`);
-    };
-
-    window.addEventListener('editProfileClicked', handleEditProfileClick);
-    return () => {
-      window.removeEventListener('editProfileClicked', handleEditProfileClick);
-    };
-  }, [navigate]);
-
   // Role-based tab filtering - STUDENT users cannot see Create Job or other admin-only tabs
   const userRoleUpper = userRole.toUpperCase();
   const isAdmin = userRoleUpper === 'ADMIN' || userRoleUpper === 'SUPER_ADMIN';
@@ -180,9 +182,6 @@ export default function AdminDashboard() {
   const isAdminOnly = isAdmin;
   const assessmentId = searchParams.get('assessmentId');
   const isSuperAdminOnly = isSuperAdmin;
-
-  // Use the current base path (/admin or /super-admin)
-  const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
 
   // Base tabs available to all authorized users
   const allTabs = [
@@ -271,32 +270,33 @@ export default function AdminDashboard() {
 
   // Sidebar highlight should reflect where we are, even on special pages
   const sidebarActiveTab = useMemo(() => {
-    if (isJobApplicationsPage) return 'jobApplications';
+    if (isJobApplicationDetailPage || isJobApplicationsPage) return 'jobApplications';
     if (isJobDetailPage) return 'manageJobs';
     return activeTab;
-  }, [activeTab, isJobApplicationsPage, isJobDetailPage]);
+  }, [activeTab, isJobApplicationDetailPage, isJobApplicationsPage, isJobDetailPage]);
 
   const renderContent = () => {
+    const currentTab = contentRoute.kind === 'tab' ? contentRoute.tab : contentRoute.tab;
+
     // ROLE CHECK: Block unauthorized access to job creation tabs
     const unauthorizedJobTabs = ['createJob', 'manageJobs', 'jobApplications', 'interviewScheduling', 'calendar'];
-    if (isStudent && unauthorizedJobTabs.includes(activeTab)) {
-      console.error('🚫 STUDENT user attempted to access restricted tab:', activeTab);
-      // Redirect to dashboard and show error
-      setActiveTab('dashboard');
-      navigate(`${basePath}?tab=dashboard`);
+    if (isStudent && unauthorizedJobTabs.includes(currentTab)) {
+      console.error('🚫 STUDENT user attempted to access restricted tab:', currentTab);
+      navigate(`${basePath}?tab=dashboard`, { replace: true });
       return <div className="text-red-600 font-semibold">Access denied: You don't have permission to access this section.</div>;
     }
 
-    // Check if we're on a job detail page
-    if (isJobDetailPage) {
+    if (contentRoute.kind === 'jobDetail') {
       return <AdminJobDetail />;
     }
-    // New: Admin Job -> Applicants -> Interview Progress (read-only)
-    if (isJobApplicationsPage) {
+    if (contentRoute.kind === 'jobApplicationDetail') {
+      return <AdminJobApplicationDetail />;
+    }
+    if (contentRoute.kind === 'jobApplications') {
       return <AdminJobApplications />;
     }
 
-    switch (activeTab) {
+    switch (currentTab) {
       case 'dashboard':
         return <AdminHome />;
       case 'createJob':
@@ -409,12 +409,7 @@ export default function AdminDashboard() {
 
 
   const handleTabClick = (tabId) => {
-    setActiveTab(tabId);
     setMobileMenuOpen(false);
-    
-    // Alert removed - using toast notifications
-    
-    const basePath = role?.toUpperCase() === 'SUPER_ADMIN' ? '/super-admin' : '/admin';
     navigate(`${basePath}?tab=${encodeURIComponent(tabId)}`);
   };
 
@@ -563,7 +558,9 @@ export default function AdminDashboard() {
                   </div>
                 }
               >
-                {renderContent()}
+                <div key={`${location.pathname}${location.search}`}>
+                  {renderContent()}
+                </div>
               </ErrorBoundary>
             </div>
           </main>

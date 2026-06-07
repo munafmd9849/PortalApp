@@ -13,6 +13,7 @@ import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
 import { logAction } from '../utils/auditLogger.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { isAdminViewer } from '../utils/adminAccess.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
@@ -38,7 +39,7 @@ async function updateUserProfilePhoto(userId, profilePhotoValue) {
 export async function getStudentProfile(req, res) {
   try {
     let studentIdToFetch;
-    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+    if (req.query.studentId && isAdminViewer(req.user)) {
       studentIdToFetch = { id: req.query.studentId };
     } else {
       studentIdToFetch = { userId: req.userId };
@@ -746,7 +747,7 @@ export async function updateStudentProfile(req, res) {
 export async function getStudentSkills(req, res) {
   try {
     let studentId;
-    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+    if (req.query.studentId && isAdminViewer(req.user)) {
       studentId = req.query.studentId;
     } else {
       const student = await prisma.student.findUnique({

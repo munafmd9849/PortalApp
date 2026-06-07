@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { getJob } from '../../services/jobs';
 import { applyToJob } from '../../services/applications';
 import { useAuth } from '../../hooks/useAuth';
+import { formatApplicationSuccessMessage } from '../../utils/applicationMessages';
 
 export default function JobDetail() {
   const { jobId } = useParams();
@@ -51,7 +52,7 @@ export default function JobDetail() {
     setApplyLoading(true);
     try {
       await applyToJob(user.id, jobId, {});
-      setApplyMsg('Application submitted successfully!');
+      setApplyMsg(formatApplicationSuccessMessage(job));
     } catch (error) {
       console.error('Apply error:', error);
       

@@ -9,6 +9,8 @@ import { sendEmail } from '../config/email.js';
 import { sendDriveThankYouEmail, sendInterviewerInviteEmail } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { sendSuccess, sendError, sendValidationError, sendNotFound, sendUnauthorized, sendForbidden, sendServerError } from '../utils/response.js';
+import { syncApplicationPipeline } from '../services/jobOpportunitiesPipeline.js';
+import { notifyStudentApplicationUpdate } from './applications.js';
 
 /**
  * Generate secure token for interviewer invite
@@ -124,13 +126,12 @@ async function autoCorrectSessionStatus(session, job) {
  */
 async function updateApplicationsForIncompleteSession(jobId) {
   try {
-    // Get all applications for this job that might be affected
     const applications = await prisma.application.findMany({
       where: {
         jobId,
-        screeningStatus: 'TEST_SELECTED', // Only eligible candidates
+        screeningStatus: { in: ['INTERVIEW_ELIGIBLE', 'TEST_SELECTED'] },
         interviewStatus: {
-          not: 'SELECTED', // Don't update already selected candidates
+          not: 'SELECTED',
         },
       },
     });
@@ -151,6 +152,8 @@ async function updateApplicationsForIncompleteSession(jobId) {
           interviewStatus: newStatus,
         },
       });
+      await syncApplicationPipeline(app.id);
+      await notifyStudentApplicationUpdate(app.id);
     }
   } catch (error) {
     console.error('Error updating applications for incomplete session:', error);
@@ -557,6 +560,28 @@ export const configureRounds = async (req, res) => {
     const uniqueNames = new Set(names);
     if (names.length !== uniqueNames.size) {
       return sendValidationError(res, 'roundNames', 'Round names must be unique');
+    }
+
+    const evaluationCount = await prisma.roundEvaluation.count({
+      where: { round: { sessionId } },
+    });
+    if (evaluationCount > 0) {
+      return sendError(
+        res,
+        'Cannot reconfigure rounds',
+        'Interview evaluations already exist for this session. Rounds cannot be modified.',
+        409
+      );
+    }
+
+    const startedRound = session.rounds.find((r) => r.status === 'ACTIVE' || r.status === 'ENDED');
+    if (startedRound) {
+      return sendError(
+        res,
+        'Cannot reconfigure rounds',
+        'One or more rounds have already started or ended. Rounds cannot be modified.',
+        409
+      );
     }
 
     // Delete existing rounds (if any)
@@ -1256,6 +1281,10 @@ export const evaluateCandidate = async (req, res) => {
       return res.status(404).json({ error: 'Application not found' });
     }
 
+    if (application.jobId !== round.session.jobId) {
+      return res.status(403).json({ error: 'Application does not belong to this interview job' });
+    }
+
     // Validate remarks for REJECTED or ON_HOLD
     if ((status === 'REJECTED' || status === 'ON_HOLD') && (!remarks || remarks.trim().length === 0)) {
       return res.status(400).json({ error: 'Remarks are required for REJECTED or ON_HOLD status' });
@@ -1520,6 +1549,7 @@ export const startRound = async (req, res) => {
         roundNumber: result.roundNumber,
         name: result.name,
         status: result.status,
+        startedAt: result.startedAt,
       },
     });
   } catch (error) {
@@ -1830,6 +1860,16 @@ export const endRound = async (req, res) => {
       ? 'Round ended successfully! Interview session completed.'
       : 'Round ended successfully';
 
+    const roundEvaluations = await prisma.roundEvaluation.findMany({
+      where: { roundId },
+      select: { applicationId: true },
+    });
+    const affectedApplicationIds = [...new Set(roundEvaluations.map((e) => e.applicationId))];
+    for (const applicationId of affectedApplicationIds) {
+      await syncApplicationPipeline(applicationId);
+      await notifyStudentApplicationUpdate(applicationId);
+    }
+
     res.json({
       message,
       round: result,
@@ -2047,6 +2087,20 @@ export const endSession = async (req, res) => {
         completedAt: new Date(),
       },
     });
+
+    await prisma.interviewerInvite.updateMany({
+      where: { sessionId },
+      data: { used: true, usedAt: new Date() },
+    });
+
+    const affectedApplications = await prisma.application.findMany({
+      where: { jobId: session.jobId },
+      select: { id: true },
+    });
+    for (const app of affectedApplications) {
+      await syncApplicationPipeline(app.id);
+      await notifyStudentApplicationUpdate(app.id);
+    }
 
     try {
       await sendDriveThankYouEmailsForSession(sessionId);

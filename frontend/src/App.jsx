@@ -268,6 +268,7 @@ function AppContent() {
           <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
+          <Route path="/admin/jobs/:jobId/applications/:applicationId" element={<AdminDashboard />} />
           <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
@@ -281,6 +282,7 @@ function AppContent() {
           <Route path="/super-admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
           <Route path="/super-admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
           <Route path="/super-admin/job/:jobId" element={<AdminDashboard />} />
+          <Route path="/super-admin/jobs/:jobId/applications/:applicationId" element={<AdminDashboard />} />
           <Route path="/super-admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/super-admin" element={<AdminDashboard />} />
         </Route>

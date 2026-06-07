@@ -150,8 +150,28 @@ async function apiRequest(endpoint, options = {}) {
 
         const isMockMutation = endpoint.startsWith('/mock-interviews');
         const isMockCache = cachedUrl.startsWith('/mock-interviews');
+
+        const isApplicationMutation = endpoint.startsWith('/applications');
+        const isApplicationCache = cachedUrl.startsWith('/applications');
+
+        const isRecruiterScreeningMutation = endpoint.startsWith('/recruiter/screening');
+        const isRecruiterScreeningCache = cachedUrl.startsWith('/recruiter/screening');
+
+        const isInterviewMutation = endpoint.startsWith('/interview');
+        const isInterviewCache = cachedUrl.startsWith('/interview');
+
+        const isStudentResumeMutation = endpoint.startsWith('/students/resume');
+        const isStudentResumeCache = cachedUrl.includes('/students/resumes') || cachedUrl.includes('/students/resume');
         
-        if ((isJobMutation && isJobCache) || (isAssessmentMutation && isAssessmentCache) || (isMockMutation && isMockCache)) {
+        if (
+          (isJobMutation && isJobCache) ||
+          (isAssessmentMutation && isAssessmentCache) ||
+          (isMockMutation && isMockCache) ||
+          (isApplicationMutation && isApplicationCache) ||
+          (isRecruiterScreeningMutation && isRecruiterScreeningCache) ||
+          (isInterviewMutation && isInterviewCache) ||
+          (isStudentResumeMutation && isStudentResumeCache)
+        ) {
           localStorage.removeItem(key);
         } else if (cachedUrl.startsWith(basePath)) {
           localStorage.removeItem(key);
@@ -692,7 +712,16 @@ export const api = {
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 200 || xhr.status === 201) {
-          resolve(JSON.parse(xhr.responseText));
+          try {
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('api_cache_') && key.includes('/students/resumes')) {
+                localStorage.removeItem(key);
+              }
+            });
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error('Invalid response from server'));
+          }
         } else {
           let errorMessage = `Upload failed: ${xhr.statusText}`;
           try {
@@ -716,7 +745,7 @@ export const api = {
       xhr.send(formData);
     });
   },
-  getResumes: () => apiRequest('/students/resumes'),
+  getResumes: (opts = {}) => apiRequest('/students/resumes', opts),
   getResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`),
   getStudentResumeViewUrl: (resumeId) => apiRequest(`/students/resume/${resumeId}/view-url`),
   setDefaultResume: (resumeId) => apiRequest(`/students/resume/${resumeId}/default`, {
@@ -744,7 +773,17 @@ export const api = {
   }),
 
   // Jobs
-  getTargetedJobs: (studentId) => apiRequest(studentId ? `/jobs/targeted?studentId=${studentId}` : '/jobs/targeted'),
+  getTargetedJobs: (studentId, options = {}) => apiRequest(
+    studentId ? `/jobs/targeted?studentId=${studentId}` : '/jobs/targeted',
+    options
+  ),
+  clearApiCache: (prefix) => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('api_cache_') && key.includes(prefix)) {
+        localStorage.removeItem(key);
+      }
+    });
+  },
   getJobs: (params = {}) => {
     const query = toQueryString(params);
     return apiRequest(`/jobs?${query}`);
@@ -818,7 +857,10 @@ export const api = {
     const query = toQueryString(filters);
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
-  getStudentApplications: (studentId) => apiRequest(studentId ? `/applications/student?studentId=${studentId}` : '/applications/student'),
+  getStudentApplications: (studentId, options = {}) => apiRequest(
+    studentId ? `/applications/student?studentId=${studentId}` : '/applications/student',
+    options
+  ),
 
   exportApplications: (filters = {}) => apiRequest('/applications/export', {
     method: 'POST',
@@ -826,7 +868,7 @@ export const api = {
   }),
   getExportStatus: (jobId) => apiRequest(`/applications/export/${jobId}`),
 
-  getStudentInterviewHistory: () => apiRequest('/applications/student/interview-history'),
+  getStudentInterviewHistory: (opts = {}) => apiRequest('/applications/student/interview-history', opts),
   applyToJob: (jobId, applicationData = {}) => apiRequest(`/applications/jobs/${jobId}`, {
     method: 'POST',
     body: JSON.stringify(applicationData),
@@ -958,10 +1000,10 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  // Interviewer endpoints (token-based, no auth required)
-  getInterviewSessionByToken: (sessionId, token) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true }),
-  getActiveRound: (sessionId, token) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true }),
-  getRoundCandidates: (roundId, token) => apiRequest(`/interview/round/${roundId}/candidates?token=${encodeURIComponent(token)}`, { silent: true }),
+  // Interviewer endpoints (token-based, no auth required) — always bypass cache (live workflow state)
+  getInterviewSessionByToken: (sessionId, token, opts = {}) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
+  getActiveRound: (sessionId, token, opts = {}) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
+  getRoundCandidates: (roundId, token, opts = {}) => apiRequest(`/interview/round/${roundId}/candidates?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
   evaluateRoundCandidate: (roundId, token, data) => apiRequest(`/interview/round/${roundId}/evaluate?token=${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify(data),

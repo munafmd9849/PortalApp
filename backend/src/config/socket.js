@@ -85,6 +85,7 @@ export function initSocket(server) {
         
         if (user.role === 'STUDENT') {
           socket.join('students');
+          socket.join(`student:${socket.userId}`);
         } else if (user.role === 'RECRUITER') {
           socket.join('recruiters');
         } else if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {

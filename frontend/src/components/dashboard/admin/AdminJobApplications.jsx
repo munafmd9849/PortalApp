@@ -80,6 +80,8 @@ export default function AdminJobApplications() {
   const jobId = params.jobId || location.pathname.match(/\/admin\/jobs\/([^/]+)\/applications/)?.[1] ||
     location.pathname.match(/\/super-admin\/jobs\/([^/]+)\/applications/)?.[1];
 
+  const basePath = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
@@ -112,7 +114,7 @@ export default function AdminJobApplications() {
           limit: LIMIT,
           sortBy,
           order,
-          search: debouncedSearch || undefined,
+          q: debouncedSearch || undefined,
           stage: filters.stage || undefined,
           finalStatus: filters.finalStatus || undefined,
         };
@@ -156,7 +158,7 @@ export default function AdminJobApplications() {
                 <span className="w-1 h-1 bg-slate-300 rounded-full" />
                 <span className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
                   <Briefcase className="w-3.5 h-3.5" />
-                  {job.jobTitle}
+                  {job.title || job.jobTitle}
                 </span>
               </div>
             </div>
@@ -169,7 +171,7 @@ export default function AdminJobApplications() {
             </div>
             <div className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col items-center min-w-[80px]">
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Selected</span>
-              <span className="text-base font-bold text-emerald-700 leading-tight">{stats.Selected || 0}</span>
+              <span className="text-base font-bold text-emerald-700 leading-tight">{stats.selected ?? stats.Selected ?? 0}</span>
             </div>
           </div>
         </div>
@@ -237,16 +239,20 @@ export default function AdminJobApplications() {
                   </td>
                 </tr>
               ) : (
-                applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
+                applications.map((app) => {
+                  const applicationId = app.applicationId || app.id;
+                  const studentName = app.student?.name || app.student?.user?.displayName || 'Unknown';
+                  const studentInitial = studentName.charAt(0).toUpperCase();
+                  return (
+                  <tr key={applicationId} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm border border-indigo-100">
-                          {app.student?.user?.displayName?.charAt(0) || 'S'}
+                          {studentInitial}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 truncate tracking-tight">{app.student?.user?.displayName}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{app.student?.usn || app.student?.email}</p>
+                          <p className="font-bold text-slate-900 truncate tracking-tight">{studentName}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{app.student?.enrollmentId || app.student?.email}</p>
                         </div>
                       </div>
                     </td>
@@ -254,7 +260,7 @@ export default function AdminJobApplications() {
                       <div className="space-y-1">
                         <p className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
                           <GraduationCap className="w-3 h-3 text-indigo-500" />
-                          {app.student?.school} | {app.student?.branch}
+                          {app.student?.school} {app.student?.branch ? `| ${app.student.branch}` : ''}
                         </p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           Batch: {app.student?.batch}
@@ -269,15 +275,19 @@ export default function AdminJobApplications() {
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => navigate(`/admin/student/${app.studentId}`)}
+                        {app.student?.profileLink && (
+                        <a
+                          href={app.student.profileLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                           title="Student Profile"
                         >
                           <ExternalLink className="w-4 h-4" />
-                        </button>
+                        </a>
+                        )}
                         <button 
-                          onClick={() => navigate(`/admin/jobs/${jobId}/applications/${app.id}`)}
+                          onClick={() => navigate(`${basePath}/jobs/${jobId}/applications/${applicationId}`)}
                           className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all opacity-0 group-hover:opacity-100"
                         >
                           Details
@@ -285,7 +295,7 @@ export default function AdminJobApplications() {
                       </div>
                     </td>
                   </tr>
-                ))
+                );})
               )}
             </tbody>
           </table>

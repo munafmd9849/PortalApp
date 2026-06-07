@@ -57,7 +57,7 @@ export function derivePipelineFromApplication(app) {
   if (status === 'NO_SHOW' || interview === 'NO_SHOW') {
     return { pipelineStatus: PIPELINE_STATUS.CLOSED, pipelineSubStatus: PIPELINE_SUB_STATUS.NO_SHOW };
   }
-  if (screening === 'REJECTED' || screening === 'SCREEN_REJECT') {
+  if (screening === 'REJECTED' || screening === 'SCREEN_REJECT' || screening === 'SCREENING_REJECTED' || screening === 'TEST_REJECTED') {
     return { pipelineStatus: PIPELINE_STATUS.CLOSED, pipelineSubStatus: PIPELINE_SUB_STATUS.SCREEN_REJECT };
   }
   if (SHORTLIST.includes(status) || screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE') {

@@ -186,10 +186,13 @@ const ResumeBuilder = () => {
   }, []);
 
   // Load resumes
-  const loadResumes = async () => {
+  const loadResumes = async (forceRefresh = false) => {
     if (!user?.id) return;
     try {
-      const data = await api.getResumes();
+      if (forceRefresh) {
+        api.clearApiCache('/students/resumes');
+      }
+      const data = await api.getResumes({ noCache: forceRefresh });
       setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
@@ -643,8 +646,18 @@ const ResumeBuilder = () => {
         setUploadProgress(progress);
       });
 
-      // Reload resumes list
-      await loadResumes();
+      api.clearApiCache('/students/resumes');
+      if (result?.id) {
+        setResumes((prev) => {
+          const next = prev.filter((r) => r.id !== result.id);
+          return [...next, result];
+        });
+      }
+      await loadResumes(true);
+
+      if (user?.id) {
+        window.dispatchEvent(new CustomEvent('resumesUpdated', { detail: { userId: user.id } }));
+      }
 
       setSuccess('Resume uploaded successfully!');
       setResumeFile(null);
@@ -678,9 +691,11 @@ const ResumeBuilder = () => {
     try {
       setSaving(true);
       await api.deleteResume(resumeId);
-      
-      // Reload resumes list
-      await loadResumes();
+      api.clearApiCache('/students/resumes');
+      await loadResumes(true);
+      if (user?.id) {
+        window.dispatchEvent(new CustomEvent('resumesUpdated', { detail: { userId: user.id } }));
+      }
       
       setSuccess('Resume deleted!');
       setTimeout(() => setSuccess(''), 3000);
