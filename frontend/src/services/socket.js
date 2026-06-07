@@ -124,9 +124,48 @@ export function useSocket() {
   return socket;
 }
 
+/**
+ * Real-time proctoring updates for admin live monitor (screenshots + violations).
+ */
+export function subscribeProctoringMonitor(assessmentId, callbacks = {}) {
+  const s = initSocket();
+  if (!s || !assessmentId) return () => {};
+
+  s.emit('subscribe:proctoring', assessmentId);
+
+  const handler = (payload) => {
+    if (!payload || payload.assessmentId === assessmentId || !payload.assessmentId) {
+      callbacks.onUpdate?.(payload);
+    }
+    if (payload?.kind === 'screenshot') callbacks.onScreenshot?.(payload);
+    if (payload?.kind === 'violation') callbacks.onViolation?.(payload);
+  };
+
+  s.on('proctoring:update', handler);
+
+  const liveHandler = (payload) => {
+    callbacks.onLiveFrame?.(payload);
+  };
+  s.on('proctoring:live-frame', liveHandler);
+
+  return () => {
+    s.off('proctoring:update', handler);
+    s.off('proctoring:live-frame', liveHandler);
+    s.emit('unsubscribe:proctoring', assessmentId);
+  };
+}
+
+export function emitProctoringLiveFrame(assessmentId, sessionId, frame) {
+  const s = initSocket();
+  if (!s?.connected || !assessmentId || !sessionId || !frame) return;
+  s.emit('proctoring:frame', { assessmentId, sessionId, frame });
+}
+
 export default {
   initSocket,
   disconnectSocket,
   subscribeToUpdates,
+  subscribeProctoringMonitor,
+  emitProctoringLiveFrame,
   useSocket,
 };

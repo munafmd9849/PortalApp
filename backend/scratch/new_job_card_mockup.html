@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Job Management - Mockup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #6366f1;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-700: #334155;
+            --slate-900: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            padding: 40px 20px;
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--slate-900);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .job-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--slate-200);
+            transition: all 0.2s ease-in-out;
+            max-width: 1200px;
+            margin: 0 auto 32px auto;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .job-card.is-posted {
+            border-left: 6px solid var(--success);
+        }
+
+        .job-card.is-review {
+            border-left: 6px solid var(--secondary);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--slate-100);
+            background: #fff;
+        }
+
+        .company-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.1rem;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .logo-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .logo-purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+
+        .title-group h3 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            color: var(--slate-900);
+            font-size: 1.05rem;
+            line-height: 1.2;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-body {
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Custom Dropdown Styling */
+        .dropdown-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .dropdown-trigger {
+            width: 100%;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--slate-700);
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .dropdown-trigger:hover {
+            border-color: var(--secondary);
+            background: white;
+        }
+
+        .dropdown-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .mode-selector {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 4px;
+            display: flex;
+            gap: 2px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .analysis-btn {
+            margin-top: 12px;
+            width: 100%;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .action-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .btn-action {
+            flex: 1;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f1f5f9;
+            color: #475569;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-action:hover {
+            background: #fff;
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .btn-post {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
+        }
+
+        .posted-tag {
+            background: #ecfdf5;
+            color: #059669;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .static-val {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        @media (max-width: 900px) {
+            .card-body { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SECTION: IN REVIEW -->
+    <div class="max-w-[1200px] mx-auto">
+        <h2 class="section-title">
+            <span class="w-2 h-8 bg-indigo-500 rounded-full"></span>
+            Jobs Pending Review
+        </h2>
+
+        <div class="job-card is-review">
+            <div class="card-header">
+                <div class="flex items-center gap-4">
+                    <div class="company-logo logo-purple">UT</div>
+                    <div class="title-group">
+                        <h3>ULICA Technologies</h3>
+                        <p class="text-xs text-slate-500 font-medium">Software Engineer Intern</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="status-badge bg-amber-100 text-amber-700 border border-amber-200">Pending Review</span>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div class="text-right">
+                        <p class="text-[9px] text-slate-400 font-extrabold uppercase">Interview</p>
+                        <p class="text-xs font-bold text-slate-700">24 Oct 2026</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <!-- Dropdowns Column -->
+                <div class="space-y-4">
+                    <div>
+                        <span class="dropdown-label">Target School</span>
+                        <div class="dropdown-trigger">
+                            <span>SOT, SOM (2 selected)</span>
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="dropdown-label">Eligible Batch</span>
+                        <div class="dropdown-trigger">
+                            <span>2024-2028</span>
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="dropdown-label">Target Centers</span>
+                        <div class="dropdown-trigger">
+                            <span>Dehradun, Ahmedabad (2 selected)</span>
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategy Column -->
+                <div class="flex flex-col">
+                    <span class="dropdown-label">Distribution Mode</span>
+                    <div class="mode-selector">
+                        <div class="mode-btn">Open</div>
+                        <div class="mode-btn active">Priority</div>
+                        <div class="mode-btn">Invite</div>
+                    </div>
+                    
+                    <button class="analysis-btn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        Recommend Candidates (12 Selected)
+                    </button>
+                </div>
+
+                <!-- Final Actions -->
+                <div class="flex flex-col justify-between">
+                    <button class="btn-post">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        Approve & Post Job
+                    </button>
+                    
+                    <div class="action-group">
+                        <button class="btn-action" title="View"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-width="2"></path></svg></button>
+                        <button class="btn-action" title="Edit"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" stroke-width="2"></path></svg></button>
+                        <button class="btn-action" title="Share"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" stroke-width="2"></path></svg></button>
+                        <button class="btn-action hover:!text-red-500 hover:!border-red-200" title="Delete"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2"></path></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: POSTED JOBS -->
+        <h2 class="section-title mt-12">
+            <span class="w-2 h-8 bg-emerald-500 rounded-full"></span>
+            Active Published Jobs
+        </h2>
+
+        <div class="job-card is-posted">
+            <div class="card-header">
+                <div class="flex items-center gap-4">
+                    <div class="company-logo logo-blue">G</div>
+                    <div class="title-group">
+                        <h3>Google Cloud</h3>
+                        <p class="text-xs text-slate-500 font-medium">Cloud Solutions Engineer</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="posted-tag">
+                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        Live & Accepting
+                    </div>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div class="text-right">
+                        <p class="text-[9px] text-slate-400 font-extrabold uppercase">Deadline</p>
+                        <p class="text-xs font-bold text-slate-700">15 Nov 2026</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <!-- Static Column -->
+                <div class="space-y-4">
+                    <div>
+                        <span class="dropdown-label">Targeted Institutions</span>
+                        <div class="static-val">SOT, SOM, SOD, SOE</div>
+                    </div>
+                    <div>
+                        <span class="dropdown-label">Eligible Batches</span>
+                        <div class="static-val">2023, 2024</div>
+                    </div>
+                    <div>
+                        <span class="dropdown-label">Targeted Centers</span>
+                        <div class="static-val">Dehradun, Ahmedabad</div>
+                    </div>
+                </div>
+
+                <!-- Mode/Results Column -->
+                <div class="flex flex-col">
+                    <span class="dropdown-label">Distribution Strategy</span>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-100">PRIORITY</span>
+                        <span class="text-xs text-slate-400 font-medium italic">45 Candidates Recommended</span>
+                    </div>
+                    
+                    <div class="mt-4 flex items-center gap-4">
+                        <div class="flex-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">Applications</p>
+                            <p class="text-lg font-bold text-slate-800">128</p>
+                        </div>
+                        <div class="flex-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">Shortlisted</p>
+                            <p class="text-lg font-bold text-slate-800">32</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions for Posted -->
+                <div class="flex flex-col justify-end">
+                    <div class="action-group !mt-0">
+                        <button class="btn-action !flex-[2] bg-indigo-600 !text-white !border-indigo-500 hover:bg-indigo-700">
+                            View Dashboard
+                        </button>
+                        <button class="btn-action" title="Share"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" stroke-width="2"></path></svg></button>
+                        <button class="btn-action" title="Edit Dates"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002-2z" stroke-width="2"></path></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

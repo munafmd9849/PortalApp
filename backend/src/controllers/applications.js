@@ -12,6 +12,9 @@ import { sendApplicationNotification, sendApplicationStatusUpdateNotification } 
 import logger from '../config/logger.js';
 import { sendSuccess } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { validateApplicationStateTransition } from '../utils/applicationIntegrity.js';
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -166,17 +169,40 @@ export async function getAllApplications(req, res) {
     } = req.query;
 
     const where = {};
+    
+    // BUILD BASE SCOPE FILTER
+    const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+
     if (status) where.status = status;
     if (jobId) where.jobId = jobId;
     if (studentId) where.studentId = studentId;
     if (companyId) where.companyId = companyId;
 
     // Student attribute filters (nested)
-    if (center || school || batch) {
-      where.student = {};
-      if (center) where.student.center = { in: center.split(',').map(c => c.trim()) };
-      if (school) where.student.school = { in: school.split(',').map(s => s.trim()) };
-      if (batch) where.student.batch = { in: batch.split(',').map(b => b.trim()) };
+    where.student = {};
+    if (center) where.student.center = { in: center.split(',').map(c => c.trim()) };
+    if (school) where.student.school = { in: school.split(',').map(s => s.trim()) };
+    if (batch) where.student.batch = { in: batch.split(',').map(b => b.trim()) };
+
+    // Apply scoping constraints (AND)
+    if (adminScope.school) {
+      if (where.student.school) {
+        where.student.school.in = where.student.school.in.filter(s => adminScope.school.in.includes(s));
+      } else {
+        where.student.school = adminScope.school;
+      }
+    }
+    if (adminScope.center) {
+      if (where.student.center) {
+        where.student.center.in = where.student.center.in.filter(c => adminScope.center.in.includes(c));
+      } else {
+        where.student.center = adminScope.center;
+      }
+    }
+    
+    // If student object is empty after scoping, remove it to avoid empty where
+    if (Object.keys(where.student).length === 0) {
+      delete where.student;
     }
 
     const [applications, total] = await Promise.all([
@@ -821,10 +847,28 @@ export async function getAdminJobApplications(req, res) {
 
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
-    // Permission check: Recruiters can only see applications for their own jobs
+    // Permission check: 
+    // 1. Recruiters can only see applications for their own jobs
     if (userRole === 'RECRUITER' || userRole === 'recruiter') {
       if (!job.recruiter || job.recruiter.user.id !== userId) {
         return res.status(403).json({ error: 'Not authorized to view applications for this job' });
+      }
+    }
+    
+    // 2. Admins can only see applications for jobs within their scope
+    if (userRole === 'ADMIN') {
+      const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+      const targetSchools = job.targetSchools ? JSON.parse(job.targetSchools) : [];
+      const targetCenters = job.targetCenters ? JSON.parse(job.targetCenters) : [];
+      
+      const hasSchoolAccess = !adminScope.school || targetSchools.some(s => adminScope.school.in.includes(s)) || targetSchools.includes('ALL');
+      const hasCenterAccess = !adminScope.center || targetCenters.some(c => adminScope.center.in.includes(c)) || targetCenters.includes('ALL');
+      
+      // Also allow if admin created it
+      const isOwner = job.createdBy === userId;
+
+      if (!isOwner && (!hasSchoolAccess || !hasCenterAccess)) {
+        return res.status(403).json({ error: 'Not authorized to view applications for this job (out of scope)' });
       }
     }
 
@@ -868,14 +912,14 @@ export async function getAdminJobApplications(req, res) {
     if (q) {
       filterConditions.push({
         OR: [
-          { id: { contains: q, mode: 'insensitive' } }, // Application ID
+          { id: { contains: q } }, // Application ID
           {
             student: {
               OR: [
-                { fullName: { contains: q, mode: 'insensitive' } },
-                { email: { contains: q, mode: 'insensitive' } },
-                { phone: { contains: q, mode: 'insensitive' } },
-                { enrollmentId: { contains: q, mode: 'insensitive' } },
+                { fullName: { contains: q } },
+                { email: { contains: q } },
+                { phone: { contains: q } },
+                { enrollmentId: { contains: q } },
               ],
             },
           },
@@ -1031,12 +1075,12 @@ export async function getAdminJobApplications(req, res) {
     if (degree || branch || graduationYear) {
       const educationConditions = {};
       if (degree) {
-        educationConditions.degree = { contains: degree, mode: 'insensitive' };
+        educationConditions.degree = { contains: degree };
       }
       if (branch) {
         // Branch/specialization is stored in Education.description field
         // We search in the description field which typically contains specialization/branch info
-        educationConditions.description = { contains: branch, mode: 'insensitive' };
+        educationConditions.description = { contains: branch };
       }
       if (graduationYear) {
         educationConditions.endYear = graduationYear;
@@ -1051,11 +1095,11 @@ export async function getAdminJobApplications(req, res) {
     // Location filter
     if (city || state) {
       if (city) {
-        studentWhere.city = { contains: city, mode: 'insensitive' };
+        studentWhere.city = { contains: city };
         hasStudentFilters = true;
       }
       if (state) {
-        studentWhere.stateRegion = { contains: state, mode: 'insensitive' };
+        studentWhere.stateRegion = { contains: state };
         hasStudentFilters = true;
       }
     }
@@ -1828,6 +1872,13 @@ export async function updateApplicationStatus(req, res) {
 
     const oldStatus = application.status;
 
+    // HARDENING: Prevent updating revoked applications
+    try {
+      validateApplicationStateTransition(oldStatus, status);
+    } catch (err) {
+      return res.status(400).json({ error: 'Integrity Violation', message: err.message });
+    }
+
     // Update application
     const updated = await prisma.application.update({
       where: { id: applicationId },
@@ -1837,8 +1888,16 @@ export async function updateApplicationStatus(req, res) {
       },
       include: {
         job: true,
+        student: { select: { school: true } },
       },
     });
+
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(applicationId);
+    } catch (syncErr) {
+      console.warn('Pipeline sync skipped:', syncErr.message);
+    }
 
     // Update student stats
     if (oldStatus !== status) {
@@ -1904,6 +1963,139 @@ export async function updateApplicationStatus(req, res) {
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });
+  }
+}
+
+/**
+ * Revoke an application (Admin action)
+ */
+export async function revokeApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    // Get application
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        student: { include: { user: true } },
+        job: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.status === 'REVOKED_BY_ADMIN') {
+      return res.status(400).json({ error: 'Application is already revoked' });
+    }
+
+    const previousStatus = application.status;
+
+    // Update application
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: 'REVOKED_BY_ADMIN',
+        previousStatus: previousStatus,
+        revokedBy: adminId,
+        revokedAt: new Date(),
+        revokedReason: reason || 'No reason provided',
+      },
+    });
+
+    // Notify student
+    await createNotification({
+      userId: application.student.user.id,
+      title: 'Application Revoked by Admin',
+      body: `Your application for ${application.job.jobTitle} has been revoked by an administrator.`,
+      data: {
+        type: 'application_revoked',
+        applicationId: application.id,
+        jobId: application.jobId,
+        reason: reason,
+      },
+    });
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'APPLICATION_REVOKED',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Revoked by Admin. Reason: ${reason || 'N/A'}. Previous status: ${previousStatus}`,
+    });
+
+    res.json({ message: 'Application revoked successfully', application: updated });
+  } catch (error) {
+    logger.error('Revoke application error:', error);
+    res.status(500).json({ error: 'Failed to revoke application' });
+  }
+}
+
+/**
+ * Restore a revoked application (Admin action)
+ */
+export async function restoreApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const adminId = req.user.id;
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        student: { include: { user: true } },
+        job: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.status !== 'REVOKED_BY_ADMIN') {
+      return res.status(400).json({ error: 'Application is not in revoked state' });
+    }
+
+    const statusToRestore = application.previousStatus || 'APPLIED';
+
+    // Update application
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: statusToRestore,
+        revokedBy: null,
+        revokedAt: null,
+        revokedReason: null,
+        previousStatus: null,
+      },
+    });
+
+    // Notify student
+    await createNotification({
+      userId: application.student.user.id,
+      title: 'Application Restored',
+      body: `Your application for ${application.job.jobTitle} has been restored by an administrator.`,
+      data: {
+        type: 'application_restored',
+        applicationId: application.id,
+        jobId: application.jobId,
+      },
+    });
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'APPLICATION_RESTORED',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Restored from REVOKED_BY_ADMIN to ${statusToRestore}`,
+    });
+
+    res.json({ message: 'Application restored successfully', application: updated });
+  } catch (error) {
+    logger.error('Restore application error:', error);
+    res.status(500).json({ error: 'Failed to restore application' });
   }
 }
 

@@ -30,28 +30,6 @@ const COLORS = {
   blue: '#058CD7',
 };
 
-const SCHOOL_OPTIONS = [
-  { id: 'ALL', label: 'All Schools' },
-  { id: 'SOT', label: 'SOT' },
-  { id: 'SOM', label: 'SOM' },
-  { id: 'SOH', label: 'SOH' },
-];
-
-const BATCH_OPTIONS = [
-  { id: 'ALL', label: 'All Batches' },
-  { id: '23-27', label: '23-27' },
-  { id: '24-28', label: '24-28' },
-  { id: '25-29', label: '25-29' },
-  { id: '26-30', label: '26-30' },
-];
-
-const CENTER_OPTIONS = [
-  { id: 'ALL', label: 'All Centers' },
-  { id: 'BANGALORE', label: 'Bangalore' },
-  { id: 'NOIDA', label: 'Noida' },
-  { id: 'LUCKNOW', label: 'Lucknow' },
-  { id: 'PUNE', label: 'Pune' },
-];
 
 export default function AdminAnnouncements() {
   const [title, setTitle] = useState('');
@@ -73,6 +51,16 @@ export default function AdminAnnouncements() {
   const schoolDropdownRef = useRef(null);
   const batchDropdownRef = useRef(null);
   const centerDropdownRef = useRef(null);
+  
+  const [academicOptions, setAcademicOptions] = useState({
+    schools: [],
+    batches: [],
+    centers: []
+  });
+
+  const SCHOOL_OPTIONS = [{ id: 'ALL', label: 'All Branches' }, ...academicOptions.schools.map(s => ({ id: s.name, label: s.name }))];
+  const BATCH_OPTIONS = [{ id: 'ALL', label: 'All Batches' }, ...academicOptions.batches.map(b => ({ id: b.year, label: b.year }))];
+  const CENTER_OPTIONS = [{ id: 'ALL', label: 'All Campuses' }, ...academicOptions.centers.map(c => ({ id: c.name, label: c.name }))];
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -103,10 +91,21 @@ export default function AdminAnnouncements() {
     const load = async () => {
       try {
         setLoadingList(true);
-        const res = await api.getAnnouncements();
-        setList(res?.announcements || []);
+        const [annRes, s, c, b] = await Promise.all([
+          api.getAnnouncements(),
+          api.getSchools(),
+          api.getCenters(),
+          api.getBatches()
+        ]);
+        setList(annRes?.announcements || []);
+        const { filterActiveAcademicRecords } = await import('../../../utils/academicOptions');
+        setAcademicOptions({
+          schools: filterActiveAcademicRecords(s),
+          centers: filterActiveAcademicRecords(c),
+          batches: filterActiveAcademicRecords(b),
+        });
       } catch (e) {
-        console.error('Failed to load announcements:', e);
+        console.error('Failed to load data for announcements:', e);
       } finally {
         setLoadingList(false);
       }
@@ -312,7 +311,12 @@ export default function AdminAnnouncements() {
                 )}
               </div>
             </div>
-            <p className="text-xs text-slate-500 self-center">Leave empty = all students</p>
+            <span
+              className="inline-flex items-center shrink-0 px-3 py-2.5 rounded-lg text-sm font-medium border-2 border-slate-300 bg-slate-50 text-slate-600 whitespace-nowrap"
+              title="No school, batch, or center selected — announcement goes to every student"
+            >
+              Leave empty = all students
+            </span>
           </div>
 
           <h2 className="text-xl font-bold text-gray-900 pt-2" style={{ color: COLORS.purple }}>

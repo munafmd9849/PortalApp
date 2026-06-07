@@ -1264,14 +1264,16 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                   >
                     Sign in
                   </button>
-                  <button 
-                    onClick={()=>{
-                      setMode('register');
-                    }} 
-                    className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
-                  >
-                    Sign up
-                  </button>
+                  {role !== 'Admin' && (
+                    <button 
+                      onClick={()=>{
+                        setMode('register');
+                      }} 
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      Sign up
+                    </button>
+                  )}
                 </div>
               )}
                       <div className="flex items-center justify-center gap-6 mt-6 flex-wrap">
@@ -1295,14 +1297,16 @@ function LoginModal({ isOpen, onClose, defaultRole = 'Student' }) {
                         )}
                         {mode === 'login' && (
                           <>
-                            <button 
-                              onClick={()=>{
-                                setMode('register');
-                              }} 
-                              className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
-                            >
-                              Sign up
-                            </button>
+                            {role !== 'Admin' && (
+                              <button 
+                                onClick={()=>{
+                                  setMode('register');
+                                }} 
+                                className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+                              >
+                                Sign up
+                              </button>
+                            )}
                             <button 
                               onClick={()=>setMode('forgot')} 
                               className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-100 active:bg-blue-200 px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"

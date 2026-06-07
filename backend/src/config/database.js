@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: join(__dirname, '../../.env') });
+dotenv.config({ path: join(__dirname, '../../.env'), override: true });
 
 import { PrismaClient } from '@prisma/client';
 
@@ -25,30 +25,32 @@ function getOptimizedDatabaseUrl() {
 
   // SQLite: return as-is, no connection pool params needed
   if (lowered.startsWith('file:')) {
+    console.log('📦 Using local SQLite database');
     return url;
   }
 
-  // PostgreSQL: add connection pool parameters
-  if (lowered.startsWith('postgresql://') || lowered.startsWith('postgres://')) {
-    try {
-      const urlObj = new URL(url);
-      if (!urlObj.searchParams.has('connection_limit')) {
-        urlObj.searchParams.set('connection_limit', '10');
-      }
-      if (!urlObj.searchParams.has('pool_timeout')) {
-        urlObj.searchParams.set('pool_timeout', '20');
-      }
-      if (!urlObj.searchParams.has('connect_timeout')) {
-        urlObj.searchParams.set('connect_timeout', '10');
-      }
-      return urlObj.toString();
-    } catch (error) {
-      console.warn('Failed to parse DATABASE_URL for optimization:', error.message);
-      return url;
-    }
+  // Validate: Must be PostgreSQL connection string for non-file URLs
+  if (!lowered.startsWith('postgresql://') && !lowered.startsWith('postgres://')) {
+    throw new Error('CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://) or a local SQLite file (file:).');
   }
 
-  throw new Error('CRITICAL: DATABASE_URL must be a PostgreSQL connection string or a SQLite file: path.');
+  // PostgreSQL: add connection pool parameters
+  try {
+    const urlObj = new URL(url);
+    if (!urlObj.searchParams.has('connection_limit')) {
+      urlObj.searchParams.set('connection_limit', '10');
+    }
+    if (!urlObj.searchParams.has('pool_timeout')) {
+      urlObj.searchParams.set('pool_timeout', '20');
+    }
+    if (!urlObj.searchParams.has('connect_timeout')) {
+      urlObj.searchParams.set('connect_timeout', '10');
+    }
+    return urlObj.toString();
+  } catch (error) {
+    console.warn('Failed to parse DATABASE_URL for optimization:', error.message);
+    return url;
+  }
 }
 
 const optimizedDatabaseUrl = getOptimizedDatabaseUrl();

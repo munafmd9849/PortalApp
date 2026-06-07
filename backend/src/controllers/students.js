@@ -12,8 +12,10 @@ import { deleteFromCloudinary } from '../config/cloudinary.js';
 import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
 import { logAction } from '../utils/auditLogger.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
 
 async function updateUserProfilePhoto(userId, profilePhotoValue) {
   if (profilePhotoValue === undefined) {
@@ -58,6 +60,8 @@ export async function getStudentProfile(req, res) {
         user: {
           select: {
             profilePhoto: true,
+            emailVerified: true,
+            lastLoginAt: true,
           },
         },
         skills: true,
@@ -122,9 +126,12 @@ export async function getStudentProfile(req, res) {
       experiences: Array.isArray(student.experiences) ? student.experiences : [],
       codingProfiles: Array.isArray(student.codingProfiles) ? student.codingProfiles : [],
       profilePhoto: student.user?.profilePhoto || null,
+      emailVerified: Boolean(
+        student.user?.emailVerified || student.user?.lastLoginAt,
+      ),
     };
 
-    // Remove user relation from response (we only need profilePhoto)
+    // Remove user relation from response (flattened above)
     delete normalizedData.user;
 
     // CRITICAL: Log counts before sending response
@@ -260,6 +267,7 @@ export async function updateStudentProfile(req, res) {
       const allowedFields = [
         'fullName', 'email', 'phone', 'enrollmentId', 'cgpa', 'backlogs',
         'batch', 'center', 'school',
+        'batchId', 'centerId', 'schoolId',
         'bio', 'headline', 'city', 'stateRegion', 'jobFlexibility',
         'linkedin', 'githubUrl', 'youtubeUrl', 'leetcode', 'codeforces', 'gfg', 'hackerrank',
         'resumeUrl', 'resumeFileName', 'resumeUploadedAt',
@@ -642,6 +650,25 @@ export async function updateStudentProfile(req, res) {
     }
 
     // Update student profile
+    // Handle both ID-based and name-based academic fields
+    if (profileData.schoolId) cleanData.schoolId = profileData.schoolId;
+    if (profileData.centerId) cleanData.centerId = profileData.centerId;
+    if (profileData.batchId) cleanData.batchId = profileData.batchId;
+
+    // Logic to resolve IDs from names if IDs aren't provided (Backward Compatibility)
+    if (!cleanData.schoolId && cleanData.school) {
+      const s = await prisma.school.findFirst({ where: { name: cleanData.school } });
+      if (s) cleanData.schoolId = s.id;
+    }
+    if (!cleanData.centerId && cleanData.center) {
+      const c = await prisma.center.findFirst({ where: { name: cleanData.center } });
+      if (c) cleanData.centerId = c.id;
+    }
+    if (!cleanData.batchId && cleanData.batch) {
+      const b = await prisma.batch.findFirst({ where: { year: cleanData.batch } });
+      if (b) cleanData.batchId = b.id;
+    }
+
     const student = await prisma.student.update({
       where: { userId: targetUserId },
       data: cleanData,
@@ -914,9 +941,40 @@ export async function getAllStudents(req, res) {
     const limitNum = Math.min(1000, Math.max(1, requestedLimit)); // Max 1000, min 1
 
     const where = {};
+    
+    // BUILD BASE SCOPE FILTER
+    const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+    
+    // MERGE WITH REQUEST FILTERS
     if (school) where.school = { in: school.split(',').map(s => s.trim()) };
     if (center) where.center = { in: center.split(',').map(c => c.trim()) };
     if (batch) where.batch = { in: batch.split(',').map(b => b.trim()) };
+    
+    // Apply scoping constraints (AND)
+    if (adminScope.school) {
+      if (where.school) {
+        // Intersect requested schools with allowed schools
+        where.school.in = where.school.in.filter(s => adminScope.school.in.includes(s));
+      } else {
+        where.school = adminScope.school;
+      }
+    }
+    
+    if (adminScope.center) {
+      if (where.center) {
+        where.center.in = where.center.in.filter(c => adminScope.center.in.includes(c));
+      } else {
+        where.center = adminScope.center;
+      }
+    }
+    
+    if (adminScope.batch) {
+      if (where.batch) {
+        where.batch.in = where.batch.in.filter(b => adminScope.batch.in.includes(b));
+      } else {
+        where.batch = adminScope.batch;
+      }
+    }
 
     if (status) {
       const statusFilter = status.trim().toUpperCase();
@@ -934,10 +992,12 @@ export async function getAllStudents(req, res) {
     if (degree || branch) {
       const educationConditions = {};
       if (degree) {
-        educationConditions.degree = { contains: degree.trim(), mode: 'insensitive' };
+        const v = degree.trim();
+        educationConditions.degree = isSqliteDb() ? { contains: v } : { contains: v, mode: 'insensitive' };
       }
       if (branch) {
-        educationConditions.description = { contains: branch.trim(), mode: 'insensitive' };
+        const v = branch.trim();
+        educationConditions.description = isSqliteDb() ? { contains: v } : { contains: v, mode: 'insensitive' };
       }
       if (Object.keys(educationConditions).length) {
         where.education = { some: educationConditions };
@@ -947,9 +1007,9 @@ export async function getAllStudents(req, res) {
     if (search) {
       const searchTerm = search.trim();
       where.OR = [
-        { fullName: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
-        { enrollmentId: { contains: searchTerm, mode: 'insensitive' } },
+        { fullName: { contains: searchTerm } },
+        { email: { contains: searchTerm } },
+        { enrollmentId: { contains: searchTerm } },
       ];
     }
 
@@ -974,6 +1034,7 @@ export async function getAllStudents(req, res) {
             select: {
               status: true,
               emailVerified: true,
+              lastLoginAt: true,
               createdAt: true,
               blockInfo: true,
             },
@@ -1000,7 +1061,12 @@ export async function getAllStudents(req, res) {
       // Prepare user object with safe defaults and serialized dates
       const user = student.user ? {
         status: student.user.status || 'ACTIVE',
-        emailVerified: student.user.emailVerified || false,
+        emailVerified: Boolean(
+          student.user.emailVerified || student.user.lastLoginAt,
+        ),
+        lastLoginAt: student.user.lastLoginAt
+          ? new Date(student.user.lastLoginAt).toISOString()
+          : null,
         createdAt: student.user.createdAt
           ? new Date(student.user.createdAt).toISOString()
           : (student.createdAt ? new Date(student.createdAt).toISOString() : new Date().toISOString()),
@@ -2285,46 +2351,45 @@ export async function extractResumeText(req, res) {
 export async function analyzeATSResume(req, res) {
   try {
     const userId = req.userId;
-    const { resumeText, resumeId } = req.body;
+    const { resumeText, resumeId, jobId } = req.body;
 
-    // Validate input
     if (!resumeText || typeof resumeText !== 'string' || resumeText.trim().length === 0) {
       return res.status(400).json({ error: 'Resume text is required' });
     }
 
-    // Optional: Verify resume belongs to student if resumeId is provided
+    // Optional: Verify resume belongs to student
     if (resumeId) {
-      const student = await prisma.student.findUnique({
-        where: { userId },
-        select: { id: true },
+      const student = await prisma.student.findUnique({ where: { userId }, select: { id: true } });
+      if (!student) return res.status(404).json({ error: 'Student not found' });
+      const resume = await prisma.studentResumeFile.findFirst({ where: { id: resumeId, studentId: student.id } });
+      if (!resume) return res.status(403).json({ error: 'Resume not found or access denied' });
+    }
+
+    // Job-matched mode: use Mistral for richer scoring
+    if (jobId) {
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { jobTitle: true, description: true, requirements: true, requiredSkills: true, companyName: true },
       });
+      if (!job) return res.status(404).json({ error: 'Job not found' });
 
-      if (!student) {
-        return res.status(404).json({ error: 'Student not found' });
-      }
+      const jobDescription = [job.description, job.requirements, job.requiredSkills].filter(Boolean).join('\n\n');
 
-      const resume = await prisma.studentResumeFile.findFirst({
-        where: {
-          id: resumeId,
-          studentId: student.id,
-        },
-      });
-
-      if (!resume) {
-        return res.status(403).json({ error: 'Resume not found or access denied' });
+      try {
+        const { scoreATSWithJob } = await import('../services/mistralService.js');
+        const analysis = await scoreATSWithJob({ resumeText, jobDescription, jobTitle: job.jobTitle });
+        return res.json({ success: true, analysis, isAI: true, jobMatched: true, timestamp: new Date().toISOString() });
+      } catch (mistralErr) {
+        console.warn('⚠️ Mistral unavailable, falling back to Gemini:', mistralErr.message);
+        // Fall through to generic analysis
       }
     }
 
-    // Import AI service
+    // Generic mode: existing Google AI / fallback
     const { analyzeATSResume: analyzeATS } = await import('../services/aiService.js');
-
-    // Call AI service for analysis
     const analysis = await analyzeATS(resumeText);
+    const isAI = analysis.isAI !== false;
 
-    // Check if this is AI-generated or fallback
-    const isAI = analysis.isAI !== false; // Default to true if not specified, false only if explicitly set
-
-    // Return formatted response
     res.json({
       success: true,
       analysis: {
@@ -2338,34 +2403,68 @@ export async function analyzeATSResume(req, res) {
         strengths: analysis.strengths,
         overallFeedback: analysis.overallFeedback,
       },
-      isAI: isAI,
+      isAI,
+      jobMatched: false,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('❌ [analyzeATSResume] Error:', error);
-    console.error('❌ [analyzeATSResume] Error message:', error.message);
-    console.error('❌ [analyzeATSResume] Error stack:', error.stack);
-
-    // Handle specific error types
-    if (error.message.includes('not configured') || error.message.includes('not available')) {
-      return res.status(503).json({
-        error: 'ATS analysis service is temporarily unavailable. Please try again later.',
-        details: 'AI service is not configured or unavailable'
-      });
-    }
-
-    if (error.message.includes('Resume text is required')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Generic error response with more details in development
-    res.status(500).json({
-      error: 'Failed to analyze resume. Please try again.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    res.status(500).json({ error: 'Failed to analyze resume. Please try again.' });
   }
 }
+
+/**
+ * AI Resume Optimizer — rewrite resume sections for a specific job
+ * POST /api/students/resume/optimize
+ * Body: { jobId }
+ */
+export async function optimizeResumeForJob(req, res) {
+  try {
+    const userId = req.userId;
+    const { jobId } = req.body;
+
+    if (!jobId) return res.status(400).json({ error: 'jobId is required' });
+
+    // Fetch job
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { jobTitle: true, description: true, requirements: true, requiredSkills: true, companyName: true },
+    });
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    // Fetch full student profile
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      include: {
+        skills: true,
+        experiences: true,
+        education: true,
+        projects: true,
+        certifications: true,
+      },
+    });
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const jobDescription = [job.description, job.requirements, job.requiredSkills].filter(Boolean).join('\n\n');
+
+    const { optimizeResumeForJob: optimizeWithMistral } = await import('../services/mistralService.js');
+    const optimized = await optimizeWithMistral({
+      studentProfile: student,
+      jobDescription,
+      jobTitle: job.jobTitle,
+      companyName: job.companyName || '',
+    });
+
+    res.json({ success: true, optimized, jobTitle: job.jobTitle, companyName: job.companyName, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('❌ [optimizeResumeForJob] Error:', error);
+    if (error.message?.includes('MISTRAL_API_KEY')) {
+      return res.status(503).json({ error: 'AI optimization service is not configured. Please contact admin.' });
+    }
+    res.status(500).json({ error: 'Failed to optimize resume. Please try again.' });
+  }
+}
+
 
 /**
  * Block/unblock student (Admin or Super Admin only)

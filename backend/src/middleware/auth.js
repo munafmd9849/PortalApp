@@ -119,3 +119,32 @@ export function generateRefreshToken(userId) {
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
 }
+/**
+ * Role-based authorization middleware
+ * @param {string|string[]} roles - Allowed roles
+ */
+export function authorize(roles = []) {
+  if (typeof roles === 'string') {
+    roles = [roles];
+  }
+
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // SUPER_ADMIN has access to everything
+    if (req.user.role === 'SUPER_ADMIN') {
+      return next();
+    }
+
+    if (roles.length > 0 && !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `Role ${req.user.role} does not have access to this resource`,
+      });
+    }
+
+    next();
+  };
+}

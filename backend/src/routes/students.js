@@ -172,13 +172,22 @@ router.post('/resume/extract-text',
   studentController.extractResumeText
 );
 
-// ATS Resume Analysis
+// ATS Resume Analysis (generic or job-matched)
 // POST /api/students/resume/ats-analysis
-// Body: { resumeText, resumeId? }
+// Body: { resumeText, resumeId?, jobId? }
 // Auth: Student only
 router.post('/resume/ats-analysis',
   requireRole(['STUDENT']),
   studentController.analyzeATSResume
+);
+
+// AI Resume Optimizer
+// POST /api/students/resume/optimize
+// Body: { jobId }
+// Auth: Student only
+router.post('/resume/optimize',
+  requireRole(['STUDENT']),
+  studentController.optimizeResumeForJob
 );
 
 // Public Profile Management (Student only)

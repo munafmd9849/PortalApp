@@ -68,7 +68,8 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Shield
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -76,6 +77,8 @@ import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
+import StudentAssessments from '../../components/dashboard/student/StudentAssessments';
+import MockInterviewStudentDashboard from '../student/MockInterviewStudentDashboard';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
 
 /** Validate profile URL - must start with http:// or https:// */
@@ -252,6 +255,12 @@ export default function StudentDashboard() {
   const addProfileFormRef = useRef(null);
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [academicOptions, setAcademicOptions] = useState({
+    schools: [],
+    centers: [],
+    batches: []
+  });
+  const [loadingAcademicOptions, setLoadingAcademicOptions] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
   const [profileSectionsOpen, setProfileSectionsOpen] = useState({
     photo: true,
@@ -497,6 +506,26 @@ export default function StudentDashboard() {
     }
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
+
+  useEffect(() => {
+    if (activeTab === 'editProfile' && academicOptions.schools.length === 0 && !loadingAcademicOptions) {
+      const loadOptions = async () => {
+        try {
+          setLoadingAcademicOptions(true);
+          const { fetchAcademicOptions, buildDropdownAcademicOptions } = await import(
+            '../../utils/academicOptions'
+          );
+          const raw = await fetchAcademicOptions();
+          setAcademicOptions(buildDropdownAcademicOptions(raw));
+        } catch (err) {
+          console.error('Failed to load academic options:', err);
+        } finally {
+          setLoadingAcademicOptions(false);
+        }
+      };
+      loadOptions();
+    }
+  }, [activeTab, academicOptions.schools.length, loadingAcademicOptions]);
 
   // Career Insights: real counts from pipeline (screening → shortlisted, test → interviewed, offer).
   // No artificial funnel normalization — we show what the backend actually tracked.
@@ -929,27 +958,7 @@ export default function StudentDashboard() {
         console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
 
-      console.log('📋 [loadApplicationsData] About to set applications state:', {
-        applicationsDataLength: applicationsData?.length || 0,
-        isArray: Array.isArray(applicationsData),
-        firstApp: applicationsData?.[0] ? {
-          id: applicationsData[0].id,
-          jobId: applicationsData[0].jobId,
-          jobTitle: applicationsData[0].job?.jobTitle
-        } : null
-      });
-
       setApplications(applicationsData || []);
-
-      // Verify state was set correctly
-      setTimeout(() => {
-        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
-          // Note: We can't directly read state here, but we can log what we set
-          setValue: applicationsData?.length || 0
-        });
-      }, 100);
-
-      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
 
       // CACHE: Store applications data in localStorage
       const appsCacheKey = getCacheKey('applications');
@@ -1322,7 +1331,7 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'mockInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -1849,6 +1858,10 @@ export default function StudentDashboard() {
         }
       }
 
+      const selectedSchool = academicOptions.schools.find(s => s.value === school);
+      const selectedCenter = academicOptions.centers.find(c => c.value === center);
+      const selectedBatch = academicOptions.batches.find(b => b.value === batch);
+
       const profileData = {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
@@ -1872,6 +1885,9 @@ export default function StudentDashboard() {
         gfg: gfg.trim(),
         hackerrank: hackerrank.trim(),
         school: school.trim(),
+        schoolId: selectedSchool?.id,
+        centerId: selectedCenter?.id,
+        batchId: selectedBatch?.id,
         profilePhoto: profilePhoto.trim(),
         jobFlexibility: jobFlexibility.trim(),
         otherProfiles: otherProfiles.filter(p => p.platformName?.trim() && isValidProfileUrl(p.profileId)).map(p => ({
@@ -2037,6 +2053,8 @@ export default function StudentDashboard() {
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
+    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
+    { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },
     { id: 'editProfile', label: 'Edit Profile', icon: SquarePen },
@@ -3889,9 +3907,7 @@ export default function StudentDashboard() {
                             iconColor="text-indigo-600"
                             options={[
                               { value: '', label: 'Select Batch' },
-                              { value: '25-29', label: '25-29' },
-                              { value: '24-28', label: '24-28' },
-                              { value: '23-27', label: '23-27' }
+                              ...academicOptions.batches
                             ]}
                             value={batch}
                             onChange={(value) => {
@@ -3908,23 +3924,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                School <span className="text-red-500">*</span>
+                                Branch <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaGraduationCap}
                             iconColor="text-purple-600"
                             options={[
-                              { value: '', label: 'Select School' },
-                              { value: 'SOT', label: 'School of Technology' },
-                              { value: 'SOM', label: 'School of Management' },
-                              { value: 'SOH', label: 'School of HealthCare' }
+                              { value: '', label: 'Select Branch' },
+                              ...academicOptions.schools
                             ]}
                             value={school}
                             onChange={(value) => {
                               setSchool(value);
                               validateField('school', value);
                             }}
-                            placeholder="Select School"
+                            placeholder="Select Branch"
                           />
                           {validationErrors.school && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
@@ -3934,24 +3948,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                Center <span className="text-red-500">*</span>
+                                Campus <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaMapMarkerAlt}
                             iconColor="text-blue-600"
                             options={[
-                              { value: '', label: 'Select Center' },
-                              { value: 'BANGALORE', label: 'Bangalore' },
-                              { value: 'NOIDA', label: 'Noida' },
-                              { value: 'LUCKNOW', label: 'Lucknow' },
-                              { value: 'PUNE', label: 'Pune' },
+                              { value: '', label: 'Select Campus' },
+                              ...academicOptions.centers
                             ]}
                             value={center}
                             onChange={(value) => {
                               setCenter(value);
                               validateField('center', value);
                             }}
-                            placeholder="Select Center"
+                            placeholder="Select Campus"
                           />
                           {validationErrors.center && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
@@ -4734,6 +4745,12 @@ export default function StudentDashboard() {
             </div>
           </div>
         );
+
+      case 'assessments':
+        return <StudentAssessments />;
+
+      case 'mockInterviews':
+        return <MockInterviewStudentDashboard />;
 
       case 'raiseQuery':
         return <Query />;

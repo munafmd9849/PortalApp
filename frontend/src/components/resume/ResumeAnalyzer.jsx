@@ -1,24 +1,26 @@
 import React, { useState } from 'react';
-import { 
-  BarChart3, 
-  CheckCircle, 
-  AlertTriangle, 
-  TrendingUp, 
-  FileText, 
+import {
+  BarChart3,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  FileText,
   Star,
   Target,
   Award,
   Lightbulb,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Briefcase,
+  X,
+  Zap,
 } from 'lucide-react';
 import api from '../../services/api';
 import * as pdfjsLib from 'pdfjs-dist';
 import { formatFileSize } from '../../utils/resumeUtils';
+import JobPickerDropdown from './JobPickerDropdown';
 
-// Set up PDF.js worker - use worker from installed package (Vite-compatible)
-// This ensures version match and avoids CDN fetch issues
-// Using ?url suffix for Vite to properly handle the worker file as a URL
+// Set up PDF.js worker
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -28,6 +30,7 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
   const [error, setError] = useState(null);
   const [showResumeSelector, setShowResumeSelector] = useState(false);
   const [selectedResume, setSelectedResume] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null); // job-matched mode
 
   // Extract text from PDF URL (use backend proxy as primary method)
   const extractTextFromPDFUrl = async (pdfUrl) => {
@@ -171,20 +174,17 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     setSelectedResume(null);
   };
 
-  // Real analysis function using Gemini API
+  // Real analysis function using Gemini/Mistral API
   const analyzeResume = async () => {
     const resumeToAnalyze = selectedResume || resumeInfo;
     const hasUploadedResume = !!(resumeToAnalyze?.fileUrl || resumeToAnalyze?.resumeUrl);
-    const hasBuilderContent = !!(builderResumeText && String(builderResumeText).trim().length > 0);
-    // Use builder text only when there is no uploaded resume to analyze (so each uploaded resume gets its own analysis)
-    const useBuilderText = hasBuilderContent && !hasUploadedResume;
 
-    if (!useBuilderText && !hasUploadedResume) {
+    if (!hasUploadedResume) {
       if (resumes && resumes.length > 1) {
         setShowResumeSelector(true);
         return;
       }
-      setError('Resume URL is required for analysis');
+      setError('Please upload a resume PDF to get an ATS score.');
       return;
     }
 
@@ -194,48 +194,33 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     setError(null);
 
     let resumeText;
-    let usedFallbackBuilder = false;
     try {
-      if (useBuilderText) {
-        resumeText = String(builderResumeText).trim();
-      } else {
-        const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
-        try {
-          resumeText = await extractTextFromPDFUrl(resumeUrl);
-        } catch (pdfErr) {
-          if (hasBuilderContent) {
-            resumeText = String(builderResumeText).trim();
-            usedFallbackBuilder = true;
-          } else {
-            throw pdfErr;
-          }
-        }
-      }
+      const resumeUrl = resumeToAnalyze.fileUrl || resumeToAnalyze.resumeUrl;
+      resumeText = await extractTextFromPDFUrl(resumeUrl);
 
       if (!resumeText || resumeText.trim().length === 0) {
-        throw new Error(useBuilderText
-          ? 'Your resume in the Builder has no content yet. Add details in Build Resume, then try again.'
-          : 'Could not extract text from PDF. The PDF might be image-based or corrupted.');
+        throw new Error('Could not extract text from PDF. The PDF might be image-based or corrupted.');
       }
 
-      // Step 2: Call backend API for ATS analysis
+      // Step 2: Call backend API for ATS analysis (job-matched or generic)
       const token = localStorage.getItem('accessToken');
       if (!token) {
         throw new Error('Authentication required. Please log in again.');
       }
 
-      console.log('📊 [ATS Analysis] Source:', useBuilderText ? 'Builder content' : (usedFallbackBuilder ? 'Builder (PDF had no text)' : 'Uploaded PDF'), 'text length:', resumeText.length);
+      console.log('📊 [ATS Analysis] Source: Uploaded PDF', 'jobId:', selectedJob?.id || 'none');
 
       // Add timeout to prevent hanging
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-      // Use API client for ATS analysis (timeout handled by API client)
+      // Use API client for ATS analysis (pass jobId if a job is selected)
       let data;
       try {
         data = await api.analyzeResumeATS({
           resumeText: resumeText,
           resumeId: resumeId || null,
+          jobId: selectedJob?.id || null,
         });
         clearTimeout(timeoutId);
       } catch (fetchError) {
@@ -260,27 +245,37 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
         throw new Error('Invalid response from analysis service');
       }
 
-      // Transform API response to match component's expected format
+      // Transform API response — handle both job-matched (Mistral) and generic shape
+      const a = data.analysis;
+      const isJobMatched = !!data.jobMatched;
       const transformedAnalysis = {
-        overallScore: data.analysis.atsScore,
-        atsCompatibility: data.analysis.atsScore,
-        readabilityScore: 0, // Not provided by API, can be calculated or removed
-        strengths: data.analysis.strengths || [],
-        improvements: Array.isArray(data.analysis.improvementSuggestions) 
-          ? data.analysis.improvementSuggestions 
-          : (data.analysis.improvements || []),
+        overallScore: a.atsScore,
+        atsCompatibility: a.atsScore,
+        matchPercentage: a.matchPercentage || null,
+        verdict: a.verdict || '',
+        // Mistral-specific breakdown (job-matched mode)
+        atsBreakdown: isJobMatched ? (a.atsBreakdown || null) : null,
+        matchedKeywords: a.matchedKeywords || [],
+        // Generic + Mistral shared
+        strengths: a.strengths || [],
+        improvements: Array.isArray(a.improvementSuggestions)
+          ? a.improvementSuggestions
+          : (a.atsSuggestions || a.improvements || []),
         keywords: {
-          found: [], // API doesn't provide found keywords separately
-          missing: data.analysis.missingKeywords || [],
-          score: data.analysis.atsScore, // Use ATS score as keyword score
+          found: [],
+          missing: a.missingKeywords || [],
+          score: a.atsScore,
         },
-        missingSkills: data.analysis.missingSkills || [],
-        grammarIssues: data.analysis.grammarIssues || [],
-        formattingIssues: data.analysis.formattingIssues || [],
-        clarityIssues: data.analysis.clarityIssues || [],
-        overallFeedback: data.analysis.overallFeedback || '',
-        isAI: data.isAI !== false, // Default to true, false only if explicitly set
-        analyzedFromBuilderFallback: usedFallbackBuilder,
+        missingSkills: a.missingSkills || [],
+        grammarIssues: a.grammarIssues || [],
+        formattingIssues: a.formattingIssues || [],
+        clarityIssues: a.clarityIssues || [],
+        overallFeedback: a.overallFeedback || '',
+        isAI: data.isAI !== false,
+        isJobMatched,
+        jobTitle: selectedJob?.jobTitle || '',
+        companyName: selectedJob?.companyName || '',
+        analyzedFromBuilderFallback: false,
       };
 
       setAnalysis(transformedAnalysis);
@@ -346,9 +341,8 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
     }
   };
 
-  // Check if we have any resumes or builder text to analyze
-  const hasBuilderText = builderResumeText && String(builderResumeText).trim().length > 0;
-  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0) || hasBuilderText;
+  // Check if we have any resumes to analyze
+  const hasAnyResume = resumeInfo?.hasResume || (resumes && resumes.length > 0);
   const currentResume = selectedResume || (resumes && resumes.length > 0 ? resumes[0] : null) || resumeInfo;
 
   if (!hasAnyResume) {
@@ -439,38 +433,42 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
   // Show button to start analysis if no analysis exists yet
   if (!analysis && !loading && !error) {
     return (
-      <div className="text-center py-8">
-        <BarChart3 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Analyze</h3>
-        <p className="text-gray-500 mb-2">
-          {resumes && resumes.length > 1
-            ? `You have ${resumes.length} resumes. Select one to analyze for ATS compatibility.`
-            : hasBuilderText
-              ? 'Analyze your current resume from the Builder (no PDF upload needed).'
-              : 'Click the button below to analyze your resume for ATS compatibility.'}
-        </p>
+      <div className="space-y-5">
+        {/* Job Picker */}
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-semibold text-blue-800">Job-Matched ATS Score</span>
+            <span className="ml-auto text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">Powered by Mistral</span>
+          </div>
+          <p className="text-xs text-blue-600 mb-3">Select a job to get a score matched against that specific job description. Or skip to run a general ATS check.</p>
+          <JobPickerDropdown selectedJob={selectedJob} onSelect={setSelectedJob} />
+        </div>
+
+        {/* Resume selector info */}
         {resumes && resumes.length > 1 && currentResume && (
-          <p className="text-sm text-gray-400 mb-4">
-            Currently selected: <span className="font-medium">{currentResume.fileName || currentResume.title || 'Resume'}</span>
+          <p className="text-sm text-gray-400">
+            Resume: <span className="font-medium text-gray-600">{currentResume.fileName || currentResume.title || 'Resume'}</span>
           </p>
         )}
-        <div className="flex gap-3 justify-center">
+
+        <div className="flex gap-3 justify-center flex-wrap">
           {resumes && resumes.length > 1 && (
             <button
               onClick={() => setShowResumeSelector(true)}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <FileText className="h-4 w-4 mr-2" />
-              Select Resume
+              Change Resume
             </button>
           )}
           <button
             onClick={analyzeResume}
             disabled={!currentResume && !hasBuilderText}
-            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <BarChart3 className="h-5 w-5 mr-2" />
-            {selectedResume ? 'Analyze Selected Resume' : hasBuilderText ? 'Analyze Current Resume' : 'Analyze Resume'}
+            {selectedJob ? `Score vs ${selectedJob.jobTitle}` : 'Run General ATS Check'}
           </button>
         </div>
       </div>
@@ -510,28 +508,37 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
 
   return (
     <div className="space-y-6">
-      {/* Overall Score */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      {/* Overall Score Card */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <BarChart3 className="h-5 w-5 text-blue-600 mr-2" />
-            Resume Analysis
-            {selectedResume && (
-              <span className="ml-3 text-sm font-normal text-gray-500">
-                ({selectedResume.fileName || selectedResume.title || 'Selected Resume'})
-              </span>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              Resume Analysis
+              {analysis.isJobMatched && (
+                <span className="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  vs {analysis.jobTitle}
+                </span>
+              )}
+            </h3>
+            {analysis.verdict && (
+              <p className="text-sm text-slate-500 mt-1 italic">"{analysis.verdict}"</p>
             )}
-          </h3>
+          </div>
           <div className="flex items-center gap-2">
+            {!analysis.isJobMatched && (
+              <button
+                onClick={() => { setAnalysis(null); setError(null); }}
+                className="px-3 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1"
+              >
+                <Zap className="h-3 w-3" />
+                Match to Job
+              </button>
+            )}
             {resumes && resumes.length > 1 && (
               <button
-                onClick={() => {
-                  setShowResumeSelector(true);
-                  setAnalysis(null);
-                  setError(null);
-                }}
+                onClick={() => { setShowResumeSelector(true); setAnalysis(null); setError(null); }}
                 className="px-3 py-2 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-2"
-                title="Analyze different resume"
               >
                 <FileText className="h-4 w-4" />
                 Change Resume
@@ -540,35 +547,75 @@ export default function ResumeAnalyzer({ resumeInfo, userId, resumes = [], onRes
             <button
               onClick={analyzeResume}
               className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
-              title="Re-analyze current resume"
+              title="Re-analyze"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className={`inline-flex items-center justify-center w-24 h-24 rounded-full ${getScoreBgColor(analysis.overallScore)} mb-3`}>
-            <span className={`text-3xl font-bold ${getScoreColor(analysis.overallScore)}`}>
-              {analysis.overallScore}
-            </span>
+        {/* Score Circle + Match % */}
+        <div className={`grid gap-4 mb-6 ${analysis.matchPercentage ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className="text-center p-4 bg-blue-50 rounded-xl">
+            <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${getScoreBgColor(analysis.overallScore)} mb-2`}>
+              <span className={`text-3xl font-bold ${getScoreColor(analysis.overallScore)}`}>{analysis.overallScore}</span>
+            </div>
+            <div className="text-sm font-medium text-slate-600">ATS Score</div>
           </div>
-          <h4 className="text-xl font-semibold text-gray-900">Overall Score</h4>
-          <p className="text-gray-600">
-            {analysis.overallScore >= 80 ? 'Excellent resume!' : 
-             analysis.overallScore >= 60 ? 'Good resume with room for improvement' : 
-             'Needs significant improvements'}
-          </p>
+          {analysis.matchPercentage && (
+            <div className="text-center p-4 bg-purple-50 rounded-xl">
+              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${getScoreBgColor(analysis.matchPercentage)} mb-2`}>
+                <span className={`text-3xl font-bold ${getScoreColor(analysis.matchPercentage)}`}>{analysis.matchPercentage}</span>
+              </div>
+              <div className="text-sm font-medium text-slate-600">Job Match %</div>
+            </div>
+          )}
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 gap-4 mb-6">
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{analysis.atsCompatibility}%</div>
-            <div className="text-sm text-blue-700">ATS Compatibility Score</div>
+        {/* Breakdown Bars (Mistral job-matched mode only) */}
+        {analysis.atsBreakdown && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-slate-700 mb-2">Score Breakdown</h4>
+            {[
+              ['Keyword Match', analysis.atsBreakdown.keywordMatch],
+              ['Formatting', analysis.atsBreakdown.formatting],
+              ['Section Completeness', analysis.atsBreakdown.sectionCompleteness],
+              ['Readability', analysis.atsBreakdown.readability],
+              ['Experience Alignment', analysis.atsBreakdown.experienceAlignment],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 w-40 flex-shrink-0">{label}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+                    }`}
+                    style={{ width: `${value || 0}%` }}
+                  />
+                </div>
+                <span className={`text-xs font-semibold w-8 text-right ${
+                  value >= 80 ? 'text-green-600' : value >= 60 ? 'text-yellow-600' : 'text-red-500'
+                }`}>{value ?? 0}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Matched Keywords (Mistral mode) */}
+      {analysis.matchedKeywords?.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-500" />
+            Matched Keywords
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {analysis.matchedKeywords.map((kw, i) => (
+              <span key={i} className="px-3 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full border border-green-200">{kw}</span>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Analysis Type Indicator */}
       <div className={`border rounded-lg p-4 ${analysis.isAI ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>

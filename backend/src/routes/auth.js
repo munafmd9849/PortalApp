@@ -21,6 +21,7 @@ import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import { getGoogleLoginUrl, handleGoogleLoginCallback } from '../controllers/googleLogin.js';
 import { logAction } from '../utils/auditLogger.js';
+import { recordStudentActivity } from '../services/studentDirectoryMetricsService.js';
 
 const router = express.Router();
 
@@ -35,8 +36,8 @@ router.post('/register', [
   body('role').custom((value) => {
     if (!value) return false;
     const upper = value.toUpperCase();
-    return ['STUDENT', 'RECRUITER', 'ADMIN'].includes(upper);
-  }).withMessage('Role must be STUDENT, RECRUITER, or ADMIN'),
+    return ['STUDENT', 'RECRUITER'].includes(upper);
+  }).withMessage('Role must be STUDENT or RECRUITER'),
   body('verificationToken').optional().isString(), // Optional: verification token from OTP
 ], async (req, res) => {
   try {
@@ -335,11 +336,23 @@ router.post('/login', [
       return res.status(403).json({ error: 'Account is blocked' });
     }
 
-    // Update last login
+    // Update last login; students who can log in are email-verified (OTP at registration)
+    const loginAt = new Date();
+    const loginUpdate = { lastLoginAt: loginAt };
+    if (user.role === 'STUDENT' && !user.emailVerified) {
+      loginUpdate.emailVerified = true;
+      loginUpdate.emailVerifiedAt = loginAt;
+    }
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: loginUpdate,
     });
+    if (user.role === 'STUDENT' && !user.emailVerified) {
+      user.emailVerified = true;
+    }
+    if (user.student?.id) {
+      recordStudentActivity(user.student.id, 'LOGIN', null, { source: 'password_login' }).catch(() => {});
+    }
 
     // Notify Super Admins when a PENDING admin tries to enter (login) — for Admit/Reject workflow
     if (user.role === 'ADMIN' && user.status === 'PENDING') {
