@@ -1,6 +1,5 @@
 /**
- * Admin Announcements Section
- * GenZ / Retro styled. Target by school, batch, or center. Sends email to matching students.
+ * Admin Announcements — formal admin UI; email matching students by school/batch/center.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,17 +18,6 @@ import {
   GraduationCap,
   MapPin,
 } from 'lucide-react';
-
-// GenZ / Retro palette
-const COLORS = {
-  gold: '#FFC567',
-  pink: '#FB7DA8',
-  coral: '#FD5A46',
-  purple: '#552CB7',
-  green: '#00995E',
-  blue: '#058CD7',
-};
-
 
 export default function AdminAnnouncements() {
   const [title, setTitle] = useState('');
@@ -51,16 +39,16 @@ export default function AdminAnnouncements() {
   const schoolDropdownRef = useRef(null);
   const batchDropdownRef = useRef(null);
   const centerDropdownRef = useRef(null);
-  
+
   const [academicOptions, setAcademicOptions] = useState({
     schools: [],
     batches: [],
-    centers: []
+    centers: [],
   });
 
-  const SCHOOL_OPTIONS = [{ id: 'ALL', label: 'All Branches' }, ...academicOptions.schools.map(s => ({ id: s.name, label: s.name }))];
-  const BATCH_OPTIONS = [{ id: 'ALL', label: 'All Batches' }, ...academicOptions.batches.map(b => ({ id: b.year, label: b.year }))];
-  const CENTER_OPTIONS = [{ id: 'ALL', label: 'All Campuses' }, ...academicOptions.centers.map(c => ({ id: c.name, label: c.name }))];
+  const SCHOOL_OPTIONS = [{ id: 'ALL', label: 'All Branches' }, ...academicOptions.schools.map((s) => ({ id: s.name, label: s.name }))];
+  const BATCH_OPTIONS = [{ id: 'ALL', label: 'All Batches' }, ...academicOptions.batches.map((b) => ({ id: b.year, label: b.year }))];
+  const CENTER_OPTIONS = [{ id: 'ALL', label: 'All Campuses' }, ...academicOptions.centers.map((c) => ({ id: c.name, label: c.name }))];
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -95,7 +83,7 @@ export default function AdminAnnouncements() {
           api.getAnnouncements(),
           api.getSchools(),
           api.getCenters(),
-          api.getBatches()
+          api.getBatches(),
         ]);
         setList(annRes?.announcements || []);
         const { filterActiveAcademicRecords } = await import('../../../utils/academicOptions');
@@ -163,7 +151,7 @@ export default function AdminAnnouncements() {
 
       const res = await api.createAnnouncement(formData);
       setSuccess(
-        `Sent! ${res.emailsSent || 0} students notified${res.emailsFailed ? ` (${res.emailsFailed} failed)` : ''}.`
+        `Announcement sent. ${res.emailsSent || 0} students notified${res.emailsFailed ? ` (${res.emailsFailed} failed)` : ''}.`,
       );
       setTitle('');
       setDescription('');
@@ -174,293 +162,242 @@ export default function AdminAnnouncements() {
       setTargetBatches([]);
       setTargetCenters([]);
       setList((prev) => [res.announcement, ...prev]);
-    } catch (e) {
-      const msg = e?.response?.data?.message || e?.message || 'Failed to send announcement';
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to send announcement';
       setError(msg);
     } finally {
       setSending(false);
     }
   };
 
-  return (
-    <div className="space-y-6 sm:space-y-8 min-h-screen p-4 sm:p-6 md:p-8 overflow-x-hidden" style={{ background: '#fff' }}>
-      {/* Header - GenZ / Retro (solid colors) */}
-      <div
-        className="rounded-2xl p-4 sm:p-6 text-center shadow-lg"
-        style={{
-          background: COLORS.gold,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-        }}
-      >
-        <h1 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center justify-center gap-3">
-          <Megaphone className="w-10 h-10" />
-          Announcements
-        </h1>
-        <p className="text-gray-800 font-semibold mt-2 text-lg">
-          Share placement drives, success stories, opportunities & guidelines — students get it by email
-        </p>
+  const filterDropdown = (label, Icon, options, selected, setter, show, setShow, ref, otherSetters) => (
+    <div className="flex-1 min-w-[140px] max-w-[200px]">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Icon className="w-4 h-4 text-slate-500" />
+        <span className="text-sm font-medium text-slate-700">{label}</span>
       </div>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between bg-white hover:border-slate-300 ${
+            selected.length ? 'border-indigo-300 ring-1 ring-indigo-100' : ''
+          }`}
+          onClick={() => {
+            setShow((v) => !v);
+            otherSetters.forEach((fn) => fn(false));
+          }}
+        >
+          <span className="truncate text-slate-700">
+            {selected.length
+              ? selected.map((id) => options.find((o) => o.id === id)?.label || id).join(', ')
+              : `Select ${label}`}
+          </span>
+          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+        </button>
+        {show && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-36 overflow-y-auto">
+            {options.map((opt) => (
+              <label
+                key={opt.id}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt.id)}
+                  onChange={() => toggleFilter(setter, opt.id)}
+                  className="rounded border-slate-300 text-indigo-600"
+                />
+                <span className="text-slate-700">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-      {/* Create form - bubbly card */}
-      <div
-        className="rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200"
-        style={{ backgroundColor: '#fff', fontFamily: 'system-ui, sans-serif' }}
-      >
+  return (
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8">
+        <div className="flex items-center gap-3 pb-5 mb-6 border-b border-slate-200">
+          <div className="p-2.5 bg-slate-100 rounded-lg">
+            <Megaphone className="w-5 h-5 text-slate-700" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Create Announcement</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Compose and distribute notices to students via email.
+            </p>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Filters at start: School, Batch, Center dropdowns (like Manage Jobs) */}
-          <div className="flex flex-wrap items-end gap-4 pb-4 border-b-2 border-slate-200">
-            <div className="flex-1 min-w-[140px] max-w-[200px]">
-              <div className="flex items-center gap-2 mb-1">
-                <GraduationCap className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-600">School</span>
-              </div>
-              <div className="relative" ref={schoolDropdownRef}>
-                <button
-                  type="button"
-                  className={`w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between hover:border-slate-400 ${targetSchools.length ? 'border-green-600' : ''}`}
-                  style={{ backgroundColor: targetSchools.length ? '#d1fae5' : '#fff' }}
-                  onClick={() => { setShowSchoolDropdown((v) => !v); setShowBatchDropdown(false); setShowCenterDropdown(false); }}
-                >
-                  <span className="truncate">
-                    {targetSchools.length ? targetSchools.map((id) => SCHOOL_OPTIONS.find((o) => o.id === id)?.label || id).join(', ') : 'Select Schools'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
-                </button>
-                {showSchoolDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    {SCHOOL_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={targetSchools.includes(opt.id)}
-                          onChange={() => toggleFilter(setTargetSchools, opt.id)}
-                          className="rounded border-slate-300"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex-1 min-w-[140px] max-w-[200px]">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-600">Batch</span>
-              </div>
-              <div className="relative" ref={batchDropdownRef}>
-                <button
-                  type="button"
-                  className={`w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between hover:border-slate-400 ${targetBatches.length ? 'border-green-600' : ''}`}
-                  style={{ backgroundColor: targetBatches.length ? '#d1fae5' : '#fff' }}
-                  onClick={() => { setShowBatchDropdown((v) => !v); setShowSchoolDropdown(false); setShowCenterDropdown(false); }}
-                >
-                  <span className="truncate">
-                    {targetBatches.length ? targetBatches.map((id) => BATCH_OPTIONS.find((o) => o.id === id)?.label || id).join(', ') : 'Select Batches'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
-                </button>
-                {showBatchDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    {BATCH_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={targetBatches.includes(opt.id)}
-                          onChange={() => toggleFilter(setTargetBatches, opt.id)}
-                          className="rounded border-slate-300"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex-1 min-w-[140px] max-w-[200px]">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-600">Center</span>
-              </div>
-              <div className="relative" ref={centerDropdownRef}>
-                <button
-                  type="button"
-                  className={`w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between hover:border-slate-400 ${targetCenters.length ? 'border-green-600' : ''}`}
-                  style={{ backgroundColor: targetCenters.length ? '#d1fae5' : '#fff' }}
-                  onClick={() => { setShowCenterDropdown((v) => !v); setShowSchoolDropdown(false); setShowBatchDropdown(false); }}
-                >
-                  <span className="truncate">
-                    {targetCenters.length ? targetCenters.map((id) => CENTER_OPTIONS.find((o) => o.id === id)?.label || id).join(', ') : 'Select Centers'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0 ml-1" />
-                </button>
-                {showCenterDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-32 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    {CENTER_OPTIONS.map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={targetCenters.includes(opt.id)}
-                          onChange={() => toggleFilter(setTargetCenters, opt.id)}
-                          className="rounded border-slate-300"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="flex flex-wrap items-end gap-4 pb-5 border-b border-slate-100">
+            {filterDropdown(
+              'School',
+              GraduationCap,
+              SCHOOL_OPTIONS,
+              targetSchools,
+              setTargetSchools,
+              showSchoolDropdown,
+              setShowSchoolDropdown,
+              schoolDropdownRef,
+              [setShowBatchDropdown, setShowCenterDropdown],
+            )}
+            {filterDropdown(
+              'Batch',
+              Users,
+              BATCH_OPTIONS,
+              targetBatches,
+              setTargetBatches,
+              showBatchDropdown,
+              setShowBatchDropdown,
+              batchDropdownRef,
+              [setShowSchoolDropdown, setShowCenterDropdown],
+            )}
+            {filterDropdown(
+              'Center',
+              MapPin,
+              CENTER_OPTIONS,
+              targetCenters,
+              setTargetCenters,
+              showCenterDropdown,
+              setShowCenterDropdown,
+              centerDropdownRef,
+              [setShowSchoolDropdown, setShowBatchDropdown],
+            )}
             <span
-              className="inline-flex items-center shrink-0 px-3 py-2.5 rounded-lg text-sm font-medium border-2 border-slate-300 bg-slate-50 text-slate-600 whitespace-nowrap"
-              title="No school, batch, or center selected — announcement goes to every student"
+              className="inline-flex items-center shrink-0 px-3 py-2.5 rounded-lg text-xs font-medium border border-slate-200 bg-slate-50 text-slate-600"
+              title="No filters selected sends to all students"
             >
-              Leave empty = all students
+              No selection = all students
             </span>
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 pt-2" style={{ color: COLORS.purple }}>
-            New announcement
-          </h2>
-
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Title *</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. New placement drive, Student success, Opportunity..."
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-2 focus:outline-none"
-              style={{ focusBorderColor: COLORS.blue }}
+              placeholder="Announcement title"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
               maxLength={200}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Description *</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Write your announcement (placement drive, success, opportunity, guideline...)"
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-2 focus:outline-none min-h-[120px] resize-y"
+              placeholder="Enter announcement details"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm min-h-[120px] resize-y"
               rows={4}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
-              <LinkIcon className="w-4 h-4 inline mr-1" />
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <LinkIcon className="w-4 h-4 inline mr-1 text-slate-500" />
               Link (optional)
             </label>
             <input
               type="url"
               value={link}
               onChange={(e) => setLink(e.target.value)}
-              placeholder="https://..."
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-2 focus:outline-none"
+              placeholder="https://"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
-              <ImagePlus className="w-4 h-4 inline mr-1" />
-              Photo (optional, attached in email)
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <ImagePlus className="w-4 h-4 inline mr-1 text-slate-500" />
+              Attachment image (optional)
             </label>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={onImageChange}
-              className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-2 file:font-bold file:cursor-pointer"
-              style={{ borderColor: COLORS.pink, backgroundColor: '#fff' }}
+              className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-slate-200 file:bg-white file:text-slate-700 file:font-medium file:cursor-pointer hover:file:bg-slate-50"
             />
             {imagePreview && (
-              <div className="mt-3">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="rounded-xl border-2 border-gray-200 max-h-40 object-cover"
-                />
-              </div>
+              <img
+                src={imagePreview}
+                alt="Preview"
+                className="mt-3 rounded-lg border border-slate-200 max-h-40 object-cover"
+              />
             )}
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl text-sm font-medium" style={{ background: COLORS.coral, color: '#fff' }}>
+            <div className="p-3 rounded-lg text-sm font-medium bg-red-50 text-red-800 border border-red-100">
               {error}
             </div>
           )}
           {success && (
-            <div className="p-3 rounded-xl flex items-center gap-2" style={{ background: COLORS.green, color: '#fff' }}>
-              <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              <span className="font-medium">{success}</span>
+            <div className="p-3 rounded-lg flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-100 text-sm">
+              <CheckCircle className="w-5 h-5 shrink-0" />
+              <span>{success}</span>
             </div>
           )}
 
           <button
             type="submit"
             disabled={sending}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white shadow-lg disabled:cursor-not-allowed transition-all"
-            style={{
-              background: sending ? '#94a3b8' : COLORS.purple,
-            }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
           >
             {sending ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Sending...
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sending
               </>
             ) : (
               <>
-                <Send className="w-5 h-5" />
-                Send to students
+                <Send className="w-4 h-4" />
+                Send announcement
               </>
             )}
           </button>
         </form>
       </div>
 
-      {/* Past announcements */}
-      <div
-        className="rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200"
-        style={{ backgroundColor: '#fff' }}
-      >
-        <h2 className="text-xl font-bold mb-4" style={{ color: COLORS.purple }}>
-          Past announcements
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4 pb-3 border-b border-slate-200">
+          Announcement history
         </h2>
         {loadingList ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: COLORS.blue }} />
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
           </div>
         ) : list.length === 0 ? (
-          <p className="text-gray-500 py-6">No announcements yet.</p>
+          <p className="text-sm text-slate-500 py-8 text-center">No announcements have been sent yet.</p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="divide-y divide-slate-100">
             {list.map((a) => (
-              <li
-                key={a.id}
-                className="p-4 rounded-xl border-2 border-gray-100 hover:border-gray-200 transition-colors"
-              >
+              <li key={a.id} className="py-4 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-gray-900">{a.title}</h3>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{a.description}</p>
-                    <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
+                    <h3 className="font-semibold text-slate-900">{a.title}</h3>
+                    <p className="text-sm text-slate-600 mt-1 line-clamp-2">{a.description}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-500">
                       <Calendar className="w-3.5 h-3.5" />
                       {new Date(a.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                      {([a.targetSchools, a.targetBatches, a.targetCenters].some((x) => x != null && x !== '')) && (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                      {[a.targetSchools, a.targetBatches, a.targetCenters].some((x) => x != null && x !== '') && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
                           Targeted
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {a.imageUrl && (
                       <img
                         src={a.imageUrl}
                         alt=""
-                        className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                        className="w-12 h-12 rounded-lg object-cover border border-slate-200"
                       />
                     )}
                     {a.link && (
@@ -468,8 +405,7 @@ export default function AdminAnnouncements() {
                         href={a.link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-medium border-2"
-                        style={{ borderColor: COLORS.blue, color: COLORS.blue }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-700 hover:bg-slate-50"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         Link

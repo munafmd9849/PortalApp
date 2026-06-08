@@ -830,19 +830,6 @@ export default function ManageJobs() {
         </div>
 
         <div className="divide-y py-4">
-          {totalJobs === 0 && !loading && (
-            <div className="p-6 text-center">
-              <div className="text-slate-500 text-sm">
-                No posted jobs available yet.
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                {activeFilter === 'in_review'
-                  ? 'Jobs pending admin approval will appear here. Click "Approve" to post them to students.'
-                  : 'Posted jobs will appear here once they are approved and posted.'}
-              </div>
-            </div>
-          )}
-
           {allManageJobs.map((job, index) => {
             const isPosted = isJobPosted(job);
             const jobStatus = isPosted ? getJobStatus(job) : {

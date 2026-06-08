@@ -534,53 +534,22 @@ export default function RecruiterDirectory() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 font-outfit">Recruiter Directory</h1>
-            <p className="text-slate-500 text-sm mt-1">
-              Manage and monitor recruiter accounts, job postings, and activity.
-            </p>
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-slate-800 tabular-nums">{stats.total}</div>
+          <div className="text-sm text-slate-600 mt-1">Total Recruiters</div>
         </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/30 p-5 rounded-2xl shadow-sm border border-indigo-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-indigo-500 text-white rounded-xl">
-                <Building2 className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-indigo-900 font-outfit">{stats.total}</div>
-            </div>
-            <div className="text-sm font-semibold text-indigo-800">Total Recruiters</div>
-          </div>
-          <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/30 p-5 rounded-2xl shadow-sm border border-emerald-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
-                <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-emerald-900 font-outfit">{stats.active}</div>
-            </div>
-            <div className="text-sm font-semibold text-emerald-800">Active</div>
-          </div>
-          <div className="bg-gradient-to-br from-rose-50/60 to-rose-100/30 p-5 rounded-2xl shadow-sm border border-rose-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-rose-500 text-white rounded-xl">
-                <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-rose-900 font-outfit">{stats.blocked}</div>
-            </div>
-            <div className="text-sm font-semibold text-rose-800">Blocked</div>
-          </div>
-          <div className="bg-gradient-to-br from-amber-50/60 to-amber-100/30 p-5 rounded-2xl shadow-sm border border-amber-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-amber-500 text-white rounded-xl">
-                <Briefcase className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-amber-900 font-outfit">{stats.totalJobs}</div>
-            </div>
-            <div className="text-sm font-semibold text-amber-800">Jobs Posted</div>
-          </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-800 tabular-nums">{stats.active}</div>
+          <div className="text-sm text-emerald-700 mt-1">Active</div>
+        </div>
+        <div className="bg-red-50 border border-red-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-red-800 tabular-nums">{stats.blocked}</div>
+          <div className="text-sm text-red-700 mt-1">Blocked</div>
+        </div>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-slate-800 tabular-nums">{stats.totalJobs}</div>
+          <div className="text-sm text-slate-600 mt-1">Jobs Posted</div>
         </div>
       </div>
 

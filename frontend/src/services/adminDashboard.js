@@ -14,18 +14,7 @@ export class AdminDashboardService {
     this.subscribers = [];
     this.pollingIntervals = new Map(); // Track polling intervals per subscription
     this.cachedData = {
-      stats: {
-        totalJobsPosted: 0,
-        activeRecruiters: 0,
-        totalStudents: 0,
-        activeStudents: 0,
-        blockedStudents: 0,
-        pendingStudents: 0,
-        rejectedStudents: 0,
-        pendingQueries: 0,
-        totalApplications: 0,
-        placedStudents: 0
-      },
+      stats: null,
       chartData: {
         placementTrend: null,
         recruiterActivity: null,

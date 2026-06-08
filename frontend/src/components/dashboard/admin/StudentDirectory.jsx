@@ -563,6 +563,13 @@ export default function StudentDirectory() {
   const studentsPerPage = 50;
   const [totalPages, setTotalPages] = useState(1);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [studentSummary, setStudentSummary] = useState({
+    totalStudents: 0,
+    activeStudents: 0,
+    blockedStudents: 0,
+    pendingStudents: 0,
+    rejectedStudents: 0,
+  });
   const [retryCount, setRetryCount] = useState(0);
   const [lastErrorTime, setLastErrorTime] = useState(null);
   const loadAttemptsRef = useRef(0);
@@ -678,6 +685,9 @@ export default function StudentDirectory() {
       }
       setTotalPages(paginationData.totalPages || 1);
       setTotalStudents(paginationData.total || studentsArray.length);
+      if (studentsData?.summary) {
+        setStudentSummary(studentsData.summary);
+      }
 
       // Format students with safe defaults
       // Normalize status from uppercase (ACTIVE, BLOCKED) to title case (Active, Blocked)
@@ -1196,12 +1206,7 @@ export default function StudentDirectory() {
   };
 
   // Calculate statistics from ALL students (not filtered) - must be before conditional returns to follow Rules of Hooks
-  const stats = useMemo(() => {
-    const active = students.filter(s => s.status === 'Active').length;
-    const blocked = students.filter(s => s.status === 'Blocked').length;
-    const inactive = students.filter(s => s.status === 'Inactive').length;
-    return { total: students.length, active, blocked, inactive };
-  }, [students]);
+  const stats = studentSummary;
 
   if (loading) {
     return (
@@ -1265,53 +1270,19 @@ export default function StudentDirectory() {
 
   return (
     <div className="space-y-6">
-      {/* Header and Analytics */}
-      <div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900 font-outfit">Student Directory</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Monitor, evaluate, and manage student performance and placement readiness.
-          </p>
+      {/* Quick student metrics — from API (scoped to current filters) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-slate-800 tabular-nums">{stats.totalStudents ?? 0}</div>
+          <div className="text-sm text-slate-600 mt-1">Total Students</div>
         </div>
-
-        {/* Analytics Cards - Redesigned to be Premium */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/30 p-5 rounded-2xl shadow-sm border border-indigo-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-indigo-500 text-white rounded-xl">
-                <FaUsers className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-indigo-900 font-outfit">{stats.total}</div>
-            </div>
-            <div className="text-sm font-semibold text-indigo-800">Total Students</div>
-          </div>
-          <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/30 p-5 rounded-2xl shadow-sm border border-emerald-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
-                <FaCheckCircle className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-emerald-900 font-outfit">{stats.active}</div>
-            </div>
-            <div className="text-sm font-semibold text-emerald-800">Active Learners</div>
-          </div>
-          <div className="bg-gradient-to-br from-rose-50/60 to-rose-100/30 p-5 rounded-2xl shadow-sm border border-rose-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-rose-500 text-white rounded-xl">
-                <MdBlock className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-rose-900 font-outfit">{stats.blocked}</div>
-            </div>
-            <div className="text-sm font-semibold text-rose-800">Blocked</div>
-          </div>
-          <div className="bg-gradient-to-br from-amber-50/60 to-amber-100/30 p-5 rounded-2xl shadow-sm border border-amber-100/60 hover:shadow-md transition-all duration-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-amber-500 text-white rounded-xl">
-                <FaUser className="w-5 h-5 flex-shrink-0" />
-              </div>
-              <div className="text-3xl font-bold text-amber-900 font-outfit">{stats.inactive}</div>
-            </div>
-            <div className="text-sm font-semibold text-amber-800">Inactive</div>
-          </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-800 tabular-nums">{stats.activeStudents ?? 0}</div>
+          <div className="text-sm text-emerald-700 mt-1">Active</div>
+        </div>
+        <div className="bg-red-50 border border-red-100 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-red-800 tabular-nums">{stats.blockedStudents ?? 0}</div>
+          <div className="text-sm text-red-700 mt-1">Blocked</div>
         </div>
       </div>
 

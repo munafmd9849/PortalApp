@@ -278,19 +278,6 @@ export default function InterviewScheduling() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 md:p-8 bg-[#f8fafc] min-h-screen font-outfit">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Interview <span className="text-indigo-600">Scheduling</span>
-          </h1>
-          <p className="text-slate-500 font-medium text-xs flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-indigo-500" />
-            Manage session configurations, rounds, and interviewer access
-          </p>
-        </div>
-      </div>
-
       {/* Main List */}
       <div className="grid grid-cols-1 gap-5">
         {jobs.length === 0 ? (

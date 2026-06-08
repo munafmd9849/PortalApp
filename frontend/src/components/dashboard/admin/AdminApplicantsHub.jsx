@@ -3,8 +3,93 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
 import { Search, ExternalLink, Users, Filter, X, Building2, FileText, Calendar, StickyNote, Pencil, Check, ChevronRight, Briefcase, User, Info, Loader } from 'lucide-react';
-import CustomDropdown from '../../common/CustomDropdown';
 import { useToast } from '../../ui/Toast';
+
+function CompanyFilterDropdown({ companies, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = React.useRef(null);
+
+  const options = useMemo(() => {
+    const names = companies.map((c) => c.companyName).sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [companies]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((name) => name.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const selectedLabel = value || 'All Companies';
+
+  useEffect(() => {
+    const onOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full lg:w-72" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-indigo-300 transition-all"
+      >
+        <span className="flex items-center gap-2 min-w-0 truncate">
+          <Building2 className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span className="truncate">{selectedLabel}</span>
+        </span>
+        <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-slate-100">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search companies..."
+                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                autoFocus
+              />
+            </div>
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); setQuery(''); }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 ${!value ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+              >
+                All Companies
+              </button>
+            </li>
+            {filtered.length === 0 ? (
+              <li className="px-4 py-3 text-sm text-slate-400">No companies match</li>
+            ) : (
+              filtered.map((name) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    onClick={() => { onChange(name); setOpen(false); setQuery(''); }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 truncate ${value === name ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CompanyCardSkeleton() {
   return (
@@ -77,14 +162,12 @@ export default function AdminApplicantsHub() {
   const [savingNote, setSavingNote] = useState(false);
 
   const [filters, setFilters] = useState({
-    search: '',
-    status: '',
+    company: '',
   });
   const [companiesPage, setCompaniesPage] = useState(1);
   const COMPANIES_PER_PAGE = 12;
 
   const toast = useToast();
-  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
 
   // Body Scroll Lock when modal is open
   useEffect(() => {
@@ -95,11 +178,6 @@ export default function AdminApplicantsHub() {
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [selectedCompany]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
-    return () => clearTimeout(timer);
-  }, [filters.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +191,6 @@ export default function AdminApplicantsHub() {
           limit: 200,
           isPosted: true,
           status: 'POSTED',
-          search: debouncedSearch || undefined,
         };
 
         const res = await api.getJobs(params);
@@ -129,20 +206,25 @@ export default function AdminApplicantsHub() {
 
     loadJobs();
     return () => { cancelled = true; };
-  }, [debouncedSearch, filters.status]);
+  }, []);
 
-  const hasActiveFilters = useMemo(() => !!(filters.search || filters.status), [filters]);
+  const allCompanies = useMemo(() => groupJobsByCompany(jobs), [jobs]);
+
+  const companies = useMemo(() => {
+    if (!filters.company) return allCompanies;
+    return allCompanies.filter((c) => c.companyName === filters.company);
+  }, [allCompanies, filters.company]);
+
+  const hasActiveFilters = useMemo(() => !!filters.company, [filters.company]);
 
   const resetFilters = () => {
-    setFilters({ search: '', status: '' });
+    setFilters({ company: '' });
   };
-
-  const companies = useMemo(() => groupJobsByCompany(jobs), [jobs]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCompaniesPage(1);
-  }, [debouncedSearch, filters.status]);
+  }, [filters.company]);
 
   // When landing with addNote=jobId (from thank-you email), open company modal and start editing note
   useEffect(() => {
@@ -174,54 +256,26 @@ export default function AdminApplicantsHub() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Applicants <span className="text-indigo-600">Hub</span>
           </h1>
-          <p className="text-slate-500 font-medium text-xs flex items-center gap-2">
-            <Building2 className="w-4 h-4" />
-            Tracking applications across {companies.length} active companies
-          </p>
         </div>
       </div>
 
       {/* Control Bar (Filters) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-        <div className="flex flex-col lg:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              placeholder="Search companies or job titles..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-            <div className="w-full lg:w-48">
-              <CustomDropdown
-                options={[
-                  { value: '', label: 'All Status' },
-                  { value: 'POSTED', label: 'Posted' },
-                  { value: 'APPROVED', label: 'Approved' },
-                  { value: 'IN_REVIEW', label: 'In Review' },
-                  { value: 'REJECTED', label: 'Rejected' },
-                ]}
-                value={filters.status}
-                onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-                placeholder="Status"
-                className="rounded-xl border-slate-200"
-              />
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                onClick={resetFilters}
-                className="p-2.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"
-                title="Clear Filters"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <CompanyFilterDropdown
+            companies={allCompanies}
+            value={filters.company}
+            onChange={(company) => setFilters({ company })}
+          />
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="p-2.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shrink-0"
+              title="Clear filter"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 

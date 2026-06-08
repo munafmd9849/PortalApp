@@ -25,18 +25,28 @@ const SCROLL_COLUMNS = [
   { key: 'status', label: 'Status', minW: 110, badge: 'status' },
 ];
 
+const STATUS_BADGE_STYLES = {
+  active: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  inactive: 'bg-amber-50 text-amber-800 border border-amber-100',
+  blocked: 'bg-red-50 text-red-700 border border-red-100',
+};
+
 function StatusBadge({ status }) {
   const norm = String(status || 'ACTIVE').toUpperCase();
+  let label = 'Active';
+  let styleKey = 'active';
   if (norm === 'BLOCKED') {
-    return (
-      <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-100">
-        Blocked
-      </span>
-    );
+    label = 'Blocked';
+    styleKey = 'blocked';
+  } else if (norm === 'INACTIVE' || norm === 'PENDING' || norm === 'REJECTED') {
+    label = norm === 'PENDING' ? 'Pending' : norm === 'REJECTED' ? 'Rejected' : 'Inactive';
+    styleKey = 'inactive';
   }
   return (
-    <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-100">
-      Active
+    <span
+      className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${STATUS_BADGE_STYLES[styleKey]}`}
+    >
+      {label}
     </span>
   );
 }

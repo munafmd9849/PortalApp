@@ -1626,57 +1626,18 @@ export default function CreateJob({ onCreated }) {
         }
       `}</style>
 
-      {/* Header - ALWAYS VISIBLE */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <div className="flex-shrink-0">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-              <Briefcase className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    loadDrafts();
-                    setShowDraftsPanel(!showDraftsPanel);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg border border-blue-300 transition-colors"
-                >
-                  <Archive className="w-4 h-4" />
-                  Saved Drafts ({savedDrafts.length})
-                </button>
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border border-gray-200">
-                  <Info className="w-4 h-4 text-blue-600" />
-                  <span>Fields marked with <span className="text-red-500 font-semibold">*</span> are required</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">
-              {isEditing
-                ? 'Update the job details below. Changes will be saved to the job posting.'
-                : 'Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.'}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                <span>Save drafts anytime</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <Upload className="w-3.5 h-3.5 text-blue-600" />
-                <span>Upload JD or Excel</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <FileText className="w-3.5 h-3.5 text-purple-600" />
-                <span>Multiple positions supported</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Saved Drafts — top right only */}
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => {
+            loadDrafts();
+            setShowDraftsPanel(!showDraftsPanel);
+          }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg border border-blue-300 transition-colors"
+        >
+          <Archive className="w-4 h-4" />
+          Saved Drafts ({savedDrafts.length})
+        </button>
       </div>
 
       {/* Saved Drafts Panel */}

@@ -10,26 +10,27 @@ const __dirname = path.dirname(__filename);
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      include: '**/*.{jsx,tsx}',
+    }),
   ],
-  
+
   server: {
-    host: 'localhost', 
+    host: 'localhost',
     port: 5173,
-    strictPort: false, 
+    // Fail loudly if 5173 is taken instead of silently moving to 5174 (breaks HMR)
+    strictPort: true,
     open: false,
-    // HMR configuration - explicitly set to avoid WebSocket connection issues
     hmr: {
-      protocol: 'ws',
       host: 'localhost',
-      port: 5173,
-      overlay: false, // Disable error overlay to prevent blocking
+      overlay: true,
     },
     watch: {
       usePolling: false,
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       // Use absolute path for react-pdf to avoid duplicate module warnings
       'react-pdf': path.resolve(__dirname, 'node_modules/react-pdf/dist/esm/entry.webpack5'),

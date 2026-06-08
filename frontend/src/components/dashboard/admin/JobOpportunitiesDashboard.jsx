@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Loader2, Search, Download, AlertCircle, Briefcase, Users, BarChart3 } from 'lucide-react';
+import { Loader2, Search, Download } from 'lucide-react';
 import HoverStatCard from './HoverStatCard';
+import CrManagerCard from './CrManagerCard';
 import CustomDropdown from '../../common/CustomDropdown';
 import {
   fetchJobOpportunitiesOverview,
@@ -10,19 +11,7 @@ import {
   fetchJobOpportunitiesFilterOptions,
 } from '../../../services/jobOpportunities';
 
-const EMBED_BORDERS = ['border-blue-200', 'border-green-200', 'border-purple-200', 'border-red-200'];
-
-function SectionBar({ title, embedded, icon: Icon = Briefcase }) {
-  if (embedded) {
-    return (
-      <div className="p-4 sm:p-6 border-b border-gray-200">
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center">
-          <Icon className="w-5 h-5 mr-2 text-blue-600" />
-          {title}
-        </h2>
-      </div>
-    );
-  }
+function SectionBar({ title }) {
   return (
     <div className="bg-[#c5d9e8] px-4 py-2 rounded-t-md border border-[#b0c9db] border-b-0">
       <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
@@ -30,21 +19,29 @@ function SectionBar({ title, embedded, icon: Icon = Briefcase }) {
   );
 }
 
-function StaticStatCard({ label, value, variant = 'blue', embedded = false, accentIndex = 0 }) {
-  if (embedded) {
-    const border = EMBED_BORDERS[accentIndex % EMBED_BORDERS.length];
-    return (
-      <div className={`bg-white p-4 rounded-xl shadow-sm border-l-4 ${border} hover:shadow-md transition-all duration-300`}>
-        <p className="text-sm text-gray-600">{label}</p>
-        <h3 className="text-2xl font-bold text-gray-800 mt-2 tabular-nums">{value ?? 0}</h3>
-      </div>
-    );
-  }
-  const bg = { blue: 'bg-[#dceaf7]', green: 'bg-[#dff3e4]', purple: 'bg-[#e8dff5]' };
+const METRIC_TONES = {
+  good: { card: 'bg-emerald-50 border-emerald-200', value: 'text-emerald-800' },
+  bad: { card: 'bg-red-50 border-red-200', value: 'text-red-800' },
+  warn: { card: 'bg-amber-50 border-amber-200', value: 'text-amber-800' },
+  neutral: { card: 'bg-sky-50 border-sky-200', value: 'text-slate-800' },
+};
+
+function toneForMetric(label, value) {
+  const n = Number(value) || 0;
+  const badLabels = ['Hold', 'Yet to Start', 'Learner Not Applied', 'Not Deliverable'];
+  const goodLabels = ['Companies Onboarded', 'JDs Announced', 'In Process'];
+  if (badLabels.includes(label)) return n > 0 ? 'bad' : 'good';
+  if (goodLabels.includes(label)) return n > 0 ? 'good' : 'warn';
+  return 'neutral';
+}
+
+function StaticStatCard({ label, value, tone }) {
+  const resolved = tone || toneForMetric(label, value);
+  const styles = METRIC_TONES[resolved] || METRIC_TONES.neutral;
   return (
-    <div className={`rounded-md px-3 py-3 min-h-[88px] border-2 border-[#9ec5e8] shadow-sm flex flex-col justify-center ${bg[variant]}`}>
+    <div className={`rounded-md px-3 py-3 min-h-[88px] min-w-[110px] flex-1 border-2 shadow-sm flex flex-col justify-center ${styles.card}`}>
       <p className="text-xs text-gray-700 font-medium leading-tight">{label}</p>
-      <p className="text-2xl sm:text-3xl font-bold text-gray-900 tabular-nums mt-1">{value ?? 0}</p>
+      <p className={`text-2xl sm:text-3xl font-bold tabular-nums mt-1 ${styles.value}`}>{value ?? 0}</p>
     </div>
   );
 }
@@ -209,90 +206,91 @@ export function JobOpportunitiesSection({ embedded = false }) {
         )}
 
         {/* Overview */}
-        <section className={embedded ? 'bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible' : 'bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-visible'}>
-          <SectionBar title="Overview" embedded={embedded} icon={BarChart3} />
-          <div className={`relative space-y-4 min-h-[200px] ${embedded ? 'p-4 sm:p-6' : 'p-3 space-y-2.5 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md'}`}>
+        <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-visible">
+          <SectionBar title="Overview" />
+          <div className="relative space-y-2.5 min-h-[200px] p-3 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md">
             {loadingOverview && (
-              <div className={`absolute inset-0 z-10 flex items-center justify-center rounded-b-xl ${embedded ? 'bg-white/80' : 'bg-[#eef4fa]/80'}`}>
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-b-md bg-[#eef4fa]/80">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StaticStatCard embedded={embedded} accentIndex={0} label="Total CS Pool" value={r1.totalCsPool} />
-              <StaticStatCard embedded={embedded} accentIndex={1} label="Active CS Pool" value={r1.activeCsPool} />
-              <StaticStatCard embedded={embedded} accentIndex={2} label="Inactive CS Pool" value={r1.inactiveCsPool} />
-              <StaticStatCard embedded={embedded} accentIndex={3} label="Companies Onboarded" value={r1.companiesOnboarded} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StaticStatCard embedded={embedded} accentIndex={0} label="JDs Announced" value={r1.jdsAnnounced} />
-              <StaticStatCard embedded={embedded} accentIndex={1} label="Open Positions" value={r1.openPositions} />
+            <div className="flex flex-wrap gap-2.5">
               <HoverStatCard
                 embedded={embedded}
-                accentIndex={2}
-                key={`apps-${filterCacheKey}`}
-                label="Applications Shared"
-                value={r1.applicationsShared}
-                cardKey="applications_shared"
+                overviewStyle
+                tone="neutral"
+                key={`cs-pool-${filterCacheKey}`}
+                label="Total CS Pool"
+                value={r1.totalCsPool}
+                cardKey="total_cs_pool"
                 loadBreakdown={loadBreakdown}
               />
+              <StaticStatCard label="Companies Onboarded" value={r1.companiesOnboarded} tone="good" />
               <HoverStatCard
                 embedded={embedded}
-                accentIndex={3}
+                overviewStyle
+                tone={(r1.transitions ?? 0) > 0 ? 'good' : 'warn'}
                 key={`trans-${filterCacheKey}`}
                 label="Transitions"
                 value={r1.transitions}
                 cardKey="transitions"
                 loadBreakdown={loadBreakdown}
               />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StaticStatCard embedded={embedded} accentIndex={0} label="Active" value={r2.active} />
-              <StaticStatCard embedded={embedded} accentIndex={1} label="Hold" value={r2.hold} />
-              <StaticStatCard embedded={embedded} accentIndex={2} label="In Process" value={r2.inProcess} />
-              <StaticStatCard embedded={embedded} accentIndex={3} label="Yet to Start" value={r2.yetToStart} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <HoverStatCard
                 embedded={embedded}
-                accentIndex={0}
+                overviewStyle
+                tone={(r1.applicationsShared ?? 0) > 0 ? 'good' : 'warn'}
+                popoverAlign="end"
+                key={`apps-${filterCacheKey}`}
+                label="Applications Shared"
+                value={r1.applicationsShared}
+                cardKey="applications_shared"
+                loadBreakdown={loadBreakdown}
+              />
+              <StaticStatCard label="JDs Announced" value={r1.jdsAnnounced} tone="good" />
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              <StaticStatCard label="Hold" value={r2.hold} />
+              <StaticStatCard label="In Process" value={r2.inProcess} />
+              <StaticStatCard label="Yet to Start" value={r2.yetToStart} />
+              <HoverStatCard
+                embedded={embedded}
+                overviewStyle
+                tone="neutral"
                 key={`closed-${filterCacheKey}`}
                 label="Closed Drives"
                 value={r2.closedDrives}
                 cardKey="closed_drives"
                 loadBreakdown={loadBreakdown}
               />
-              <StaticStatCard embedded={embedded} accentIndex={1} label="Learner Not Applied" value={r2.learnerNotApplied} />
-              <StaticStatCard embedded={embedded} accentIndex={2} label="Not Deliverable" value={r2.notDeliverable} />
+              <StaticStatCard label="Learner Not Applied" value={r2.learnerNotApplied} />
+              <StaticStatCard label="Not Deliverable" value={r2.notDeliverable} />
             </div>
           </div>
         </section>
 
         {/* CR Managers */}
-        <section className={embedded ? 'bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden' : 'bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-hidden'}>
-          <SectionBar title="CR Managers Overview" embedded={embedded} icon={Users} />
-          <div className={embedded ? 'p-4 sm:p-6' : 'p-3 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md'}>
+        <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-visible">
+          <SectionBar title="CR Managers Overview" />
+          <div className="p-3 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md">
             {loadingOverview ? (
               <Loader2 className="w-6 h-6 animate-spin mx-auto my-6 text-blue-600" />
             ) : (
-              <div className="flex flex-wrap gap-4">
-                <div className="bg-purple-50 rounded-lg p-4 text-center min-w-[130px] flex-1 max-w-[200px]">
-                  <div className="text-sm text-purple-600 font-medium">JDs Punched</div>
-                  <div className="text-2xl font-bold text-purple-700 mt-1 tabular-nums">{crData?.jdsPunched ?? 0}</div>
-                </div>
+              <div className="flex flex-wrap gap-2.5">
+                <CrManagerCard
+                  name="JDs Punched"
+                  value={crData?.jdsPunched ?? 0}
+                  variant="jds"
+                />
                 {(crData?.managers || []).map((m, i) => (
-                  <div
+                  <CrManagerCard
                     key={m.id}
-                    className={`rounded-lg p-4 text-center min-w-[110px] flex-1 max-w-[180px] ${
-                      i % 2 === 0 ? 'bg-green-50' : 'bg-blue-50'
-                    }`}
-                  >
-                    <div className={`text-sm font-medium truncate ${i % 2 === 0 ? 'text-green-600' : 'text-blue-600'}`} title={m.name}>
-                      {m.name}
-                    </div>
-                    <div className={`text-2xl font-bold mt-1 tabular-nums ${i % 2 === 0 ? 'text-green-700' : 'text-blue-700'}`}>
-                      {m.count}
-                    </div>
-                  </div>
+                    name={m.name}
+                    value={m.count}
+                    breakdown={m.breakdown || []}
+                    adminStatusLabel={m.adminStatusLabel}
+                    popoverAlign={i >= (crData.managers.length - 2) ? 'end' : 'start'}
+                  />
                 ))}
               </div>
             )}
@@ -300,9 +298,9 @@ export function JobOpportunitiesSection({ embedded = false }) {
         </section>
 
         {/* MoM Table */}
-        <section className={embedded ? 'bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden' : 'bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-hidden'}>
-          <SectionBar title="CR Manager wise MoM Detailed Analysis" embedded={embedded} icon={BarChart3} />
-          <div className={`space-y-3 ${embedded ? 'p-4 sm:p-6' : 'p-3 border border-[#b0c9db] border-t-0 bg-white rounded-b-md'}`}>
+        <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-hidden">
+          <SectionBar title="CR Manager wise MoM Detailed Analysis" />
+          <div className="space-y-3 p-3 border border-[#b0c9db] border-t-0 bg-white rounded-b-md">
             <div className="flex flex-wrap gap-2 items-end">
               <div className="w-40">
                 <CustomDropdown
@@ -370,15 +368,15 @@ export function JobOpportunitiesSection({ embedded = false }) {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-700" />
               </div>
             ) : (
-              <div className={`overflow-x-auto rounded-lg border ${embedded ? 'border-gray-200' : 'border-[#b0c9db]'}`}>
+              <div className="overflow-x-auto rounded-lg border border-[#b0c9db]">
                 <table className="min-w-full text-xs sm:text-sm border-collapse">
                   <thead>
-                    <tr className={embedded ? 'bg-blue-50 text-gray-800' : 'bg-[#c5d9e8] text-gray-900'}>
+                    <tr className="bg-[#c5d9e8] text-gray-900">
                       {[
                         'CR Manager', 'Segment', 'Goal', 'Closed Drives', 'Achieved Goal %',
                         'Companies', 'Jobs', 'Transitions', 'Yet To Start', 'Hold', 'In Process', 'Not Applied', 'Not Deliverable',
                       ].map((h) => (
-                        <th key={h} className={`px-2 py-2 text-left font-semibold border whitespace-nowrap ${embedded ? 'border-gray-200' : 'border-[#b0c9db]'}`}>
+                        <th key={h} className="px-2 py-2 text-left font-semibold border border-[#b0c9db] whitespace-nowrap">
                           {h}
                         </th>
                       ))}
@@ -406,12 +404,7 @@ export function JobOpportunitiesSection({ embedded = false }) {
                             <td className="px-2 py-2 border border-gray-200">{row.segment}</td>
                             <td className="px-2 py-2 border border-gray-200 text-center tabular-nums">{row.goal}</td>
                             <td className="px-2 py-2 border border-gray-200 text-center tabular-nums">
-                              <span className="inline-flex items-center gap-1">
-                                {row.closedDrives}
-                                {row.closedDrives > 0 && (
-                                  <AlertCircle className="w-3.5 h-3.5 text-gray-400" title="From closed pipeline records" />
-                                )}
-                              </span>
+                              {row.closedDrives}
                             </td>
                             <td className="px-2 py-2 border border-gray-200 text-center tabular-nums">{row.achievedGoalPct}%</td>
                             <td className="px-2 py-2 border border-gray-200 text-center tabular-nums">{row.companies}</td>

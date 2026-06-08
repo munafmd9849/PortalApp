@@ -312,8 +312,8 @@ export async function getCardBreakdown(cardKey, query = {}) {
       return {
         total: overview.row1.totalCsPool,
         items: [
-          { label: 'Active', count: overview.row1.activeCsPool, color: 'green' },
-          { label: 'Inactive', count: overview.row1.inactiveCsPool, color: 'gray' },
+          { label: 'Active CS Pool', count: overview.row1.activeCsPool, color: 'green' },
+          { label: 'Inactive CS Pool', count: overview.row1.inactiveCsPool, color: 'red' },
         ],
       };
     default:
@@ -322,40 +322,218 @@ export async function getCardBreakdown(cardKey, query = {}) {
 }
 
 export async function getCrManagerOverview(query = {}) {
-  const { jobWhere } = buildFilters(query);
-  const groups = await prisma.job.groupBy({
-    by: ['recruiterId'],
-    where: { ...jobWhere, recruiterId: { not: null } },
-    _count: { id: true },
-  });
+  const { jobWhere, appWhere, search } = buildFilters(query);
 
-  const sorted = groups.sort((a, b) => b._count.id - a._count.id).slice(0, 20);
-  const ids = sorted.map((g) => g.recruiterId).filter(Boolean);
-  const recruiters = ids.length
-    ? await prisma.recruiter.findMany({
-        where: { id: { in: ids } },
+  const PLACED = ['SELECTED', 'ACCEPTED', 'OFFERED'];
+  const SHORTLIST = ['SHORTLISTED', 'INTERVIEWED', ...PLACED];
+  const INTERVIEW_SCHEDULED = ['SCHEDULED', 'INTERVIEWED', 'SHORTLISTED', 'INTERVIEW_ELIGIBLE', ...PLACED];
+
+  const jobs = await prisma.job.findMany({
+    where: jobWhere,
+    select: {
+      id: true,
+      recruiterId: true,
+      createdBy: true,
+      companyId: true,
+      companyName: true,
+      status: true,
+      isPosted: true,
+      isActive: true,
+      archivedAt: true,
+      interviewSession: { select: { id: true, status: true } },
+      applications: {
+        where: appWhere,
         select: {
           id: true,
-          companyName: true,
-          user: { select: { displayName: true, email: true } },
+          status: true,
+          interviewStatus: true,
+          screeningStatus: true,
+          pipelineStatus: true,
+          pipelineSubStatus: true,
+          interviewDate: true,
         },
-      })
-    : [];
+      },
+    },
+  });
 
-  const byId = Object.fromEntries(recruiters.map((r) => [r.id, r]));
-  const totalJds = sorted.reduce((s, g) => s + g._count.id, 0);
+  const managerMap = new Map();
+
+  const ensureManager = (key, seed = {}) => {
+    if (!managerMap.has(key)) {
+      managerMap.set(key, {
+        key,
+        userId: seed.userId || null,
+        recruiterId: seed.recruiterId || null,
+        name: seed.name || 'Unknown',
+        adminStatus: seed.adminStatus || null,
+        jdsPunched: 0,
+        companies: new Set(),
+        jobs: new Set(),
+        applicationsShared: 0,
+        studentsPlaced: 0,
+        interviewsScheduled: 0,
+        scheduledKeys: new Set(),
+        transitions: 0,
+        inProcess: 0,
+        hold: 0,
+        yetToStart: 0,
+        closedDrives: 0,
+        learnerNotApplied: 0,
+      });
+    }
+    return managerMap.get(key);
+  };
+
+  jobs.forEach((job) => {
+    const managerKey = job.createdBy || (job.recruiterId ? `rec:${job.recruiterId}` : 'unassigned');
+    const row = ensureManager(managerKey, {
+      userId: job.createdBy || null,
+      recruiterId: job.recruiterId || null,
+    });
+
+    row.jdsPunched += 1;
+    row.jobs.add(job.id);
+    if (job.companyId) row.companies.add(job.companyId);
+    else if (job.companyName) row.companies.add(job.companyName);
+
+    const jobDrive = deriveJobDriveStatus(job);
+    if (jobDrive === PIPELINE_STATUS.HOLD) row.hold += 1;
+    if (jobDrive === PIPELINE_STATUS.YET_TO_START) row.yetToStart += 1;
+
+    if (job.interviewSession?.id && job.applications.length === 0) {
+      row.scheduledKeys.add(`job:${job.id}`);
+    }
+
+    job.applications.forEach((app) => {
+      const st = upper(app.status);
+      const interviewSt = upper(app.interviewStatus);
+      const { pipelineStatus } = derivePipelineFromApplication(app);
+
+      row.applicationsShared += 1;
+
+      if (PLACED.includes(st) || PLACED.includes(interviewSt)) {
+        row.studentsPlaced += 1;
+      }
+      if (SHORTLIST.includes(st)) {
+        row.transitions += 1;
+      }
+      if (
+        app.interviewDate
+        || INTERVIEW_SCHEDULED.includes(interviewSt)
+        || INTERVIEW_SCHEDULED.includes(st)
+      ) {
+        row.scheduledKeys.add(`app:${app.id}`);
+      }
+      if (job.interviewSession?.id) {
+        row.scheduledKeys.add(`session:${job.id}`);
+      }
+      if (pipelineStatus === PIPELINE_STATUS.IN_PROCESS) {
+        row.inProcess += 1;
+      }
+      if (pipelineStatus === PIPELINE_STATUS.CLOSED) {
+        row.closedDrives += 1;
+      }
+      if (pipelineStatus === PIPELINE_STATUS.ACTIVE && st === 'APPLIED') {
+        row.learnerNotApplied += 0;
+      }
+    });
+  });
+
+  const userIds = [...managerMap.values()].map((m) => m.userId).filter(Boolean);
+  const recruiterIds = [...managerMap.values()].map((m) => m.recruiterId).filter(Boolean);
+
+  const [admins, recruiters] = await Promise.all([
+    userIds.length
+      ? prisma.admin.findMany({
+          where: { userId: { in: userIds } },
+          select: {
+            userId: true,
+            name: true,
+            user: { select: { displayName: true, email: true, status: true } },
+          },
+        })
+      : [],
+    recruiterIds.length
+      ? prisma.recruiter.findMany({
+          where: { id: { in: recruiterIds } },
+          select: {
+            id: true,
+            companyName: true,
+            user: { select: { displayName: true, email: true, status: true } },
+          },
+        })
+      : [],
+  ]);
+
+  const adminByUserId = Object.fromEntries(admins.map((a) => [a.userId, a]));
+  const recruiterById = Object.fromEntries(recruiters.map((r) => [r.id, r]));
+
+  const statusLabel = (status) => {
+    const s = upper(status);
+    if (s === 'ACTIVE') return 'Active';
+    if (s === 'PENDING') return 'Pending';
+    if (s === 'BLOCKED') return 'Blocked';
+    if (s === 'REJECTED') return 'Rejected';
+    if (s === 'INACTIVE') return 'Inactive';
+    return status || 'Unknown';
+  };
+
+  const statusColor = (status) => {
+    const s = upper(status);
+    if (s === 'ACTIVE') return 'green';
+    if (s === 'PENDING') return 'amber';
+    if (s === 'BLOCKED' || s === 'REJECTED') return 'red';
+    return 'gray';
+  };
+
+  let managers = [...managerMap.values()].map((m) => {
+    let name = 'Unknown';
+    let adminStatus = null;
+
+    if (m.userId && adminByUserId[m.userId]) {
+      const a = adminByUserId[m.userId];
+      name = a.name || a.user?.displayName || a.user?.email || 'Unknown';
+      adminStatus = a.user?.status || null;
+    } else if (m.recruiterId && recruiterById[m.recruiterId]) {
+      const r = recruiterById[m.recruiterId];
+      name = r.user?.displayName || r.companyName || r.user?.email || 'Unknown';
+      adminStatus = r.user?.status || null;
+    }
+
+    const breakdown = [
+      { label: 'Admin Status', value: statusLabel(adminStatus), color: statusColor(adminStatus) },
+      { label: 'Companies Onboarded', count: m.companies.size, color: 'green' },
+      { label: 'Applications Shared', count: m.applicationsShared, color: 'blue' },
+      { label: 'Students Placed', count: m.studentsPlaced, color: 'green' },
+      { label: 'Interviews Scheduled', count: m.scheduledKeys.size, color: 'blue' },
+      { label: 'Transitions', count: m.transitions, color: 'green' },
+      { label: 'In Process', count: m.inProcess, color: 'blue' },
+      { label: 'Closed Drives', count: m.closedDrives, color: 'gray' },
+      { label: 'Hold', count: m.hold, color: 'amber' },
+      { label: 'Yet to Start', count: m.yetToStart, color: 'amber' },
+    ];
+
+    return {
+      id: m.userId || m.recruiterId || m.key,
+      name,
+      adminStatus,
+      adminStatusLabel: statusLabel(adminStatus),
+      count: m.jdsPunched,
+      breakdown,
+    };
+  });
+
+  if (search) {
+    const q = search.toLowerCase();
+    managers = managers.filter((m) => m.name.toLowerCase().includes(q));
+  }
+
+  managers.sort((a, b) => b.count - a.count);
+  const totalJds = managers.reduce((s, m) => s + m.count, 0);
 
   return {
     jdsPunched: totalJds,
-    managers: sorted.map((g) => ({
-      id: g.recruiterId,
-      name:
-        byId[g.recruiterId]?.user?.displayName
-        || byId[g.recruiterId]?.companyName
-        || byId[g.recruiterId]?.user?.email
-        || 'Unknown',
-      count: g._count.id,
-    })),
+    managers: managers.slice(0, 20),
   };
 }
 

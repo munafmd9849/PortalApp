@@ -60,31 +60,47 @@ export const getDashboardStats = async (req, res) => {
         };
 
         // --- PHASE 1: Run all independent stats in parallel ---
+        const postedJobWhere = {
+            OR: [{ isPosted: true }, { status: { equals: 'POSTED' } }],
+        };
+
         const [
             totalJobsPosted,
             activeRecruiters,
             activeStudents,
+            totalStudents,
+            blockedStudents,
+            pendingStudents,
+            rejectedStudents,
             pendingQueries,
             totalApplications,
             placedStudentsResult,
             queryVolumeGroup,
             topRecruitersWithJobs,
         ] = await Promise.all([
-            prisma.job.count({
-                where: {
-                    OR: [{ isPosted: true }, { status: { equals: 'POSTED' } }],
-                },
-            }),
-            prisma.recruiter.count({
-                where: {
-                    user: { status: { in: ['ACTIVE', 'PENDING'] } },
-                },
-            }),
+            prisma.job.count({ where: postedJobWhere }),
+            prisma.company.count({
+                where: { jobs: { some: postedJobWhere } },
+            }).catch(() =>
+                prisma.recruiter.count({
+                    where: { jobs: { some: postedJobWhere } },
+                }),
+            ),
             prisma.student.count({
                 where: {
                     ...studentWhere,
                     user: { status: { equals: 'ACTIVE' } },
                 },
+            }),
+            prisma.student.count({ where: studentWhere }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'BLOCKED' } } },
+            }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'PENDING' } } },
+            }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'REJECTED' } } },
             }),
             prisma.studentQuery.count({
                 where: {
@@ -353,6 +369,10 @@ export const getDashboardStats = async (req, res) => {
                 totalJobsPosted,
                 activeRecruiters,
                 activeStudents,
+                totalStudents,
+                blockedStudents,
+                pendingStudents,
+                rejectedStudents,
                 pendingQueries,
                 totalApplications,
                 placedStudents,

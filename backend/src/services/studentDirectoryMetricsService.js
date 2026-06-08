@@ -431,7 +431,14 @@ export async function getStudentDirectory(query = {}) {
   const limit = Math.min(500, Math.max(1, parseInt(query.limit, 10) || 50));
   const where = buildDirectoryWhere(query);
 
-  const [activeJobSkills, total, students] = await Promise.all([
+  const summaryQuery = { ...query };
+  delete summaryQuery.status;
+  delete summaryQuery.csStatus;
+  delete summaryQuery.activityTier;
+  delete summaryQuery.tier;
+  const summaryWhere = buildDirectoryWhere(summaryQuery);
+
+  const [activeJobSkills, total, students, summaryTotal, activeStudents, blockedStudents, pendingStudents, rejectedStudents] = await Promise.all([
     fetchActiveJobSkills(),
     prisma.student.count({ where }),
     prisma.student.findMany({
@@ -441,6 +448,11 @@ export async function getStudentDirectory(query = {}) {
       skip: (page - 1) * limit,
       take: limit,
     }),
+    prisma.student.count({ where: summaryWhere }),
+    prisma.student.count({ where: { ...summaryWhere, user: { status: 'ACTIVE' } } }),
+    prisma.student.count({ where: { ...summaryWhere, user: { status: 'BLOCKED' } } }),
+    prisma.student.count({ where: { ...summaryWhere, user: { status: 'PENDING' } } }),
+    prisma.student.count({ where: { ...summaryWhere, user: { status: 'REJECTED' } } }),
   ]);
 
   const userIds = students.map((s) => s.userId).filter(Boolean);
@@ -469,6 +481,13 @@ export async function getStudentDirectory(query = {}) {
 
   return {
     students: filtered,
+    summary: {
+      totalStudents: summaryTotal,
+      activeStudents,
+      blockedStudents,
+      pendingStudents,
+      rejectedStudents,
+    },
     pagination: {
       page,
       limit,

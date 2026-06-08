@@ -139,8 +139,30 @@ export default function AdminHome() {
 
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
 
+  const insightTone = (kind, value) => {
+    const n = Number(value) || 0;
+    if (kind === 'recruiters') return n > 0 ? 'good' : 'bad';
+    if (kind === 'placementRate') return n >= 40 ? 'good' : n >= 15 ? 'warn' : 'bad';
+    if (kind === 'pendingQueries') return n === 0 ? 'good' : 'bad';
+    if (kind === 'avgApplications') return n >= 2 ? 'good' : n >= 1 ? 'warn' : 'bad';
+    return 'neutral';
+  };
+
+  const INSIGHT_TONES = {
+    good: { card: 'bg-emerald-50 border border-emerald-100', iconBg: 'bg-emerald-100', icon: 'text-emerald-700', value: 'text-emerald-800', sub: 'text-emerald-600' },
+    bad: { card: 'bg-red-50 border border-red-100', iconBg: 'bg-red-100', icon: 'text-red-700', value: 'text-red-800', sub: 'text-red-600' },
+    warn: { card: 'bg-amber-50 border border-amber-100', iconBg: 'bg-amber-100', icon: 'text-amber-700', value: 'text-amber-800', sub: 'text-amber-600' },
+    neutral: { card: 'bg-sky-50 border border-sky-100', iconBg: 'bg-sky-100', icon: 'text-sky-700', value: 'text-slate-800', sub: 'text-slate-600' },
+  };
+
   // Stats with real-time data and consistent Chart.js colors
   const s = dashboardData?.stats;
+  const placementRatePct = (s?.totalApplications ?? 0) > 0
+    ? Math.round(((s?.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
+    : 0;
+  const avgApplicationsPerStudent = (s?.activeStudents ?? 0) > 0
+    ? Math.round(((s?.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
+    : 0;
   const stats = dashboardData && s ? [
     { 
       title: 'Job Postings', 
@@ -468,139 +490,58 @@ export default function AdminHome() {
           </div>
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.blueLight }}>
-                  <Users className="w-6 h-6" style={{ color: chartColors.blue }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">{s.activeRecruiters ?? 0}</h3>
-                <p className="text-sm text-gray-600">Active Recruiters</p>
-                <p className="text-xs text-gray-500 mt-1">Verified companies</p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.greenLight }}>
-                  <Target className="w-6 h-6" style={{ color: chartColors.green }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.totalApplications ?? 0) > 0 
-                    ? Math.round(((s.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
-                    : 0}%
-                </h3>
-                <p className="text-sm text-gray-600">Placement Rate</p>
-                <p className="text-xs text-gray-500 mt-1">Success ratio</p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.purpleLight }}>
-                  <MessageSquare className="w-6 h-6" style={{ color: chartColors.purple }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.pendingQueries ?? 0) === 0 ? '✅' : (s.pendingQueries ?? 0)}
-                </h3>
-                <p className="text-sm text-gray-600">Support Queue</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {(s.pendingQueries ?? 0) === 0 ? 'All caught up!' : 'Queries pending'}
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.redLight }}>
-                  <TrendingUp className="w-6 h-6" style={{ color: chartColors.red }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.activeStudents ?? 0) > 0 
-                    ? Math.round(((s.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
-                    : 0}
-                </h3>
-                <p className="text-sm text-gray-600">Avg Applications</p>
-                <p className="text-xs text-gray-500 mt-1">Per student</p>
-              </div>
-            </div>
-            
-            {/* Student Statistics Breakdown */}
-            {s.totalStudents !== undefined && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <Users className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-                  Student Statistics
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-700">{s.totalStudents ?? 0}</div>
-                    <div className="text-sm text-blue-600 mt-1">Total Students</div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-700">{s.activeStudents ?? 0}</div>
-                    <div className="text-sm text-green-600 mt-1">Active</div>
-                  </div>
-                  {(s.blockedStudents ?? 0) > 0 && (
-                    <div className="bg-red-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-red-700">{s.blockedStudents ?? 0}</div>
-                      <div className="text-sm text-red-600 mt-1">Blocked</div>
+              {[
+                {
+                  key: 'recruiters',
+                  icon: Users,
+                  value: s.activeRecruiters ?? 0,
+                  label: 'Companies Onboarded',
+                  sub: 'With active job postings',
+                  tone: insightTone('recruiters', s.activeRecruiters),
+                },
+                {
+                  key: 'placement',
+                  icon: Target,
+                  value: `${placementRatePct}%`,
+                  label: 'Placement Rate',
+                  sub: `${s.placedStudents ?? 0} placed of ${s.totalApplications ?? 0} applications`,
+                  tone: insightTone('placementRate', placementRatePct),
+                },
+                {
+                  key: 'support',
+                  icon: MessageSquare,
+                  value: s.pendingQueries ?? 0,
+                  label: 'Support Queue',
+                  sub: (s.pendingQueries ?? 0) === 0 ? 'No pending queries' : 'Queries awaiting response',
+                  tone: insightTone('pendingQueries', s.pendingQueries),
+                },
+                {
+                  key: 'applications',
+                  icon: TrendingUp,
+                  value: avgApplicationsPerStudent,
+                  label: 'Avg Applications',
+                  sub: `Per active student (${s.activeStudents ?? 0} active)`,
+                  tone: insightTone('avgApplications', avgApplicationsPerStudent),
+                },
+              ].map(({ key, icon: Icon, value, label, sub, tone }) => {
+                const t = INSIGHT_TONES[tone] || INSIGHT_TONES.neutral;
+                return (
+                  <div key={key} className={`rounded-xl p-4 text-center ${t.card}`}>
+                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-3 ${t.iconBg}`}>
+                      <Icon className={`w-6 h-6 ${t.icon}`} />
                     </div>
-                  )}
-                  {(s.pendingStudents ?? 0) > 0 && (
-                    <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-yellow-700">{s.pendingStudents ?? 0}</div>
-                      <div className="text-sm text-yellow-600 mt-1">Pending</div>
-                    </div>
-                  )}
-                  {(s.rejectedStudents ?? 0) > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-gray-700">{s.rejectedStudents ?? 0}</div>
-                      <div className="text-sm text-gray-600 mt-1">Rejected</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Additional Summary Info */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-center text-blue-700 mb-2">
-                    <Briefcase className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Job Market</span>
+                    <h3 className={`text-2xl font-bold mb-1 tabular-nums ${t.value}`}>{value}</h3>
+                    <p className="text-sm text-gray-700 font-medium">{label}</p>
+                    <p className={`text-xs mt-1 ${t.sub}`}>{sub}</p>
                   </div>
-                  <p className="text-blue-600">
-                    {s.totalJobsPosted ?? 0} active positions from {s.activeRecruiters ?? 0} companies
-                  </p>
-                </div>
-                
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="flex items-center text-green-700 mb-2">
-                    <Users className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Student Activity</span>
-                  </div>
-                  <p className="text-green-600">
-                    {s.activeStudents ?? 0} active out of {s.totalStudents ?? 0} total students
-                  </p>
-                  {(s.blockedStudents ?? 0) > 0 && (
-                    <p className="text-xs text-red-600 mt-1">
-                      {s.blockedStudents ?? 0} blocked, {s.pendingStudents ?? 0} pending
-                    </p>
-                  )}
-                </div>
-                
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="flex items-center text-purple-700 mb-2">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Support Status</span>
-                  </div>
-                  <p className="text-purple-600">
-                    {(s.pendingQueries ?? 0) === 0 
-                      ? 'All queries resolved ✨' 
-                      : `${s.pendingQueries ?? 0} queries need attention`}
-                  </p>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
-      {/* Job Opportunities — below Key Insights / Student Statistics */}
+      {/* Job Opportunities — below Key Insights */}
       {isAdminUser && <JobOpportunitiesSection embedded />}
 
       {/* School Performance Radar Chart */}
