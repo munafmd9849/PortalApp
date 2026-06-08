@@ -6,6 +6,10 @@
 
 import prisma from '../config/database.js';
 import {
+  appendMockEventsFromSlots,
+  buildMockInterviewsFromSlots,
+} from './studentDirectoryPanelService.js';
+import {
   buildStudentFilterWhere,
   scoreStudentRecord,
   fetchActiveJobSkills,
@@ -69,6 +73,14 @@ const studentIncludeForDirectory = {
   activityLogs: {
     orderBy: { occurredAt: 'desc' },
     take: 200,
+  },
+  mockInterviewSlots: {
+    where: { status: 'COMPLETED' },
+    orderBy: { startTime: 'desc' },
+    include: {
+      feedback: true,
+      drive: { select: { title: true, category: true } },
+    },
   },
 };
 
@@ -157,26 +169,7 @@ export function buildActivityTimeline(student, user) {
     }
   });
 
-  (student.interviewEvaluations || []).forEach((ev) => {
-    const round = (ev.roundName || '').toUpperCase();
-    const at = ev.evaluatedAt || new Date();
-    if (round.includes('AI') || round.includes('MOCK')) {
-      events.push({
-        type: 'MOCK_AI',
-        subtype: round,
-        at,
-        meta: { status: ev.status, marks: ev.marks, synthetic: true },
-      });
-    }
-    if (round.includes('SME')) {
-      events.push({
-        type: 'MOCK_SME',
-        subtype: round,
-        at,
-        meta: { status: ev.status, marks: ev.marks, synthetic: true },
-      });
-    }
-  });
+  appendMockEventsFromSlots(events, student.mockInterviewSlots);
 
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
@@ -288,7 +281,7 @@ export function computeCsStatus(student, user, activity, placementStatus, noShow
     return { label: 'High Risk', code: 'HIGH_RISK', variant: 'red' };
   }
 
-  if (student.profileCompleted && user?.emailVerified) {
+  if (student.profileCompleted && (user?.emailVerified || user?.lastLoginAt)) {
     if (activity.tier === 'ACTIVE') {
       return { label: 'Active', code: 'ACTIVE', variant: 'green' };
     }
@@ -308,7 +301,9 @@ export function computeCsStatus(student, user, activity, placementStatus, noShow
 }
 
 export function computeActivation(student, user) {
-  const activated = Boolean(student.profileCompleted && user?.emailVerified);
+  const activated = Boolean(
+    student.profileCompleted && (user?.emailVerified || user?.lastLoginAt),
+  );
   const userActive = (user?.status || '').toUpperCase() === 'ACTIVE';
   return {
     label: activated && userActive ? 'Active' : 'Inactive',
@@ -353,15 +348,6 @@ export function computeRiskFlags(student, user, activity, applications, resumeRe
   return flags;
 }
 
-function mockLabelFromEvents(events, type, index) {
-  const mocks = events.filter((e) => e.type === type);
-  const item = mocks[index];
-  if (!item) return '--';
-  const status = item.meta?.status || item.subtype;
-  if (item.meta?.marks != null) return `${item.meta.marks}%`;
-  return status ? String(status).replace(/_/g, ' ') : 'Done';
-}
-
 export function mapStudentToDirectoryRow(
   student,
   activeJobSkills,
@@ -386,6 +372,7 @@ export function mapStudentToDirectoryRow(
   const activation = computeActivation(student, user);
   const riskFlags = computeRiskFlags(student, user, activity, applications, resumeRecord);
   const events = buildActivityTimeline(student, user);
+  const mockInterviews = buildMockInterviewsFromSlots(student.mockInterviewSlots);
 
   const jobsApplied = applications.length || student.statsApplied || 0;
   const eligibleJobs = Math.max(student.jobTracking?.length || 0, jobsApplied);
@@ -418,10 +405,8 @@ export function mapStudentToDirectoryRow(
     placementReadiness: readiness,
     placementProbability: probability,
     riskFlags,
-    aiMock1: mockLabelFromEvents(events, 'MOCK_AI', 0),
-    aiMock2: mockLabelFromEvents(events, 'MOCK_AI', 1),
-    smeMock1: mockLabelFromEvents(events, 'MOCK_SME', 0),
-    smeMock2: mockLabelFromEvents(events, 'MOCK_SME', 1),
+    mockInterviews: mockInterviews.summaryLabel,
+    mockInterviewsCount: mockInterviews.completedCount,
     jobsAssigned,
     eligibleJobs,
     jobsApplied,
@@ -434,6 +419,7 @@ export function mapStudentToDirectoryRow(
     status: userStatus === 'BLOCKED' ? 'Blocked' : userStatus === 'ACTIVE' ? 'Active' : 'Inactive',
     blockInfo: user.blockInfo,
     profileCompleted: student.profileCompleted,
+    emailVerified: Boolean(user?.emailVerified || user?.lastLoginAt),
   };
 }
 

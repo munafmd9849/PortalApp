@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
+import { getAssessmentEntryStatus, formatAssessmentWindow } from '../../../utils/assessmentEntryWindow';
 import { useToast } from '../../ui/Toast';
 
 export default function StudentAssessments() {
@@ -103,13 +104,18 @@ export default function StudentAssessments() {
         {assessments.map((item) => {
           const session = item.sessions?.[0];
           const isCompleted = session?.status === 'COMPLETED';
-          const assignment = item.assignments?.[0];
+          const assignment =
+            item.assignments?.find((a) => a.scheduledAt) ||
+            item.assignments?.find((a) => a.studentId) ||
+            item.assignments?.[0];
           const scheduledAt = assignment?.scheduledAt;
           const status = getStatusConfig(session?.status);
-          
-          // Allow joining if no schedule is set OR if it's within 15 mins of start time
-          const canJoin = !scheduledAt || (new Date(scheduledAt).getTime() - new Date().getTime() <= 15 * 60 * 1000);
-          const isEarly = scheduledAt && !canJoin;
+          const entry = getAssessmentEntryStatus(item);
+          const canJoin =
+            !isCompleted &&
+            (entry.status === 'ALLOWED' || entry.status === 'UNSCHEDULED');
+          const isEarly = entry.status === 'TOO_EARLY';
+          const isLate = entry.status === 'TOO_LATE';
 
           return (
             <div 
@@ -140,11 +146,18 @@ export default function StudentAssessments() {
                     <Clock className="w-4 h-4" />
                     <span className="uppercase">{item.duration} Mins</span>
                   </div>
-                  {scheduledAt && (
+                  {(item.startTime || scheduledAt) && (
                     <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
                       <Calendar className="w-3.5 h-3.5" />
                       <span className="text-[10px] font-bold uppercase">
-                        {new Date(scheduledAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {item.startTime
+                          ? formatAssessmentWindow(item.startTime)
+                          : new Date(scheduledAt).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                       </span>
                     </div>
                   )}
@@ -167,19 +180,24 @@ export default function StudentAssessments() {
                      </button>
                   </div>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => canJoin && navigate(`/assessment/${item.id}`)}
-                    disabled={isEarly}
+                    disabled={isEarly || isLate}
                     className={`w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 ${
-                      isEarly 
-                        ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed' 
+                      isEarly || isLate
+                        ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
                         : 'bg-slate-900 text-white shadow-lg shadow-slate-900/10 hover:bg-indigo-600 hover:shadow-indigo-500/20'
                     }`}
                   >
                     {isEarly ? (
                       <>
                         <Lock className="w-4 h-4" />
-                        Window Not Open
+                        Opens {formatAssessmentWindow(entry.entryOpensAt)}
+                      </>
+                    ) : isLate ? (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        Entry closed
                       </>
                     ) : (
                       <>

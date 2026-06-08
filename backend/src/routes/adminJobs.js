@@ -16,8 +16,15 @@ const router = express.Router({ mergeParams: true });
 router.get(
   '/jobs/:jobId/applications',
   authenticate,
-  requireRole(['ADMIN', 'RECRUITER']),
+  requireRole(['ADMIN', 'RECRUITER', 'SUPER_ADMIN']),
   applicationController.getAdminJobApplications
+);
+
+router.get(
+  '/jobs/:jobId/applications/:applicationId',
+  authenticate,
+  requireRole(['ADMIN', 'RECRUITER', 'SUPER_ADMIN']),
+  applicationController.getAdminJobApplicationDetail
 );
 
 // PATCH /api/admin/jobs/:jobId/note - Admin post-drive note (visible in Applicants section)

@@ -93,36 +93,17 @@ export default function ManageJobs() {
   const batchDropdownRefs = useRef({});
   const centerDropdownRefs = useRef({});
 
-  // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
 
-        // Use only predefined options (no database fetching)
-        const schoolOptionsArray = [
-          { id: 'ALL', display: 'All', storage: 'ALL' },
-          { id: 'SOT', display: 'SOT', storage: 'SOT' },
-          { id: 'SOM', display: 'SOM', storage: 'SOM' },
-          { id: 'SOH', display: 'SOH', storage: 'SOH' }
-        ];
-
-        const batchOptionsArray = [
-          { id: 'ALL', display: 'All', storage: 'ALL' },
-          { id: '23-27', display: '23-27', storage: '23-27' },
-          { id: '24-28', display: '24-28', storage: '24-28' },
-          { id: '25-29', display: '25-29', storage: '25-29' },
-          { id: '26-30', display: '26-30', storage: '26-30' }
-        ];
-
-        const centerOptionsArray = [
-          { id: 'ALL', display: 'All Centers', storage: 'ALL' },
-          { id: 'BANGALORE', display: 'Bangalore', storage: 'BANGALORE' },
-          { id: 'NOIDA', display: 'Noida', storage: 'NOIDA' },
-          { id: 'LUCKNOW', display: 'Lucknow', storage: 'LUCKNOW' },
-          { id: 'PUNE', display: 'Pune', storage: 'PUNE' }
-        ];
-        
+        const { fetchAcademicOptions, buildManageJobsFilterOptions } = await import(
+          '../../../utils/academicOptions'
+        );
+        const raw = await fetchAcademicOptions();
+        const { schoolOptions: schoolOptionsArray, batchOptions: batchOptionsArray, centerOptions: centerOptionsArray } =
+          buildManageJobsFilterOptions(raw);
 
         setSchoolOptions(schoolOptionsArray);
         setBatchOptions(batchOptionsArray);
@@ -147,7 +128,7 @@ export default function ManageJobs() {
         }
 
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ ManageJobs filter options loaded (predefined + admins if Super)');
+          console.log('✅ ManageJobs filter options loaded from academic structure API');
         }
 
       } finally {

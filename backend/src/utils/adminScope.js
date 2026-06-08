@@ -51,10 +51,13 @@ export function getAdminScopeFilter(admin, userRole) {
  * @param {string} permission - The permission string to check
  */
 export function hasPermission(admin, userRole, permission) {
+  // Super admin bypass
   if (userRole === 'SUPER_ADMIN') return true;
   if (!admin) return false;
 
   const permissions = safeParse(admin.permissions);
+  // Treat '*' as wildcard (all permissions)
+  if (permissions.includes('*')) return true;
   return permissions.includes(permission);
 }
 

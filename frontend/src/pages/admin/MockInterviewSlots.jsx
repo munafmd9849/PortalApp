@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
+import { toDatetimeLocalValue, datetimeLocalToISO } from '../../utils/datetimeLocal';
 
 export default function MockInterviewSlots() {
   const [searchParams] = useSearchParams();
@@ -80,16 +81,36 @@ export default function MockInterviewSlots() {
   };
 
   const handleUpdateTiming = async () => {
+    const startISO = datetimeLocalToISO(editTiming.startTime);
+    const endISO = datetimeLocalToISO(editTiming.endTime);
+    if (!startISO || !endISO) {
+      toast.error('Please set valid start and end times');
+      return;
+    }
+    if (new Date(endISO) <= new Date(startISO)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
     try {
-      setLoading(true);
-      await api.updateMockInterviewSlot(editingSlot.id, editTiming);
+      const updated = await api.updateMockInterviewSlot(editingSlot.id, {
+        startTime: startISO,
+        endTime: endISO,
+      });
       toast.success('Interview timing updated successfully');
       setEditingSlot(null);
-      loadData();
+      setDrive((prev) => {
+        if (!prev?.slots) return prev;
+        return {
+          ...prev,
+          slots: prev.slots
+            .map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+            .sort((a, b) => new Date(a.startTime) - new Date(b.startTime)),
+        };
+      });
+      await loadData();
     } catch (err) {
-      toast.error('Failed to update timing');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'Failed to update timing');
     }
   };
 
@@ -203,8 +224,8 @@ export default function MockInterviewSlots() {
                     onClick={() => {
                       setEditingSlot(slot);
                       setEditTiming({
-                        startTime: slot.startTime ? new Date(slot.startTime).toISOString().slice(0, 16) : '',
-                        endTime: slot.endTime ? new Date(slot.endTime).toISOString().slice(0, 16) : ''
+                        startTime: toDatetimeLocalValue(slot.startTime),
+                        endTime: toDatetimeLocalValue(slot.endTime),
                       });
                     }}
                     className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
@@ -267,7 +288,11 @@ export default function MockInterviewSlots() {
                       </button>
                     )}
                     {slot.status === 'COMPLETED' && (
-                      <button className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-indigo-100 transition-all active:scale-95">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/mock-interviews/${id}/results?slot=${slot.id}`)}
+                        className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-indigo-100 transition-all active:scale-95"
+                      >
                         <CheckCircle2 className="w-3.5 h-3.5" /> View Feedback
                       </button>
                     )}

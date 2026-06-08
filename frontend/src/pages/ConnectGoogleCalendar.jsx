@@ -20,6 +20,13 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ui/Toast';
 import CustomCalendar from '../components/calendar/CustomCalendar';
 import EventCreationModal from '../components/calendar/EventCreationModal';
+import DirectoryLoadingPanel from '../components/dashboard/admin/DirectoryLoading';
+import {
+  consumeCalendarOAuthResult,
+  isAllowedCalendarOAuthOrigin,
+  peekCalendarOAuthResult,
+  saveCalendarOAuthReturnPath,
+} from '../utils/calendarOAuth';
 
 // Simple logger for frontend
 const logger = {
@@ -29,7 +36,7 @@ const logger = {
 };
 
 const ConnectGoogleCalendar = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const [connected, setConnected] = useState(null); // null = checking, true/false = status
   const [hasFullScope, setHasFullScope] = useState(null); // null = unknown, true/false = scope status
@@ -42,51 +49,84 @@ const ConnectGoogleCalendar = () => {
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null); // Error message state
-  const popupTimeoutRef = useRef(null); // Store timeout reference for cleanup
+  const popupTimeoutRef = useRef(null);
+  const statusRequestIdRef = useRef(0);
+  const lastVisibilityCheckRef = useRef(0);
 
-  // Check calendar connection status on mount and listen for OAuth result
+  // Prevent page scroll on connect gate (loading / not connected)
   useEffect(() => {
-    checkCalendarStatus();
+    if (connected !== true) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+    return undefined;
+  }, [connected]);
 
-    const handleOAuthResult = (result) => {
-      if (popupTimeoutRef.current) {
-        clearTimeout(popupTimeoutRef.current);
-        popupTimeoutRef.current = null;
-      }
-      setConnecting(false);
-      if (result?.status === 'SUCCESS') {
-        logger.info('Calendar connection successful', { calendarEmail: result.calendarEmail });
-        if (toast) toast.success('Google Calendar connected successfully!', 'Success');
-        checkCalendarStatus();
-        setErrorMessage(null);
-      } else if (result?.status === 'FAILED') {
-        let errorMsg = result.error || 'Failed to connect Google Calendar';
-        if (result.reason === 'EMAIL_MISMATCH') {
-          errorMsg = `Calendar connection failed. Use your registered email.\n\nGoogle Account Used: ${result.calendarEmail || 'N/A'}\n\nPlease connect using the same email address you used to register.`;
-        } else if (result.reason === 'EMAIL_NOT_VERIFIED') {
-          errorMsg = 'Google account email is not verified. Please verify your email with Google and try again.';
-        } else if (result.reason === 'EMAIL_NOT_RETURNED') {
-          errorMsg = result.error || 'Could not verify Google account email. Please try again.';
-        }
-        setErrorMessage(errorMsg);
-        setConnected(false);
-        setHasFullScope(null);
-        setConnectedGoogleEmail(null);
-        logger.warn('Calendar connection failed', { reason: result.reason, error: result.error, calendarEmail: result.calendarEmail });
-      }
-    };
+  const applyOAuthResult = (result) => {
+    if (!result || result.type !== 'GOOGLE_CALENDAR_RESULT') return;
 
-    // 1) Direct postMessage - receives when popup posts to this window (opener)
+    if (popupTimeoutRef.current) {
+      clearTimeout(popupTimeoutRef.current);
+      popupTimeoutRef.current = null;
+    }
+    setConnecting(false);
+
+    if (result.status === 'SUCCESS') {
+      logger.info('Calendar connection successful', { calendarEmail: result.calendarEmail });
+      if (toast) toast.success('Google Calendar connected successfully!', 'Success');
+      setConnected(true);
+      setConnectedGoogleEmail(result.calendarEmail || null);
+      setHasFullScope(true);
+      setErrorMessage(null);
+      checkCalendarStatus();
+      return;
+    }
+
+    if (result.status === 'FAILED') {
+      let errorMsg = result.error || 'Failed to connect Google Calendar';
+      if (result.reason === 'EMAIL_MISMATCH') {
+        errorMsg = `Calendar connection failed. Use your registered email.\n\nGoogle Account Used: ${result.calendarEmail || 'N/A'}\n\nPlease connect using the same email address you used to register.`;
+      } else if (result.reason === 'EMAIL_NOT_VERIFIED') {
+        errorMsg = 'Google account email is not verified. Please verify your email with Google and try again.';
+      } else if (result.reason === 'EMAIL_NOT_RETURNED') {
+        errorMsg = result.error || 'Could not verify Google account email. Please try again.';
+      }
+      setErrorMessage(errorMsg);
+      setConnected(false);
+      setHasFullScope(null);
+      setConnectedGoogleEmail(null);
+      logger.warn('Calendar connection failed', {
+        reason: result.reason,
+        error: result.error,
+        calendarEmail: result.calendarEmail,
+      });
+    }
+  };
+
+  // Status + OAuth listeners (after auth is ready)
+  useEffect(() => {
+    if (authLoading) return undefined;
+
+    const pending = consumeCalendarOAuthResult();
+    if (pending) {
+      applyOAuthResult(pending);
+    } else {
+      checkCalendarStatus();
+    }
+
     const handleMessage = (event) => {
+      if (!isAllowedCalendarOAuthOrigin(event.origin)) return;
       if (event.data?.type === 'GOOGLE_CALENDAR_RESULT') {
-        handleOAuthResult(event.data);
+        applyOAuthResult(event.data);
       }
     };
 
-    // 2) Custom event - fallback when App dispatches (e.g. after tab switch)
     const handleOAuthComplete = (e) => {
       if (e.detail?.type === 'GOOGLE_CALENDAR_RESULT') {
-        handleOAuthResult(e.detail);
+        applyOAuthResult(e.detail);
       }
     };
 
@@ -96,29 +136,73 @@ const ConnectGoogleCalendar = () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('calendar-oauth-complete', handleOAuthComplete);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
 
-  // Refetch calendar status when tab becomes visible (handles case where user switched tabs during OAuth)
+  useEffect(() => {
+    if (authLoading || connected !== null) return undefined;
+    const t = setTimeout(() => {
+      setConnected(false);
+      setErrorMessage('Could not verify calendar status. Please try again.');
+    }, 20000);
+    return () => clearTimeout(t);
+  }, [authLoading, connected]);
+
+  const syncAfterOAuthPopup = () => {
+    const pending = consumeCalendarOAuthResult();
+    if (pending) {
+      applyOAuthResult(pending);
+      return true;
+    }
+    if (connecting) {
+      checkCalendarStatus();
+    }
+    return false;
+  };
+
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkCalendarStatus();
+      if (document.visibilityState !== 'visible' || authLoading) return;
+      const now = Date.now();
+      const debounceMs = connecting ? 300 : 3000;
+      if (now - lastVisibilityCheckRef.current < debounceMs) return;
+      lastVisibilityCheckRef.current = now;
+      syncAfterOAuthPopup();
+    };
+
+    const handleWindowFocus = () => {
+      if (authLoading) return;
+      if (connecting || peekCalendarOAuthResult()) {
+        syncAfterOAuthPopup();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
 
-  // Fetch events when connected
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connecting, authLoading]);
+
+  // Poll localStorage while OAuth popup is open (opener/postMessage often lost after Google redirect)
+  useEffect(() => {
+    if (!connecting || authLoading) return undefined;
+    const id = setInterval(() => {
+      if (peekCalendarOAuthResult()) {
+        syncAfterOAuthPopup();
+      }
+    }, 500);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connecting, authLoading]);
+
+  // Fetch events once when connection becomes true
   useEffect(() => {
     if (connected === true) {
-      // Small delay to ensure status is synced
-      const timer = setTimeout(() => {
-        fetchEvents();
-      }, 100);
-      return () => clearTimeout(timer);
-    } else {
-      // Clear events if not connected
+      fetchEvents();
+    } else if (connected === false) {
       setEvents([]);
     }
   }, [connected]);
@@ -127,36 +211,38 @@ const ConnectGoogleCalendar = () => {
    * Check if calendar is connected
    */
   const checkCalendarStatus = async () => {
+    const requestId = ++statusRequestIdRef.current;
     try {
       const response = await api.get('/calendar/status');
-      const isConnected = response.data.connected;
-      const scopeStatus = response.data.hasFullScope;
-      const googleEmail = response.data.connectedGoogleEmail;
-      const regEmail = response.data.registeredEmail;
-      setConnected(isConnected);
-      setHasFullScope(scopeStatus);
-      setConnectedGoogleEmail(googleEmail || null);
+      if (requestId !== statusRequestIdRef.current) return;
+
+      const isConnected = Boolean(response.data?.connected);
+      const scopeStatus = response.data?.hasFullScope;
+      const googleEmail = response.data?.connectedGoogleEmail;
+      const regEmail = response.data?.registeredEmail;
+
       setRegisteredEmail(regEmail || user?.email || null);
-      
-      // If status says connected but we get errors, there might be a sync issue
-      if (isConnected) {
-        // Try to fetch events to verify connection actually works
-        try {
-          await fetchEvents();
-        } catch (fetchError) {
-          // If fetch fails, status might be wrong - refresh it
-          if (fetchError.response?.status === 400 || fetchError.message?.includes('not connected')) {
-            console.warn('Status shows connected but events fetch failed - syncing status');
-            const recheck = await api.get('/calendar/status');
-            setConnected(recheck.data.connected);
-            setHasFullScope(recheck.data.hasFullScope);
-          }
-        }
+      setConnectedGoogleEmail(googleEmail || null);
+      setHasFullScope(scopeStatus ?? null);
+
+      if (response.data?.emailMismatch) {
+        setErrorMessage(
+          `Use your registered email to connect (${regEmail || user?.email || 'your account email'}).`,
+        );
+        setConnected(false);
+        return;
+      }
+
+      setConnected(isConnected);
+      if (!isConnected) {
+        setEvents([]);
       }
     } catch (error) {
+      if (requestId !== statusRequestIdRef.current) return;
       console.error('Error checking calendar status:', error);
       setConnected(false);
       setHasFullScope(null);
+      setErrorMessage('Unable to check calendar status. Please refresh and try again.');
     }
   };
 
@@ -196,22 +282,22 @@ const ConnectGoogleCalendar = () => {
   const handleConnect = async () => {
     try {
       setConnecting(true);
+      setErrorMessage(null);
+      saveCalendarOAuthReturnPath(`${window.location.pathname}${window.location.search}`);
 
-      // Fetch OAuth URL from backend
       const response = await api.get('/calendar/oauth-url');
       const authUrl = response.data.url;
 
-      // Calculate popup position (centered)
-      const width = 600;
-      const height = 700;
-      const left = (window.screen.width - width) / 2;
-      const top = (window.screen.height - height) / 2;
+      const width = 520;
+      const height = 680;
+      const left = Math.max(0, (window.screen.width - width) / 2);
+      const top = Math.max(0, (window.screen.height - height) / 2);
+      const popupName = 'Google Calendar Authorization';
 
-      // Open popup window
       const popup = window.open(
         authUrl,
-        'Google Calendar Authorization',
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+        popupName,
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`,
       );
 
       if (!popup) {
@@ -259,43 +345,50 @@ const ConnectGoogleCalendar = () => {
   const fetchEvents = async () => {
     try {
       setLoadingEvents(true);
+      const now = new Date();
+      const timeMin = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
+      const timeMax = new Date(now.getFullYear(), now.getMonth() + 7, 0, 23, 59, 59).toISOString();
+
       const response = await api.get('/calendar/events', {
         params: {
-          maxResults: 250, // Get more events for calendar view
+          timeMin,
+          timeMax,
+          maxResults: 100,
         },
       });
       setEvents(response.data.events || []);
+      setErrorMessage(null);
     } catch (error) {
       console.error('Error fetching events:', error);
-      
-      // Handle different error cases
-      if (error.response?.status === 400) {
-        // Calendar not connected - this is expected, don't show error
-        console.log('Calendar not connected yet');
-        setEvents([]);
-      } else if (error.response?.status === 401) {
-        // Authentication failed - need to reconnect
-        setErrorMessage('Calendar authentication expired. Please reconnect your Google Calendar.');
-        setConnected(false);
-        checkCalendarStatus(); // Sync status
-      } else if (error.response?.status === 400 && error.response?.data?.message?.includes('not connected')) {
-        // Calendar not connected - sync status
+
+      const code = error.response?.data?.code;
+      const msg = error.response?.data?.message || '';
+
+      if (error.response?.status === 403 && (code === 'RECONNECT_REQUIRED' || msg.includes('not connected'))) {
         setConnected(false);
         setHasFullScope(null);
-        checkCalendarStatus(); // Sync status
-      } else if (error.response?.status === 403 && error.response?.data?.requiresReconnect) {
-        // Insufficient scope - update status
-        setHasFullScope(false);
-        checkCalendarStatus(); // Sync status
-      } else {
-        // Other errors - show message
-        const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch calendar events.';
-        console.error('Full error:', error.response?.data || error);
-        // Don't show error for "not connected" as it's handled above
-        if (!errorMessage.includes('not connected')) {
-          setErrorMessage(`Error: ${errorMessage}`);
-        }
+        setEvents([]);
+        setErrorMessage(
+          msg.includes('registered email')
+            ? msg
+            : 'Please reconnect Google Calendar using your registered email.',
+        );
+        return;
       }
+
+      if (error.response?.status === 401 || code === 'RECONNECT_REQUIRED') {
+        setConnected(false);
+        setHasFullScope(null);
+        setEvents([]);
+        setErrorMessage('Calendar authentication expired. Please reconnect your Google Calendar.');
+        return;
+      }
+
+      const errMsg = error.response?.data?.message || error.message || 'Failed to fetch calendar events.';
+      if (!errMsg.toLowerCase().includes('not connected')) {
+        setErrorMessage(errMsg);
+      }
+      setEvents([]);
     } finally {
       setLoadingEvents(false);
     }
@@ -324,87 +417,86 @@ const ConnectGoogleCalendar = () => {
     checkCalendarStatus();
   };
 
-  // Show loading state while checking connection
-  if (connected === null) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Checking Calendar Connection</h2>
-          <p className="text-gray-600">Please wait...</p>
-        </div>
-      </div>
+  const connectGateShell = (content) => (
+    <div
+      className="-m-3 flex w-[calc(100%+1.5rem)] items-center justify-center overflow-hidden sm:-m-6 sm:w-[calc(100%+3rem)] md:-m-8 md:w-[calc(100%+4rem)]"
+      style={{ height: 'calc(100dvh - 6.5rem)', maxHeight: 'calc(100dvh - 6.5rem)' }}
+    >
+      <div className="w-full max-w-lg shrink-0 px-4">{content}</div>
+    </div>
+  );
+
+  if (authLoading || connected === null) {
+    return connectGateShell(
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <FaSpinner className="mx-auto mb-4 h-9 w-9 animate-spin text-indigo-600" />
+        <h2 className="font-outfit text-xl font-bold text-slate-900">Checking calendar</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          {authLoading ? 'Signing you in…' : 'Please wait a moment…'}
+        </p>
+      </div>,
     );
   }
 
   // Show connect button if not connected
   if (connected === false) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
-          {/* Error Message */}
-          {errorMessage && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg relative">
-              <button
-                onClick={() => setErrorMessage(null)}
-                className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded transition-colors"
-                title="Dismiss"
-              >
-                <FaTimes className="text-red-600 text-sm" />
-              </button>
-              <div className="flex items-start gap-3 pr-6">
-                <FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-800">{errorMessage}</p>
-                  <button
-                    onClick={() => setErrorMessage(null)}
-                    className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
+    return connectGateShell(
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {errorMessage && (
+          <div className="relative max-h-24 overflow-y-auto border-b border-rose-100 bg-rose-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="absolute right-3 top-3 rounded-lg p-1 text-rose-500 hover:bg-rose-100"
+              title="Dismiss"
+            >
+              <FaTimes className="text-sm" />
+            </button>
+            <p className="pr-8 text-sm leading-relaxed text-rose-900 whitespace-pre-line">{errorMessage}</p>
+          </div>
+        )}
+
+        <div className="p-6">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+              <FaCalendar className="h-6 w-6" />
+            </div>
+            <h1 className="font-outfit text-2xl font-bold text-slate-900">Connect Google Calendar</h1>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+              Connect your Google Calendar to view and manage your events in one place.
+            </p>
+          </div>
+
+          {registeredEmail && (
+            <div className="mt-5 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Registered email</p>
+              <p className="mt-1 break-all text-sm font-medium text-slate-800">{registeredEmail}</p>
+              <p className="mt-1.5 text-xs text-amber-900/90">Use this exact Gmail account when signing in with Google.</p>
             </div>
           )}
 
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <FaCalendar className="text-3xl text-blue-600" />
+          {connecting ? (
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
+              <FaSpinner className="mx-auto h-5 w-5 animate-spin text-indigo-600" />
+              <p className="mt-2 text-sm font-semibold text-slate-800">Connecting to Google…</p>
+              <p className="mt-1 text-xs text-slate-600">Complete sign-in in the popup window.</p>
             </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Connect Google Calendar</h1>
-            <p className="text-gray-600 mb-2">
-              Connect your Google Calendar to view and manage your events in one place.
-            </p>
-            {registeredEmail && (
-              <p className="text-sm text-gray-500">
-                <span className="font-medium">Important:</span> You must connect using the same email address you registered with: <span className="font-semibold text-gray-700">{registeredEmail}</span>
-              </p>
-            )}
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnect}
+              className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-200/50 transition-all hover:bg-indigo-700 active:scale-[0.99]"
+            >
+              <FaGoogle className="h-4 w-4" />
+              Connect Google Calendar
+            </button>
+          )}
 
-          <button
-            onClick={handleConnect}
-            disabled={connecting}
-            className="w-full py-3 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold transition-colors"
-          >
-            {connecting ? (
-              <>
-                <FaSpinner className="animate-spin" />
-                <span>Connecting...</span>
-              </>
-            ) : (
-              <>
-                <FaGoogle />
-                <span>Connect Google Calendar</span>
-              </>
-            )}
-          </button>
-
-          <p className="text-xs text-gray-500 text-center mt-4">
-            A popup window will open for authorization. Please allow popups for this site.
+          <p className="mt-3 text-center text-xs text-slate-500">
+            A popup will open for authorization. Please allow popups for this site.
           </p>
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -554,7 +646,12 @@ const ConnectGoogleCalendar = () => {
           </div>
         </div>
 
-        {/* Custom Calendar Component */}
+        {loadingEvents && events.length === 0 ? (
+          <DirectoryLoadingPanel
+            title="Loading your calendar..."
+            subtitle="Fetching events from Google Calendar"
+          />
+        ) : (
         <CustomCalendar
           events={events}
           onDateClick={handleDateClick}
@@ -605,6 +702,7 @@ const ConnectGoogleCalendar = () => {
           }}
           userRole={user?.role}
         />
+        )}
       </div>
 
       {/* Event Creation Modal */}

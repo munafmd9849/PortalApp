@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
+    "postinstall": "prisma generate",
     "build": "prisma generate",
     "start": "node src/server.js",
     "db:migrate": "prisma migrate dev",
@@ -33,6 +34,7 @@
     "db:fix-screening": "node scripts/fixScreeningFinalization.js",
     "db:check-qualified": "node scripts/checkJobQualifiedCandidates.js",
     "db:create-applications": "node scripts/createTestApplications.js",
+    "db:seed-mixed-assessment": "node scripts/seedMixedAssessment.js",
     "db:baseline": "prisma migrate resolve --applied",
     "worker": "node src/workers/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",

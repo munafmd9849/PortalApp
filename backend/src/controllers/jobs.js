@@ -11,7 +11,7 @@ import { createNotification } from './notifications.js';
 import logger from '../config/logger.js';
 import { sendServerError } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
-import { rankCandidatesForJob } from '../services/recommendationService.js';
+//import { rankCandidatesForJob } from '../services/recommendationService.js';
 import { getIO } from '../config/socket.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
 import { applyAuditContext } from '../utils/auditContext.js';
@@ -281,6 +281,17 @@ export async function getJobs(req, res) {
  * Get targeted jobs for student
  * Replaces: loadJobsData() with targeting logic
  */
+
+function normalizeValue(value) {
+  return String(value || '').toLowerCase().trim();
+}
+
+function nameMatches(targets, value) {
+  if (!value || !Array.isArray(targets) || targets.length === 0) return false;
+  const normalized = normalizeValue(value);
+  return targets.some((t) => normalizeValue(t) === normalized);
+}
+
 export async function getTargetedJobs(req, res) {
   try {
     const userId = req.userId;
@@ -349,7 +360,7 @@ export async function getTargetedJobs(req, res) {
         }
       },
       orderBy: { postedAt: 'desc' },
-      take: 200, // Get more to filter in memory
+      take: 500,
     });
 
     // Filter jobs based on targeting (handle JSON-string fields)
@@ -426,15 +437,15 @@ export async function getTargetedJobs(req, res) {
         // If IDs are present but don't match, we still check names for backward compatibility
       }
 
-      // PRIORITY 2: Match by Name (Legacy System)
-      const schoolMatchName = targetSchools.length === 0 || targetSchools.includes(school);
-      const centerMatchName = targetCenters.length === 0 || targetCenters.includes(center);
-      const batchMatchName = targetBatches.length === 0 || targetBatches.includes(batch);
+      // PRIORITY 2: Match by Name (Legacy System) — case-insensitive
+      const schoolMatchName = targetSchools.length === 0 || nameMatches(targetSchools, school);
+      const centerMatchName = targetCenters.length === 0 || nameMatches(targetCenters, center);
+      const batchMatchName = targetBatches.length === 0 || nameMatches(targetBatches, batch);
 
       return schoolMatchName && centerMatchName && batchMatchName;
     });
 
-    // Map flags and limit to 100 results
+    // Map flags and return all matched results (sorted by postedAt desc from query)
     const finalJobs = targetedJobs.map(job => {
       const hasTargetRecord = job.jobTargets.length > 0;
       const isRecommended = (job.visibilityMode === 'PRIORITY' || job.visibilityMode === 'priority') && hasTargetRecord;
@@ -445,7 +456,7 @@ export async function getTargetedJobs(req, res) {
         isRecommended,
         isInvited
       };
-    }).slice(0, 100);
+    });
 
     res.json(finalJobs);
   } catch (error) {
@@ -489,6 +500,15 @@ export async function getJob(req, res) {
     });
 
     if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job not found',
+        message: 'The requested job does not exist.'
+      });
+    }
+
+    // Students may only view posted jobs
+    if (req.user?.role === 'STUDENT' && (job.status !== 'POSTED' || !job.isPosted)) {
       return res.status(404).json({
         success: false,
         error: 'Job not found',
@@ -1418,10 +1438,18 @@ export async function postJob(req, res) {
       return [];
     };
 
-    const targetSchools = parseTargeting(selectedSchools);
-    const targetCenters = parseTargeting(selectedCenters);
-    const targetBatches = parseTargeting(selectedBatches);
-    const targetBranches = parseTargeting(selectedBranches);
+    const targetSchools = selectedSchools !== undefined
+      ? parseTargeting(selectedSchools)
+      : parseTargeting(existingJob.targetSchools);
+    const targetCenters = selectedCenters !== undefined
+      ? parseTargeting(selectedCenters)
+      : parseTargeting(existingJob.targetCenters);
+    const targetBatches = selectedBatches !== undefined
+      ? parseTargeting(selectedBatches)
+      : parseTargeting(existingJob.targetBatches);
+    const targetBranches = selectedBranches !== undefined
+      ? parseTargeting(selectedBranches)
+      : parseTargeting(existingJob.targetBranches);
 
     // Convert arrays to JSON strings for database storage (schema expects String)
     const targetSchoolsJson = JSON.stringify(targetSchools);
@@ -1435,6 +1463,7 @@ export async function postJob(req, res) {
       data: applyAuditContext({
         status: 'POSTED',
         isPosted: true,
+        isActive: true,
         targetSchools: targetSchoolsJson,
         targetCenters: targetCentersJson,
         targetBatches: targetBatchesJson,

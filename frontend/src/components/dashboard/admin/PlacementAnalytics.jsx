@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader2, Search, Download, Info } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
-import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 import { fetchPlacementSummary, fetchStudentsWithScores } from '../../../services/adminReadiness';
-
-const BATCH_OPTIONS = [
-  { id: '23-27', name: '2023-2027' },
-  { id: '24-28', name: '2024-2028' },
-  { id: '25-29', name: '2025-2029' },
-  { id: '26-30', name: '2026-2030' },
-];
+import { fetchAcademicOptions, buildStandardFilterOptions } from '../../../utils/academicOptions';
 
 const VALUE_COLORS = {
   green: 'text-emerald-600 font-semibold',
@@ -96,6 +89,7 @@ function ScorePill({ score, tier }) {
 
 export default function PlacementAnalytics() {
   const [filters, setFilters] = useState({ center: '', school: '', batch: '' });
+  const [academicFilters, setAcademicFilters] = useState({ centers: [], schools: [], batches: [] });
   const [tableSchool, setTableSchool] = useState('');
   const [summary, setSummary] = useState(null);
   const [students, setStudents] = useState([]);
@@ -106,6 +100,18 @@ export default function PlacementAnalytics() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [sortBy, setSortBy] = useState('readiness');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const loadAcademic = async () => {
+      try {
+        const raw = await fetchAcademicOptions();
+        setAcademicFilters(buildStandardFilterOptions(raw));
+      } catch (e) {
+        console.error('PlacementAnalytics: failed to load academic filters', e);
+      }
+    };
+    loadAcademic();
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -229,19 +235,19 @@ export default function PlacementAnalytics() {
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
           <CustomDropdown
             label="Center"
-            options={[{ id: '', name: 'All Centers' }, ...CENTER_OPTIONS]}
+            options={[{ id: '', name: 'All Centers' }, ...academicFilters.centers]}
             value={filters.center}
             onChange={(v) => { setFilters((f) => ({ ...f, center: v })); setPage(1); }}
           />
           <CustomDropdown
             label="School"
-            options={[{ id: '', name: 'All Schools' }, ...SCHOOL_OPTIONS]}
+            options={[{ id: '', name: 'All Schools' }, ...academicFilters.schools]}
             value={filters.school}
             onChange={(v) => { setFilters((f) => ({ ...f, school: v })); setPage(1); }}
           />
           <CustomDropdown
             label="Batch"
-            options={[{ id: '', name: 'All Batches' }, ...BATCH_OPTIONS]}
+            options={[{ id: '', name: 'All Batches' }, ...academicFilters.batches]}
             value={filters.batch}
             onChange={(v) => { setFilters((f) => ({ ...f, batch: v })); setPage(1); }}
           />
@@ -358,7 +364,7 @@ export default function PlacementAnalytics() {
             <div className="flex flex-wrap gap-2 items-center mt-2">
               <CustomDropdown
                 label=""
-                options={[{ id: '', name: 'All Schools' }, ...SCHOOL_OPTIONS]}
+                options={[{ id: '', name: 'All Schools' }, ...academicFilters.schools]}
                 value={tableSchool}
                 onChange={(v) => { setTableSchool(v); setPage(1); }}
                 placeholder="Select school"

@@ -22,48 +22,60 @@ export const getCalendarStatus = async (req, res) => {
 
     const userId = req.user.id;
 
-    // Check both the flag and token existence (consistent with events endpoint)
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { googleCalendarConnected: true },
-    });
-
-    const token = await prisma.googleCalendarToken.findUnique({
-      where: { userId },
-      select: { 
-        accessToken: true,
-        refreshToken: true,
-        scope: true,
+      select: {
+        email: true,
+        googleCalendarConnected: true,
+        connectedGoogleEmail: true,
+        googleCalendarToken: {
+          select: {
+            accessToken: true,
+            refreshToken: true,
+            scope: true,
+            connectedGoogleEmail: true,
+          },
+        },
       },
     });
 
-    // Sync: If flag is true but no token, set flag to false
-    if (user?.googleCalendarConnected && !token?.accessToken) {
+    const token = user?.googleCalendarToken;
+    const registeredEmail = user?.email || null;
+    const connectedGoogleEmail =
+      token?.connectedGoogleEmail || user?.connectedGoogleEmail || null;
+
+    const emailsMatch =
+      !!registeredEmail &&
+      !!connectedGoogleEmail &&
+      registeredEmail.toLowerCase().trim() === connectedGoogleEmail.toLowerCase().trim();
+
+    const hasToken = !!token?.accessToken;
+
+    // Sync stale flags
+    if (user?.googleCalendarConnected && (!hasToken || !emailsMatch)) {
       await prisma.user.update({
         where: { id: userId },
-        data: { googleCalendarConnected: false },
+        data: { googleCalendarConnected: false, connectedGoogleEmail: null },
       });
-      return res.json({ connected: false });
-    }
-
-    // Sync: If token exists but flag is false, set flag to true
-    if (token?.accessToken && !user?.googleCalendarConnected) {
+    } else if (hasToken && emailsMatch && !user?.googleCalendarConnected) {
       await prisma.user.update({
         where: { id: userId },
-        data: { googleCalendarConnected: true },
+        data: { googleCalendarConnected: true, connectedGoogleEmail },
       });
     }
 
-    // Connected only if both flag is true AND token exists with accessToken
-    const connected = !!(user?.googleCalendarConnected && token?.accessToken);
-    
-    // Check if token has full calendar scope (not readonly)
-    const hasFullScope = token?.scope?.includes('https://www.googleapis.com/auth/calendar') && 
-                         !token?.scope?.includes('readonly');
+    const connected = hasToken && emailsMatch;
 
-    res.json({ 
+    const hasFullScope =
+      token?.scope?.includes('https://www.googleapis.com/auth/calendar') &&
+      !token?.scope?.includes('readonly');
+
+    res.json({
       connected,
-      hasFullScope: connected ? hasFullScope : undefined, // Only include if connected
+      hasFullScope: connected ? hasFullScope : undefined,
+      connectedGoogleEmail: connected ? connectedGoogleEmail : null,
+      registeredEmail,
+      emailMismatch: hasToken && !emailsMatch,
     });
   } catch (error) {
     logger.error('Error checking calendar status:', error);
@@ -161,10 +173,13 @@ export const getCalendarEvents = async (req, res) => {
 
     const userEmail = user?.email || '';
 
-    // Parse query parameters
-    const timeMin = req.query.timeMin || new Date().toISOString();
-    const timeMax = req.query.timeMax || null;
-    const maxResults = parseInt(req.query.maxResults) || 250;
+    const now = new Date();
+    const defaultTimeMin = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const defaultTimeMax = new Date(now.getFullYear(), now.getMonth() + 7, 0, 23, 59, 59);
+
+    const timeMin = req.query.timeMin || defaultTimeMin.toISOString();
+    const timeMax = req.query.timeMax || defaultTimeMax.toISOString();
+    const maxResults = Math.min(parseInt(req.query.maxResults, 10) || 100, 250);
 
     // Get authenticated calendar client
     const { calendar } = await getAuthenticatedCalendarClient(userId, role);

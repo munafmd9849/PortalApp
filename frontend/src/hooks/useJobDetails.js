@@ -72,20 +72,23 @@ export function useJobDetails(jobId, fallbackJob = null, enabled = true) {
   const [error, setError] = useState(null);
   const abortControllerRef = useRef(null);
 
-  const fetchJob = useCallback(async () => {
+  const fetchJob = useCallback(async (forceNetwork = false) => {
     if (!jobId || !enabled) {
       setJob(fallbackJob);
       setLoading(false);
       return;
     }
 
-    // Check cache first
-    const cachedJob = getCachedJob(jobId);
-    if (cachedJob) {
-      setJob(cachedJob);
-      setLoading(false);
-      setError(null);
-      return;
+    if (forceNetwork) {
+      clearJobCache(jobId);
+    } else {
+      const cachedJob = getCachedJob(jobId);
+      if (cachedJob) {
+        setJob(cachedJob);
+        setLoading(false);
+        setError(null);
+        return;
+      }
     }
 
     // Cancel previous request if any
@@ -137,7 +140,7 @@ export function useJobDetails(jobId, fallbackJob = null, enabled = true) {
     job,
     loading,
     error,
-    refetch: fetchJob,
+    refetch: () => fetchJob(true),
   };
 }
 

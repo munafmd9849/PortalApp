@@ -1,194 +1,198 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from './src/config/database.js';
 
 async function addDummyData() {
-    const email = 'charansai82140@gmail.com';
+  const email = 'charansai82140@gmail.com';
 
-    console.log(`Starting to add dummy data for ${email}...`);
+  console.log(`Starting to add profile data for ${email}...`);
 
-    try {
-        // 1. Find the User
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: { student: true }
-        });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { student: true },
+    });
 
-        if (!user) {
-            console.error(`User with email ${email} not found.`);
-            return;
-        }
-
-        if (!user.student) {
-            console.error(`User ${email} does not have a student profile.`);
-            return;
-        }
-
-        const studentId = user.student.id;
-        console.log(`Found user: ${user.id}, student profile: ${studentId}`);
-
-        // 1.5 Clear existing data
-        await prisma.education.deleteMany({ where: { studentId } });
-        await prisma.skill.deleteMany({ where: { studentId } });
-        await prisma.project.deleteMany({ where: { studentId } });
-        await prisma.achievement.deleteMany({ where: { studentId } });
-        await prisma.certification.deleteMany({ where: { studentId } });
-        await prisma.endorsement.deleteMany({ where: { studentId } });
-        console.log('Cleared existing profile data.');
-
-        // 2. Add Education
-        await prisma.education.createMany({
-            data: [
-                {
-                    studentId,
-                    institution: 'National Institute of Technology, Warangal',
-                    degree: 'B.Tech CPU',
-                    startYear: 2020,
-                    endYear: 2024,
-                    cgpa: 8.5,
-                    description: 'Focus on distributed systems and machine learning. Active member of the coding club.'
-                },
-                {
-                    studentId,
-                    institution: 'Sri Chaitanya Junior College',
-                    degree: 'Intermediate',
-                    startYear: 2018,
-                    endYear: 2020,
-                    cgpa: 9.8,
-                    description: 'Secured state rank 150 in engineering entrance exam.'
-                }
-            ]
-        });
-        console.log('Added Education data.');
-
-        // 3. Add Skills
-        await prisma.skill.createMany({
-            data: [
-                { studentId, skillName: 'React.js', rating: 5 },
-                { studentId, skillName: 'Node.js', rating: 4 },
-                { studentId, skillName: 'Python', rating: 5 },
-                { studentId, skillName: 'Docker', rating: 3 },
-                { studentId, skillName: 'PostgreSQL', rating: 4 }
-            ]
-        });
-        console.log('Added Skills data.');
-
-        // 4. Add Projects
-        await prisma.project.createMany({
-            data: [
-                {
-                    studentId,
-                    title: 'Portal App',
-                    description: 'A comprehensive campus placement management system built with React and Node.js.',
-                    liveUrl: 'https://github.com/charansai0108/PORTAL', // Schema uses liveUrl instead of url
-                    technologies: JSON.stringify(['React', 'Node.js', 'PostgreSQL', 'Tailwind CSS']) // Must be JSON string
-                },
-                {
-                    studentId,
-                    title: 'AI Image Generator',
-                    description: 'A web app that uses Stable Diffusion API to generate images from text prompts.',
-                    githubUrl: 'https://github.com/example/ai-image',
-                    technologies: JSON.stringify(['Python', 'Flask', 'React'])
-                }
-            ]
-        });
-        console.log('Added Projects data.');
-
-        // 5. Add Awards & Achievements
-        await prisma.achievement.createMany({
-            data: [
-                {
-                    studentId,
-                    title: '1st Place, HackWarangal 2023',
-                    date: new Date('2023-03-15'),
-                    description: 'Built a solution for optimizing campus energy usage using IoT sensors. (Issued by NIT Warangal)'
-                },
-                {
-                    studentId,
-                    title: 'Top 100 on LeetCode India',
-                    date: new Date('2023-01-10'),
-                    description: 'Maintained a ranking within the top 100 active users in India for 3 consecutive months. (Issued by LeetCode)'
-                }
-            ]
-        });
-        console.log('Added Awards & Achievements data.');
-
-        // 6. Add Certifications (Frontend uses Achievement table with hasCertificate: true)
-        await prisma.achievement.createMany({
-            data: [
-                {
-                    studentId,
-                    title: 'AWS Certified Solutions Architect – Associate',
-                    date: new Date('2023-05-10'),
-                    description: 'Amazon Web Services',
-                    hasCertificate: true,
-                    certificateUrl: 'https://aws.amazon.com/verification'
-                },
-                {
-                    studentId,
-                    title: 'Meta Front-End Developer Professional Certificate',
-                    date: new Date('2022-12-05'),
-                    description: 'Coursera',
-                    hasCertificate: true,
-                    certificateUrl: 'https://coursera.org/verify/1234'
-                }
-            ]
-        });
-        console.log('Added Certifications data (as Achievements with hasCertificate true).');
-
-        // 7. Add Endorsements (Wait for a reviewer user to exist, or just use a dummy sender logic)
-        // First, let's find or create a dummy reviewer
-        let reviewer = await prisma.user.findFirst({
-            where: { email: 'reviewer@example.com' }
-        });
-
-        if (!reviewer) {
-            reviewer = await prisma.user.create({
-                data: {
-                    email: 'reviewer@example.com',
-                    passwordHash: 'dummyhash',
-                    role: 'ADMIN',
-                    displayName: 'Dr. John Smith',
-                    status: 'ACTIVE'
-                }
-            });
-            console.log('Created dummy reviewer user.');
-        }
-
-        await prisma.endorsement.createMany({
-            data: [
-                {
-                    studentId,
-                    endorserName: 'Dr. John Smith',
-                    endorserEmail: 'reviewer@example.com',
-                    endorserRole: 'Professor',
-                    organization: 'NIT Warangal',
-                    message: 'Charan is an exceptional student with a deep understanding of software engineering principles. His full-stack development skills are outstanding.',
-                    relationship: 'Professor',
-                    consent: true
-                },
-                {
-                    studentId,
-                    endorserName: 'Dr. Jane Doe',
-                    endorserEmail: 'janedoe@example.com',
-                    endorserRole: 'Project Manager',
-                    organization: 'Tech Innovators Inc.',
-                    message: 'A highly motivated individual who consistently delivers high-quality work. A great team player during our software engineering lab project.',
-                    relationship: 'Manager',
-                    consent: true
-                }
-            ]
-        });
-        console.log('Added Endorsements data.');
-
-        console.log('Successfully completed adding dummy data!');
-
-    } catch (error) {
-        console.error('Error adding dummy data:', error);
-    } finally {
-        await prisma.$disconnect();
+    if (!user?.student) {
+      console.error(`Student profile not found for ${email}`);
+      return;
     }
+
+    const studentId = user.student.id;
+    const { school, center, batch } = user.student;
+    console.log(`Found student: ${user.student.fullName} (${studentId})`);
+
+    await prisma.education.deleteMany({ where: { studentId } });
+    await prisma.skill.deleteMany({ where: { studentId } });
+    await prisma.project.deleteMany({ where: { studentId } });
+    await prisma.achievement.deleteMany({ where: { studentId } });
+    await prisma.certification.deleteMany({ where: { studentId } });
+    await prisma.endorsement.deleteMany({ where: { studentId } });
+    console.log('Cleared existing profile data.');
+
+    const batchStart = batch ? parseInt(batch.split('-')[0], 10) : 2024;
+    const batchEnd = batch ? parseInt(batch.split('-')[1], 10) : 2028;
+
+    await prisma.education.createMany({
+      data: [
+        {
+          studentId,
+          institution: school ? `${school} — ${center || 'Campus'}` : 'School of Technology',
+          degree: 'B.Tech Computer Science',
+          startYear: batchStart,
+          endYear: batchEnd,
+          cgpa: 8.6,
+          description: 'Core coursework in DSA, DBMS, OS, and full-stack development. Active in placement prep and hackathons.',
+        },
+        {
+          studentId,
+          institution: 'Narayana Junior College',
+          degree: 'Intermediate (MPC)',
+          startYear: batchStart - 2,
+          endYear: batchStart,
+          cgpa: 9.2,
+          description: 'Science stream with focus on mathematics and physics.',
+        },
+      ],
+    });
+    console.log('Added education.');
+
+    await prisma.skill.createMany({
+      data: [
+        { studentId, skillName: 'JavaScript', rating: 5 },
+        { studentId, skillName: 'React', rating: 5 },
+        { studentId, skillName: 'Node.js', rating: 4 },
+        { studentId, skillName: 'Python', rating: 4 },
+        { studentId, skillName: 'PostgreSQL', rating: 4 },
+        { studentId, skillName: 'Data Structures', rating: 5 },
+        { studentId, skillName: 'System Design', rating: 3 },
+      ],
+    });
+    console.log('Added skills.');
+
+    await prisma.project.createMany({
+      data: [
+        {
+          studentId,
+          title: 'Placement Portal',
+          description:
+            'Campus placement management platform with job drives, assessments, mock interviews, and student tracking.',
+          liveUrl: 'https://github.com/charansai0108/PORTAL',
+          githubUrl: 'https://github.com/charansai0108/PORTAL',
+          technologies: JSON.stringify(['React', 'Node.js', 'PostgreSQL', 'Prisma', 'Tailwind CSS']),
+        },
+        {
+          studentId,
+          title: 'Coding Assessment Engine',
+          description:
+            'LeetCode-style coding workspace with multi-language support, test cases, and automated evaluation.',
+          githubUrl: 'https://github.com/charansai0108/PORTAL',
+          technologies: JSON.stringify(['JavaScript', 'Monaco Editor', 'Express']),
+        },
+        {
+          studentId,
+          title: 'AI Mock Interview Module',
+          description:
+            'One-way video mock interviews with proctoring, timed questions, and admin review workflow.',
+          technologies: JSON.stringify(['React', 'WebRTC', 'Mistral AI']),
+        },
+      ],
+    });
+    console.log('Added projects.');
+
+    await prisma.achievement.createMany({
+      data: [
+        {
+          studentId,
+          title: 'Winner — Internal Hackathon 2025',
+          date: new Date('2025-02-14'),
+          description: 'Built an AI-assisted placement readiness dashboard. Issued by Placement Cell.',
+          hasCertificate: false,
+        },
+        {
+          studentId,
+          title: '500+ LeetCode Problems Solved',
+          date: new Date('2025-11-01'),
+          description: 'Consistent DSA practice with focus on arrays, graphs, and dynamic programming.',
+          hasCertificate: false,
+        },
+        {
+          studentId,
+          title: 'Smart India Hackathon — College Finalist',
+          date: new Date('2024-09-20'),
+          description: 'Team project on student employability analytics.',
+          hasCertificate: false,
+        },
+      ],
+    });
+    console.log('Added awards & achievements.');
+
+    await prisma.certification.createMany({
+      data: [
+        {
+          studentId,
+          title: 'AWS Cloud Practitioner',
+          issuer: 'Amazon Web Services',
+          issuedDate: new Date('2025-06-01'),
+          certificateUrl: 'https://aws.amazon.com/verification/example',
+          description: 'Foundational cloud concepts, security, and AWS services.',
+        },
+        {
+          studentId,
+          title: 'Meta Front-End Developer',
+          issuer: 'Coursera / Meta',
+          issuedDate: new Date('2024-12-10'),
+          certificateUrl: 'https://coursera.org/verify/example',
+          description: 'HTML, CSS, JavaScript, React, and responsive design.',
+        },
+      ],
+    });
+    console.log('Added certificates.');
+
+    await prisma.endorsement.createMany({
+      data: [
+        {
+          studentId,
+          endorserName: 'Dr. Ramesh Kumar',
+          endorserEmail: 'ramesh.kumar@pwioi.live',
+          endorserRole: 'Placement Coordinator',
+          organization: 'PW IOI',
+          relationship: 'Faculty',
+          context: 'Placement preparation mentor',
+          message:
+            'Charan demonstrates strong full-stack skills and ownership. He consistently delivers clean code and communicates well in team settings.',
+          skills: JSON.stringify(['React', 'Node.js', 'Problem Solving']),
+          skillRatings: JSON.stringify({ React: 5, 'Node.js': 4, 'Problem Solving': 5 }),
+          overallRating: 5,
+          consent: true,
+          verified: true,
+        },
+        {
+          studentId,
+          endorserName: 'Priya Sharma',
+          endorserEmail: 'priya.sharma@techcorp.com',
+          endorserRole: 'Senior Software Engineer',
+          organization: 'TechCorp',
+          relationship: 'Industry Mentor',
+          context: 'Summer internship project guide',
+          message:
+            'Reliable developer with good grasp of system design basics. Would recommend for product engineering roles.',
+          skills: JSON.stringify(['JavaScript', 'System Design', 'Teamwork']),
+          skillRatings: JSON.stringify({ JavaScript: 5, 'System Design': 4, Teamwork: 5 }),
+          overallRating: 4,
+          consent: true,
+          verified: true,
+        },
+      ],
+    });
+    console.log('Added endorsements.');
+
+    console.log('Successfully added profile data!');
+  } catch (error) {
+    console.error('Error adding profile data:', error);
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 addDummyData();

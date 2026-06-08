@@ -7,12 +7,30 @@ import {
   submitMockFeedback,
   updateSlotStatus,
   getMockInterviewSlot,
+  getMockInterviewSlotResults,
+  getMockInterviewDriveResults,
   updateMockInterviewSlot,
+  updateMockInterviewDrive,
+  publishMockInterviewDrive,
   deleteMockInterviewDrive
 } from '../controllers/mockInterview.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Results (assessment-style read APIs)
+router.get(
+  '/results/slot/:slotId',
+  authenticate,
+  authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']),
+  getMockInterviewSlotResults,
+);
+router.get(
+  '/results/drive/:driveId',
+  authenticate,
+  authorize(['ADMIN', 'SUPER_ADMIN']),
+  getMockInterviewDriveResults,
+);
 
 // Common Routes
 router.get('/slot/:slotId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getMockInterviewSlot);
@@ -24,6 +42,8 @@ router.get('/all', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), getMockInt
 router.post('/assign', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), assignStudentToSlot);
 router.post('/update-status', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateSlotStatus);
 router.post('/feedback', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), submitMockFeedback);
+router.put('/drives/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateMockInterviewDrive);
+router.post('/drives/:id/publish', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), publishMockInterviewDrive);
 router.delete('/drives/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteMockInterviewDrive);
 
 // Student Routes

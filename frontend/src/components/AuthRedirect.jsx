@@ -55,12 +55,16 @@ export default function AuthRedirect() {
         || currentPath.startsWith('/recruiter/screening')
         || currentPath.startsWith('/mock-interview-room/')
         || currentPath.startsWith('/mock-interview-precheck/')
+        || currentPath.startsWith('/mock-interview/results/')
+        || currentPath.startsWith('/student/mock-interviews')
+        || currentPath.startsWith('/student/interviews/')
         || currentPath.startsWith('/assessment/');
 
       // Admin / Super Admin sub-routes that should not redirect
       const isAdminSubRoute = (roleLower === 'admin' || roleLower === 'super_admin') && (
         currentPath.startsWith('/admin/interview-session/') ||
         currentPath.startsWith('/admin/assessment/') ||
+        currentPath.startsWith('/admin/assessments/') ||
         currentPath.startsWith('/admin/job/') ||
         currentPath.startsWith('/admin/jobs/') ||
         currentPath.startsWith('/admin/mock-interviews') ||

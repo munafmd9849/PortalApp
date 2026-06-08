@@ -130,9 +130,9 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
 
   // OPTIMIZED: Only load skills if not provided as props (avoids redundant API call)
   useEffect(() => {
-    // If initialSkills are provided, use them and skip API call
-    if (initialSkills !== null) {
-      setSkills(Array.isArray(initialSkills) ? initialSkills : []);
+    // Use parent-provided skills when non-empty; otherwise fetch from API
+    if (initialSkills !== null && Array.isArray(initialSkills) && initialSkills.length > 0) {
+      setSkills(initialSkills);
       return;
     }
 

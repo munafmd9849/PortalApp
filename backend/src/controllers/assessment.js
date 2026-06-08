@@ -1,47 +1,244 @@
 import prisma from '../config/database.js';
 import { sendBulkAssessmentNotifications } from '../services/emailService.js';
-import vm from 'vm';
+import { mcqAnswersMatch } from '../utils/mcqGrading.js';
+import {
+  findStudentsForBatchIds,
+  resolveStudentAssignmentScope,
+} from '../utils/studentAssignmentScope.js';
+import { gradeCodingAnswer } from '../coding-engine/index.js';
+import {
+  serializeTestCasesForStorage,
+  serializeExamplesForStorage,
+} from '../coding-engine/testCaseStorage.js';
+import {
+  serializeStarterCodesForStorage,
+  mergeCodingIntoConfig,
+  parseAllowedCodingLanguages,
+  parseStarterCodesByLang,
+} from '../coding-engine/starterCodeStorage.js';
+import {
+  normalizeStoredScore,
+  pointsToPercent,
+  totalQuestionPoints,
+  withNormalizedScore,
+} from '../utils/assessmentScoring.js';
+import {
+  getAssessmentEntryStatus,
+  mergeJoinWindowIntoConfig,
+  parseAssessmentDateInput,
+} from '../utils/assessmentEntryWindow.js';
+import {
+  enrichSessionWithTimer,
+  allowsPracticeTimerReset,
+} from '../utils/assessmentTimer.js';
+import multer from 'multer';
+import { uploadToCloudinary } from '../config/cloudinary.js';
+import { signedScreenshotUrl } from '../utils/proctoringScreenshots.js';
 
 /**
  * ASSESSMENT ENGINE CONTROLLER
  * Handles Mock Tests, Mock Interviews, and Proctoring Sessions
  */
 
+const screenshotUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1 * 1024 * 1024 }, // 1MB (client should compress)
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.mimetype);
+    cb(ok ? null : new Error('Invalid screenshot mime type'), ok);
+  },
+});
+
+function computeRiskLevel(count) {
+  if (count >= 7) return 'HIGH';
+  if (count >= 3) return 'MEDIUM';
+  return 'LOW';
+}
+
+function validateCodingAssessmentForPublish(questions, configRaw) {
+  const codingQs = (questions || []).filter((q) => q.type === 'CODING');
+  if (!codingQs.length) return null;
+
+  const allowed = parseAllowedCodingLanguages(configRaw);
+  if (!allowed.length) {
+    return 'Select at least one allowed coding language';
+  }
+
+  for (const q of codingQs) {
+    const title = q.questionText || q.text || 'Coding question';
+    const starters = parseStarterCodesByLang(q.starterCodes ?? q.starterCode);
+    for (const lang of allowed) {
+      if (!String(starters[lang] ?? '').trim()) {
+        return `"${title}": starter code required for ${lang}`;
+      }
+    }
+    const cases = q.testCases || [];
+    const arr = Array.isArray(cases) ? cases : [];
+    const valid = arr.filter(
+      (tc) =>
+        String(tc?.input ?? '').trim() &&
+        String(tc?.expectedOutput ?? tc?.output ?? '').trim()
+    );
+    if (!valid.length) {
+      return `"${title}": at least one judge test case is required`;
+    }
+  }
+  return null;
+}
+
+function emitProctoringLiveUpdate(assessmentId, payload) {
+  if (!assessmentId) return;
+  import('../config/socket.js')
+    .then(({ getIO }) => {
+      getIO().to(`proctoring:assessment:${assessmentId}`).emit('proctoring:update', payload);
+    })
+    .catch(() => {});
+}
+
 // --- ADMIN MODULES ---
+
+async function notifyAssessmentAssigned(assessment, { targetBatchIds = [], targetStudentIds = [] }) {
+  try {
+    const { getIO } = await import('../config/socket.js');
+    const io = getIO();
+    const { type, title } = assessment;
+
+    const batchStudents = targetBatchIds?.length
+      ? await findStudentsForBatchIds(targetBatchIds)
+      : [];
+    const individualStudents = targetStudentIds?.length
+      ? await prisma.student.findMany({
+          where: { userId: { in: targetStudentIds } },
+          include: { user: { select: { email: true } } },
+        })
+      : [];
+    const byUserId = new Map();
+    [...batchStudents, ...individualStudents].forEach((s) => {
+      byUserId.set(s.userId, s);
+    });
+    const students = [...byUserId.values()];
+    if (!students.length) return;
+
+    await prisma.notification.createMany({
+      data: students.map((s) => ({
+        userId: s.userId,
+        title: 'New Assessment Assigned',
+        body: `You have been assigned a new ${type.replace('_', ' ').toLowerCase()}: ${title}`,
+        type: 'ASSESSMENT',
+        link: `/student?tab=assessments`,
+      })),
+    });
+
+    students.forEach((s) => {
+      io.to(`user:${s.userId}`).emit('notification', {
+        title: 'New Assessment',
+        message: `A new ${type.replace('_', ' ').toLowerCase()} has been assigned to you.`,
+        type: 'ASSESSMENT',
+      });
+    });
+
+    const studentEmailData = students.map((s) => ({
+      ...s,
+      email: s.user?.email,
+      fullName: s.fullName || 'Student',
+    }));
+
+    sendBulkAssessmentNotifications(studentEmailData, assessment).catch((err) =>
+      console.error('Email notification background error:', err)
+    );
+  } catch (notificationError) {
+    console.error('Multi-channel notification failed:', notificationError);
+  }
+}
 
 // Create Assessment
 export async function createAssessment(req, res) {
   try {
-    const { title, description, type, difficulty, duration, startTime, endTime, instructions, config, questions, targetBatchIds, targetStudentIds, scheduledAtMap } = req.body;
+    const {
+      title,
+      description,
+      type,
+      difficulty,
+      duration,
+      startTime,
+      endTime,
+      instructions,
+      config,
+      questions,
+      targetBatchIds,
+      targetStudentIds,
+      scheduledAtMap,
+      joinOpensMinutesBeforeStart,
+      joinClosesMinutesAfterStart,
+      allowedCodingLanguages,
+      publish,
+    } = req.body;
+
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Assessment title is required' });
+    }
+
+    const isDraft = publish === false;
+    let mergedConfig = mergeJoinWindowIntoConfig(config, {
+      opensMinutesBeforeStart: joinOpensMinutesBeforeStart,
+      closesMinutesAfterStart: joinClosesMinutesAfterStart,
+    });
+    if (allowedCodingLanguages?.length) {
+      mergedConfig = mergeCodingIntoConfig(mergedConfig, allowedCodingLanguages);
+    }
+
+    if (!isDraft) {
+      const codingErr = validateCodingAssessmentForPublish(questions, mergedConfig);
+      if (codingErr) return res.status(400).json({ error: codingErr });
+    }
 
     // Prepare assignments data
-    const batchAssignments = (targetBatchIds || []).map(batchId => ({ batchId }));
-    
+    const batchAssignments = (targetBatchIds || []).map((batchId) => ({ batchId }));
+
     // Resolve studentIds from studentUserIds (passed from frontend)
     let studentAssignments = [];
     if (targetStudentIds && targetStudentIds.length > 0) {
       const targetStudents = await prisma.student.findMany({
         where: { userId: { in: targetStudentIds } },
-        select: { id: true, userId: true }
+        select: { id: true, userId: true },
       });
-      
-      studentAssignments = targetStudents.map(s => ({ 
+
+      studentAssignments = targetStudents.map((s) => ({
         studentId: s.id,
-        scheduledAt: scheduledAtMap?.[s.userId] ? new Date(scheduledAtMap[s.userId]) : null
+        scheduledAt: scheduledAtMap?.[s.userId]
+          ? new Date(scheduledAtMap[s.userId])
+          : null,
       }));
+    }
+
+    // Also assign each student in targeted batches (covers profiles with batch string only)
+    if (targetBatchIds?.length) {
+      const batchStudents = await findStudentsForBatchIds(targetBatchIds);
+      const seen = new Set(studentAssignments.map((a) => a.studentId));
+      for (const s of batchStudents) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        studentAssignments.push({
+          studentId: s.id,
+          scheduledAt: scheduledAtMap?.[s.userId]
+            ? new Date(scheduledAtMap[s.userId])
+            : null,
+        });
+      }
     }
 
     const assessment = await prisma.assessment.create({
       data: {
-        title,
+        title: title.trim(),
         description,
         type,
         difficulty: difficulty || 'MEDIUM',
-        duration: parseInt(duration),
+        duration: parseInt(duration, 10) || 60,
         startTime: startTime ? new Date(startTime) : null,
         endTime: endTime ? new Date(endTime) : null,
         instructions,
-        config: JSON.stringify(config || {}),
+        status: isDraft ? 'DRAFT' : 'PUBLISHED',
+        config: JSON.stringify(mergedConfig),
         questions: {
           create: (questions || []).map((q, index) => ({
             questionText: q.text,
@@ -51,8 +248,13 @@ export async function createAssessment(req, res) {
             correctAnswer: q.correctAnswer,
             points: parseInt(q.points) || 1,
             difficulty: q.difficulty || 'MEDIUM',
-            starterCode: q.starterCode,
-            testCases: JSON.stringify(q.testCases || []),
+            starterCode:
+              q.type === 'CODING'
+                ? serializeStarterCodesForStorage(q.starterCodes ?? q.starterCode)
+                : null,
+            constraints: q.constraints || null,
+            examples: serializeExamplesForStorage(q.examples || []),
+            testCases: serializeTestCasesForStorage(q.testCases || []),
             order: index
           }))
         },
@@ -62,55 +264,8 @@ export async function createAssessment(req, res) {
       }
     });
 
-    // --- NOTIFICATION LOGIC ---
-    try {
-      const { getIO } = await import('../config/socket.js');
-      const io = getIO();
-      
-      // Find all targeted students (from batches OR individual selection)
-      const students = await prisma.student.findMany({
-        where: { 
-          OR: [
-            { batchId: { in: targetBatchIds || [] } },
-            { userId: { in: targetStudentIds || [] } }
-          ]
-        },
-        include: { user: { select: { email: true } } }
-      });
-
-      // Create persistent notifications in DB
-      await prisma.notification.createMany({
-        data: students.map(s => ({
-          userId: s.userId,
-          title: 'New Assessment Assigned',
-          body: `You have been assigned a new ${type.replace('_', ' ').toLowerCase()}: ${title}`,
-          type: 'ASSESSMENT',
-          link: `/student/dashboard?tab=assessments`
-        }))
-      });
-
-      // Emit real-time socket events
-      students.forEach(s => {
-        io.to(`user:${s.userId}`).emit('notification', {
-          title: 'New Assessment',
-          message: `A new ${type.replace('_', ' ').toLowerCase()} has been assigned to you.`,
-          type: 'ASSESSMENT'
-        });
-      });
-
-      // Dispatch Email Notifications
-      const studentEmailData = students.map(s => ({
-        ...s,
-        email: s.user?.email,
-        fullName: s.fullName || 'Student'
-      }));
-      
-      sendBulkAssessmentNotifications(studentEmailData, assessment).catch(err => 
-        console.error('Email notification background error:', err)
-      );
-
-    } catch (notificationError) {
-      console.error('Multi-channel notification failed:', notificationError);
+    if (!isDraft) {
+      await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
     }
 
     res.status(201).json(assessment);
@@ -127,20 +282,21 @@ export async function getAssessments(req, res) {
     const assessments = await prisma.assessment.findMany({
       include: {
         sessions: { select: { id: true, studentId: true, status: true, score: true } },
-        assignments: { 
-          include: { 
-            student: { 
-              select: { 
-                id: true, 
-                fullName: true, 
+        questions: { select: { id: true } },
+        assignments: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                fullName: true,
                 profileImageUrl: true,
-                user: { select: { displayName: true } }
-              } 
-            } 
-          } 
-        }
+                user: { select: { displayName: true } },
+              },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
     console.log(`[DEBUG] Found ${assessments.length} assessments`);
     res.json(assessments);
@@ -159,26 +315,123 @@ export async function getAssessmentDetails(req, res) {
       include: { questions: true }
     });
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+    const role = req.user?.role;
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+    if (!isAdmin && assessment.status === 'DRAFT') {
+      return res.status(403).json({ error: 'Assessment not available' });
+    }
     res.json(assessment);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch assessment details' });
   }
 }
 
-export async function updateAssessment(req, res) {
+export async function publishAssessment(req, res) {
   try {
     const { id } = req.params;
-    const { title, duration, startTime, endTime } = req.body;
+    const existing = await prisma.assessment.findUnique({
+      where: { id },
+      include: {
+        assignments: {
+          select: { batchId: true, student: { select: { userId: true } } },
+        },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: 'Assessment not found' });
+
+    if (existing.status === 'PUBLISHED') {
+      return res.json({ message: 'Assessment is already published', assessment: existing });
+    }
+
+    const full = await prisma.assessment.findUnique({
+      where: { id },
+      include: { questions: true },
+    });
+    const codingErr = validateCodingAssessmentForPublish(full.questions, full.config);
+    if (codingErr) return res.status(400).json({ error: codingErr });
 
     const assessment = await prisma.assessment.update({
       where: { id },
-      data: {
-        ...(title && { title }),
-        ...(duration && { duration: parseInt(duration) }),
-        ...(startTime !== undefined && { startTime: startTime ? new Date(startTime) : null }),
-        ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
-      }
+      data: { status: 'PUBLISHED' },
     });
+
+    const targetBatchIds = [
+      ...new Set(existing.assignments.map((a) => a.batchId).filter(Boolean)),
+    ];
+    const targetStudentIds = [
+      ...new Set(
+        existing.assignments.map((a) => a.student?.userId).filter(Boolean)
+      ),
+    ];
+
+    await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
+
+    res.json({ message: 'Assessment published', assessment });
+  } catch (error) {
+    console.error(`[ERROR] Failed to publish assessment ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Failed to publish assessment' });
+  }
+}
+
+export async function updateAssessment(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      duration,
+      startTime,
+      endTime,
+      joinOpensMinutesBeforeStart,
+      joinClosesMinutesAfterStart,
+      publish,
+    } = req.body;
+    const existing = await prisma.assessment.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Assessment not found' });
+
+    const parsedStart = parseAssessmentDateInput(startTime);
+    const parsedEnd = parseAssessmentDateInput(endTime);
+    if (parsedStart && parsedEnd && parsedEnd <= parsedStart) {
+      return res.status(400).json({ error: 'End time must be after start time' });
+    }
+
+    const joinTouched =
+      joinOpensMinutesBeforeStart !== undefined || joinClosesMinutesAfterStart !== undefined;
+    const nextConfig = joinTouched
+      ? mergeJoinWindowIntoConfig(existing.config, {
+          opensMinutesBeforeStart: joinOpensMinutesBeforeStart,
+          closesMinutesAfterStart: joinClosesMinutesAfterStart,
+        })
+      : undefined;
+
+    const wasDraft = existing.status === 'DRAFT';
+    const assessment = await prisma.assessment.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && title !== '' && { title }),
+        ...(duration !== undefined && duration !== '' && { duration: parseInt(duration, 10) }),
+        ...(startTime !== undefined && { startTime: parsedStart }),
+        ...(endTime !== undefined && { endTime: parsedEnd }),
+        ...(nextConfig && { config: JSON.stringify(nextConfig) }),
+        ...(publish === true && { status: 'PUBLISHED' }),
+      },
+      include: {
+        assignments: {
+          select: { batchId: true, student: { select: { userId: true } } },
+        },
+      },
+    });
+
+    if (wasDraft && assessment.status === 'PUBLISHED') {
+      const targetBatchIds = [
+        ...new Set(assessment.assignments.map((a) => a.batchId).filter(Boolean)),
+      ];
+      const targetStudentIds = [
+        ...new Set(
+          assessment.assignments.map((a) => a.student?.userId).filter(Boolean)
+        ),
+      ];
+      await notifyAssessmentAssigned(assessment, { targetBatchIds, targetStudentIds });
+    }
 
     res.json({ message: 'Assessment updated successfully', assessment });
   } catch (error) {
@@ -207,46 +460,123 @@ export async function deleteAssessment(req, res) {
 // Get Assigned Assessments for Student
 export async function getStudentAssessments(req, res) {
   try {
+    const userId = req.userId || req.user?.id;
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id }
+      where: { userId },
     });
 
-    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (!student) {
+      return res.status(404).json({
+        error: 'Student profile not found. Please complete your onboarding.',
+      });
+    }
 
-    // Find assessments assigned specifically to student or their batch/school
+    const { assignmentMatch } = await resolveStudentAssignmentScope(student);
+
     const assessments = await prisma.assessment.findMany({
       where: {
+        status: 'PUBLISHED',
         assignments: {
-          some: {
-            OR: [
-              { studentId: student.id },
-              { batchId: student.batchId },
-              { schoolId: student.schoolId }
-            ]
-          }
-        }
+          some: { OR: assignmentMatch },
+        },
       },
       include: {
         sessions: {
-          where: { studentId: student.id }
+          where: { studentId: student.id },
         },
         assignments: {
-          where: { studentId: student.id },
-          select: { scheduledAt: true }
-        }
+          where: { OR: assignmentMatch },
+          select: { scheduledAt: true, studentId: true, batchId: true },
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     res.json(assessments);
   } catch (error) {
+    console.error('getStudentAssessments error:', error);
     res.status(500).json({ error: 'Failed to fetch assigned assessments' });
   }
+}
+
+async function markSessionAutoSubmitted(sessionId) {
+  await prisma.assessmentSession.update({
+    where: { id: sessionId },
+    data: {
+      status: 'COMPLETED',
+      endTime: new Date(),
+    },
+  });
+}
+
+async function respondWithExistingSession(session, assessment, res) {
+  if (session.status !== 'IN_PROGRESS') {
+    return res.status(403).json({ error: 'Assessment already completed' });
+  }
+
+  const payload = enrichSessionWithTimer(session, assessment.duration);
+  if (!payload.timeExpired) {
+    return res.json(payload);
+  }
+
+  if (allowsPracticeTimerReset(assessment)) {
+    const reset = await prisma.assessmentSession.update({
+      where: { id: session.id },
+      data: { startTime: new Date() },
+    });
+    return res.json(enrichSessionWithTimer(reset, assessment.duration));
+  }
+
+  await markSessionAutoSubmitted(session.id);
+  return res.status(403).json({
+    error: 'Assessment time has expired',
+    code: 'TIME_EXPIRED',
+    autoSubmitted: true,
+    session: payload,
+  });
 }
 
 // Start Assessment Session
 export async function startSession(req, res) {
   try {
     const { assessmentId } = req.params;
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        title: true,
+        config: true,
+        status: true,
+        duration: true,
+        type: true,
+      },
+    });
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+    if (assessment.status === 'DRAFT') {
+      return res.status(403).json({ error: 'This assessment is not published yet', code: 'DRAFT' });
+    }
+
+    const entry = getAssessmentEntryStatus(assessment);
+    if (entry.status === 'TOO_EARLY') {
+      return res.status(403).json({
+        error: 'Assessment entry has not opened yet',
+        entryOpensAt: entry.entryOpensAt,
+        entryClosesAt: entry.entryClosesAt,
+        joinWindow: entry.joinWindow,
+      });
+    }
+    if (entry.status === 'TOO_LATE') {
+      return res.status(403).json({
+        error: 'Assessment entry window has closed',
+        entryClosesAt: entry.entryClosesAt,
+        joinWindow: entry.joinWindow,
+      });
+    }
+
     const student = await prisma.student.findUnique({ 
       where: { userId: req.userId || req.user.id } 
     });
@@ -256,15 +586,29 @@ export async function startSession(req, res) {
       return res.status(404).json({ error: 'Student profile not found. Please complete your onboarding.' });
     }
 
+    // SECURITY: one active attempt per student (across assessments)
+    const otherActive = await prisma.assessmentSession.findFirst({
+      where: {
+        studentId: student.id,
+        status: 'IN_PROGRESS',
+        assessmentId: { not: assessmentId },
+      },
+      select: { id: true, assessmentId: true, startTime: true },
+    });
+    if (otherActive) {
+      return res.status(409).json({
+        error: 'Another assessment attempt is already active',
+        activeSessionId: otherActive.id,
+        activeAssessmentId: otherActive.assessmentId,
+      });
+    }
+
     let session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_studentId: { assessmentId, studentId: student.id } }
     });
 
     if (session) {
-      if (session.status !== 'IN_PROGRESS') {
-        return res.status(403).json({ error: 'Assessment already completed' });
-      }
-      return res.json(session);
+      return respondWithExistingSession(session, assessment, res);
     }
 
     try {
@@ -281,12 +625,15 @@ export async function startSession(req, res) {
         session = await prisma.assessmentSession.findUnique({
           where: { assessmentId_studentId: { assessmentId, studentId: student.id } }
         });
+        if (session) {
+          return respondWithExistingSession(session, assessment, res);
+        }
       } else {
         throw createError;
       }
     }
 
-    res.status(201).json(session);
+    res.status(201).json(enrichSessionWithTimer(session, assessment.duration));
   } catch (error) {
     res.status(500).json({ error: 'Failed to start session' });
   }
@@ -296,27 +643,180 @@ export async function startSession(req, res) {
 export async function logViolation(req, res) {
   try {
     const { sessionId } = req.params;
-    const { type, details } = req.body;
+    const { type, details, meta } = req.body || {};
+
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: { student: { select: { userId: true, fullName: true } } },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.student?.userId !== (req.userId || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     await prisma.assessmentViolation.create({
       data: {
         sessionId,
         type,
-        details
+        details: details || null,
+        meta: meta ? (typeof meta === 'string' ? meta : JSON.stringify(meta)) : null,
       }
     });
 
     // Increment violation count in session
-    await prisma.assessmentSession.update({
+    const updated = await prisma.assessmentSession.update({
       where: { id: sessionId },
       data: {
         violationsCount: { increment: 1 }
       }
     });
 
-    res.json({ success: true });
+    // Risk engine (server-side single source of truth)
+    await prisma.assessmentSession.update({
+      where: { id: sessionId },
+      data: { riskLevel: computeRiskLevel(updated.violationsCount) },
+    });
+
+    const latest = await prisma.assessmentViolation.findFirst({
+      where: { sessionId },
+      orderBy: { timestamp: 'desc' },
+      select: { id: true, type: true, timestamp: true },
+    });
+
+    emitProctoringLiveUpdate(session.assessmentId, {
+      assessmentId: session.assessmentId,
+      kind: 'violation',
+      sessionId,
+      violation: latest,
+      violationsCount: updated.violationsCount,
+    });
+
+    res.json({ success: true, violation: latest });
   } catch (error) {
     res.status(500).json({ error: 'Failed to log violation' });
+  }
+}
+
+export async function uploadScreenshot(req, res) {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        student: { select: { userId: true, fullName: true } },
+        assessment: { select: { id: true } },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.student?.userId !== (req.userId || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    screenshotUpload.single('screenshot')(req, res, async (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+      if (!req.file?.buffer) return res.status(400).json({ error: 'No screenshot provided' });
+
+      const flags = (() => {
+        try {
+          return req.body?.flags ? JSON.parse(req.body.flags) : null;
+        } catch {
+          return null;
+        }
+      })();
+      const faceCount = req.body?.faceCount ? Number(req.body.faceCount) : null;
+      const captureType = ['PERIODIC', 'EVENT'].includes(req.body?.captureType)
+        ? req.body.captureType
+        : 'PERIODIC';
+      const event = req.body?.event ? String(req.body.event).slice(0, 255) : null;
+      const riskFlag =
+        req.body?.riskFlag === 'true' ||
+        req.body?.riskFlag === true ||
+        req.body?.riskFlag === '1';
+      const violationId = req.body?.violationId ? String(req.body.violationId) : null;
+
+      const folder = `proctoring/assessments/${session.assessmentId}/sessions/${sessionId}/screenshots`;
+      const uploaded = await uploadToCloudinary(req.file.buffer, {
+        folder,
+        resource_type: 'image',
+      });
+
+      const row = await prisma.assessmentScreenshot.create({
+        data: {
+          sessionId,
+          imageUrl: uploaded.url,
+          publicId: uploaded.public_id,
+          captureType,
+          event,
+          riskFlag,
+          violationId: violationId || null,
+          flags: flags ? JSON.stringify(flags) : null,
+          faceCount: Number.isFinite(faceCount) ? faceCount : null,
+          bytes: uploaded.bytes ?? null,
+          width: uploaded.width ?? null,
+          height: uploaded.height ?? null,
+          format: uploaded.format ?? null,
+        },
+      });
+
+      const signedUrl = signedScreenshotUrl(row);
+      emitProctoringLiveUpdate(session.assessment.id, {
+        assessmentId: session.assessment.id,
+        kind: 'screenshot',
+        sessionId,
+        studentName: session.student?.fullName,
+        screenshot: {
+          id: row.id,
+          url: signedUrl,
+          timestamp: row.timestamp,
+          captureType: row.captureType,
+          event: row.event,
+          riskFlag: row.riskFlag,
+          faceCount: row.faceCount,
+        },
+      });
+
+      res.status(201).json(row);
+    });
+  } catch (error) {
+    console.error('uploadScreenshot error:', error);
+    res.status(500).json({ error: 'Failed to upload screenshot' });
+  }
+}
+
+export async function getProctoringSessionDetails(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const session = await prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        student: { select: { id: true, fullName: true, enrollmentId: true, batch: true, center: true, school: true } },
+        violations: { orderBy: { timestamp: 'asc' } },
+        screenshots: { orderBy: { timestamp: 'asc' } },
+        assessment: { select: { id: true, title: true, type: true } },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (error) {
+    console.error('getProctoringSessionDetails error:', error);
+    res.status(500).json({ error: 'Failed to fetch proctoring details' });
+  }
+}
+
+export async function getSignedScreenshotUrl(req, res) {
+  try {
+    const { screenshotId } = req.params;
+    const row = await prisma.assessmentScreenshot.findUnique({
+      where: { id: screenshotId },
+      select: { id: true, publicId: true, imageUrl: true },
+    });
+    if (!row) return res.status(404).json({ error: 'Screenshot not found' });
+    const url = signedScreenshotUrl(row);
+    res.json({ url, expiresAt: Math.floor(Date.now() / 1000) + 60 * 5 });
+  } catch (error) {
+    console.error('getSignedScreenshotUrl error:', error);
+    res.status(500).json({ error: 'Failed to generate screenshot URL' });
   }
 }
 
@@ -366,55 +866,20 @@ export async function completeAssessment(req, res) {
       if (!studentAnswer) continue;
 
       if (q.type === 'MCQ') {
-        if (studentAnswer === q.correctAnswer) {
+        if (mcqAnswersMatch(studentAnswer, q.correctAnswer, q.options)) {
           calculatedScore += q.points;
         }
       } 
       else if (q.type === 'CODING') {
         try {
-          const testCases = typeof q.testCases === 'string' ? JSON.parse(q.testCases) : (q.testCases || []);
-          let passedCases = 0;
-          let logs = [];
-
-          // Sandbox Execution loop
-          for (const tc of testCases) {
-            let parsedInput = tc.input;
-            try { parsedInput = JSON.parse(tc.input); } catch(e) {} // Handle arrays/objects if valid JSON
-            
-            try {
-              const context = { console: { log: () => {} } }; // Silent console
-              vm.createContext(context);
-              
-              const script = new vm.Script(`
-                ${studentAnswer}
-                // Try calling 'solution' function with input
-                if (typeof solution === 'function') {
-                  solution(${JSON.stringify(parsedInput)});
-                } else {
-                  null;
-                }
-              `);
-              
-              // 1 second timeout to prevent infinite loops
-              const result = script.runInContext(context, { timeout: 1000 });
-              
-              const isCorrect = String(result).trim() === String(tc.output).trim();
-              if (isCorrect) passedCases++;
-              
-              logs.push({ input: tc.input, expected: tc.output, actual: result, passed: isCorrect });
-            } catch (err) {
-              logs.push({ input: tc.input, expected: tc.output, error: err.message, passed: false });
-            }
-          }
-
-          executionLogs[q.id] = { passed: passedCases, total: testCases.length, logs };
-          
-          // Calculate partial points based on passed test cases
-          if (testCases.length > 0) {
-             const pointsEarned = Math.floor((passedCases / testCases.length) * q.points);
-             calculatedScore += pointsEarned;
-          }
-
+          const graded = await gradeCodingAnswer(q, studentAnswer);
+          calculatedScore += graded.pointsEarned;
+          executionLogs[q.id] = {
+            passed: graded.passed,
+            total: graded.total,
+            logs: graded.results,
+            language: graded.language,
+          };
         } catch (e) {
           console.error(`Coding evaluation failed for Q${q.id}:`, e);
           executionLogs[q.id] = { error: 'Evaluation Engine Failure' };
@@ -425,17 +890,30 @@ export async function completeAssessment(req, res) {
       }
     }
 
+    const maxPoints = totalQuestionPoints(questions);
+    const scorePercent = pointsToPercent(calculatedScore, questions);
+
     const updatedSession = await prisma.assessmentSession.update({
       where: { id: sessionId },
       data: {
         status: hasDescriptive ? 'PENDING_REVIEW' : 'COMPLETED',
         endTime: new Date(),
-        score: calculatedScore,
-        responses: JSON.stringify({ rawAnswers: answers, executionLogs })
-      }
+        score: scorePercent,
+        responses: JSON.stringify({
+          rawAnswers: answers,
+          executionLogs,
+          pointsEarned: calculatedScore,
+          maxPoints,
+        }),
+      },
     });
 
-    res.json(updatedSession);
+    res.json(
+      withNormalizedScore({
+        ...updatedSession,
+        assessment: session.assessment,
+      }),
+    );
   } catch (error) {
     console.error('Complete Assessment Error:', error);
     res.status(500).json({ error: 'Failed to complete assessment' });
@@ -457,7 +935,7 @@ export async function getSessionResults(req, res) {
         media: true
       }
     });
-    res.json(session);
+    res.json(withNormalizedScore(session));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch session results' });
   }
@@ -494,8 +972,13 @@ export async function getAssessmentResults(req, res) {
       console.log(`[DEBUG] getAssessmentResults: Assessment not found for id ${id}`);
       return res.status(404).json({ error: 'Assessment not found' });
     }
+    const questions = assessment.questions || [];
+    const sessions = (assessment.sessions || []).map((s) => ({
+      ...s,
+      score: normalizeStoredScore(s.score, questions),
+    }));
     console.log(`[DEBUG] getAssessmentResults: Successfully fetched leaderboard for ${id}`);
-    res.json(assessment);
+    res.json({ ...assessment, sessions });
   } catch (error) {
     console.error(`[ERROR] Failed to fetch assessment leaderboard for ${req.params.id}:`, error);
     console.error('Failed to fetch assessment leaderboard:', error);
@@ -518,6 +1001,22 @@ export async function getLiveAssessmentSessions(req, res) {
         violations: {
           orderBy: { timestamp: 'desc' },
           take: 1
+        },
+        screenshots: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            imageUrl: true,
+            publicId: true,
+            timestamp: true,
+            captureType: true,
+            event: true,
+            riskFlag: true,
+          },
+        },
+        _count: {
+          select: { screenshots: true }
         }
       }
     });
@@ -532,13 +1031,25 @@ export async function getLiveAssessmentSessions(req, res) {
       let lastPing = 'Just now';
       if (secondsAgo > 60) lastPing = `${Math.floor(secondsAgo / 60)}m ago`;
 
+      const latest = session.screenshots?.[0] || null;
       return {
         id: session.id,
         studentName: session.student.fullName,
         status: session.riskLevel || (session.violationsCount > 3 ? 'CRITICAL' : session.violationsCount > 0 ? 'WARNING' : 'ACTIVE'),
         violations: session.violationsCount,
+        screenshots: session._count?.screenshots || 0,
         lastPing,
-        lastViolation: session.violations.length > 0 ? session.violations[0].type.replace(/_/g, ' ') : null
+        lastViolation: session.violations.length > 0 ? session.violations[0].type.replace(/_/g, ' ') : null,
+        latestScreenshot: latest
+          ? {
+              id: latest.id,
+              url: signedScreenshotUrl(latest),
+              timestamp: latest.timestamp,
+              captureType: latest.captureType,
+              event: latest.event,
+              riskFlag: latest.riskFlag,
+            }
+          : null,
       };
     });
 
@@ -681,8 +1192,8 @@ export async function getStudentSessionResults(req, res) {
     }
 
     res.json({
-      ...session,
-      duration
+      ...withNormalizedScore(session),
+      duration,
     });
   } catch (error) {
     console.error('getStudentSessionResults Error:', error);

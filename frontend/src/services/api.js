@@ -122,7 +122,7 @@ async function refreshAccessToken() {
  * @returns {Promise} API response data
  */
 async function apiRequest(endpoint, options = {}) {
-  const { silent = false, showSuccess = false, ...fetchOptions } = options;
+  const { silent = false, showSuccess = false, noCache = false, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
   const token = getAuthToken();
 
@@ -150,8 +150,28 @@ async function apiRequest(endpoint, options = {}) {
 
         const isMockMutation = endpoint.startsWith('/mock-interviews');
         const isMockCache = cachedUrl.startsWith('/mock-interviews');
+
+        const isApplicationMutation = endpoint.startsWith('/applications');
+        const isApplicationCache = cachedUrl.startsWith('/applications');
+
+        const isRecruiterScreeningMutation = endpoint.startsWith('/recruiter/screening');
+        const isRecruiterScreeningCache = cachedUrl.startsWith('/recruiter/screening');
+
+        const isInterviewMutation = endpoint.startsWith('/interview');
+        const isInterviewCache = cachedUrl.startsWith('/interview');
+
+        const isStudentResumeMutation = endpoint.startsWith('/students/resume');
+        const isStudentResumeCache = cachedUrl.includes('/students/resumes') || cachedUrl.includes('/students/resume');
         
-        if ((isJobMutation && isJobCache) || (isAssessmentMutation && isAssessmentCache) || (isMockMutation && isMockCache)) {
+        if (
+          (isJobMutation && isJobCache) ||
+          (isAssessmentMutation && isAssessmentCache) ||
+          (isMockMutation && isMockCache) ||
+          (isApplicationMutation && isApplicationCache) ||
+          (isRecruiterScreeningMutation && isRecruiterScreeningCache) ||
+          (isInterviewMutation && isInterviewCache) ||
+          (isStudentResumeMutation && isStudentResumeCache)
+        ) {
           localStorage.removeItem(key);
         } else if (cachedUrl.startsWith(basePath)) {
           localStorage.removeItem(key);
@@ -168,7 +188,7 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   // 2. Cache Lookup for GETs
-  if (method === 'GET' && !fetchOptions.body) {
+  if (method === 'GET' && !fetchOptions.body && !noCache) {
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -309,7 +329,7 @@ async function apiRequest(endpoint, options = {}) {
     const data = await response.json();
 
     // --- UNIVERSAL CACHE: SAVE ---
-    if (method === 'GET' && !fetchOptions.body) {
+    if (method === 'GET' && !fetchOptions.body && !noCache) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify({
           data,
@@ -410,6 +430,74 @@ async function uploadFile(endpoint, file, fieldName = 'file', onProgress) {
 
     xhr.open('POST', `${API_BASE_URL}${endpoint}`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Upload a proctoring screenshot (webcam frame) for an assessment session.
+ * Uses multipart/form-data and uploads directly to backend → Cloudinary (no local storage).
+ */
+async function uploadProctoringScreenshot(sessionId, blob, { flags, faceCount, captureType, event, riskFlag, violationId } = {}) {
+  const token = getAuthToken();
+  const formData = new FormData();
+  const file = blob instanceof File ? blob : new File([blob], `screenshot-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+  formData.append('screenshot', file);
+  if (flags) formData.append('flags', JSON.stringify(flags));
+  if (faceCount !== undefined && faceCount !== null) formData.append('faceCount', String(faceCount));
+  if (captureType) formData.append('captureType', captureType);
+  if (event) formData.append('event', event);
+  if (riskFlag !== undefined && riskFlag !== null) formData.append('riskFlag', riskFlag ? 'true' : 'false');
+  if (violationId) formData.append('violationId', violationId);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Invalid response from server'));
+        }
+      } else {
+        let errorMessage = `Upload failed: ${xhr.statusText || 'Bad Request'}`;
+        try {
+          if (xhr.responseText) {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.error) errorMessage = errorResponse.error;
+            else if (errorResponse.message) errorMessage = errorResponse.message;
+          }
+        } catch {
+          // ignore
+        }
+        reject(new Error(errorMessage));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.open('POST', `${API_BASE_URL}/assessments/session/screenshot/${sessionId}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
+async function uploadAiInterviewMultipart(url, formData) {
+  const token = getAuthToken();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Invalid response'));
+        }
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.open('POST', `${API_BASE_URL}${url}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(formData);
   });
 }
@@ -624,7 +712,16 @@ export const api = {
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 200 || xhr.status === 201) {
-          resolve(JSON.parse(xhr.responseText));
+          try {
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('api_cache_') && key.includes('/students/resumes')) {
+                localStorage.removeItem(key);
+              }
+            });
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error('Invalid response from server'));
+          }
         } else {
           let errorMessage = `Upload failed: ${xhr.statusText}`;
           try {
@@ -648,7 +745,7 @@ export const api = {
       xhr.send(formData);
     });
   },
-  getResumes: () => apiRequest('/students/resumes'),
+  getResumes: (opts = {}) => apiRequest('/students/resumes', opts),
   getResume: (resumeId) => apiRequest(`/students/resume/${resumeId}`),
   getStudentResumeViewUrl: (resumeId) => apiRequest(`/students/resume/${resumeId}/view-url`),
   setDefaultResume: (resumeId) => apiRequest(`/students/resume/${resumeId}/default`, {
@@ -676,7 +773,17 @@ export const api = {
   }),
 
   // Jobs
-  getTargetedJobs: (studentId) => apiRequest(studentId ? `/jobs/targeted?studentId=${studentId}` : '/jobs/targeted'),
+  getTargetedJobs: (studentId, options = {}) => apiRequest(
+    studentId ? `/jobs/targeted?studentId=${studentId}` : '/jobs/targeted',
+    options
+  ),
+  clearApiCache: (prefix) => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('api_cache_') && key.includes(prefix)) {
+        localStorage.removeItem(key);
+      }
+    });
+  },
   getJobs: (params = {}) => {
     const query = toQueryString(params);
     return apiRequest(`/jobs?${query}`);
@@ -750,7 +857,10 @@ export const api = {
     const query = toQueryString(filters);
     return apiRequest(`/applications${query ? `?${query}` : ''}`);
   },
-  getStudentApplications: (studentId) => apiRequest(studentId ? `/applications/student?studentId=${studentId}` : '/applications/student'),
+  getStudentApplications: (studentId, options = {}) => apiRequest(
+    studentId ? `/applications/student?studentId=${studentId}` : '/applications/student',
+    options
+  ),
 
   exportApplications: (filters = {}) => apiRequest('/applications/export', {
     method: 'POST',
@@ -758,7 +868,7 @@ export const api = {
   }),
   getExportStatus: (jobId) => apiRequest(`/applications/export/${jobId}`),
 
-  getStudentInterviewHistory: () => apiRequest('/applications/student/interview-history'),
+  getStudentInterviewHistory: (opts = {}) => apiRequest('/applications/student/interview-history', opts),
   applyToJob: (jobId, applicationData = {}) => apiRequest(`/applications/jobs/${jobId}`, {
     method: 'POST',
     body: JSON.stringify(applicationData),
@@ -890,10 +1000,10 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  // Interviewer endpoints (token-based, no auth required)
-  getInterviewSessionByToken: (sessionId, token) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true }),
-  getActiveRound: (sessionId, token) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true }),
-  getRoundCandidates: (roundId, token) => apiRequest(`/interview/round/${roundId}/candidates?token=${encodeURIComponent(token)}`, { silent: true }),
+  // Interviewer endpoints (token-based, no auth required) — always bypass cache (live workflow state)
+  getInterviewSessionByToken: (sessionId, token, opts = {}) => apiRequest(`/interview/session/${sessionId}?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
+  getActiveRound: (sessionId, token, opts = {}) => apiRequest(`/interview/session/${sessionId}/active-round?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
+  getRoundCandidates: (roundId, token, opts = {}) => apiRequest(`/interview/round/${roundId}/candidates?token=${encodeURIComponent(token)}`, { silent: true, noCache: true, ...opts }),
   evaluateRoundCandidate: (roundId, token, data) => apiRequest(`/interview/round/${roundId}/evaluate?token=${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -1029,19 +1139,20 @@ export const api = {
   },
 
   // Academic Structure
-  getSchools: () => apiRequest('/academic/schools'),
-  getCenters: () => apiRequest('/academic/centers'),
-  getBatches: () => apiRequest('/academic/batches'),
+  getSchools: (opts) =>
+    apiRequest(`/academic/schools${opts?.includeInactive ? '?includeInactive=true' : ''}`),
+  getCenters: (opts) =>
+    apiRequest(`/academic/centers${opts?.includeInactive ? '?includeInactive=true' : ''}`),
+  getBatches: (opts) =>
+    apiRequest(`/academic/batches${opts?.includeInactive ? '?includeInactive=true' : ''}`),
   createSchool: (data) => apiRequest('/academic/schools', { method: 'POST', body: JSON.stringify(data) }),
   updateSchool: (id, data) => apiRequest(`/academic/schools/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSchool: (id) => apiRequest(`/academic/schools/${id}`, { method: 'DELETE' }),
 
-  getCenters: () => apiRequest('/academic/centers'),
   createCenter: (data) => apiRequest('/academic/centers', { method: 'POST', body: JSON.stringify(data) }),
   updateCenter: (id, data) => apiRequest(`/academic/centers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCenter: (id) => apiRequest(`/academic/centers/${id}`, { method: 'DELETE' }),
 
-  getBatches: () => apiRequest('/academic/batches'),
   createBatch: (data) => apiRequest('/academic/batches', { method: 'POST', body: JSON.stringify(data) }),
   updateBatch: (id, data) => apiRequest(`/academic/batches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteBatch: (id) => apiRequest(`/academic/batches/${id}`, { method: 'DELETE' }),
@@ -1057,15 +1168,23 @@ export const api = {
   getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
   getAssessmentCandidates: (assessmentId) => apiRequest(`/assessments/${assessmentId}/candidates`),
   updateAssessment: (id, data) => apiRequest(`/assessments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  publishAssessment: (id) => apiRequest(`/assessments/${id}/publish`, { method: 'POST' }),
   deleteAssessment: (id) => apiRequest(`/assessments/${id}`, { method: 'DELETE' }),
-  getAssessments: () => apiRequest('/assessments/all'),
+  getAssessments: () => apiRequest('/assessments/all', { noCache: true }),
   getAssessmentDetails: (id) => apiRequest(`/assessments/details/${id}`),
   getAssessmentResults: (sessionId) => apiRequest(`/assessments/results/${sessionId}`),
-  getStudentAssessments: () => apiRequest('/assessments/my-assignments'),
-  startAssessmentSession: (id) => apiRequest(`/assessments/session/start/${id}`, { method: 'POST' }),
+  getStudentAssessments: () =>
+    apiRequest('/assessments/my-assignments', { noCache: true }),
+  startAssessmentSession: (id, options = {}) =>
+    apiRequest(`/assessments/session/start/${id}`, { method: 'POST', ...options }),
   logProctoringViolation: (sessionId, data) => apiRequest(`/assessments/session/violation/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
   uploadProctoringMedia: (sessionId, data) => apiRequest(`/assessments/session/media/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  uploadProctoringScreenshot: (sessionId, blob, meta) => uploadProctoringScreenshot(sessionId, blob, meta),
+  getProctoringSessionDetails: (sessionId) => apiRequest(`/assessments/session/proctoring/${sessionId}`),
+  getProctoringScreenshotUrl: (screenshotId) => apiRequest(`/assessments/session/screenshot/${screenshotId}/url`),
   completeAssessment: (sessionId, data) => apiRequest(`/assessments/session/complete/${sessionId}`, { method: 'POST', body: JSON.stringify(data) }),
+  runCode: (data) => apiRequest('/code/run', { method: 'POST', body: JSON.stringify(data) }),
+  evaluateCode: (data) => apiRequest('/code/evaluate', { method: 'POST', body: JSON.stringify(data) }),
   evaluateAssessmentCandidate: (assessmentId, studentId, data) => apiRequest(`/assessments/evaluate/${assessmentId}/${studentId}`, { method: 'POST', body: JSON.stringify(data) }),
   getAssessmentDashboard: (id) => apiRequest(`/assessments/dashboard/${id}`),
   getLiveAssessmentSessions: (id) => apiRequest(`/assessments/${id}/live-sessions`),
@@ -1073,14 +1192,80 @@ export const api = {
 
   // Mock Interview System
   createMockInterviewDrive: (data) => apiRequest('/mock-interviews/create', { method: 'POST', body: JSON.stringify(data) }),
-  getMockInterviewDrives: () => apiRequest('/mock-interviews/all'),
+  publishMockInterviewDrive: (id) =>
+    apiRequest(`/mock-interviews/drives/${id}/publish`, { method: 'POST' }),
+  getMockInterviewDrives: (opts = {}) => apiRequest('/mock-interviews/all', { noCache: true, ...opts }),
   assignStudentToSlot: (data) => apiRequest('/mock-interviews/assign', { method: 'POST', body: JSON.stringify(data) }),
   updateMockSlotStatus: (data) => apiRequest('/mock-interviews/update-status', { method: 'POST', body: JSON.stringify(data) }),
   getStudentMockInterviews: () => apiRequest('/mock-interviews/my-sessions'),
   submitMockFeedback: (data) => apiRequest('/mock-interviews/feedback', { method: 'POST', body: JSON.stringify(data) }),
+  updateMockInterviewDrive: (id, data) =>
+    apiRequest(`/mock-interviews/drives/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMockInterviewDrive: (id) => apiRequest(`/mock-interviews/drives/${id}`, { method: 'DELETE' }),
   getMockInterviewSlot: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}`),
+  getMockInterviewSlotResults: (slotId) => apiRequest(`/mock-interviews/results/slot/${slotId}`),
+  getMockInterviewDriveResults: (driveId) => apiRequest(`/mock-interviews/results/drive/${driveId}`),
   updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // AI Video Mock Interviews (one-way)
+  createAiMockInterview: (data) =>
+    apiRequest('/ai-mock-interviews', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiMockInterview: (id, data) =>
+    apiRequest(`/ai-mock-interviews/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAiMockInterview: (id) =>
+    apiRequest(`/ai-mock-interviews/${id}`, { method: 'DELETE' }),
+  getAiMockInterviews: () => apiRequest('/ai-mock-interviews', { noCache: true }),
+  getAiMockInterview: (id) => apiRequest(`/ai-mock-interviews/${id}`),
+  getAiInterviewReview: (id) => apiRequest(`/ai-mock-interviews/${id}/review`),
+  getAiEnrollmentDetail: (enrollmentId) => apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/detail`),
+  saveAiEnrollmentReview: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  regenerateAiInsights: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/regenerate-ai`, { method: 'POST' }),
+  getStudentAiInterviews: () => apiRequest('/ai-mock-interviews/student/my-interviews'),
+  getStudentAiInterviewSession: (interviewId) =>
+    apiRequest(`/ai-mock-interviews/student/session/${interviewId}`),
+  startAiInterviewSession: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/start`, { method: 'POST' }),
+  updateAiInterviewProgress: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  submitAiInterviewAnswer: (enrollmentId, blob, { questionId, durationSeconds }) => {
+    const formData = new FormData();
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `answer-${Date.now()}.webm`, { type: blob.type || 'video/webm' });
+    formData.append('recording', file);
+    formData.append('questionId', questionId);
+    if (durationSeconds != null) formData.append('durationSeconds', String(durationSeconds));
+    return uploadAiInterviewMultipart(`/ai-mock-interviews/enrollment/${enrollmentId}/answer`, formData);
+  },
+  completeAiInterview: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/complete`, { method: 'POST' }),
+  logAiInterviewViolation: (enrollmentId, data) =>
+    apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/violation`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  uploadAiInterviewScreenshot: (enrollmentId, blob, meta = {}) => {
+    const formData = new FormData();
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `shot-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+    formData.append('screenshot', file);
+    if (meta.captureType) formData.append('captureType', meta.captureType);
+    if (meta.event) formData.append('event', meta.event);
+    if (meta.riskFlag != null) formData.append('riskFlag', meta.riskFlag ? 'true' : 'false');
+    if (meta.faceCount != null) formData.append('faceCount', String(meta.faceCount));
+    return uploadAiInterviewMultipart(`/ai-mock-interviews/enrollment/${enrollmentId}/screenshot`, formData);
+  },
 
   // Generic HTTP methods for calendar and other services
   get: (endpoint, config = {}) => {

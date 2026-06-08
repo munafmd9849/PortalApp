@@ -51,11 +51,15 @@ export default function StudentOnboarding() {
                 
                 if (cancelled) return;
 
-                setAcademicOptions({
-                    schools: (s || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-                    centers: (c || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-                    batches: (b || []).map(item => ({ value: item.year, label: item.year, id: item.id }))
+                const { buildDropdownAcademicOptions, filterActiveAcademicRecords } = await import(
+                    '../utils/academicOptions'
+                );
+                const dropdown = buildDropdownAcademicOptions({
+                    schools: filterActiveAcademicRecords(s),
+                    centers: filterActiveAcademicRecords(c),
+                    batches: filterActiveAcademicRecords(b),
                 });
+                setAcademicOptions(dropdown);
 
                 if (!profile) return;
 

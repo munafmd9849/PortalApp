@@ -22,7 +22,7 @@ export default function AdminHome() {
   const isAdminUser = userRole === 'ADMIN' || isSuperAdmin;
   
   const [filters, setFilters] = useState({ campus: '', school: '', batch: '', admin: '' });
-  const [selectedSchool, setSelectedSchool] = useState('SOT');
+  const [selectedSchool, setSelectedSchool] = useState('');
 
 
   // Chart.js color palette
@@ -48,70 +48,24 @@ export default function AdminHome() {
   });
   const [loadingFilters, setLoadingFilters] = useState(true);
 
-  // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
-        
-        // TODO: Replace with API call: admin API to get admin users
-        // For now, use placeholder
-        const admins = [];
-        // Placeholder - will be replaced with actual API call
-        // const admins = await api.getAdmins();
-        
-        // Use only predefined options for schools, batches, centers
+        const { fetchAcademicOptions, buildStandardFilterOptions } = await import(
+          '../../../utils/academicOptions'
+        );
+        const raw = await fetchAcademicOptions();
+        const academic = buildStandardFilterOptions(raw);
         setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' },
-            ...admins
-          ]
+          campuses: academic.centers,
+          schools: academic.schools,
+          batches: academic.batches,
+          admins: [{ id: 'all', name: 'All Admins' }],
         });
-        
-        console.log('✅ AdminHome filter options loaded (predefined only)');
       } catch (error) {
-        console.error('❌ Error loading AdminHome filter options:', error);
-        
-        // Fallback to hardcoded options
-        setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' }
-          ]
-        });
+        console.error('Error loading AdminHome filter options:', error);
+        setFilterOptions({ campuses: [], schools: [], batches: [], admins: [{ id: 'all', name: 'All Admins' }] });
       } finally {
         setLoadingFilters(false);
       }
@@ -120,20 +74,19 @@ export default function AdminHome() {
     loadFilterOptions();
   }, []);
 
-  // Map AdminHome filters to service expectations
+  useEffect(() => {
+    const ids = filterOptions.schools.map((s) => s.id).filter(Boolean);
+    if (!ids.length) return;
+    if (!selectedSchool || !ids.includes(selectedSchool)) {
+      setSelectedSchool(ids[0]);
+    }
+  }, [filterOptions.schools, selectedSchool]);
+
   const mapFiltersForService = (uiFilters) => {
     return {
-      center: uiFilters.campus ? [uiFilters.campus] : [], // campus -> center (convert single value to array)
+      center: uiFilters.campus ? [uiFilters.campus] : [],
       school: uiFilters.school ? [uiFilters.school] : [],
-      quarter: uiFilters.batch ? [(() => {
-        // Map batch years to quarters
-        switch(uiFilters.batch) {
-          case '25-29': return 'Q1 (Pre-Placement)';
-          case '24-28': return 'Q2 (Placement Drive)';
-          case '23-27': return 'Q3 (Internship)';
-          default: return 'Q4 (Final Placements)';
-        }
-      })()] : []
+      batch: uiFilters.batch ? [uiFilters.batch] : [],
     };
   };
 
@@ -233,26 +186,31 @@ export default function AdminHome() {
 
   // School data with real-time performance and application metrics
   // Ensure we always have a valid structure with all schools
-  const defaultSchoolData = {
-    SOT: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    },
-    SOM: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    },
-    SOH: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    }
+  const emptySchoolChart = {
+    performance: { labels: [], values: [] },
+    applications: { labels: [], values: [] },
   };
-  
+
   const incomingSchoolData = dashboardData?.chartData?.schoolPerformance || {};
-  const schoolData = {
-    SOT: incomingSchoolData.SOT || defaultSchoolData.SOT,
-    SOM: incomingSchoolData.SOM || defaultSchoolData.SOM,
-    SOH: incomingSchoolData.SOH || defaultSchoolData.SOH,
+  const schoolTabIds = filterOptions.schools.map((s) => s.id).filter(Boolean);
+  const schoolData = {};
+  schoolTabIds.forEach((id) => {
+    schoolData[id] = incomingSchoolData[id] || emptySchoolChart;
+  });
+  Object.keys(incomingSchoolData).forEach((key) => {
+    if (!schoolData[key]) schoolData[key] = incomingSchoolData[key];
+  });
+
+  const schoolChartColors = [
+    { main: chartColors.blue, light: chartColors.blueLight },
+    { main: chartColors.purple, light: chartColors.purpleLight },
+    { main: chartColors.green, light: chartColors.greenLight },
+    { main: chartColors.red, light: chartColors.redLight },
+  ];
+  const getSchoolColor = (schoolId, type = 'main') => {
+    const idx = Math.max(0, schoolTabIds.indexOf(schoolId));
+    const palette = schoolChartColors[idx % schoolChartColors.length];
+    return palette[type];
   };
 
   // Build unified radar chart data with consistent colors
@@ -656,59 +614,39 @@ export default function AdminHome() {
               </h2>
             </div>
             {/* School selector with consistent Chart.js colors */}
-            <div className="flex gap-2">
-              {['SOT', 'SOM', 'SOH'].map((school) => (
+            <div className="flex gap-2 flex-wrap">
+              {filterOptions.schools.map((school) => (
                 <button
-                  key={school}
-                  onClick={() => setSelectedSchool(school)}
+                  key={school.id}
+                  onClick={() => setSelectedSchool(school.id)}
                   className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${
-                    selectedSchool === school
+                    selectedSchool === school.id
                       ? 'text-white shadow-sm'
                       : 'text-gray-700 bg-white border border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {/* Animated gradient border using Chart.js colors */}
-                  {selectedSchool === school && (
-                    <div 
+                  {selectedSchool === school.id && (
+                    <div
                       className="absolute inset-0 rounded-xl p-[1.5px] animate-pulse"
                       style={{
-                        background: school === 'SOT' 
-                          ? `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`
-                          : school === 'SOM'
-                          ? `linear-gradient(to right, ${chartColors.purple}, ${chartColors.green})`
-                          : `linear-gradient(to right, ${chartColors.green}, ${chartColors.blue})`
+                        background: `linear-gradient(to right, ${getSchoolColor(school.id)}, ${getSchoolColor(school.id, 'light')})`,
                       }}
                     >
-                      <div 
+                      <div
                         className="w-full h-full rounded-lg"
-                        style={{
-                          background: school === 'SOT' 
-                            ? chartColors.blue
-                            : school === 'SOM'
-                            ? chartColors.purple
-                            : chartColors.green
-                        }}
+                        style={{ background: getSchoolColor(school.id) }}
                       />
                     </div>
                   )}
-                  
-                  <span className="relative z-10">{school}</span>
-                  
-                  {/* Hover effect with Chart.js background colors */}
-                  {selectedSchool !== school && (
-                    <div 
+
+                  <span className="relative z-10">{school.code || school.name}</span>
+
+                  {selectedSchool !== school.id && (
+                    <div
                       className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 border"
                       style={{
-                        background: school === 'SOT' 
-                          ? chartColors.blueLight
-                          : school === 'SOM'
-                          ? chartColors.purpleLight
-                          : chartColors.greenLight,
-                        borderColor: school === 'SOT' 
-                          ? chartColors.blue
-                          : school === 'SOM'
-                          ? chartColors.purple
-                          : chartColors.green
+                        background: getSchoolColor(school.id, 'light'),
+                        borderColor: getSchoolColor(school.id),
                       }}
                     />
                   )}

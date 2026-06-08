@@ -2,16 +2,25 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Video, Code, FileText, Save, Star, 
-  Loader2, User, Play, Timer, X, ChevronRight,
+  Loader2, User, Timer, X, ChevronRight,
   Maximize2, Minimize2, Settings, MessageSquare,
   ShieldCheck, Layout, ExternalLink, RefreshCcw,
   Info, ArrowLeft, MoreHorizontal, UserCheck, 
   Terminal, BarChart3, AlertCircle
 } from 'lucide-react';
-import Editor from '@monaco-editor/react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../hooks/useAuth';
+import {
+  disposeJitsiEmbed,
+  getJitsiDomain,
+  mountJitsiIframe,
+  resizeJitsiIframe,
+  waitForContainer,
+} from '../../utils/jitsiMeet';
+import { initSocket } from '../../services/socket';
+import { useMockInterviewCodeSync } from '../../hooks/useMockInterviewCodeSync';
+import MockInterviewTechBoard from '../../components/mock-interview/MockInterviewTechBoard';
 
 export default function MockInterviewRoom() {
   const { assessmentId: slotId } = useParams(); 
@@ -33,8 +42,12 @@ export default function MockInterviewRoom() {
   const [showTechnicalBoard, setShowTechnicalBoard] = useState(false);
   const [isEarly, setIsEarly] = useState(false);
   const [timeUntilStart, setTimeUntilStart] = useState('');
-  const [jitsiApi, setJitsiApi] = useState(null);
+  const [videoStatus, setVideoStatus] = useState('idle'); // idle | loading | connected | error
+  const [videoError, setVideoError] = useState('');
+  const [jitsiRetryKey, setJitsiRetryKey] = useState(0);
   const jitsiContainerRef = useRef(null);
+  const jitsiIframeRef = useRef(null);
+  const resizeObserverRef = useRef(null);
 
   // Evaluation State
   const [evaluation, setEvaluation] = useState({
@@ -50,9 +63,15 @@ export default function MockInterviewRoom() {
   });
   const [savingFeedback, setSavingFeedback] = useState(false);
 
-  // Technical Mode State
-  const [code, setCode] = useState('// Write your solution here\nfunction solve() {\n  console.log("Hello World");\n}');
-  const [language, setLanguage] = useState('javascript');
+  const codeConsoleEnabled = Boolean(slot?.drive?.enableCodeConsole);
+  const techBoardActive = showTechnicalBoard && codeConsoleEnabled;
+
+  const codeSync = useMockInterviewCodeSync({
+    slotId,
+    slot,
+    isInterviewer,
+    enabled: techBoardActive && !loading && !isEarly,
+  });
 
   const initRoom = useCallback(async () => {
     try {
@@ -72,16 +91,19 @@ export default function MockInterviewRoom() {
         return;
       }
 
-      const isTechRound = slotData.drive?.category === 'TECHNICAL';
-      setShowTechnicalBoard(isTechRound);
-      setActiveTab(isTechRound ? 'technical' : 'profile');
+      const hasCodeConsole = Boolean(slotData.drive?.enableCodeConsole);
+      setShowTechnicalBoard(hasCodeConsole);
+      setActiveTab(hasCodeConsole ? 'technical' : 'profile');
+
+      if (hasCodeConsole) {
+        initSocket();
+      }
 
       if (slotData.student) {
         setStudentProfile(slotData.student);
       }
 
       setLoading(false);
-      setTimeout(() => loadJitsiScript(), 100);
     } catch (err) {
       console.error('Room Init Error:', err);
       toast.error('Failed to initialize interview room');
@@ -91,8 +113,88 @@ export default function MockInterviewRoom() {
 
   useEffect(() => {
     initRoom();
-    return () => jitsiApi?.dispose();
   }, [initRoom]);
+
+  useEffect(() => {
+    if (loading || isEarly || !slot) return undefined;
+
+    let cancelled = false;
+    const domain = getJitsiDomain();
+    setVideoStatus('loading');
+    setVideoError('');
+
+    const startVideo = async () => {
+      try {
+        await waitForContainer(jitsiContainerRef);
+        if (cancelled) return;
+
+        const container = jitsiContainerRef.current;
+        disposeJitsiEmbed(container);
+        jitsiIframeRef.current = null;
+
+        const roomName = `PWIOI_Mock_${slotId.replace(/-/g, '_')}`;
+        const displayName = isInterviewer
+          ? 'Interviewer'
+          : (studentProfile?.fullName || user?.fullName || user?.email || 'Candidate');
+
+        const iframe = mountJitsiIframe(container, {
+          domain,
+          roomName,
+          displayName,
+          onLoad: () => {
+            if (!cancelled) {
+              setVideoStatus('connected');
+              if (slot.status !== 'LIVE') {
+                api.updateMockSlotStatus({ slotId, status: 'LIVE' }).catch(() => {});
+              }
+            }
+          },
+          onError: (err) => {
+            if (!cancelled) {
+              setVideoStatus('error');
+              setVideoError(err.message || 'Video connection failed');
+            }
+          },
+        });
+
+        jitsiIframeRef.current = iframe;
+
+        resizeObserverRef.current?.disconnect();
+        resizeObserverRef.current = new ResizeObserver(() => {
+          resizeJitsiIframe(jitsiIframeRef.current, jitsiContainerRef.current);
+        });
+        resizeObserverRef.current.observe(container);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Jitsi setup failed:', err);
+          setVideoStatus('error');
+          setVideoError(err.message || 'Failed to start video');
+          toast.error('Could not start video — use Retry below');
+        }
+      }
+    };
+
+    startVideo();
+
+    return () => {
+      cancelled = true;
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
+      disposeJitsiEmbed(jitsiContainerRef.current);
+      jitsiIframeRef.current = null;
+    };
+  }, [
+    loading,
+    isEarly,
+    slot,
+    slotId,
+    isInterviewer,
+    studentProfile?.fullName,
+    user?.fullName,
+    user?.email,
+    jitsiRetryKey,
+    toast,
+  ]);
 
   const startCountdown = (startTime) => {
     const update = () => {
@@ -111,66 +213,7 @@ export default function MockInterviewRoom() {
     return () => clearInterval(interval);
   };
 
-  const loadJitsiScript = () => {
-    const scriptId = 'jitsi-external-api';
-    if (document.getElementById(scriptId)) {
-      initJitsi();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = 'https://meet.guifi.net/external_api.js';
-    script.async = true;
-    script.onload = () => initJitsi();
-    script.onerror = () => {
-      toast.error('Failed to load video service');
-    };
-    document.head.appendChild(script);
-  };
-
-  const initJitsi = () => {
-    if (!window.JitsiMeetExternalAPI || !jitsiContainerRef.current) return;
-    
-    const roomName = `PWIOI_Mock_Session_Final_${slotId.replace(/-/g, '_')}`;
-    const options = {
-      roomName: roomName,
-      width: '100%',
-      height: '100%',
-      parentNode: jitsiContainerRef.current,
-      userInfo: { 
-        displayName: isInterviewer ? 'Interviewer' : (studentProfile?.fullName || 'Candidate')
-      },
-      configOverwrite: { 
-        prejoinPageEnabled: false, 
-        disableDeepLinking: true,
-        disableModeratorIndicator: true,
-        startWithAudioMuted: false,
-        startWithVideoMuted: false,
-        enableWelcomePage: false,
-        enableLobby: false,
-        lockRoomTimer: 0,
-        toolbarButtons: [
-          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-          'fodeviceselection', 'hangup', 'profile', 'chat', 'settings', 'raisehand',
-          'videoquality', 'filmstrip', 'tileview', 'mute-everyone', 'security'
-        ]
-      },
-      interfaceConfigOverwrite: { 
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_WATERMARK_FOR_GUESTS: false,
-        DEFAULT_REMOTE_DISPLAY_NAME: 'Participant'
-      }
-    };
-    const apiInstance = new window.JitsiMeetExternalAPI('meet.guifi.net', options);
-    
-    apiInstance.on('videoConferenceJoined', () => {
-       if (isInterviewer) {
-          apiInstance.executeCommand('toggleLobby', false);
-       }
-    });
-
-    setJitsiApi(apiInstance);
-  };
+  const retryVideo = () => setJitsiRetryKey((k) => k + 1);
 
   const handleSaveFeedback = async () => {
     setSavingFeedback(true);
@@ -235,9 +278,21 @@ export default function MockInterviewRoom() {
               <h2 className="text-sm font-bold text-slate-900">
                 {slot?.drive?.title || 'Mock Interview Room'}
               </h2>
-              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded uppercase tracking-wider border border-emerald-100 flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                Live Now
+              <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider border flex items-center gap-1.5 ${
+                videoStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                  : videoStatus === 'error'
+                  ? 'bg-rose-50 text-rose-600 border-rose-100'
+                  : 'bg-amber-50 text-amber-600 border-amber-100'
+              }`}>
+                {videoStatus === 'connected' && (
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                )}
+                {videoStatus === 'connected'
+                  ? 'Live Now'
+                  : videoStatus === 'error'
+                  ? 'Video Error'
+                  : 'Connecting…'}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
@@ -249,7 +304,7 @@ export default function MockInterviewRoom() {
         </div>
 
         <div className="flex items-center gap-3">
-           {isInterviewer && (
+           {isInterviewer && slot?.drive?.enableCodeConsole && (
              <button 
                onClick={() => {
                  const newVal = !showTechnicalBoard;
@@ -277,24 +332,46 @@ export default function MockInterviewRoom() {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Video Area - Full height for controls visibility */}
-        <div className="flex-1 bg-slate-950 relative">
-           <div className="w-full h-full relative">
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left: Video Area */}
+        <div className="flex-1 bg-slate-950 relative min-h-0 min-w-0">
+           <div className="absolute inset-0">
               <div ref={jitsiContainerRef} className="w-full h-full" />
-              
-              {/* Refined Video Overlay - Moved up slightly */}
-              <div className="absolute bottom-20 left-6 pointer-events-none z-10">
-                 <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-bold text-white/90">Encrypted P2P Connection</span>
-                 </div>
-              </div>
+
+              {videoStatus === 'loading' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/90 z-20">
+                  <Loader2 className="w-10 h-10 animate-spin text-indigo-400" />
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Starting video…</p>
+                </div>
+              )}
+
+              {videoStatus === 'error' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/95 z-20 p-6 text-center">
+                  <AlertCircle className="w-10 h-10 text-rose-400" />
+                  <p className="text-sm font-bold text-white max-w-sm">{videoError || 'Video failed to start'}</p>
+                  <button
+                    type="button"
+                    onClick={retryVideo}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-2"
+                  >
+                    <RefreshCcw className="w-4 h-4" /> Retry Video
+                  </button>
+                </div>
+              )}
+
+              {videoStatus === 'connected' && (
+                <div className="absolute bottom-20 left-6 pointer-events-none z-10">
+                   <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                      <span className="text-[10px] font-bold text-white/90">Video connected</span>
+                   </div>
+                </div>
+              )}
            </div>
         </div>
 
         {/* Right: Interaction Area - Pure White & Clean */}
-        <div className={`flex flex-col bg-white border-l border-slate-200 transition-all duration-500 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.02)] ${showTechnicalBoard ? 'w-[750px]' : 'w-[420px]'}`}>
+        <div className={`flex flex-col bg-white border-l border-slate-200 transition-all duration-500 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.02)] ${showTechnicalBoard ? 'w-[min(920px,55vw)]' : 'w-[420px]'}`}>
            {/* Tab Bar - Refined Pill Style */}
            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
               <div className="bg-slate-200/50 p-1 rounded-xl flex gap-1">
@@ -320,47 +397,23 @@ export default function MockInterviewRoom() {
 
            <div className="flex-1 overflow-y-auto custom-scrollbar">
               {activeTab === 'technical' && showTechnicalBoard && (
-                <div className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
-                   <div className="p-3 bg-white border-b border-slate-100 flex items-center justify-between px-6">
-                      <div className="flex items-center gap-3">
-                         <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-400">Environment:</span>
-                            <select 
-                               value={language}
-                               onChange={(e) => setLanguage(e.target.value)}
-                               className="bg-transparent text-[10px] font-bold text-indigo-600 outline-none uppercase cursor-pointer"
-                            >
-                               <option value="javascript">JavaScript</option>
-                               <option value="python">Python</option>
-                               <option value="java">Java</option>
-                               <option value="cpp">C++</option>
-                            </select>
-                         </div>
-                      </div>
-                      <button className="h-8 px-4 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-2 transition-all shadow-md shadow-slate-200">
-                         <Play className="w-3.5 h-3.5" /> Execute
-                      </button>
-                   </div>
-                   <div className="flex-1 relative bg-[#1e1e1e]">
-                      <Editor
-                        theme="vs-dark"
-                        language={language}
-                        value={code}
-                        onChange={setCode}
-                        options={{
-                          minimap: { enabled: false },
-                          fontSize: 14,
-                          lineNumbers: 'on',
-                          padding: { top: 20 },
-                          fontFamily: 'JetBrains Mono, monospace',
-                          scrollBeyondLastLine: false,
-                          smoothScrolling: true,
-                          cursorBlinking: 'smooth',
-                          cursorSmoothCaretAnimation: 'on',
-                          backgroundColor: '#1e1e1e'
-                        }}
-                      />
-                   </div>
+                <div className="h-full min-h-[480px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
+                  <MockInterviewTechBoard
+                    isInterviewer={isInterviewer}
+                    connected={codeSync.connected}
+                    code={codeSync.code}
+                    language={codeSync.language}
+                    onCodeChange={codeSync.handleCodeChange}
+                    onLanguageChange={codeSync.handleLanguageChange}
+                    questions={codeSync.questions}
+                    activeQuestion={codeSync.activeQuestion}
+                    activeQuestionId={codeSync.activeQuestionId}
+                    onSelectQuestion={codeSync.setActiveQuestionId}
+                    onPushQuestion={codeSync.pushQuestionToCandidate}
+                    onAddQuestion={codeSync.addLiveQuestion}
+                    readOnly={codeSync.readOnly}
+                    onResetCode={codeSync.pushQuestionToCandidate}
+                  />
                 </div>
               )}
 
@@ -453,7 +506,7 @@ export default function MockInterviewRoom() {
                         <div key={item.id} className="space-y-2.5">
                            <div className="flex items-center justify-between px-1">
                               <label className="text-[11px] font-semibold text-slate-700">{item.label}</label>
-                              <span className="text-[11px] font-bold text-indigo-600 tabular-nums">{evaluation[item.id]} <span className="text-slate-300 font-medium">/ 5</span></span>
+                              <span className="text-[11px] font-bold text-indigo-600 tabular-nums">{evaluation[item.id] ?? 0} <span className="text-slate-300 font-medium">/ 5</span></span>
                            </div>
                            <div className="flex gap-1.5">
                               {[1, 2, 3, 4, 5].map((star) => (

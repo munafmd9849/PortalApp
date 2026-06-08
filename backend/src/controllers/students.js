@@ -13,6 +13,7 @@ import { generateProjectContent } from '../services/aiService.js';
 import { createNotification } from './notifications.js';
 import { logAction } from '../utils/auditLogger.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { isAdminViewer } from '../utils/adminAccess.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const isSqliteDb = () => (process.env.DATABASE_URL || '').toLowerCase().startsWith('file:');
@@ -38,7 +39,7 @@ async function updateUserProfilePhoto(userId, profilePhotoValue) {
 export async function getStudentProfile(req, res) {
   try {
     let studentIdToFetch;
-    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+    if (req.query.studentId && isAdminViewer(req.user)) {
       studentIdToFetch = { id: req.query.studentId };
     } else {
       studentIdToFetch = { userId: req.userId };
@@ -60,6 +61,8 @@ export async function getStudentProfile(req, res) {
         user: {
           select: {
             profilePhoto: true,
+            emailVerified: true,
+            lastLoginAt: true,
           },
         },
         skills: true,
@@ -124,9 +127,12 @@ export async function getStudentProfile(req, res) {
       experiences: Array.isArray(student.experiences) ? student.experiences : [],
       codingProfiles: Array.isArray(student.codingProfiles) ? student.codingProfiles : [],
       profilePhoto: student.user?.profilePhoto || null,
+      emailVerified: Boolean(
+        student.user?.emailVerified || student.user?.lastLoginAt,
+      ),
     };
 
-    // Remove user relation from response (we only need profilePhoto)
+    // Remove user relation from response (flattened above)
     delete normalizedData.user;
 
     // CRITICAL: Log counts before sending response
@@ -741,7 +747,7 @@ export async function updateStudentProfile(req, res) {
 export async function getStudentSkills(req, res) {
   try {
     let studentId;
-    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+    if (req.query.studentId && isAdminViewer(req.user)) {
       studentId = req.query.studentId;
     } else {
       const student = await prisma.student.findUnique({
@@ -1029,6 +1035,7 @@ export async function getAllStudents(req, res) {
             select: {
               status: true,
               emailVerified: true,
+              lastLoginAt: true,
               createdAt: true,
               blockInfo: true,
             },
@@ -1055,7 +1062,12 @@ export async function getAllStudents(req, res) {
       // Prepare user object with safe defaults and serialized dates
       const user = student.user ? {
         status: student.user.status || 'ACTIVE',
-        emailVerified: student.user.emailVerified || false,
+        emailVerified: Boolean(
+          student.user.emailVerified || student.user.lastLoginAt,
+        ),
+        lastLoginAt: student.user.lastLoginAt
+          ? new Date(student.user.lastLoginAt).toISOString()
+          : null,
         createdAt: student.user.createdAt
           ? new Date(student.user.createdAt).toISOString()
           : (student.createdAt ? new Date(student.createdAt).toISOString() : new Date().toISOString()),

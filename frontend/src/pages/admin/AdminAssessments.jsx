@@ -11,7 +11,53 @@ import {
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import AssessmentSettingsModal from '../../components/dashboard/admin/AssessmentSettingsModal';
+import { fromDatetimeLocalValue } from '../../utils/assessmentEntryWindow';
 import StudentSelectorModal from '../../components/dashboard/admin/StudentSelectorModal';
+import DirectoryLoadingPanel from '../../components/dashboard/admin/DirectoryLoading';
+import CodingQuestionEditor from '../../components/admin/CodingQuestionEditor';
+import AllowedCodingLanguagesPicker from '../../components/admin/AllowedCodingLanguagesPicker';
+import {
+  createEmptyStarterCodesByLang,
+  parseStarterCodesByLang,
+  mergeCodingIntoConfig,
+  ALL_CODING_LANGUAGE_IDS,
+} from '../../coding-engine/starterCodeStorage';
+
+const COMPLETED_SESSION_STATUSES = new Set(['SUBMITTED', 'COMPLETED', 'PENDING_REVIEW', 'TERMINATED']);
+
+function assessmentHasLiveSession(assessment) {
+  return (assessment.sessions || []).some((s) => s.status === 'IN_PROGRESS');
+}
+
+function assessmentIsDraft(assessment) {
+  return assessment.status === 'DRAFT';
+}
+
+function assessmentIsActiveWindow(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
+  const now = new Date();
+  const start = assessment.startTime ? new Date(assessment.startTime) : null;
+  const end = assessment.endTime ? new Date(assessment.endTime) : null;
+  if (assessmentHasLiveSession(assessment)) return true;
+  if (start && end && now >= start && now <= end) return true;
+  if (start && !end && now >= start) return true;
+  return false;
+}
+
+function assessmentIsUpcoming(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
+  if (!assessment.startTime || assessmentHasLiveSession(assessment)) return false;
+  return new Date(assessment.startTime) > new Date();
+}
+
+function assessmentIsPast(assessment) {
+  if (assessmentIsDraft(assessment)) return false;
+  if (assessmentHasLiveSession(assessment)) return false;
+  const end = assessment.endTime ? new Date(assessment.endTime) : null;
+  if (end) return end < new Date();
+  const start = assessment.startTime ? new Date(assessment.startTime) : null;
+  return start ? start < new Date() : false;
+}
 
 export default function AdminAssessments() {
   const navigate = useNavigate();
@@ -20,12 +66,12 @@ export default function AdminAssessments() {
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedLiveAssessment, setSelectedLiveAssessment] = useState(null);
   const [settingsAssessment, setSettingsAssessment] = useState(null);
-  const [liveSessions, setLiveSessions] = useState([]);
   const [step, setStep] = useState(1);
   const [batches, setBatches] = useState([]);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const toast = useToast();
 
   const [formData, setFormData] = useState({
@@ -41,9 +87,15 @@ export default function AdminAssessments() {
     targetStudentIds: [],
     scheduledAtMap: {},
     config: {
-      proctoring: { webcam: true, mic: true, tabSwitch: true, fullscreen: true, snapshotInterval: 60 }
-    }
+      proctoring: { webcam: true, mic: true, tabSwitch: true, fullscreen: true, snapshotInterval: 60 },
+      joinWindow: { opensMinutesBeforeStart: 10, closesMinutesAfterStart: 10 },
+      coding: { allowedLanguages: [...ALL_CODING_LANGUAGE_IDS] },
+    },
   });
+
+  const hasCodingQuestions =
+    formData.type === 'CODING_TEST' ||
+    (formData.questions || []).some((q) => q.type === 'CODING');
 
   const fetchBatches = useCallback(async () => {
     try {
@@ -58,9 +110,11 @@ export default function AdminAssessments() {
     try {
       setLoading(true);
       const data = await api.getAssessments();
-      setAssessments(data);
+      const list = Array.isArray(data) ? data : (data?.assessments || []);
+      setAssessments(list);
     } catch (e) {
-      toast?.error('Failed to load assessments');
+      toast?.error(e?.message || 'Failed to load assessments');
+      setAssessments([]);
     } finally {
       setLoading(false);
     }
@@ -71,24 +125,16 @@ export default function AdminAssessments() {
     fetchBatches();
   }, [fetchAssessments, fetchBatches]);
 
+  // Drop stale localStorage cache from before assessments existed (5-min TTL hid new items)
   useEffect(() => {
-    let intervalId;
-    if (selectedLiveAssessment) {
-      const fetchLiveSessions = async () => {
-        try {
-          const sessions = await api.getLiveAssessmentSessions(selectedLiveAssessment.id);
-          setLiveSessions(sessions);
-        } catch (e) {
-          console.error("Failed to fetch live sessions");
-        }
-      };
-      fetchLiveSessions();
-      intervalId = setInterval(fetchLiveSessions, 5000);
-    } else {
-      setLiveSessions([]);
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.includes('api_cache_/assessments/all')) localStorage.removeItem(key);
+      });
+    } catch {
+      /* ignore */
     }
-    return () => intervalId && clearInterval(intervalId);
-  }, [selectedLiveAssessment]);
+  }, []);
 
   const [availableStudents, setAvailableStudents] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
@@ -118,14 +164,113 @@ export default function AdminAssessments() {
       )
     : [];
 
-  const handleCreate = async () => {
+  const allowedLangs =
+    formData.config?.coding?.allowedLanguages?.length > 0
+      ? formData.config.coding.allowedLanguages
+      : [...ALL_CODING_LANGUAGE_IDS];
+
+  const validateCodingQuestions = (forPublish = true) => {
+    const codingQs = (formData.questions || []).filter((q) => q.type === 'CODING');
+    if (!codingQs.length) return true;
+
+    if (forPublish) {
+      if (allowedLangs.length < 1) {
+        toast?.error('Select at least one allowed coding language');
+        return false;
+      }
+    }
+
+    for (const q of codingQs) {
+      if (!q.text?.trim()) {
+        toast?.error('Each coding question needs a title');
+        return false;
+      }
+      if (forPublish) {
+        const starters = parseStarterCodesByLang(q.starterCodes ?? q.starterCode);
+        for (const lang of allowedLangs) {
+          if (!String(starters[lang] ?? '').trim()) {
+            toast?.error(
+              `"${q.text}": add starter code for ${lang}`
+            );
+            return false;
+          }
+        }
+        const cases = Array.isArray(q.testCases) ? q.testCases : [];
+        const valid = cases.filter(
+          (tc) =>
+            String(tc.input ?? '').trim() &&
+            String(tc.expectedOutput ?? tc.output ?? '').trim()
+        );
+        if (valid.length === 0) {
+          toast?.error(
+            `"${q.text || 'Coding question'}": add at least one judge test case with input and expected output`
+          );
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const buildAssessmentPayload = (publish) => ({
+    ...formData,
+    title: formData.title?.trim(),
+    config: mergeCodingIntoConfig(formData.config, {
+      allowedLanguages: hasCodingQuestions ? allowedLangs : undefined,
+    }),
+    questions: (formData.questions || []).map((q) =>
+      q.type === 'CODING'
+        ? { ...q, starterCodes: parseStarterCodesByLang(q.starterCodes ?? q.starterCode) }
+        : q
+    ),
+    startTime: fromDatetimeLocalValue(formData.startTime),
+    endTime: fromDatetimeLocalValue(formData.endTime),
+    joinOpensMinutesBeforeStart: formData.config?.joinWindow?.opensMinutesBeforeStart,
+    joinClosesMinutesAfterStart: formData.config?.joinWindow?.closesMinutesAfterStart,
+    allowedCodingLanguages: hasCodingQuestions ? allowedLangs : undefined,
+    publish,
+  });
+
+  const handleSaveDraft = async () => {
+    if (!formData.title?.trim()) {
+      toast?.error('Assessment title is required');
+      return;
+    }
     try {
-      await api.createAssessment(formData);
-      toast?.success('Assessment created successfully');
+      await api.createAssessment(buildAssessmentPayload(false));
+      toast?.success('Draft saved');
       setShowCreateModal(false);
+      setStep(1);
       fetchAssessments();
     } catch (e) {
-      toast?.error('Failed to create assessment');
+      toast?.error(e?.message || 'Failed to save draft');
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!formData.title?.trim()) {
+      toast?.error('Assessment title is required');
+      return;
+    }
+    if (!validateCodingQuestions(true)) return;
+    try {
+      await api.createAssessment(buildAssessmentPayload(true));
+      toast?.success('Assessment published');
+      setShowCreateModal(false);
+      setStep(1);
+      fetchAssessments();
+    } catch (e) {
+      toast?.error(e?.message || 'Failed to publish assessment');
+    }
+  };
+
+  const handlePublishExisting = async (id) => {
+    try {
+      await api.publishAssessment(id);
+      toast?.success('Assessment published');
+      fetchAssessments();
+    } catch (e) {
+      toast?.error(e?.message || 'Failed to publish');
     }
   };
 
@@ -144,8 +289,10 @@ export default function AdminAssessments() {
           correctAnswer: '', 
           points: 1,
           difficulty: 'MEDIUM',
-          starterCode: '',
-          testCases: [{ input: '', output: '', isPublic: true }]
+          starterCodes: createEmptyStarterCodesByLang(),
+          constraints: '',
+          examples: [{ input: '', output: '', explanation: '' }],
+          testCases: [{ input: '', expectedOutput: '', hidden: false }]
         }
       ]
     });
@@ -172,50 +319,169 @@ export default function AdminAssessments() {
     }
   };
 
+  const totalAssessments = assessments.length;
+  const upcomingScheduled = assessments.filter(assessmentIsUpcoming).length;
+  const activeSessions = assessments.reduce(
+    (acc, a) => acc + (a.sessions || []).filter((s) => s.status === 'IN_PROGRESS').length,
+    0,
+  );
+  const completedAttempts = assessments.reduce(
+    (acc, a) => acc + (a.sessions || []).filter((s) => COMPLETED_SESSION_STATUSES.has(s.status)).length,
+    0,
+  );
+  const activeAssessmentsCount = assessments.filter(
+    (a) => assessmentIsActiveWindow(a) || assessmentHasLiveSession(a),
+  ).length;
+  const pastAssessmentsCount = assessments.filter(assessmentIsPast).length;
+
+  const filteredAssessments = assessments.filter((item) => {
+    if (searchQuery && !item.title?.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    if (activeTab === 'all') return true;
+    if (activeTab === 'active') {
+      return assessmentIsActiveWindow(item) || assessmentHasLiveSession(item);
+    }
+    if (activeTab === 'upcoming') return assessmentIsUpcoming(item);
+    if (activeTab === 'past') return assessmentIsPast(item);
+    return true;
+  });
+
   return (
     <>
-      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1400px] mx-auto animate-in fade-in duration-500">
-        {/* Page Header - Clean & Professional */}
+      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Assessment Engine</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              Assessments
+            </h1>
             <p className="text-slate-500 text-sm mt-1 font-medium">Design, deploy and monitor student assessments</p>
           </div>
-          <div className="flex items-center gap-3">
-             <button 
-               onClick={() => { setStep(1); setShowCreateModal(true); }}
-               className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
-             >
-               <Plus className="w-4 h-4" /> Create Assessment
-             </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStep(1);
+              setShowCreateModal(true);
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> Create Assessment
+          </button>
         </div>
 
-        {/* Main List - Grid with Clean Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            [1,2,3].map(i => (
-              <div key={i} className="h-64 bg-white rounded-2xl border border-slate-200 animate-pulse" />
-            ))
-          ) : assessments.length === 0 ? (
-            <div className="col-span-full py-32 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 border-dashed">
-               <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6">
-                  <FileText className="w-10 h-10 text-slate-200" />
-               </div>
-               <h3 className="text-lg font-bold text-slate-900">No assessments found</h3>
-               <p className="text-sm text-slate-500 mt-2 font-medium">Start by creating your first mock test or coding challenge.</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+          {[
+            { label: 'Total Assessments', val: totalAssessments, icon: Layout, color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+            { label: 'Upcoming Scheduled', val: upcomingScheduled, icon: Clock, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+            { label: 'Active Sessions', val: activeSessions, icon: Users, color: 'bg-amber-50 text-amber-600 border-amber-100' },
+            { label: 'Completed', val: completedAttempts, icon: CheckCircle, color: 'bg-blue-50 text-blue-600 border-blue-100' },
+          ].map((stat, i) => (
+            <div
+              key={i}
+              className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md"
+            >
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center border ${stat.color}`}>
+                <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{stat.val}</p>
+              </div>
             </div>
-          ) : assessments.map(item => (
+          ))}
+        </div>
+
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-200/50 p-1 shadow-inner lg:max-w-3xl lg:flex-1">
+              {[
+                { id: 'all', label: 'All Assessments', shortLabel: 'All', count: totalAssessments },
+                { id: 'active', label: 'Active Now', shortLabel: 'Active', count: activeAssessmentsCount },
+                { id: 'upcoming', label: 'Upcoming', shortLabel: 'Upcoming', count: upcomingScheduled },
+                { id: 'past', label: 'Past Archives', shortLabel: 'Past', count: pastAssessmentsCount },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-[10px] font-bold transition-all sm:gap-2 sm:px-3 sm:text-[11px] ${
+                    activeTab === tab.id
+                      ? 'bg-white text-indigo-600 shadow-md'
+                      : 'text-slate-500 hover:bg-white/40 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+                  <span className="sm:hidden whitespace-nowrap">{tab.shortLabel}</span>
+                  <span
+                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] tabular-nums ${
+                      activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full shrink-0 lg:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by assessment title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6">
+            {loading ? (
+              <DirectoryLoadingPanel title="Loading assessments..." subtitle="Please wait while we fetch the data" />
+            ) : filteredAssessments.length === 0 ? (
+              <div className="py-24 flex flex-col items-center justify-center gap-6 text-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-slate-200" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">No {activeTab === 'all' ? '' : `${activeTab} `}assessments found</h3>
+                  <p className="text-sm text-slate-500 max-w-xs mx-auto mt-2 font-medium">
+                    {assessments.length === 0
+                      ? 'Create your first assessment to get started.'
+                      : 'Try another tab or adjust your search.'}
+                  </p>
+                </div>
+                {assessments.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setShowCreateModal(true);
+                    }}
+                    className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all active:scale-95"
+                  >
+                    Create Your First Assessment
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAssessments.map((item) => (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group flex flex-col h-full relative overflow-hidden">
               <div className="flex justify-between items-start mb-5">
                 <div className={`p-3 rounded-xl ${item.type === 'MOCK_TEST' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'} border border-current opacity-20`}>
                   {getAssessmentTypeIcon(item.type)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                   {assessmentIsDraft(item) && (
+                     <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border bg-amber-50 border-amber-100 text-amber-700">
+                       Draft
+                     </span>
+                   )}
                    <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${
                      item.type === 'MOCK_TEST' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
                    }`}>
-                     {item.type.replace('_', ' ')}
+                     {item.type?.replace(/_/g, ' ')}
                    </span>
                 </div>
               </div>
@@ -237,32 +503,46 @@ export default function AdminAssessments() {
                 </div>
               </div>
 
-              <div className="pt-5 border-t border-slate-100 flex items-center gap-2">
-                <button 
-                  onClick={() => navigate(`${basePath}?tab=assessmentResults&assessmentId=${item.id}`)}
-                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10 active:scale-95"
-                >
-                  View Results
-                </button>
-                <button 
-                  onClick={() => {
-                     setSelectedLiveAssessment(item);
-                     toast.success(`Live Monitor Initialized`);
-                  }}
-                  className="px-3.5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100 rounded-xl transition-all active:scale-95"
-                  title="Live Monitor"
-                >
-                  <Video className="w-4 h-4" />
-                </button>
-                <button 
+              <div className="pt-5 border-t border-slate-100 flex flex-col gap-2">
+                {assessmentIsDraft(item) ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePublishExisting(item.id)}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Publish assessment
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${basePath}/assessments/${item.id}/live-monitor`)}
+                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Video className="w-4 h-4" /> Live Monitor (webcam & violations)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${basePath}?tab=assessmentResults&assessmentId=${item.id}`)}
+                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10 active:scale-95"
+                    >
+                      View Results
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
                   onClick={() => setSettingsAssessment(item)}
-                  className="px-3.5 py-2.5 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-900 border border-slate-100 rounded-xl transition-all active:scale-95"
+                  className="w-full py-2.5 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-slate-100 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4" /> Settings
                 </button>
               </div>
             </div>
-          ))}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -347,19 +627,75 @@ export default function AdminAssessments() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                        {[
                          { label: 'Duration (Min)', type: 'number', key: 'duration' },
-                         { label: 'Start Window', type: 'datetime-local', key: 'startTime' },
-                         { label: 'End Window', type: 'datetime-local', key: 'endTime' }
-                       ].map(field => (
+                         { label: 'Scheduled Start', type: 'datetime-local', key: 'startTime' },
+                         { label: 'Overall End (optional)', type: 'datetime-local', key: 'endTime' },
+                       ].map((field) => (
                          <div key={field.key} className="space-y-2.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{field.label}</label>
-                            <input 
+                            <input
                               type={field.type}
                               value={formData[field.key]}
-                              onChange={e => setFormData({...formData, [field.key]: e.target.value})}
-                              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 ring-indigo-500/10 outline-none font-bold text-slate-900 transition-all text-xs" 
+                              onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 ring-indigo-500/10 outline-none font-bold text-slate-900 transition-all text-xs"
                             />
                          </div>
                        ))}
+                    </div>
+
+                    <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-4">
+                      <p className="text-xs font-bold text-indigo-900">Join window (when students can enter)</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Can join before start (minutes)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={formData.config.joinWindow.opensMinutesBeforeStart}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                config: {
+                                  ...formData.config,
+                                  joinWindow: {
+                                    ...formData.config.joinWindow,
+                                    opensMinutesBeforeStart: parseInt(e.target.value, 10) || 0,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Must join within after start (minutes)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={formData.config.joinWindow.closesMinutesAfterStart}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                config: {
+                                  ...formData.config,
+                                  joinWindow: {
+                                    ...formData.config.joinWindow,
+                                    closesMinutesAfterStart: parseInt(e.target.value, 10) || 0,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        Example: start 10:00, join within 10 min after start → students must enter by 10:10.
+                        Pre-check can open 10 min early if you set 10 above.
+                      </p>
                     </div>
                  </div>
                )}
@@ -394,6 +730,7 @@ export default function AdminAssessments() {
                             </button>
 
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                               {q.type !== 'CODING' && (
                                <div className="md:col-span-8 space-y-2.5">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Question {idx + 1}</label>
                                   <input 
@@ -403,6 +740,8 @@ export default function AdminAssessments() {
                                      placeholder="Enter question text here..." 
                                   />
                                </div>
+                               )}
+                               {q.type === 'CODING' && <div className="md:col-span-8" />}
                                <div className="md:col-span-4 space-y-2.5">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Type & Points</label>
                                   <div className="flex gap-2">
@@ -483,26 +822,14 @@ export default function AdminAssessments() {
                             )}
 
                             {q.type === 'CODING' && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Starter Code</label>
-                                    <textarea 
-                                      value={q.starterCode || ''}
-                                      onChange={e => updateQuestion(idx, 'starterCode', e.target.value)}
-                                      className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl h-48 border border-slate-800 outline-none focus:ring-2 ring-indigo-500/20"
-                                      placeholder="function solve() { \n  // logic \n}"
-                                    />
-                                 </div>
-                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Test Cases (JSON)</label>
-                                    <textarea 
-                                      value={typeof q.testCases === 'string' ? q.testCases : JSON.stringify(q.testCases || [], null, 2)}
-                                      onChange={e => updateQuestion(idx, 'testCases', e.target.value)}
-                                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[10px] h-48 outline-none focus:ring-2 ring-indigo-500/20"
-                                      placeholder='[{"input": "5", "output": "120"}]'
-                                    />
-                                 </div>
-                              </div>
+                              <CodingQuestionEditor
+                                question={q}
+                                onChange={(updated) => {
+                                  const newQuestions = [...formData.questions];
+                                  newQuestions[idx] = { ...newQuestions[idx], ...updated };
+                                  setFormData({ ...formData, questions: newQuestions });
+                                }}
+                              />
                             )}
                          </div>
                        ))}
@@ -555,6 +882,20 @@ export default function AdminAssessments() {
                           </div>
                        </div>
                     </div>
+
+                    {hasCodingQuestions && (
+                      <AllowedCodingLanguagesPicker
+                        selected={allowedLangs}
+                        onChange={(ids) =>
+                          setFormData({
+                            ...formData,
+                            config: mergeCodingIntoConfig(formData.config, {
+                              allowedLanguages: ids,
+                            }),
+                          })
+                        }
+                      />
+                    )}
 
                     <div className="bg-white border border-slate-200 rounded-3xl p-8 space-y-6">
                        <div className="flex items-center gap-3">
@@ -625,12 +966,22 @@ export default function AdminAssessments() {
                      Next Step <ChevronRight className="w-4 h-4" />
                    </button>
                  ) : (
-                   <button 
-                     onClick={handleCreate}
-                     className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
-                   >
-                     Deploy Assessment
-                   </button>
+                   <>
+                     <button
+                       type="button"
+                       onClick={handleSaveDraft}
+                       className="px-6 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-white"
+                     >
+                       Save draft
+                     </button>
+                     <button
+                       type="button"
+                       onClick={handlePublish}
+                       className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                     >
+                       Publish assessment
+                     </button>
+                   </>
                  )}
                </div>
             </div>
@@ -638,107 +989,12 @@ export default function AdminAssessments() {
         </div>
       )}
 
-      {/* Live Monitor View - Clean Redesign */}
-      {selectedLiveAssessment && (
-        <div className="fixed inset-0 bg-slate-50 z-[9999] flex flex-col overflow-hidden animate-in fade-in duration-500">
-           {/* Monitor Header - Clean White */}
-           <div className="h-20 border-b border-slate-200 px-8 flex items-center justify-between bg-white shadow-sm z-10">
-              <div className="flex items-center gap-6">
-                 <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center border border-rose-100 shadow-sm relative">
-                    <Video className="w-6 h-6 text-rose-500" />
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping" />
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full" />
-                 </div>
-                 <div>
-                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">{selectedLiveAssessment.title}</h2>
-                    <div className="flex items-center gap-3 mt-0.5">
-                       <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded uppercase tracking-widest border border-rose-100">Live Sentinel Active</span>
-                       <div className="w-1 h-1 bg-slate-300 rounded-full" />
-                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{liveSessions.length} Candidates Connected</span>
-                    </div>
-                 </div>
-              </div>
-              <button 
-                onClick={() => setSelectedLiveAssessment(null)}
-                className="px-8 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-slate-900/10"
-              >
-                End Session Monitor
-              </button>
-           </div>
-
-           {/* Candidate Streams Grid */}
-           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-[1600px] mx-auto">
-                 {liveSessions.map(session => (
-                   <div key={session.id} className={`p-5 rounded-2xl bg-white border-2 transition-all relative group ${session.status === 'CRITICAL' ? 'border-rose-500 shadow-2xl shadow-rose-500/10' : session.status === 'WARNING' ? 'border-amber-400' : 'border-slate-100 hover:border-indigo-200 shadow-sm'}`}>
-                      <div className="flex items-start justify-between mb-4">
-                         <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${session.status === 'CRITICAL' ? 'bg-rose-500' : 'bg-slate-800'}`}>
-                               {session.studentName?.[0]}
-                            </div>
-                            <div>
-                               <h4 className="text-sm font-bold text-slate-900">{session.studentName}</h4>
-                               <p className="text-[10px] font-bold text-slate-400 uppercase">Ping: {session.lastPing}</p>
-                            </div>
-                         </div>
-                         <div className={`px-2 py-1 rounded-md text-[8px] font-bold uppercase tracking-widest border ${session.status === 'CRITICAL' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
-                            {session.status}
-                         </div>
-                      </div>
-
-                      {/* Video Snapshot Simulation */}
-                      <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden relative shadow-inner border border-slate-200 group/vid">
-                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700">
-                            <Camera className="w-8 h-8 opacity-20" />
-                            <p className="text-[8px] font-bold uppercase mt-2 opacity-30">Webcam Stream Blocked</p>
-                         </div>
-                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover/vid:opacity-100 transition-all">
-                            <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all shadow-lg">
-                               Force Screen Capture
-                            </button>
-                         </div>
-                      </div>
-
-                      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                         <div className="flex items-center gap-2">
-                            <AlertCircle className={`w-3.5 h-3.5 ${session.violations > 0 ? 'text-amber-500' : 'text-slate-300'}`} />
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">{session.violations} Violation Logs</span>
-                         </div>
-                         {session.lastViolation && (
-                           <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                              {session.lastViolation}
-                           </span>
-                         )}
-                      </div>
-                   </div>
-                 ))}
-                 
-                 {liveSessions.length === 0 && (
-                   <div className="col-span-full py-40 flex flex-col items-center justify-center text-center">
-                      <div className="relative mb-8">
-                         <div className="w-24 h-24 bg-slate-100 rounded-3xl flex items-center justify-center animate-pulse">
-                            <Activity className="w-10 h-10 text-slate-300" />
-                         </div>
-                         <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-xl shadow-lg border border-slate-100 flex items-center justify-center">
-                            <Search className="w-4 h-4 text-indigo-600" />
-                         </div>
-                      </div>
-                      <h3 className="text-lg font-bold text-slate-900">Sentinel Synchronization</h3>
-                      <p className="text-sm font-medium text-slate-500 mt-2 max-w-sm mx-auto">
-                        We are waiting for candidates to initialize their secure testing window. Live streams will appear here automatically.
-                      </p>
-                   </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      )}
-
       {/* Settings Modal Hookup */}
       {settingsAssessment && (
-        <AssessmentSettingsModal 
-          assessment={settingsAssessment} 
-          onClose={() => { setSettingsAssessment(null); fetchAssessments(); }} 
+        <AssessmentSettingsModal
+          assessment={settingsAssessment}
+          onUpdate={fetchAssessments}
+          onClose={() => setSettingsAssessment(null)}
         />
       )}
 

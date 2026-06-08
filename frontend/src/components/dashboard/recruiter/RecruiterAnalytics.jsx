@@ -19,8 +19,8 @@ import {
   FaUsers, FaUserTie, FaBuilding, FaBriefcase, FaHandshake
 } from 'react-icons/fa';
 import CustomDropdown from '../../common/CustomDropdown';
-import { CENTER_OPTIONS, SCHOOL_OPTIONS } from '../../../constants/academics';
 import api from '../../../services/api';
+import { filterActiveAcademicRecords, buildStandardFilterOptions } from '../../../utils/academicOptions';
 import { useAuth } from '../../../hooks/useAuth';
 
 // Register Chart.js components
@@ -56,13 +56,13 @@ const RecruiterAnalytics = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [s, c] = await Promise.all([
-          api.getSchools(),
-          api.getCenters()
-        ]);
+        const academic = buildStandardFilterOptions({
+          schools: filterActiveAcademicRecords(await api.getSchools()),
+          centers: filterActiveAcademicRecords(await api.getCenters()),
+        });
         setFilterOptions({
-          schools: (s || []).map(opt => ({ id: opt.name, name: opt.name })),
-          centers: (c || []).map(opt => ({ id: opt.name, name: opt.name }))
+          schools: academic.schools,
+          centers: academic.centers,
         });
       } catch (err) {
         console.error('Failed to load academic options for analytics:', err);

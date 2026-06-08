@@ -86,26 +86,36 @@ const StudentSelectorModal = ({
     center: 'ALL'
   });
 
-  const schoolOptions = [
-    { label: 'All Schools', value: 'ALL' },
-    { label: 'SOT', value: 'SOT' },
-    { label: 'SOM', value: 'SOM' },
-    { label: 'SOH', value: 'SOH' },
-  ];
+  const [schoolOptions, setSchoolOptions] = useState([{ label: 'All Schools', value: 'ALL' }]);
+  const [batchOptions, setBatchOptions] = useState([{ label: 'All Batches', value: 'ALL' }]);
+  const [centerOptions, setCenterOptions] = useState([{ label: 'All Centers', value: 'ALL' }]);
 
-  const batchOptions = [
-    { label: 'All Batches', value: 'ALL' },
-    { label: '23-27', value: '23-27' },
-    { label: '24-28', value: '24-28' },
-    { label: '25-29', value: '25-29' },
-  ];
-
-  const centerOptions = [
-    { label: 'All Centers', value: 'ALL' },
-    { label: 'BANGALORE', value: 'BANGALORE' },
-    { label: 'NOIDA', value: 'NOIDA' },
-    { label: 'PUNE', value: 'PUNE' },
-  ];
+  useEffect(() => {
+    const loadAcademicFilters = async () => {
+      try {
+        const { fetchAcademicOptions, buildStandardFilterOptions } = await import(
+          '../../../utils/academicOptions'
+        );
+        const raw = await fetchAcademicOptions();
+        const academic = buildStandardFilterOptions(raw);
+        setSchoolOptions([
+          { label: 'All Schools', value: 'ALL' },
+          ...academic.schools.map((s) => ({ label: s.code || s.name, value: s.id })),
+        ]);
+        setBatchOptions([
+          { label: 'All Batches', value: 'ALL' },
+          ...academic.batches.map((b) => ({ label: b.label || b.id, value: b.id })),
+        ]);
+        setCenterOptions([
+          { label: 'All Centers', value: 'ALL' },
+          ...academic.centers.map((c) => ({ label: c.name, value: c.id })),
+        ]);
+      } catch (err) {
+        console.error('StudentSelectorModal: failed to load academic filters', err);
+      }
+    };
+    loadAcademicFilters();
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -143,9 +153,16 @@ const StudentSelectorModal = ({
         name.toLowerCase().includes(search.toLowerCase()) ||
         roll.toLowerCase().includes(search.toLowerCase());
       
-      const matchesSchool = filters.school === 'ALL' || student.school === filters.school;
-      const matchesBatch = filters.batch === 'ALL' || student.batch === filters.batch;
-      const matchesCenter = filters.center === 'ALL' || student.center === filters.center;
+      const norm = (v) => (v || '').toString().trim().toLowerCase();
+      const matchesSchool =
+        filters.school === 'ALL' ||
+        norm(student.school) === norm(filters.school);
+      const matchesBatch =
+        filters.batch === 'ALL' ||
+        norm(student.batch) === norm(filters.batch);
+      const matchesCenter =
+        filters.center === 'ALL' ||
+        norm(student.center) === norm(filters.center);
 
       const isSelected = selectedIds.has(student.id);
       if (isReadOnly && !isSelected) return false;

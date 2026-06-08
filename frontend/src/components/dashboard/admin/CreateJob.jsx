@@ -158,47 +158,10 @@ export default function CreateJob({ onCreated }) {
   const [savedDrafts, setSavedDrafts] = useState([]);
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
 
-  const [academicOptions, setAcademicOptions] = useState({
-    schools: [],
-    centers: [],
-    batches: []
-  });
-  const [loadingAcademicOptions, setLoadingAcademicOptions] = useState(false);
-
   // Load drafts on mount (component only renders if authorized)
   useEffect(() => {
     loadDrafts();
-    loadAcademicOptions();
   }, []);
-
-  const loadAcademicOptions = async () => {
-    try {
-      setLoadingAcademicOptions(true);
-      const [s, c, b] = await Promise.all([
-        import('../../../services/api').then(m => m.default.getSchools()),
-        import('../../../services/api').then(m => m.default.getCenters()),
-        import('../../../services/api').then(m => m.default.getBatches())
-      ]);
-      setAcademicOptions({
-        schools: s || [],
-        centers: c || [],
-        batches: b || []
-      });
-
-      // Default to targeting ALL if it's a new job
-      if (!editJobId) {
-        update({
-          targetSchoolIds: (s || []).map(x => x.id),
-          targetCenterIds: (c || []).map(x => x.id),
-          targetBatchIds: (b || []).map(x => x.id)
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load academic options:', err);
-    } finally {
-      setLoadingAcademicOptions(false);
-    }
-  };
 
   // Load job for editing when editJobId is present
   useEffect(() => {
@@ -489,10 +452,6 @@ export default function CreateJob({ onCreated }) {
     // Pre-Interview Requirements
     requiresScreening: false,
     requiresTest: false,
-    // Targeting
-    targetSchoolIds: [],
-    targetCenterIds: [],
-    targetBatchIds: [],
   });
 
   // Local draft for About Drive section
@@ -1153,28 +1112,6 @@ export default function CreateJob({ onCreated }) {
     setUploadError('');
   };
 
-  const toggleTargetId = (type, id) => {
-    const field = type === 'school' ? 'targetSchoolIds' : type === 'center' ? 'targetCenterIds' : 'targetBatchIds';
-    const current = Array.isArray(form[field]) ? form[field] : [];
-    if (current.includes(id)) {
-      update({ [field]: current.filter(x => x !== id) });
-    } else {
-      update({ [field]: [...current, id] });
-    }
-  };
-
-  const toggleAllTargets = (type) => {
-    const field = type === 'school' ? 'targetSchoolIds' : type === 'center' ? 'targetCenterIds' : 'targetBatchIds';
-    const options = type === 'school' ? academicOptions.schools : type === 'center' ? academicOptions.centers : academicOptions.batches;
-    const current = Array.isArray(form[field]) ? form[field] : [];
-
-    if (current.length === options.length) {
-      update({ [field]: [] });
-    } else {
-      update({ [field]: options.map(x => x.id) });
-    }
-  };
-
   const buildJobPayload = () => {
     // Ensure required fields are not empty strings
     const companyName = (form.company || '').trim();
@@ -1239,10 +1176,9 @@ export default function CreateJob({ onCreated }) {
       // Pre-Interview Requirements
       requiresScreening: form.requiresScreening || false,
       requiresTest: form.requiresTest || false,
-      // Targeting
-      targetSchoolIds: Array.isArray(form.targetSchoolIds) ? form.targetSchoolIds : [],
-      targetCenterIds: Array.isArray(form.targetCenterIds) ? form.targetCenterIds : [],
-      targetBatchIds: Array.isArray(form.targetBatchIds) ? form.targetBatchIds : [],
+      targetSchoolIds: [],
+      targetCenterIds: [],
+      targetBatchIds: [],
       // Interview process
       interviewRounds: [
         { title: `${toRoman(1)} Round`, detail: form.baseRoundDetails[0] || '' },
@@ -2966,119 +2902,6 @@ export default function CreateJob({ onCreated }) {
               >
                 {isSectionCollapsed('preInterview') ? <ChevronsDown className="w-6 h-6" /> : <ChevronsUp className="w-6 h-6" />}
               </button>
-            </div>
-          </section>
-
-          {/* Section 6: Visibility & Targeting */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-              <Globe size={20} className="text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Visibility & Targeting</h3>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-amber-800">
-                  <p className="font-medium mb-1">Targeting Info</p>
-                  <p>Select which branches, campuses, and batches should see this job. Students matching ANY of the selected criteria in each category will see the job.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Branch Targeting */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <GraduationCap size={16} className="text-purple-600" />
-                    Target Branches
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => toggleAllTargets('school')}
-                    className="text-xs text-blue-600 hover:underline font-medium"
-                  >
-                    {form.targetSchoolIds?.length === academicOptions.schools.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
-                  {academicOptions.schools.map(school => (
-                    <label key={school.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={form.targetSchoolIds?.includes(school.id)}
-                        onChange={() => toggleTargetId('school', school.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{school.name}</span>
-                    </label>
-                  ))}
-                  {academicOptions.schools.length === 0 && <p className="text-xs text-gray-400 italic">No branches available</p>}
-                </div>
-              </div>
-
-              {/* Campus Targeting */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <MapPin size={16} className="text-blue-600" />
-                    Target Campuses
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => toggleAllTargets('center')}
-                    className="text-xs text-blue-600 hover:underline font-medium"
-                  >
-                    {form.targetCenterIds?.length === academicOptions.centers.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
-                  {academicOptions.centers.map(center => (
-                    <label key={center.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={form.targetCenterIds?.includes(center.id)}
-                        onChange={() => toggleTargetId('center', center.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{center.name}</span>
-                    </label>
-                  ))}
-                  {academicOptions.centers.length === 0 && <p className="text-xs text-gray-400 italic">No campuses available</p>}
-                </div>
-              </div>
-
-              {/* Batch Targeting */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <Users size={16} className="text-indigo-600" />
-                    Target Batches
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => toggleAllTargets('batch')}
-                    className="text-xs text-blue-600 hover:underline font-medium"
-                  >
-                    {form.targetBatchIds?.length === academicOptions.batches.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50/50">
-                  {academicOptions.batches.map(batch => (
-                    <label key={batch.id} className="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={form.targetBatchIds?.includes(batch.id)}
-                        onChange={() => toggleTargetId('batch', batch.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{batch.year}</span>
-                    </label>
-                  ))}
-                  {academicOptions.batches.length === 0 && <p className="text-xs text-gray-400 italic">No batches available</p>}
-                </div>
-              </div>
             </div>
           </section>
 

@@ -8,21 +8,17 @@
  * - ADMIN: Can create events, can invite anyone
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Calendar, Clock, MapPin, Users, FileText, Search, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { FaGraduationCap, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
 import api from '../../services/api';
 import { getAllStudents } from '../../services/students';
-import { CENTER_OPTIONS, SCHOOL_OPTIONS, BATCH_OPTIONS } from '../../constants/academics';
 import CustomDropdown from '../common/CustomDropdown';
+import { filterActiveAcademicRecords } from '../../utils/academicOptions';
 
-const LOCATION_OPTIONS = [
+const BASE_LOCATION_OPTIONS = [
   { value: '', label: 'Select or type below' },
   { value: 'Google Meet', label: 'Google Meet' },
-  { value: 'PW IOI Campus, Bangalore', label: 'PW IOI Campus, Bangalore' },
-  { value: 'PW IOI Campus, Noida', label: 'PW IOI Campus, Noida' },
-  { value: 'PW IOI Campus, Lucknow', label: 'PW IOI Campus, Lucknow' },
-  { value: 'PW IOI Campus, Pune', label: 'PW IOI Campus, Pune' },
   { value: 'Company Premises', label: 'Company Premises' },
 ];
 
@@ -49,6 +45,14 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
   const [studentFilters, setStudentFilters] = useState({ school: '', center: '', batch: '' });
   const [academicOptions, setAcademicOptions] = useState({ schools: [], centers: [], batches: [] });
 
+  const locationOptions = useMemo(() => {
+    const campusOptions = (academicOptions.centers || []).map((c) => {
+      const label = `PW IOI Campus, ${c.name}`;
+      return { value: label, label };
+    });
+    return [...BASE_LOCATION_OPTIONS, ...campusOptions];
+  }, [academicOptions.centers]);
+
   useEffect(() => {
     const fetchOptions = async () => {
       try {
@@ -57,7 +61,11 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
           api.getCenters(),
           api.getBatches()
         ]);
-        setAcademicOptions({ schools: s || [], centers: c || [], batches: b || [] });
+        setAcademicOptions({
+          schools: filterActiveAcademicRecords(s),
+          centers: filterActiveAcademicRecords(c),
+          batches: filterActiveAcademicRecords(b),
+        });
       } catch (err) {
         console.error('Failed to load academic options for event filters:', err);
       }
@@ -448,8 +456,8 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
               label="Location"
               icon={MapPin}
               iconColor="text-indigo-600"
-              options={LOCATION_OPTIONS}
-              value={LOCATION_OPTIONS.some(o => o.value && o.value === formData.location) ? formData.location : ''}
+              options={locationOptions}
+              value={locationOptions.some(o => o.value && o.value === formData.location) ? formData.location : ''}
               onChange={(val) => setFormData(prev => ({ ...prev, location: val || '' }))}
               placeholder="Select or type below"
             />

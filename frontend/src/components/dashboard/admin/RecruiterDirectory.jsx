@@ -1,15 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ImMail } from 'react-icons/im';
-import { MdEditNote, MdBlock } from 'react-icons/md';
-import { FaEye, FaChevronDown, FaChevronUp, FaSearch, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaMoneyBillWave, FaBuilding, FaUsers, FaClock, FaExternalLinkAlt, FaSpinner, FaCheckCircle, FaChevronLeft, FaChevronRight, FaFilter, FaTimesCircle, FaFileAlt, FaTimes, FaUser } from 'react-icons/fa';
+import {
+  FaBriefcase,
+  FaCheckCircle,
+  FaChevronLeft,
+  FaChevronRight,
+  FaEye,
+  FaFilter,
+  FaMapMarkerAlt,
+  FaSpinner,
+  FaTimes,
+} from 'react-icons/fa';
 import { TbHistoryToggle } from 'react-icons/tb';
+import {
+  Briefcase,
+  Building2,
+  CheckCircle,
+  ShieldAlert,
+} from 'lucide-react';
 import { subscribeRecruiterDirectory, blockUnblockRecruiter, getRecruiterJobs, getRecruiterHistory, sendEmailToRecruiter, getRecruiterSummary } from '../../../services/recruiters';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../ui/Toast';
 import CustomDropdown from '../../common/CustomDropdown';
 import BlockModal from '../../common/BlockModal';
 import JobInfoDisplay from '../../common/JobInfoDisplay';
+import RecruiterDirectoryTable from './RecruiterDirectoryTable';
+import DirectoryLoadingPanel from './DirectoryLoading';
 
 export default function RecruiterDirectory() {
   const location = useLocation();
@@ -181,49 +198,13 @@ export default function RecruiterDirectory() {
     return { total, active, blocked, totalJobs };
   }, [recruiters]);
 
-  // Get status styling - matching job moderation style
-  const getStatusChip = (status) => {
-    const statusStyles = {
-      active: {
-        bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
-        text: 'text-green-700',
-        border: 'border-green-200',
-        label: 'Active'
-      },
-      blocked: {
-        bg: 'bg-gradient-to-r from-red-50 to-rose-50',
-        text: 'text-red-700',
-        border: 'border-red-200',
-        label: 'Blocked'
-      }
-    };
+  const canSendMail = ['admin', 'super_admin'].includes((user?.role || '').toLowerCase());
+  const isSuperAdmin = (user?.role || '').toLowerCase() === 'super_admin';
 
-    const normalizedStatus = status?.toLowerCase();
-    const style = statusStyles[normalizedStatus] || statusStyles.active;
-
-    return (
-      <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${style.bg} ${style.text} border ${style.border} inline-flex items-center shadow-sm`}>
-        {style.label}
-      </span>
-    );
-  };
-
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // Removed toggleExpand as we now use a modal for history
-
-  const getHeaderClass = (key) => {
-    if (sortConfig.key === key) {
-      return sortConfig.direction === 'ascending' ? 'sort-asc' : 'sort-desc';
-    }
-    return '';
-  };
+  const tableRows = paginatedRecruiters.map((recruiter, idx) => ({
+    ...recruiter,
+    srNo: (pagination.currentPage - 1) * pagination.itemsPerPage + idx + 1,
+  }));
 
   const openMailModal = (email) => {
     setEmailData({ to: email, subject: '', body: '' });
@@ -526,11 +507,13 @@ export default function RecruiterDirectory() {
     );
   };
 
-  if (loading) {
+  if (loading && recruiters.length === 0) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <FaSpinner className="animate-spin text-blue-600 mr-3" />
-        <span className="text-gray-600">Loading recruiters...</span>
+      <div className="space-y-6">
+        <DirectoryLoadingPanel
+          title="Loading recruiters..."
+          subtitle="Please wait while we fetch the data"
+        />
       </div>
     );
   }
@@ -550,400 +533,226 @@ export default function RecruiterDirectory() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
-      {/* Header and Analytics */}
+    <div className="space-y-6">
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
-          <div className="min-w-0">
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">Recruiter Directory</h2>
-            <p className="text-gray-600 text-sm sm:text-lg">Manage and monitor all recruiter accounts</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 font-outfit">Recruiter Directory</h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Manage and monitor recruiter accounts, job postings, and activity.
+            </p>
           </div>
         </div>
 
-        {/* Analytics Cards - Matching Job Moderation Style */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+          <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/30 p-5 rounded-2xl shadow-sm border border-indigo-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaBuilding className="w-5 h-5 text-blue-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-blue-700">{stats.total}</div>
+              <div className="p-2.5 bg-indigo-500 text-white rounded-xl">
+                <Building2 className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-indigo-900 font-outfit">{stats.total}</div>
             </div>
-            <div className="text-sm font-medium text-blue-600">Total Recruiters</div>
+            <div className="text-sm font-semibold text-indigo-800">Total Recruiters</div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-5 rounded-xl shadow-sm border border-green-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/30 p-5 rounded-2xl shadow-sm border border-emerald-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-green-700">{stats.active}</div>
+              <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-emerald-900 font-outfit">{stats.active}</div>
             </div>
-            <div className="text-sm font-medium text-green-600">Active</div>
+            <div className="text-sm font-semibold text-emerald-800">Active</div>
           </div>
-          <div className="bg-gradient-to-br from-red-50 to-rose-100 p-5 rounded-xl shadow-sm border border-red-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-rose-50/60 to-rose-100/30 p-5 rounded-2xl shadow-sm border border-rose-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <MdBlock className="w-5 h-5 text-red-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-red-700">{stats.blocked}</div>
+              <div className="p-2.5 bg-rose-500 text-white rounded-xl">
+                <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-rose-900 font-outfit">{stats.blocked}</div>
             </div>
-            <div className="text-sm font-medium text-red-600">Blocked</div>
+            <div className="text-sm font-semibold text-rose-800">Blocked</div>
           </div>
-          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 p-5 rounded-xl shadow-sm border border-yellow-200 hover:shadow-md transition-all duration-200">
+          <div className="bg-gradient-to-br from-amber-50/60 to-amber-100/30 p-5 rounded-2xl shadow-sm border border-amber-100/60 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
-              <FaUser className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-              <div className="text-3xl font-bold text-yellow-700">{stats.inactive}</div>
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl">
+                <Briefcase className="w-5 h-5 flex-shrink-0" />
+              </div>
+              <div className="text-3xl font-bold text-amber-900 font-outfit">{stats.totalJobs}</div>
             </div>
-            <div className="text-sm font-medium text-yellow-600">Inactive</div>
+            <div className="text-sm font-semibold text-amber-800">Jobs Posted</div>
           </div>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex items-center gap-2 mb-4">
-          <FaFilter className="w-5 h-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="flex items-center gap-2.5 mb-5">
+          <FaFilter className="w-4 h-4 text-indigo-500" />
+          <h3 className="text-md font-bold text-slate-800 font-outfit uppercase tracking-wider">Filters</h3>
         </div>
-
-        {/* First Row: Search, Status, Location */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          {/* Search */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <CustomDropdown
+            label="Status"
+            icon={FaCheckCircle}
+            iconColor="text-emerald-600"
+            options={[
+              { value: '', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Blocked', label: 'Blocked' },
+            ]}
+            value={filters.status}
+            onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+            placeholder="All Status"
+          />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-              <FaSearch className="w-4 h-4 text-blue-600" />
-              <span>Search Recruiters</span>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <FaMapMarkerAlt className="w-4 h-4 text-indigo-600" />
+              Location
             </label>
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search by name, company..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-              <FaCheckCircle className="w-4 h-4 text-green-600" />
-              <span>Status</span>
-            </label>
-            <CustomDropdown
-              label=""
-              icon={FaCheckCircle}
-              iconColor="text-green-600"
-              options={[
-                { value: '', label: 'All Status' },
-                { value: 'Active', label: 'Active' },
-                { value: 'Blocked', label: 'Blocked' }
-              ]}
-              value={filters.status}
-              onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-              placeholder="All Status"
+            <input
+              type="text"
+              placeholder="Filter by location"
+              value={filters.location}
+              onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}
+              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
             />
           </div>
-
-          {/* Location Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-              <FaMapMarkerAlt className="w-4 h-4 text-indigo-600" />
-              <span>Location</span>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <FaBriefcase className="w-4 h-4 text-purple-600" />
+              Min Jobs
             </label>
-            <div className="relative">
-              <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Filter by location"
-                value={filters.location}
-                onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              />
-            </div>
+            <input
+              type="number"
+              placeholder="0"
+              min="0"
+              value={filters.minJobs}
+              onChange={(e) => setFilters((prev) => ({ ...prev, minJobs: e.target.value }))}
+              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <FaBriefcase className="w-4 h-4 text-orange-600" />
+              Max Jobs
+            </label>
+            <input
+              type="number"
+              placeholder="Any"
+              min="0"
+              value={filters.maxJobs}
+              onChange={(e) => setFilters((prev) => ({ ...prev, maxJobs: e.target.value }))}
+              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+            />
           </div>
         </div>
-
-        {/* Second Row: Job Count Range, Reset Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Job Count Range */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-              <FaBriefcase className="w-4 h-4 text-purple-600" />
-              <span>Job Count Range</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <FaBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="number"
-                  placeholder="Min"
-                  min="0"
-                  value={filters.minJobs}
-                  onChange={(e) => setFilters(prev => ({ ...prev, minJobs: e.target.value }))}
-                  className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div className="relative">
-                <FaBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="number"
-                  placeholder="Max"
-                  min="0"
-                  value={filters.maxJobs}
-                  onChange={(e) => setFilters(prev => ({ ...prev, maxJobs: e.target.value }))}
-                  className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Reset Filters */}
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setDebouncedSearch('');
-                setFilters({ status: '', location: '', minJobs: '', maxJobs: '' });
-              }}
-              className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow flex items-center justify-center gap-2"
-            >
-              <FaTimesCircle className="w-4 h-4" />
-              <span>Reset Filters</span>
-            </button>
-          </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setDebouncedSearch('');
+              setFilters({ status: '', location: '', minJobs: '', maxJobs: '' });
+            }}
+            className="px-6 py-2.5 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 rounded-xl transition-all duration-200 font-bold shadow-sm"
+          >
+            Reset Filters
+          </button>
         </div>
       </div>
 
-      {/* Search Results Summary */}
-      {!loading && (
-        <div className="text-sm text-gray-600">
-          {debouncedSearch || Object.values(filters).some(f => f) ? (
-            <span>
-              Showing {filteredRecruiters.length} of {recruiters.length} recruiters
-              {debouncedSearch && <span className="font-medium"> matching "{debouncedSearch}"</span>}
-            </span>
-          ) : (
-            <span>Showing all {recruiters.length} recruiters</span>
-          )}
-        </div>
-      )}
-
-      {/* Recruiters Table */}
-      <div className="bg-white rounded-lg shadow border overflow-hidden">
+      <div>
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <FaSpinner className="animate-spin text-blue-600 mr-3" />
-            <span className="text-gray-600">Loading recruiters...</span>
-          </div>
+          <DirectoryLoadingPanel
+            title="Loading recruiters..."
+            subtitle="Please wait while we fetch the data"
+          />
         ) : filteredRecruiters.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 max-w-md w-full border-2 border-blue-200 shadow-lg">
+            <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-2xl p-8 max-w-md w-full border border-indigo-100 shadow-lg">
               <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-                  <FaBuilding className="w-8 h-8 text-blue-600" />
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
+                  <Building2 className="w-8 h-8 text-indigo-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No Recruiters Found</h3>
-                <div className="text-sm text-gray-600 leading-relaxed">
-                  {debouncedSearch ? (
-                    <div className="space-y-2">
-                      <p className="font-medium">No recruiters match your search criteria.</p>
-                      <p className="text-gray-500">Try adjusting your search terms or filters.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="font-medium">No recruiters have been registered yet.</p>
-                      <p className="text-gray-500">Recruiters will appear here once they register.</p>
-                    </div>
-                  )}
-                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2 font-outfit">No Recruiters Found</h3>
+                <p className="text-sm text-slate-600">
+                  {debouncedSearch || Object.values(filters).some((f) => f)
+                    ? 'Try adjusting your search or filters.'
+                    : 'Recruiters will appear here once they register.'}
+                </p>
               </div>
             </div>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
-                <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Company Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Recruiter
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Email
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Location
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Last Job Posted
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-white border-r border-blue-500/30">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-white">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedRecruiters.map((recruiter) => (
-                    <React.Fragment key={recruiter.id}>
-                      <tr className="hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100">
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          <div className="space-y-2">
-                            <div className="text-sm font-semibold text-gray-900 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={recruiter.companyName || 'N/A'}>
-                              {recruiter.companyName || 'N/A'}
-                            </div>
-                            {recruiter.totalJobPostings !== undefined && (
-                              <div className="flex items-center gap-1.5">
-                                <FaBriefcase className="w-3 h-3 text-gray-500" />
-                                <span className="text-xs text-gray-600">{recruiter.totalJobPostings || 0} jobs</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <FaUsers className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={recruiter.recruiterName || 'N/A'}>
-                              {recruiter.recruiterName || 'N/A'}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <ImMail className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={recruiter.email}>
-                              {recruiter.email}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <FaMapMarkerAlt className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={recruiter.location || 'N/A'}>
-                              {recruiter.location || 'N/A'}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-blue-50 rounded-lg">
-                              <FaCalendarAlt className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">{recruiter.lastJobPostedAt || 'N/A'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 border-r border-gray-100">
-                          {getStatusChip(recruiter.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="flex items-center gap-2">
-                            {/* Send Mail Button */}
-                            <button
-                              onClick={() => {
-                                if (['admin', 'super_admin'].includes((user?.role || '').toLowerCase())) {
-                                  openMailModal(recruiter.email);
-                                } else {
-                                  toast.showError('Only admin users can send emails');
-                                }
-                              }}
-                              disabled={!['admin', 'super_admin'].includes((user?.role || '').toLowerCase())}
-                              className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Send Mail"
-                            >
-                              <ImMail className="w-4 h-4" />
-                            </button>
+            <RecruiterDirectoryTable
+              rows={tableRows}
+              showingCount={tableRows.length}
+              totalCount={filteredRecruiters.length}
+              searchQuery={searchTerm}
+              onSearchChange={setSearchTerm}
+              canSendMail={canSendMail}
+              isSuperAdmin={isSuperAdmin}
+              operationLoading={operationLoading}
+              onMail={(recruiter) => {
+                if (canSendMail) {
+                  openMailModal(recruiter.email);
+                } else {
+                  toast.showError('Only admin users can send emails');
+                }
+              }}
+              onViewJobs={(recruiter) => setJobDescriptionModal({ isOpen: true, recruiter })}
+              onBlock={(recruiter) => {
+                if (isSuperAdmin) {
+                  setBlockModal({
+                    isOpen: true,
+                    recruiter,
+                    isUnblocking: String(recruiter.status || '').toUpperCase() === 'BLOCKED',
+                  });
+                } else {
+                  toast.showError('Only Super Admin users can block/unblock recruiters');
+                }
+              }}
+              onHistory={(recruiter) => setHistoryModal({ isOpen: true, recruiter })}
+            />
 
-                            {/* View Jobs Button */}
-                            <button
-                              onClick={() => {
-                                console.log('Eye icon clicked, recruiter:', recruiter);
-                                setJobDescriptionModal({ isOpen: true, recruiter });
-                              }}
-                              className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-all duration-200 border border-purple-200 hover:border-purple-300"
-                              title="View Job Descriptions"
-                            >
-                              <FaEye className="w-4 h-4" />
-                            </button>
-
-                            {/* Block/Unblock Button - Super Admin only */}
-                            <button
-                              onClick={() => {
-                                const userRole = (user?.role || '').toLowerCase();
-                                if (userRole === 'super_admin') {
-                                  setBlockModal({
-                                    isOpen: true,
-                                    recruiter,
-                                    isUnblocking: recruiter.status === 'Blocked'
-                                  });
-                                } else {
-                                  toast.showError('Only Super Admin users can block/unblock recruiters');
-                                }
-                              }}
-                              disabled={(user?.role || '').toLowerCase() !== 'super_admin' || operationLoading[`block_${recruiter.id}`]}
-                              className="p-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                              title={recruiter.status === 'Blocked' ? 'Unblock Recruiter' : 'Block Recruiter (Super Admin only)'}
-                            >
-                              {operationLoading[`block_${recruiter.id}`] ? (
-                                <FaSpinner className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <MdBlock className="w-4 h-4" />
-                              )}
-                            </button>
-
-                            {/* View History Button */}
-                            <button
-                              onClick={() => setHistoryModal({ isOpen: true, recruiter })}
-                              className="p-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-all duration-200 border border-yellow-200 hover:border-yellow-300"
-                              aria-label="View History"
-                              title="View History"
-                            >
-                              <TbHistoryToggle className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Pagination */}
-            {filteredRecruiters.length > pagination.itemsPerPage && (
-              <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-t-2 border-gray-200">
+            {totalPages > 1 && (
+              <div className="mt-3 bg-white rounded-2xl border border-slate-100 px-4 py-3">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <span className="text-gray-500">Showing</span>
-                    <span className="font-semibold text-blue-700">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span>
-                    <span className="text-gray-500">to</span>
-                    <span className="font-semibold text-blue-700">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span>
-                    <span className="text-gray-500">of</span>
-                    <span className="font-semibold text-blue-700">{pagination.totalItems}</span>
-                    <span className="text-gray-500">results</span>
+                  <div className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <span className="text-slate-500">Showing</span>
+                    <span className="font-semibold text-indigo-700">
+                      {(pagination.currentPage - 1) * pagination.itemsPerPage + 1}
+                    </span>
+                    <span className="text-slate-500">to</span>
+                    <span className="font-semibold text-indigo-700">
+                      {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}
+                    </span>
+                    <span className="text-slate-500">of</span>
+                    <span className="font-semibold text-indigo-700">{pagination.totalItems}</span>
+                    <span className="text-slate-500">results</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
+                      type="button"
+                      onClick={() => setPagination((prev) => ({ ...prev, currentPage: prev.currentPage - 1 }))}
                       disabled={pagination.currentPage === 1}
-                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
+                      className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all flex items-center gap-2"
                     >
                       <FaChevronLeft className="w-3.5 h-3.5" />
-                      <span>Previous</span>
+                      Previous
                     </button>
-                    <div className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 shadow-sm">
-                      <span className="text-blue-700">{pagination.currentPage}</span>
-                      <span className="text-gray-500 mx-1">/</span>
+                    <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700">
+                      <span className="text-indigo-700">{pagination.currentPage}</span>
+                      <span className="text-slate-500 mx-1">/</span>
                       <span>{totalPages}</span>
                     </div>
                     <button
-                      onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
+                      type="button"
+                      onClick={() => setPagination((prev) => ({ ...prev, currentPage: prev.currentPage + 1 }))}
                       disabled={pagination.currentPage === totalPages}
-                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 flex items-center gap-2 shadow-sm"
+                      className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all flex items-center gap-2"
                     >
-                      <span>Next</span>
+                      Next
                       <FaChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>

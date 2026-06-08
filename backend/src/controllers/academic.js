@@ -9,7 +9,9 @@ import logger from '../config/logger.js';
 // Schools (Branches) CRUD
 export const getSchools = async (req, res) => {
   try {
+    const includeInactive = req.query.includeInactive === 'true';
     const schools = await prisma.school.findMany({
+      where: includeInactive ? {} : { status: 'ACTIVE' },
       orderBy: { name: 'asc' }
     });
     res.json(schools);
@@ -80,7 +82,9 @@ export const deleteSchool = async (req, res) => {
 // Centers (Campuses) CRUD
 export const getCenters = async (req, res) => {
   try {
+    const includeInactive = req.query.includeInactive === 'true';
     const centers = await prisma.center.findMany({
+      where: includeInactive ? {} : { status: 'ACTIVE' },
       orderBy: { name: 'asc' }
     });
     res.json(centers);
@@ -151,7 +155,9 @@ export const deleteCenter = async (req, res) => {
 // Batches CRUD
 export const getBatches = async (req, res) => {
   try {
+    const includeInactive = req.query.includeInactive === 'true';
     const batches = await prisma.batch.findMany({
+      where: includeInactive ? {} : { status: 'ACTIVE' },
       orderBy: { year: 'desc' }
     });
     res.json(batches);

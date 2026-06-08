@@ -3,15 +3,16 @@
  * Separate page for viewing job descriptions (converted from modal)
  */
 
-import React, { useState, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader, FileText, FilePlus, X, CheckCircle } from 'lucide-react';
 import { useJobDetails } from '../hooks/useJobDetails';
 import { useAuth } from '../hooks/useAuth';
-import { applyToJob } from '../services/applications';
+import { applyToJob, getStudentApplications } from '../services/applications';
 import { getStudentProfile } from '../services/students';
 import api from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
+import { formatApplicationSuccessMessage } from '../utils/applicationMessages';
 import JobDescriptionSkeleton from '../components/dashboard/student/JobDescriptionSkeleton';
 import { FaRedo } from 'react-icons/fa';
 
@@ -20,7 +21,7 @@ const JobContent = lazy(() => import('../components/dashboard/student/JobContent
 
 const isDeadlinePassed = (job) => {
   if (!job) return false;
-  const deadline = job.applicationDeadline || job.deadline || job.driveDate;
+  const deadline = job.applicationDeadline || job.deadline;
   if (!deadline) return false;
   return new Date() > new Date(deadline);
 };
@@ -70,6 +71,7 @@ const JobDescriptionPage = () => {
   const [resumes, setResumes] = useState([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
 
   // Fetch job details
   const { job: jobDetails, loading, error, refetch } = useJobDetails(
@@ -79,6 +81,25 @@ const JobDescriptionPage = () => {
   );
 
   const displayJob = jobDetails;
+
+  useEffect(() => {
+    if (!user?.id || !jobId) {
+      setHasApplied(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const apps = await getStudentApplications(user.id, { noCache: true });
+        if (!cancelled) {
+          setHasApplied(Array.isArray(apps) && apps.some((app) => app.jobId === jobId || app.job?.id === jobId));
+        }
+      } catch {
+        if (!cancelled) setHasApplied(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, jobId]);
 
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
@@ -109,8 +130,13 @@ const JobDescriptionPage = () => {
     }
 
     if (isDeadlinePassed(job)) {
-      const deadline = job.applicationDeadline || job.deadline || job.driveDate;
+      const deadline = job.applicationDeadline || job.deadline;
       showError(`Application deadline has passed. The deadline was ${deadline ? new Date(deadline).toLocaleString() : 'the deadline'}.`);
+      return;
+    }
+
+    if (hasApplied) {
+      showError('You have already applied to this job.');
       return;
     }
 
@@ -132,7 +158,7 @@ const JobDescriptionPage = () => {
     setPendingJob(job);
     await loadResumes();
     setIsResumeModalOpen(true);
-  }, [user, role, navigate, loadResumes]);
+  }, [user, role, navigate, loadResumes, hasApplied]);
 
   const handleResumeSelection = useCallback(async (resumeId = null) => {
     if (!pendingJob || !user?.id) return;
@@ -143,7 +169,8 @@ const JobDescriptionPage = () => {
     try {
       const companyId = pendingJob.companyId || pendingJob.company?.id || null;
       await applyToJob(user.id, pendingJob.id, { companyId, resumeId });
-      showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || pendingJob.companyName || 'the company'}!`);
+      setHasApplied(true);
+      showSuccess(formatApplicationSuccessMessage(pendingJob));
       setPendingJob(null);
       navigate('/student?tab=applications', { replace: true });
     } catch (err) {
@@ -268,7 +295,15 @@ const JobDescriptionPage = () => {
                 showFooter={true}
                 hideHeader={true}
                 onClose={handleBack}
-                onApply={(role || '').toLowerCase() === 'student' ? handleApply : undefined}
+                onApply={
+                  (role || '').toLowerCase() === 'student' &&
+                  !hasApplied &&
+                  !applying &&
+                  displayJob &&
+                  !isDeadlinePassed(displayJob)
+                    ? handleApply
+                    : undefined
+                }
                 onShare={null}
                 onPrint={null}
               />
@@ -305,7 +340,15 @@ const JobDescriptionPage = () => {
                 showFooter={true}
                 hideHeader={true}
                 onClose={handleBack}
-                onApply={(role || '').toLowerCase() === 'student' ? handleApply : undefined}
+                onApply={
+                  (role || '').toLowerCase() === 'student' &&
+                  !hasApplied &&
+                  !applying &&
+                  displayJob &&
+                  !isDeadlinePassed(displayJob)
+                    ? handleApply
+                    : undefined
+                }
                 onShare={null}
                 onPrint={null}
               />

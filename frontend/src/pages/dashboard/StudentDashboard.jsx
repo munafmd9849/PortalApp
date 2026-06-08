@@ -17,6 +17,7 @@ import { subscribeToUpdates } from '../../services/socket';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
+import { formatApplicationSuccessMessage } from '../../utils/applicationMessages';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -80,6 +81,13 @@ import EndorsementManagement from '../../components/dashboard/student/Endorsemen
 import StudentAssessments from '../../components/dashboard/student/StudentAssessments';
 import MockInterviewStudentDashboard from '../student/MockInterviewStudentDashboard';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
+import StudentApplicationTracker from '../../components/dashboard/student/StudentApplicationTracker';
+import {
+  getApplicationPrimaryLabel,
+  getApplicationPrimaryStatus,
+  getPrimaryStatusBadgeClass,
+  getPrimaryStatusGradient,
+} from '../../utils/applicationTrackerState';
 
 /** Validate profile URL - must start with http:// or https:// */
 function isValidProfileUrl(url) {
@@ -199,6 +207,8 @@ export default function StudentDashboard() {
     cacheKeys.forEach(key => {
       localStorage.removeItem(key);
     });
+    api.clearApiCache('/jobs/targeted');
+    api.clearApiCache('/applications/student');
   }, [user?.id]);
 
   // Get cache key for current user
@@ -512,16 +522,11 @@ export default function StudentDashboard() {
       const loadOptions = async () => {
         try {
           setLoadingAcademicOptions(true);
-          const [s, c, b] = await Promise.all([
-            api.getSchools(),
-            api.getCenters(),
-            api.getBatches()
-          ]);
-          setAcademicOptions({
-            schools: (s || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-            centers: (c || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
-            batches: (b || []).map(item => ({ value: item.year, label: item.year, id: item.id }))
-          });
+          const { fetchAcademicOptions, buildDropdownAcademicOptions } = await import(
+            '../../utils/academicOptions'
+          );
+          const raw = await fetchAcademicOptions();
+          setAcademicOptions(buildDropdownAcademicOptions(raw));
         } catch (err) {
           console.error('Failed to load academic options:', err);
         } finally {
@@ -608,8 +613,11 @@ export default function StudentDashboard() {
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
-    // OPTIMIZED: Check cache first (unless forcing refresh)
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      const cacheKey = getCacheKey('jobs');
+      if (cacheKey) localStorage.removeItem(cacheKey);
+      api.clearApiCache('/jobs/targeted');
+    } else {
       const cacheKey = getCacheKey('jobs');
       if (cacheKey) {
         const cachedJobs = getCachedData(cacheKey);
@@ -618,102 +626,34 @@ export default function StudentDashboard() {
           setJobs(cachedJobs);
           setJobsPage(1);
           setLoadingJobs(false);
-          return; // Use cached data, skip API call
+          return;
         }
       }
-    } else {
-      console.log('🔄 Forcing refresh of jobs data, skipping cache');
     }
 
     setLoadingJobs(true);
 
     try {
-      // Get targeted jobs from backend API
-      const jobs = await getTargetedJobsForStudent(user.id);
+      const jobs = await getTargetedJobsForStudent(user.id, { noCache: forceRefresh });
 
-      // Apply job targeting logic with proper "ALL" handling
-      if (profileComplete && school && center && batch) {
-        const targetedJobs = jobs.filter(job => {
-          const targetCenters = job.targetCenters || [];
-          const targetSchools = job.targetSchools || [];
-          const targetBatches = job.targetBatches || [];
+      // Backend already applies targeting; only sort for display
+      const sortedJobs = [...(jobs || [])].sort((a, b) => {
+        if (a.isInvited && !b.isInvited) return -1;
+        if (!a.isInvited && b.isInvited) return 1;
+        if (a.isRecommended && !b.isRecommended) return -1;
+        if (!a.isRecommended && b.isRecommended) return 1;
+        const dateA = new Date(a.postedAt || a.createdAt || 0);
+        const dateB = new Date(b.postedAt || b.createdAt || 0);
+        return dateB - dateA;
+      });
 
-          // If no targeting specified, show to all students
-          if (targetCenters.length === 0 && targetSchools.length === 0 && targetBatches.length === 0) {
-            return true;
-          }
+      setJobs(sortedJobs);
+      setJobsPage(1);
 
-          // CENTER MATCH LOGIC:
-          let centerMatch = false;
-          if (targetCenters.length === 0) {
-            centerMatch = true; // No center targeting
-          } else if (targetCenters.includes('ALL')) {
-            centerMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            centerMatch = targetCenters.some(targetCenter =>
-              targetCenter.toLowerCase().trim() === center.toLowerCase().trim()
-            );
-          }
-
-          // SCHOOL MATCH LOGIC:
-          let schoolMatch = false;
-          if (targetSchools.length === 0) {
-            schoolMatch = true; // No school targeting
-          } else if (targetSchools.includes('ALL')) {
-            schoolMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            schoolMatch = targetSchools.some(targetSchool =>
-              targetSchool.toLowerCase().trim() === school.toLowerCase().trim()
-            );
-          }
-
-          // BATCH MATCH LOGIC:
-          let batchMatch = false;
-          if (targetBatches.length === 0) {
-            batchMatch = true; // No batch targeting
-          } else if (targetBatches.includes('ALL')) {
-            batchMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            batchMatch = targetBatches.some(targetBatch =>
-              targetBatch.toLowerCase().trim() === batch.toLowerCase().trim()
-            );
-          }
-
-          // Job is eligible if explicitly recommended/invited OR if all three criteria match
-          return job.isRecommended || job.isInvited || (centerMatch && schoolMatch && batchMatch);
-        });
-
-        // Sort jobs: isInvited first, then isRecommended, then by date (desc)
-        const sortedJobs = [...targetedJobs].sort((a, b) => {
-          if (a.isInvited && !b.isInvited) return -1;
-          if (!a.isInvited && b.isInvited) return 1;
-          if (a.isRecommended && !b.isRecommended) return -1;
-          if (!a.isRecommended && b.isRecommended) return 1;
-          const dateA = new Date(a.postedAt || a.createdAt || 0);
-          const dateB = new Date(b.postedAt || b.createdAt || 0);
-          return dateB - dateA;
-        });
-
-        setJobs(sortedJobs);
-        setJobsPage(1);
-        // CACHE: Store sorted jobs in localStorage
-        const jobsCacheKey = getCacheKey('jobs');
-        if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, sortedJobs);
-        }
-      } else {
-        setJobs(jobs);
-        setJobsPage(1);
-        // CACHE: Store all jobs in localStorage
-        const jobsCacheKey = getCacheKey('jobs');
-        if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, jobs);
-        }
+      const jobsCacheKey = getCacheKey('jobs');
+      if (jobsCacheKey) {
+        setCachedData(jobsCacheKey, sortedJobs);
       }
-
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
@@ -721,7 +661,7 @@ export default function StudentDashboard() {
     } finally {
       setLoadingJobs(false);
     }
-  }, [school, center, batch, profileComplete, user?.id]); // Cache functions are stable, no need in deps
+  }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // UPDATED: Load profile data function without defaults
   // Use ref to track loading state to prevent infinite loops
@@ -922,21 +862,19 @@ export default function StudentDashboard() {
       return;
     }
 
-    // OPTIMIZED: Check cache first (but verify it's not empty)
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      const cacheKey = getCacheKey('applications');
+      if (cacheKey) localStorage.removeItem(cacheKey);
+      api.clearApiCache('/applications/student');
+    } else {
       const cacheKey = getCacheKey('applications');
       if (cacheKey) {
         const cachedApplications = getCachedData(cacheKey);
-        // Only use cache if it has data (not empty array)
-        if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length > 0) {
+        if (cachedApplications && Array.isArray(cachedApplications)) {
           console.log('✅ Using cached applications data:', cachedApplications.length, 'applications');
           setApplications(cachedApplications);
           setLoadingApplications(false);
-          return; // Use cached data, skip API call
-        } else if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length === 0) {
-          // Cache exists but is empty array - clear it and fetch fresh data
-          console.log('⚠️ Cached data is empty array, clearing cache and fetching fresh data');
-          localStorage.removeItem(cacheKey);
+          return;
         }
       }
     }
@@ -944,7 +882,7 @@ export default function StudentDashboard() {
     console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
-      const applicationsData = await getStudentApplications(user.id);
+      const applicationsData = await getStudentApplications(user.id, { noCache: forceRefresh });
       console.log('📋 [loadApplicationsData] API response:', {
         isArray: Array.isArray(applicationsData),
         length: applicationsData?.length || 0,
@@ -1003,7 +941,7 @@ export default function StudentDashboard() {
 
     setLoadingInterviewHistory(true);
     try {
-      const historyData = await getStudentInterviewHistory(user.id);
+      const historyData = await getStudentInterviewHistory(user.id, { noCache: forceRefresh });
       setInterviewHistory(historyData || []);
 
       // CACHE: Store interview history in localStorage
@@ -1020,12 +958,15 @@ export default function StudentDashboard() {
   }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // Load resumes from API
-  const loadResumes = useCallback(async () => {
+  const loadResumes = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
     try {
+      if (forceRefresh) {
+        api.clearApiCache('/students/resumes');
+      }
       setLoadingResumes(true);
-      const data = await api.getResumes();
+      const data = await api.getResumes({ noCache: forceRefresh });
       setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
@@ -1054,7 +995,7 @@ export default function StudentDashboard() {
 
     // Store the job and show resume selection modal
     setPendingJob(job);
-    await loadResumes();
+    await loadResumes(true);
     setIsResumeModalOpen(true);
   };
 
@@ -1112,7 +1053,7 @@ export default function StudentDashboard() {
       }
 
       // Show success toast
-      showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
+      showSuccess(formatApplicationSuccessMessage(pendingJob));
 
       // Clear applying state immediately
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
@@ -1123,6 +1064,7 @@ export default function StudentDashboard() {
       if (appsCacheKey) {
         localStorage.removeItem(appsCacheKey);
       }
+      api.clearApiCache('/applications/student');
       // Reset the loading flag to force a fresh load
       dataLoadingRef.current.applications = false;
       // Reload immediately (forceRefresh=true bypasses cache)
@@ -1336,7 +1278,7 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'assessments', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'mockInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -1435,7 +1377,22 @@ export default function StudentDashboard() {
         if (activeTab === 'jobs') {
           showInfo(`New job posted: ${data.jobTitle}`, `By ${data.companyName || 'Recruiter'}`);
         }
-      }
+      },
+      onApplicationUpdated: (updatedApp) => {
+        if (!updatedApp?.id) return;
+        console.log('🔔 Application updated via socket:', updatedApp.id, updatedApp.currentStage);
+        setApplications((prev) => {
+          const exists = prev.some((a) => a.id === updatedApp.id);
+          const next = exists
+            ? prev.map((a) => (a.id === updatedApp.id ? { ...a, ...updatedApp } : a))
+            : [updatedApp, ...prev];
+          const appsCacheKey = getCacheKey('applications');
+          if (appsCacheKey) setCachedData(appsCacheKey, next);
+          return next;
+        });
+        api.clearApiCache('/applications/student');
+        loadInterviewHistory(true);
+      },
     });
 
     const loadDashboardData = async (force = false) => {
@@ -1454,8 +1411,8 @@ export default function StudentDashboard() {
       }
     };
 
-    // If switching to dashboard or jobs, force a refresh to catch new recommendations
-    if (activeTab === 'dashboard' || activeTab === 'jobs') {
+    // Force refresh on dashboard, jobs, and applications tabs
+    if (activeTab === 'dashboard' || activeTab === 'jobs' || activeTab === 'applications') {
       loadDashboardData(true);
     } else {
       loadDashboardData(false);
@@ -1464,7 +1421,21 @@ export default function StudentDashboard() {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [user?.id, activeTab, profileComplete, loadJobsData, loadApplicationsData, loadInterviewHistory]);
+  }, [user?.id, activeTab, profileComplete, loadJobsData, loadApplicationsData, loadInterviewHistory, getCacheKey, setCachedData]);
+
+  // Refresh resume list when uploads happen in Resume tab (or elsewhere)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleResumesUpdated = (event) => {
+      const updatedUserId = event?.detail?.userId;
+      if (updatedUserId && updatedUserId !== user.id) return;
+      loadResumes(true);
+    };
+
+    window.addEventListener('resumesUpdated', handleResumesUpdated);
+    return () => window.removeEventListener('resumesUpdated', handleResumesUpdated);
+  }, [user?.id, loadResumes]);
 
   // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
   useEffect(() => {
@@ -2057,8 +2028,8 @@ export default function StudentDashboard() {
     { id: 'jobs', label: 'Explore Jobs', icon: Briefcase },
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
+    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
     { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },
@@ -2193,11 +2164,14 @@ export default function StudentDashboard() {
 
   const getStatusIcon = (status) => {
     const statusLower = status?.toLowerCase() || '';
+    if (statusLower === 'selected') return <CheckCircle size={16} />;
+    if (statusLower.includes('qualified') || statusLower === 'screening completed' || statusLower === 'interview scheduled') return <CheckCircle size={16} />;
+    if (statusLower === 'under review') return <AlertCircle size={16} />;
     // Handle both old status values and new currentStage values
     if (statusLower === 'applied') return <Clock size={16} />;
     if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return <AlertCircle size={16} />;
     if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return <CheckCircle size={16} />;
-    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return <CheckCircle size={16} />;
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return <CheckCircle size={16} />;
     if (statusLower.includes('rejected')) return <XCircle size={16} />;
     switch (status) {
       case 'applied': return <Clock size={16} />;
@@ -2213,11 +2187,14 @@ export default function StudentDashboard() {
 
   const getStatusColor = (status) => {
     const statusLower = status?.toLowerCase() || '';
+    if (statusLower === 'selected') return 'bg-green-100 text-green-800';
+    if (statusLower.includes('qualified') || statusLower === 'screening completed' || statusLower === 'interview scheduled') return 'bg-purple-100 text-purple-800';
+    if (statusLower === 'under review') return 'bg-yellow-100 text-yellow-800';
     // Handle both old status values and new currentStage values
     if (statusLower === 'applied') return 'bg-[#3c80a7]/20 text-[#3c80a7]';
     if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return 'bg-yellow-100 text-yellow-800';
     if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return 'bg-purple-100 text-purple-800';
-    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
     if (statusLower.includes('rejected')) return 'bg-red-100 text-red-800';
     switch (status?.toLowerCase()) {
       case 'applied': return 'bg-[#3c80a7]/20 text-[#3c80a7]';
@@ -2499,7 +2476,7 @@ export default function StudentDashboard() {
                               const dl = job.applicationDeadline || job.deadline;
                               failedReasons.push(`Applications closed on ${dl ? new Date(dl).toLocaleDateString() : 'N/A'}`);
                             }
-                            if (job.backlogs && batch !== undefined && batch !== null) {
+                            if (job.backlogs) {
                               const requirementStr = String(job.backlogs).trim().toLowerCase();
                               const studentBacklogsNum = parseInt(String(backlogs || 0)) || 0;
                               let allowed = true;
@@ -2957,24 +2934,24 @@ export default function StudentDashboard() {
                                   {expandedApplications.has(record.id) && (
                                     <div className="mb-4 sm:mb-6 space-y-4 sm:space-y-6 border-t border-gray-200 pt-4 sm:pt-6">
                                       {record.screeningStatusText && (
-                                        <div className={`p-3 sm:p-4 border rounded-lg ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                        <div className={`p-3 sm:p-4 border rounded-lg ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                           ? 'bg-red-50 border-red-200'
-                                          : record.screeningStatus === 'TEST_SELECTED'
+                                          : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                             ? 'bg-green-50 border-green-200'
                                             : 'bg-yellow-50 border-yellow-200'
                                           }`}>
                                           <div className="flex items-center gap-2 mb-1">
-                                            <Info className={`w-5 h-5 ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                            <Info className={`w-5 h-5 ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                               ? 'text-red-600'
-                                              : record.screeningStatus === 'TEST_SELECTED'
+                                              : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                                 ? 'text-green-600'
                                                 : 'text-yellow-600'
                                               }`} />
                                             <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
                                           </div>
-                                          <p className={`text-base font-bold ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                          <p className={`text-base font-bold ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                             ? 'text-red-800'
-                                            : record.screeningStatus === 'TEST_SELECTED'
+                                            : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                               ? 'text-green-800'
                                               : 'text-yellow-800'
                                             }`}>
@@ -3225,16 +3202,7 @@ export default function StudentDashboard() {
                               style={{ animationDelay: `${index * 100}ms` }}
                               data-application-id={application.id}
                             >
-                              <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${(() => {
-                                const status = (application.currentStage || application.status)?.toLowerCase() || '';
-                                if (status === 'applied') return 'from-blue-500 to-cyan-500';
-                                if (status === 'shortlisted' || status === 'screening qualified') return 'from-yellow-500 to-amber-500';
-                                if (status.includes('interview round') || status === 'qualified for interview' || status === 'interview completed') return 'from-purple-500 to-pink-500';
-                                if (status === 'offered' || status === 'selected' || status === 'selected (final)') return 'from-green-500 to-emerald-500';
-                                if (status.includes('rejected')) return 'from-red-500 to-rose-500';
-                                return 'from-gray-400 to-gray-500';
-                              })()
-                        }`}></div>
+                              <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${getPrimaryStatusGradient(getApplicationPrimaryStatus(application).variant)}`}></div>
 
                               <div id={`application-${application.id}`} className="p-4 sm:p-6 lg:p-8">
                                 <div className="flex flex-col gap-3 sm:gap-4">
@@ -3253,23 +3221,23 @@ export default function StudentDashboard() {
                                           <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                                           {application.company?.name || 'Unknown Company'}
                                         </p>
-                                        {application.screeningStatusText && (
-                                          <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{application.screeningStatusText}</p>
-                                        )}
                                       </div>
                                     </div>
                                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
-                                      <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
-                                        {getStatusIcon(application.currentStage || application.status)}
-                                        <span className="truncate max-w-[120px] sm:max-w-none">
-                                          {(() => {
-                                            const status = application.currentStage || application.status;
-                                            if (status === 'job_removed') return 'Job Removed';
-                                            if (status) return status.charAt(0).toUpperCase() + status.slice(1);
-                                            return 'Unknown';
-                                          })()}
+                                      {(() => {
+                                        const primary = getApplicationPrimaryStatus(application);
+                                        const primaryLabel = application.status === 'job_removed'
+                                          ? 'Job Removed'
+                                          : getApplicationPrimaryLabel(application);
+                                        return (
+                                      <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${application.status === 'job_removed' ? getStatusColor('job_removed') : getPrimaryStatusBadgeClass(primary.variant)}`}>
+                                        {application.status === 'job_removed' ? getStatusIcon('job_removed') : getStatusIcon(primaryLabel)}
+                                        <span className="truncate max-w-[160px] sm:max-w-none">
+                                          {primaryLabel}
                                         </span>
                                       </span>
+                                        );
+                                      })()}
                                       {(application.jobId || application.job?.id) && (
                                         <button
                                           onClick={() => navigate(`/job/${application.jobId || application.job?.id}`)}
@@ -3304,57 +3272,7 @@ export default function StudentDashboard() {
 
                                 {expandedApplications.has(application.id) && (
                                   <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200 space-y-4 sm:space-y-6">
-                                    {(() => {
-                                      // Don't show screening status badge if already selected or completed
-                                      const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
-                                      const isFinal = currentStage === 'selected (final)' || currentStage === 'interview completed';
-
-                                      // Only show screening status if not in final state
-                                      if (isFinal || !application.screeningStatusText) return null;
-
-                                      return (
-                                        <div className={`p-3 sm:p-3 border rounded-lg ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                          ? 'bg-red-50 border-red-200'
-                                          : application.screeningStatus === 'TEST_SELECTED'
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-yellow-50 border-yellow-200'
-                                          }`}>
-                                          <div className="flex items-center gap-2">
-                                            <Info className={`w-4 h-4 ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                              ? 'text-red-600'
-                                              : application.screeningStatus === 'TEST_SELECTED'
-                                                ? 'text-green-600'
-                                                : 'text-yellow-600'
-                                              }`} />
-                                            <span className={`text-sm font-medium ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                              ? 'text-red-800'
-                                              : application.screeningStatus === 'TEST_SELECTED'
-                                                ? 'text-green-800'
-                                                : 'text-yellow-800'
-                                              }`}>
-                                              {application.screeningStatusText}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-
-                                    {/* Interview Status Badge (only if passed screening) */}
-                                    {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
-                                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                          <Info className="w-4 h-4 text-blue-600" />
-                                          <span className="text-sm font-medium text-blue-800">
-                                            {application.interviewStatus.statusText || 'Interview Status'}
-                                          </span>
-                                        </div>
-                                        {application.interviewStatus.lastRoundReached > 0 && (
-                                          <p className="text-xs text-blue-600 mt-1 ml-6">
-                                            Last Round Reached: Round {application.interviewStatus.lastRoundReached}
-                                          </p>
-                                        )}
-                                      </div>
-                                    )}
+                                    <StudentApplicationTracker application={application} />
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                                       <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
