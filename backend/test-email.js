@@ -13,10 +13,10 @@ async function testEmail() {
     console.log('📧 Testing email configuration...');
     console.log('');
     console.log('Configuration:');
-    console.log('  EMAIL_HOST:', process.env.EMAIL_HOST);
-    console.log('  EMAIL_PORT:', process.env.EMAIL_PORT);
-    console.log('  EMAIL_USER:', process.env.EMAIL_USER);
-    console.log('  EMAIL_PASS:', process.env.EMAIL_PASS ? '***configured***' : 'NOT SET');
+    console.log('  SMTP_HOST:', process.env.SMTP_HOST);
+    console.log('  SMTP_PORT:', process.env.SMTP_PORT);
+    console.log('  SMTP_USER:', process.env.SMTP_USER);
+    console.log('  SMTP_PASS:', process.env.SMTP_PASS ? '***configured***' : 'NOT SET');
     console.log('');
 
     const testEmail = process.argv[2] || 'mibosa3149@delaeb.com';
@@ -52,7 +52,7 @@ async function testEmail() {
     console.error('Possible issues:');
     console.error('  1. Gmail App Password is incorrect');
     console.error('  2. 2FA not enabled on Gmail');
-    console.error('  3. EMAIL_USER or EMAIL_PASS not set in .env');
+    console.error('  3. SMTP_USER or SMTP_PASS not set in .env');
     console.error('  4. Network/firewall blocking SMTP connection');
     
     process.exit(1);

@@ -29,6 +29,11 @@ export async function listAdmins(req, res) {
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,
       adminId: u.admin?.id,
+      adminRole: u.admin?.role,
+      permissions: u.admin?.permissions ? JSON.parse(u.admin.permissions) : [],
+      allowedSchools: u.admin?.allowedSchools ? JSON.parse(u.admin.allowedSchools) : [],
+      allowedCenters: u.admin?.allowedCenters ? JSON.parse(u.admin.allowedCenters) : [],
+      allowedBatches: u.admin?.allowedBatches ? JSON.parse(u.admin.allowedBatches) : [],
     }));
 
     res.json({ admins: list });
@@ -43,7 +48,16 @@ export async function listAdmins(req, res) {
  */
 export async function createAdmin(req, res) {
   try {
-    const { email, password, displayName } = req.body;
+    const { 
+      email, 
+      password, 
+      displayName, 
+      role = 'ADMIN', 
+      permissions = [], 
+      allowedSchools = [], 
+      allowedCenters = [], 
+      allowedBatches = [] 
+    } = req.body;
 
     if (!email || typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({ error: 'Email is required' });
@@ -74,7 +88,15 @@ export async function createAdmin(req, res) {
         },
       });
       const a = await tx.admin.create({
-        data: { userId: u.id, name },
+        data: { 
+          userId: u.id, 
+          name,
+          role,
+          permissions: JSON.stringify(permissions),
+          allowedSchools: JSON.stringify(allowedSchools),
+          allowedCenters: JSON.stringify(allowedCenters),
+          allowedBatches: JSON.stringify(allowedBatches),
+        },
       });
       return { user: u, admin: a };
     });
@@ -174,6 +196,63 @@ export async function enableAdmin(req, res) {
 }
 
 /**
+ * Update an existing admin's details, role, and permissions
+ */
+export async function updateAdmin(req, res) {
+  try {
+    const { userId } = req.params;
+    const { 
+      displayName, 
+      role, 
+      permissions, 
+      allowedSchools, 
+      allowedCenters, 
+      allowedBatches,
+      status
+    } = req.body;
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { admin: true },
+    });
+
+    if (!target || target.role !== 'ADMIN') {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Update User fields
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(displayName && { displayName }),
+          ...(status && { status }),
+        },
+      });
+
+      // Update Admin fields
+      await tx.admin.update({
+        where: { userId },
+        data: {
+          ...(displayName && { name: displayName }),
+          ...(role && { role }),
+          ...(permissions && { permissions: JSON.stringify(permissions) }),
+          ...(allowedSchools && { allowedSchools: JSON.stringify(allowedSchools) }),
+          ...(allowedCenters && { allowedCenters: JSON.stringify(allowedCenters) }),
+          ...(allowedBatches && { allowedBatches: JSON.stringify(allowedBatches) }),
+        },
+      });
+    });
+
+    logger.info(`Super Admin updated admin: ${target.email}`);
+    res.json({ message: 'Admin updated successfully' });
+  } catch (error) {
+    logger.error('Update admin error:', error);
+    res.status(500).json({ error: 'Failed to update admin' });
+  }
+}
+
+/**
  * Get Super Admin stats: by center, department (school), and per-admin
  */
 export async function getSuperAdminStats(req, res) {
@@ -219,6 +298,16 @@ export async function getSuperAdminStats(req, res) {
         lastLoginAt: true,
         createdAt: true,
         admin: { select: { id: true } },
+        _count: {
+          select: {
+            jobsCreated: true,
+          }
+        },
+        jobsCreated: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true }
+        }
       },
     });
 
@@ -238,6 +327,8 @@ export async function getSuperAdminStats(req, res) {
         status: a.status,
         lastLoginAt: a.lastLoginAt,
         createdAt: a.createdAt,
+        jobsCount: a._count.jobsCreated,
+        lastJobAt: a.jobsCreated[0]?.createdAt || null,
       })),
       summary: {
         totalStudents: students.length,
@@ -310,6 +401,16 @@ export async function getStatsSummary(req, res) {
           status: true,
           lastLoginAt: true,
           createdAt: true,
+          _count: {
+            select: {
+              jobsCreated: true,
+            }
+          },
+          jobsCreated: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true }
+          }
         }
       })
     ]);
@@ -331,6 +432,8 @@ export async function getStatsSummary(req, res) {
         status: a.status,
         lastLoginAt: a.lastLoginAt,
         createdAt: a.createdAt,
+        jobsCount: a._count.jobsCreated,
+        lastJobAt: a.jobsCreated[0]?.createdAt || null,
       })),
       byCenter: byCenter.map(c => ({
         center: c.center || 'Unknown',
@@ -348,5 +451,78 @@ export async function getStatsSummary(req, res) {
   } catch (error) {
     logger.error('Get stats summary error:', error);
     res.status(500).json({ error: 'Failed to fetch stats summary' });
+  }
+}
+
+/**
+ * Get detailed performance stats for a specific admin (Super Admin only)
+ */
+export async function getAdminPerformance(req, res) {
+  try {
+    const { userId } = req.params;
+
+    const [admin, jobsCreated, jobsUpdated, recentLogs] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        include: { admin: true }
+      }),
+      prisma.job.findMany({
+        where: { createdBy: userId },
+        select: {
+          id: true,
+          jobTitle: true,
+          companyName: true,
+          createdAt: true,
+          status: true,
+          _count: { select: { applications: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.job.count({
+        where: { updatedBy: userId }
+      }),
+      prisma.auditLog.findMany({
+        where: { actorId: userId },
+        take: 10,
+        orderBy: { timestamp: 'desc' }
+      })
+    ]);
+
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    // Calculate total reach (students assigned to jobs created by this admin)
+    const jobIds = jobsCreated.map(j => j.id);
+    const totalReach = await prisma.jobTarget.count({
+      where: { jobId: { in: jobIds } }
+    });
+
+    res.json({
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.admin?.role,
+        status: admin.status
+      },
+      stats: {
+        totalJobsCreated: jobsCreated.length,
+        totalJobsUpdated: jobsUpdated,
+        totalReach,
+        totalApplications: jobsCreated.reduce((sum, j) => sum + j._count.applications, 0)
+      },
+      recentJobs: jobsCreated.slice(0, 5),
+      recentActivity: recentLogs.map(log => ({
+        id: log.id,
+        action: log.actionType,
+        target: log.targetType,
+        details: log.details,
+        timestamp: log.timestamp
+      }))
+    });
+  } catch (error) {
+    logger.error('Get admin performance error:', error);
+    res.status(500).json({ error: 'Failed to fetch admin performance' });
   }
 }

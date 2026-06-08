@@ -1,0 +1,220 @@
+{
+  "hash": "351c8cef",
+  "configHash": "ee508db7",
+  "lockfileHash": "49b1128f",
+  "browserHash": "b17436b3",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "67470bed",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "01de7e54",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "56d0019f",
+      "needsInterop": false
+    },
+    "gsap": {
+      "src": "../../node_modules/gsap/index.js",
+      "file": "gsap.js",
+      "fileHash": "26d9ee5e",
+      "needsInterop": false
+    },
+    "gsap/ScrollTrigger": {
+      "src": "../../node_modules/gsap/ScrollTrigger.js",
+      "file": "gsap_ScrollTrigger.js",
+      "fileHash": "c8527b15",
+      "needsInterop": false
+    },
+    "react-icons/fa": {
+      "src": "../../node_modules/react-icons/fa/index.mjs",
+      "file": "react-icons_fa.js",
+      "fileHash": "81c57c71",
+      "needsInterop": false
+    },
+    "react-icons/md": {
+      "src": "../../node_modules/react-icons/md/index.mjs",
+      "file": "react-icons_md.js",
+      "fileHash": "527a1fa9",
+      "needsInterop": false
+    },
+    "@tabler/icons-react": {
+      "src": "../../node_modules/@tabler/icons-react/dist/esm/tabler-icons-react.mjs",
+      "file": "@tabler_icons-react.js",
+      "fileHash": "a6f6560f",
+      "needsInterop": false
+    },
+    "motion/react": {
+      "src": "../../node_modules/motion/dist/es/react.mjs",
+      "file": "motion_react.js",
+      "fileHash": "9ad3d5d4",
+      "needsInterop": false
+    },
+    "react-icons/fa6": {
+      "src": "../../node_modules/react-icons/fa6/index.mjs",
+      "file": "react-icons_fa6.js",
+      "fileHash": "08b9bc74",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "231db807",
+      "needsInterop": false
+    },
+    "react-icons/fi": {
+      "src": "../../node_modules/react-icons/fi/index.mjs",
+      "file": "react-icons_fi.js",
+      "fileHash": "35a038d7",
+      "needsInterop": false
+    },
+    "@lottiefiles/dotlottie-react": {
+      "src": "../../node_modules/@lottiefiles/dotlottie-react/dist/browser/index.js",
+      "file": "@lottiefiles_dotlottie-react.js",
+      "fileHash": "06f82772",
+      "needsInterop": false
+    },
+    "react-icons/im": {
+      "src": "../../node_modules/react-icons/im/index.mjs",
+      "file": "react-icons_im.js",
+      "fileHash": "38487fb1",
+      "needsInterop": false
+    },
+    "socket.io-client": {
+      "src": "../../node_modules/socket.io-client/build/esm/index.js",
+      "file": "socket__io-client.js",
+      "fileHash": "36109a74",
+      "needsInterop": false
+    },
+    "react-datepicker": {
+      "src": "../../node_modules/react-datepicker/dist/index.es.js",
+      "file": "react-datepicker.js",
+      "fileHash": "86fbe254",
+      "needsInterop": false
+    },
+    "react-icons/si": {
+      "src": "../../node_modules/react-icons/si/index.mjs",
+      "file": "react-icons_si.js",
+      "fileHash": "084432a4",
+      "needsInterop": false
+    },
+    "react-icons/io": {
+      "src": "../../node_modules/react-icons/io/index.mjs",
+      "file": "react-icons_io.js",
+      "fileHash": "f5821fbf",
+      "needsInterop": false
+    },
+    "chart.js": {
+      "src": "../../node_modules/chart.js/dist/chart.js",
+      "file": "chart__js.js",
+      "fileHash": "6327ede6",
+      "needsInterop": false
+    },
+    "react-chartjs-2": {
+      "src": "../../node_modules/react-chartjs-2/dist/index.js",
+      "file": "react-chartjs-2.js",
+      "fileHash": "e6878cae",
+      "needsInterop": false
+    },
+    "ag-charts-react": {
+      "src": "../../node_modules/ag-charts-react/dist/package/index.esm.mjs",
+      "file": "ag-charts-react.js",
+      "fileHash": "9fcf0690",
+      "needsInterop": false
+    },
+    "react-icons/tb": {
+      "src": "../../node_modules/react-icons/tb/index.mjs",
+      "file": "react-icons_tb.js",
+      "fileHash": "91e6c6b6",
+      "needsInterop": false
+    },
+    "react-minimal-pie-chart": {
+      "src": "../../node_modules/react-minimal-pie-chart/dist/index.esm.js",
+      "file": "react-minimal-pie-chart.js",
+      "fileHash": "bab1934a",
+      "needsInterop": false
+    },
+    "react-dom": {
+      "src": "../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "222719f5",
+      "needsInterop": true
+    },
+    "html2pdf.js": {
+      "src": "../../node_modules/html2pdf.js/dist/html2pdf.js",
+      "file": "html2pdf__js.js",
+      "fileHash": "dfd36539",
+      "needsInterop": true
+    },
+    "@fortawesome/react-fontawesome": {
+      "src": "../../node_modules/@fortawesome/react-fontawesome/index.es.js",
+      "file": "@fortawesome_react-fontawesome.js",
+      "fileHash": "081fc502",
+      "needsInterop": false
+    },
+    "@fortawesome/free-brands-svg-icons": {
+      "src": "../../node_modules/@fortawesome/free-brands-svg-icons/index.mjs",
+      "file": "@fortawesome_free-brands-svg-icons.js",
+      "fileHash": "ab38b201",
+      "needsInterop": false
+    },
+    "@fortawesome/free-solid-svg-icons": {
+      "src": "../../node_modules/@fortawesome/free-solid-svg-icons/index.mjs",
+      "file": "@fortawesome_free-solid-svg-icons.js",
+      "fileHash": "3ae53d69",
+      "needsInterop": false
+    },
+    "xlsx": {
+      "src": "../../node_modules/xlsx/xlsx.mjs",
+      "file": "xlsx.js",
+      "fileHash": "ade9e91c",
+      "needsInterop": false
+    },
+    "pdfjs-dist": {
+      "src": "../../node_modules/pdfjs-dist/build/pdf.mjs",
+      "file": "pdfjs-dist.js",
+      "fileHash": "914eab77",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "index.es-ZGJTLOH2": {
+      "file": "index__es-ZGJTLOH2.js"
+    },
+    "chunk-7LXXUFJK": {
+      "file": "chunk-7LXXUFJK.js"
+    },
+    "html2canvas.esm-DI544SUM": {
+      "file": "html2canvas__esm-DI544SUM.js"
+    },
+    "purify.es-SNNRDL4B": {
+      "file": "purify__es-SNNRDL4B.js"
+    },
+    "chunk-OCCWAI5Z": {
+      "file": "chunk-OCCWAI5Z.js"
+    },
+    "chunk-ZDV4OQR4": {
+      "file": "chunk-ZDV4OQR4.js"
+    },
+    "chunk-3JWAWCRU": {
+      "file": "chunk-3JWAWCRU.js"
+    },
+    "chunk-JVY7OY5O": {
+      "file": "chunk-JVY7OY5O.js"
+    },
+    "chunk-XNOKCZSF": {
+      "file": "chunk-XNOKCZSF.js"
+    },
+    "chunk-HXA6O6EE": {
+      "file": "chunk-HXA6O6EE.js"
+    }
+  }
+}

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../../services/api';
-import { Search, Users, ExternalLink, ArrowLeft, Filter, ChevronLeft, ChevronRight, X, Calendar } from 'lucide-react';
+import { Search, Users, ExternalLink, ArrowLeft, Filter, ChevronLeft, ChevronRight, X, Calendar, GraduationCap, Building2, Briefcase, Info, CheckCircle, Clock } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
+import { useToast } from '../../ui/Toast';
 
 const STAGE_OPTIONS = [
   { label: 'All Stages', value: '' },
@@ -25,12 +26,12 @@ const FINAL_STATUS_OPTIONS = [
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      <td className="px-4 py-3"><div className="h-4 w-40 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-56 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-44 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-10 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-8 w-20 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-40 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-56 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-44 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-10 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
+      <td className="px-6 py-4"><div className="h-9 w-24 bg-slate-200 rounded-xl" /></td>
     </tr>
   );
 }
@@ -38,45 +39,44 @@ function SkeletonRow() {
 function StatusPill({ value }) {
   const v = String(value || '').toUpperCase();
   const config = {
-    'SELECTED': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '✓' },
-    'REJECTED': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: '✕' },
-    'ONGOING': { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', icon: '◉' },
+    'SELECTED': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: 'CheckCircle' },
+    'REJECTED': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: 'X' },
+    'ONGOING': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: 'Clock' },
+    'REVOKED_BY_ADMIN': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300', icon: 'Lock' },
   };
   const style = config[v] || config['ONGOING'];
+  const label = v === 'REVOKED_BY_ADMIN' ? 'REVOKED' : v;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${style.bg} ${style.text} ${style.border}`}>
-      <span>{style.icon}</span>
-      {v || 'ONGOING'}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${style.bg} ${style.text} ${style.border}`}>
+      {label}
     </span>
   );
 }
 
 function StageBadge({ stage }) {
   const stages = {
-    'Applied': { color: 'bg-slate-100 text-slate-700', icon: '📝' },
-    'Screening Qualified': { color: 'bg-blue-100 text-blue-700', icon: '🔍' },
-    'Qualified for Interview': { color: 'bg-indigo-100 text-indigo-700', icon: '✅' },
-    'Interview Round 1': { color: 'bg-purple-100 text-purple-700', icon: '1️⃣' },
-    'Interview Round 2': { color: 'bg-violet-100 text-violet-700', icon: '2️⃣' },
-    'Selected': { color: 'bg-emerald-100 text-emerald-700', icon: '🎯' },
-    'Rejected': { color: 'bg-rose-100 text-rose-700', icon: '❌' },
+    'Applied': { color: 'bg-slate-100 text-slate-700', label: 'Applied' },
+    'Screening Qualified': { color: 'bg-blue-100 text-blue-700', label: 'Screening' },
+    'Qualified for Interview': { color: 'bg-indigo-100 text-indigo-700', label: 'Interview Ready' },
+    'Interview Round 1': { color: 'bg-purple-100 text-purple-700', label: 'Round 1' },
+    'Interview Round 2': { color: 'bg-violet-100 text-violet-700', label: 'Round 2' },
+    'Selected': { color: 'bg-emerald-100 text-emerald-700', label: 'Selected' },
+    'Rejected': { color: 'bg-rose-100 text-rose-700', label: 'Rejected' },
+    'REVOKED_BY_ADMIN': { color: 'bg-slate-200 text-slate-700', label: 'Revoked' },
   };
   const stageConfig = stages[stage] || stages['Applied'];
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className="text-xs">{stageConfig.icon}</span>
-      <span className={`px-2 py-1 rounded-md text-xs font-medium ${stageConfig.color}`}>
-        {stage || 'Applied'}
-      </span>
-    </div>
+    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-tighter ${stageConfig.color}`}>
+      {stageConfig.label}
+    </span>
   );
 }
 
 export default function AdminJobApplications() {
   const params = useParams();
+  const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
-  // Fallback: extract jobId from pathname if useParams doesn't have it (e.g. nested route context)
   const jobId = params.jobId || location.pathname.match(/\/admin\/jobs\/([^/]+)\/applications/)?.[1] ||
     location.pathname.match(/\/super-admin\/jobs\/([^/]+)\/applications/)?.[1];
 
@@ -84,458 +84,239 @@ export default function AdminJobApplications() {
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
 
-  // Simple Filters (server-side) - only essential filters
   const [filters, setFilters] = useState({
-    search: '', // Free-text search (name, email, phone, application ID)
-    applicationStatus: '', // Applied, Shortlisted, Interview Scheduled, Interviewed, Selected, Rejected
-    // Legacy filters (for backward compatibility)
+    search: '',
+    applicationStatus: '',
     stage: '',
     finalStatus: '',
     lastRoundReached: '',
   });
   const [sortBy, setSortBy] = useState('appliedAt');
   const [order, setOrder] = useState('desc');
-
-  // Pagination
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
+  const LIMIT = 50;
 
-  // Debounced search term for server-side query
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(filters.search), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 400);
+    return () => clearTimeout(timer);
   }, [filters.search]);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function load() {
-      if (!jobId) {
-        setLoading(false);
-        setError('Job ID is missing. Please go back and select a job.');
-        return;
-      }
-
-      setLoading(true);
-      setError('');
+      if (!jobId) return;
       try {
+        setLoading(true);
         const queryParams = {
           page,
-          limit,
-          q: debouncedSearch || undefined,
-          applicationStatus: filters.applicationStatus || undefined,
-          stage: filters.stage || undefined,
-          finalStatus: filters.finalStatus || undefined,
-          lastRoundReached: filters.lastRoundReached || undefined,
+          limit: LIMIT,
           sortBy,
           order,
+          search: debouncedSearch || undefined,
+          stage: filters.stage || undefined,
+          finalStatus: filters.finalStatus || undefined,
         };
-
-        Object.keys(queryParams).forEach(key => {
-          if (queryParams[key] === undefined || queryParams[key] === '') {
-            delete queryParams[key];
-          }
-        });
-
         const res = await api.get(`/admin/jobs/${jobId}/applications`, { params: queryParams });
-        if (cancelled) return;
-        setPayload(res?.data || null);
-      } catch (e) {
-        if (cancelled) return;
-        console.error('Failed to load job applications:', e);
-        setError(e?.message || 'Failed to load applications');
+        setPayload(res.data);
+      } catch (err) {
+        setError(err.message || 'Failed to load applications');
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     }
-
     load();
-    return () => { cancelled = true; };
-  }, [jobId, page, limit, debouncedSearch, filters, sortBy, order]);
+  }, [jobId, page, sortBy, order, debouncedSearch, filters.stage, filters.finalStatus]);
 
-  const jobTitle = payload?.job?.title || 'Job';
-  const companyName = payload?.job?.companyName || 'Company';
-  const stats = payload?.stats || null;
-  const applications = useMemo(
-    () => (Array.isArray(payload?.applications) ? payload.applications : []),
-    [payload]
-  );
-
-  // Check if any filters are active
-  const hasActiveFilters = useMemo(() => {
-    return !!(
-      filters.search ||
-      filters.applicationStatus ||
-      filters.stage ||
-      filters.finalStatus ||
-      filters.lastRoundReached
-    );
-  }, [filters]);
-
-  // Reset all filters
-  const resetFilters = () => {
-    setFilters({
-      search: '',
-      applicationStatus: '',
-      stage: '',
-      finalStatus: '',
-      lastRoundReached: '',
-    });
-    setPage(1);
-  };
-
-  // Client-side quick filter (keeps UI snappy while server-side search runs)
-  const clientFiltered = useMemo(() => {
-    return applications; // Server-side filtering is now comprehensive, no need for client-side filtering
-  }, [applications]);
-
-  // Table rows - must be at top level (Rules of Hooks: no hooks inside conditionals)
-  const tableRows = useMemo(
-    () =>
-      clientFiltered.map((row) => (
-        <tr key={row.applicationId} className="hover:bg-indigo-50/50 transition-colors group">
-          <td className="px-4 py-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                {(row?.student?.name || 'U')[0].toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-slate-900 truncate">{row?.student?.name || 'Unknown'}</div>
-                {row?.student?.enrollmentId && (
-                  <div className="text-xs text-slate-500 mt-0.5">ID: {row.student.enrollmentId}</div>
-                )}
-                {row?.student?.phone && (
-                  <a href={`tel:${row.student.phone}`} className="text-xs text-indigo-600 hover:text-indigo-800 mt-0.5 inline-block">
-                    📞 {row.student.phone}
-                  </a>
-                )}
-              </div>
-            </div>
-          </td>
-          <td className="px-4 py-4">
-            <div className="flex flex-col gap-1">
-              <a href={`mailto:${row?.student?.email || ''}`} className="text-slate-700 hover:text-indigo-600 truncate text-sm">
-                {row?.student?.email || ''}
-              </a>
-              {row?.student?.city && row?.student?.stateRegion && (
-                <div className="text-xs text-slate-500 flex items-center gap-1">
-                  📍 {row.student.city}, {row.student.stateRegion}
-                </div>
-              )}
-            </div>
-          </td>
-          <td className="px-4 py-4">
-            <StageBadge stage={row.currentStage} />
-            {row.finalStatus === 'REJECTED' && row.rejectedIn && (
-              <div className="text-xs text-rose-600 mt-2 flex items-center gap-1">
-                ⚠️ Rejected in: {row.rejectedIn}
-              </div>
-            )}
-          </td>
-          <td className="px-4 py-4">
-            <div className="flex items-center justify-center">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-sm">
-                {row.lastRoundReached || 0}
-              </span>
-            </div>
-          </td>
-          <td className="px-4 py-4">
-            <StatusPill value={row.finalStatus} />
-          </td>
-          <td className="px-4 py-4">
-            <button
-              disabled={!row?.student?.profileLink}
-              onClick={() => row?.student?.profileLink && window.open(row.student.profileLink, '_blank')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${row?.student?.profileLink
-                ? 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-md'
-                : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-              }`}
-            >
-              View Profile
-              <ExternalLink className="w-4 h-4" />
-            </button>
-          </td>
-        </tr>
-      )),
-    [clientFiltered]
-  );
-
-  const total = payload?.pagination?.total ?? null;
-  const totalPages = payload?.pagination?.totalPages ?? null;
+  const stats = payload?.stats || {};
+  const applications = payload?.applications || [];
+  const pagination = payload?.pagination || { total: 0, totalPages: 1 };
+  const job = payload?.job || {};
 
   return (
-    <div className="space-y-4 sm:space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 sm:p-6 md:p-8 overflow-x-hidden">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 border border-slate-200 rounded-lg shadow-sm hover:bg-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          <div className="mt-4">
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <Users className="w-7 h-7 text-indigo-600" />
-              Applicants
-            </h1>
-            <p className="text-slate-600 mt-1">
-              <span className="font-semibold text-slate-800">{jobTitle}</span>
-              <span className="mx-2">•</span>
-              {companyName}
-            </p>
-          </div>
-        </div>
-
-        {!loading && stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Total</div>
-                  <div className="text-2xl font-bold text-slate-900 mt-1">{stats.totalApplications ?? 0}</div>
-                </div>
-                <div className="text-2xl opacity-20">👥</div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Shortlisted</div>
-                  <div className="text-2xl font-bold text-blue-900 mt-1">{stats.shortlisted ?? 0}</div>
-                </div>
-                <div className="text-2xl opacity-20">⭐</div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-indigo-600 font-semibold uppercase tracking-wide">Interviewing</div>
-                  <div className="text-2xl font-bold text-indigo-900 mt-1">{stats.interviewing ?? 0}</div>
-                </div>
-                <div className="text-2xl opacity-20">🎤</div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">Selected</div>
-                  <div className="text-2xl font-bold text-emerald-700 mt-1">{stats.selected ?? 0}</div>
-                </div>
-                <div className="text-2xl opacity-20">✅</div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-rose-50 to-white border border-rose-200 rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-rose-600 font-semibold uppercase tracking-wide">Rejected</div>
-                  <div className="text-2xl font-bold text-rose-700 mt-1">{stats.rejected ?? 0}</div>
-                </div>
-                <div className="text-2xl opacity-20">❌</div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Comprehensive Filters */}
-      <div className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl p-5 shadow-sm relative z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-slate-700 font-semibold">
-            <Filter className="w-4 h-4" />
-            Filters
-          </div>
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+    <div className="space-y-6 p-4 sm:p-6 md:p-8 bg-[#f8fafc] min-h-screen font-outfit">
+      {/* Header & Job Info */}
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => navigate(-1)}
+              className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
             >
-              <X className="w-4 h-4" />
-              Reset Filters
+              <ArrowLeft className="w-5 h-5" />
             </button>
-          )}
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">
+                Application <span className="text-indigo-600">Review</span>
+              </h1>
+              <div className="flex items-center gap-3 mt-1.5">
+                <span className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                  <Building2 className="w-3.5 h-3.5" />
+                  {job.companyName}
+                </span>
+                <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                <span className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                  <Briefcase className="w-3.5 h-3.5" />
+                  {job.jobTitle}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col items-center min-w-[80px]">
+              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Total</span>
+              <span className="text-base font-bold text-indigo-700 leading-tight">{pagination.total}</span>
+            </div>
+            <div className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col items-center min-w-[80px]">
+              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Selected</span>
+              <span className="text-base font-bold text-emerald-700 leading-tight">{stats.Selected || 0}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Row 1: Search and Application Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          {/* Free-text Search */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Search</label>
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters(prev => ({ ...prev, search: e.target.value }));
-                  setPage(1);
-                }}
-                placeholder="Name, email, phone, application ID"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+        {/* Filters Bar */}
+        <div className="bg-white rounded-[24px] border border-slate-200 p-4 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              placeholder="Search by student name, email, or USN..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+          
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="w-full lg:w-48">
+              <CustomDropdown
+                options={STAGE_OPTIONS}
+                value={filters.stage}
+                onChange={(val) => setFilters(prev => ({ ...prev, stage: val }))}
+                placeholder="Stage"
+                className="rounded-xl border-slate-200 shadow-none"
+              />
+            </div>
+            <div className="w-full lg:w-48">
+              <CustomDropdown
+                options={FINAL_STATUS_OPTIONS}
+                value={filters.finalStatus}
+                onChange={(val) => setFilters(prev => ({ ...prev, finalStatus: val }))}
+                placeholder="Result"
+                className="rounded-xl border-slate-200 shadow-none"
               />
             </div>
           </div>
-
-          {/* Application Status */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Application Status</label>
-            <CustomDropdown
-              options={[
-                { value: '', label: 'All Status' },
-                { value: 'applied', label: 'Applied' },
-                { value: 'shortlisted', label: 'Shortlisted' },
-                { value: 'interview_scheduled', label: 'Interview Scheduled' },
-                { value: 'interviewed', label: 'Interviewed' },
-                { value: 'selected', label: 'Selected' },
-                { value: 'rejected', label: 'Rejected' },
-              ]}
-              value={filters.applicationStatus}
-              onChange={(value) => {
-                setFilters(prev => ({ ...prev, applicationStatus: value }));
-                setPage(1);
-              }}
-              placeholder="All Status"
-            />
-          </div>
-        </div>
-
-        {/* Active Filters Display */}
-        {hasActiveFilters && (
-          <div className="mt-3 pt-3 border-t border-slate-200">
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs font-medium text-slate-600">Active Filters:</span>
-              {filters.applicationStatus && (
-                <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                  Status: {filters.applicationStatus}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Pagination Info */}
-        <div className="mt-4 pt-4 border-t border-slate-200 flex justify-end">
-          {total !== null && (
-            <span className="text-sm text-slate-600">
-              {total} total • page {page}{totalPages ? ` / ${totalPages}` : ''}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Content */}
-      <div className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-sm overflow-hidden relative z-0">
-        {error ? (
-          <div className="p-8 text-center">
-            <div className="text-rose-700 font-semibold mb-2">{error}</div>
-            <div className="flex flex-wrap justify-center gap-3 mt-4">
-              {!jobId ? (
-                <button
-                  onClick={() => navigate(location.pathname.startsWith('/super-admin') ? '/super-admin?tab=jobApplications' : '/admin?tab=jobApplications')}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Go to Applicants
-                </button>
+      {/* Main Table Content */}
+      <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Candidate Profile</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Academic Info</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Stage</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Result</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : applications.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-20 text-center">
+                    <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Users className="w-8 h-8" />
+                    </div>
+                    <p className="text-slate-900 font-bold tracking-tight">No applicants matched your filters</p>
+                    <p className="text-slate-500 text-sm mt-1">Try resetting the stage or search term</p>
+                  </td>
+                </tr>
               ) : (
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Retry
-                </button>
+                applications.map((app) => (
+                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm border border-indigo-100">
+                          {app.student?.user?.displayName?.charAt(0) || 'S'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate tracking-tight">{app.student?.user?.displayName}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{app.student?.usn || app.student?.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                          <GraduationCap className="w-3 h-3 text-indigo-500" />
+                          {app.student?.school} | {app.student?.branch}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Batch: {app.student?.batch}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <StageBadge stage={app.currentStage} />
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <StatusPill value={app.finalStatus} />
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => navigate(`/admin/student/${app.studentId}`)}
+                          className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="Student Profile"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/admin/jobs/${jobId}/applications/${app.id}`)}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          Details
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
-              <button
-                onClick={() => navigate(-1)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer Pagination */}
+        {!loading && pagination.total > LIMIT && (
+          <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Showing <span className="text-slate-900">{applications.length}</span> of <span className="text-slate-900">{pagination.total}</span> Candidates
+            </p>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 disabled:opacity-30 shadow-sm"
               >
-                Back
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-xs font-bold text-slate-600 uppercase">Page {page} of {pagination.totalPages}</span>
+              <button 
+                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                disabled={page === pagination.totalPages}
+                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 disabled:opacity-30 shadow-sm"
+              >
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-          </div>
-        ) : loading ? (
-          <div className="p-4 sm:p-6">
-            <div className="h-5 w-56 bg-slate-200 rounded animate-pulse mb-4" />
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Stage</th>
-                    <th className="px-4 py-3">Last Round</th>
-                    <th className="px-4 py-3">Final Status</th>
-                    <th className="px-4 py-3">Profile</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 8 }).map((_, idx) => <SkeletonRow key={idx} />)}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : clientFiltered.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-              <Users className="w-8 h-8 text-slate-400" />
-            </div>
-            <div className="text-slate-900 font-semibold text-lg mb-1">No applicants found</div>
-            <div className="text-slate-500 text-sm">
-              {hasActiveFilters ? 'Try adjusting your filters or search terms.' : 'This job has no applications yet.'}
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-slate-50">
-                <tr className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200">
-                  <th className="px-4 py-4">Student</th>
-                  <th className="px-4 py-4">Contact</th>
-                  <th className="px-4 py-4">Stage</th>
-                  <th className="px-4 py-4 text-center">Round</th>
-                  <th className="px-4 py-4">Status</th>
-                  <th className="px-4 py-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tableRows}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {!loading && !error && totalPages && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white/70">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${page <= 1 ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
-                }`}
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Prev
-            </button>
-
-            <div className="text-sm text-slate-600">
-              Page <span className="font-semibold text-slate-900">{page}</span> of{' '}
-              <span className="font-semibold text-slate-900">{totalPages}</span>
-            </div>
-
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${page >= totalPages ? 'text-slate-400 border-slate-200 bg-slate-50 cursor-not-allowed' : 'text-slate-700 border-slate-300 bg-white hover:bg-slate-50'
-                }`}
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </div>
         )}
       </div>
     </div>
   );
 }
-

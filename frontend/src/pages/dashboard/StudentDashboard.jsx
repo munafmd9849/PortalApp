@@ -13,6 +13,7 @@ import {
 } from '../../services/students';
 import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
+import { subscribeToUpdates } from '../../services/socket';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
@@ -44,6 +45,7 @@ import {
   CheckCircle,
   XCircle,
   Loader,
+  Star,
   Info,
   AlertTriangle,
   X,
@@ -66,7 +68,8 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Shield
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -74,6 +77,8 @@ import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
+import StudentAssessments from '../../components/dashboard/student/StudentAssessments';
+import MockInterviewStudentDashboard from '../student/MockInterviewStudentDashboard';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
 
 /** Validate profile URL - must start with http:// or https:// */
@@ -250,6 +255,12 @@ export default function StudentDashboard() {
   const addProfileFormRef = useRef(null);
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [academicOptions, setAcademicOptions] = useState({
+    schools: [],
+    centers: [],
+    batches: []
+  });
+  const [loadingAcademicOptions, setLoadingAcademicOptions] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
   const [profileSectionsOpen, setProfileSectionsOpen] = useState({
     photo: true,
@@ -496,6 +507,31 @@ export default function StudentDashboard() {
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
 
+  useEffect(() => {
+    if (activeTab === 'editProfile' && academicOptions.schools.length === 0 && !loadingAcademicOptions) {
+      const loadOptions = async () => {
+        try {
+          setLoadingAcademicOptions(true);
+          const [s, c, b] = await Promise.all([
+            api.getSchools(),
+            api.getCenters(),
+            api.getBatches()
+          ]);
+          setAcademicOptions({
+            schools: (s || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
+            centers: (c || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
+            batches: (b || []).map(item => ({ value: item.year, label: item.year, id: item.id }))
+          });
+        } catch (err) {
+          console.error('Failed to load academic options:', err);
+        } finally {
+          setLoadingAcademicOptions(false);
+        }
+      };
+      loadOptions();
+    }
+  }, [activeTab, academicOptions.schools.length, loadingAcademicOptions]);
+
   // Career Insights: real counts from pipeline (screening → shortlisted, test → interviewed, offer).
   // No artificial funnel normalization — we show what the backend actually tracked.
   const displayStats = useMemo(() => {
@@ -572,7 +608,7 @@ export default function StudentDashboard() {
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
-    // OPTIMIZED: Check cache first
+    // OPTIMIZED: Check cache first (unless forcing refresh)
     if (!forceRefresh) {
       const cacheKey = getCacheKey('jobs');
       if (cacheKey) {
@@ -585,6 +621,8 @@ export default function StudentDashboard() {
           return; // Use cached data, skip API call
         }
       }
+    } else {
+      console.log('🔄 Forcing refresh of jobs data, skipping cache');
     }
 
     setLoadingJobs(true);
@@ -644,16 +682,27 @@ export default function StudentDashboard() {
             );
           }
 
-          // Job is eligible only if ALL three criteria match
-          return centerMatch && schoolMatch && batchMatch;
+          // Job is eligible if explicitly recommended/invited OR if all three criteria match
+          return job.isRecommended || job.isInvited || (centerMatch && schoolMatch && batchMatch);
         });
 
-        setJobs(targetedJobs);
+        // Sort jobs: isInvited first, then isRecommended, then by date (desc)
+        const sortedJobs = [...targetedJobs].sort((a, b) => {
+          if (a.isInvited && !b.isInvited) return -1;
+          if (!a.isInvited && b.isInvited) return 1;
+          if (a.isRecommended && !b.isRecommended) return -1;
+          if (!a.isRecommended && b.isRecommended) return 1;
+          const dateA = new Date(a.postedAt || a.createdAt || 0);
+          const dateB = new Date(b.postedAt || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+        setJobs(sortedJobs);
         setJobsPage(1);
-        // CACHE: Store filtered jobs in localStorage
+        // CACHE: Store sorted jobs in localStorage
         const jobsCacheKey = getCacheKey('jobs');
         if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, targetedJobs);
+          setCachedData(jobsCacheKey, sortedJobs);
         }
       } else {
         setJobs(jobs);
@@ -914,27 +963,7 @@ export default function StudentDashboard() {
         console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
 
-      console.log('📋 [loadApplicationsData] About to set applications state:', {
-        applicationsDataLength: applicationsData?.length || 0,
-        isArray: Array.isArray(applicationsData),
-        firstApp: applicationsData?.[0] ? {
-          id: applicationsData[0].id,
-          jobId: applicationsData[0].jobId,
-          jobTitle: applicationsData[0].job?.jobTitle
-        } : null
-      });
-
       setApplications(applicationsData || []);
-
-      // Verify state was set correctly
-      setTimeout(() => {
-        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
-          // Note: We can't directly read state here, but we can log what we set
-          setValue: applicationsData?.length || 0
-        });
-      }, 100);
-
-      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
 
       // CACHE: Store applications data in localStorage
       const appsCacheKey = getCacheKey('applications');
@@ -982,9 +1011,6 @@ export default function StudentDashboard() {
       if (historyCacheKey) {
         setCachedData(historyCacheKey, historyData || []);
       }
-
-      // CACHE: Store interview history in localStorage
-      setCachedData(CACHE_KEYS.interviewHistory, historyData || []);
     } catch (err) {
       console.error('Failed to load interview history:', err);
       setInterviewHistory([]);
@@ -1310,7 +1336,7 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'assessments', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -1399,31 +1425,46 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const loadDashboardData = async () => {
-      // Load applications and interview history in parallel (both are independent)
+    // Real-time updates via Socket.IO
+    const unsubscribe = subscribeToUpdates({
+      onJobPosted: (data) => {
+        console.log('🔔 New job posted! Refreshing dashboard...', data);
+        // Skip cache for real-time updates
+        loadJobsData(true);
+        // Show a subtle notification if they are on the jobs tab
+        if (activeTab === 'jobs') {
+          showInfo(`New job posted: ${data.jobTitle}`, `By ${data.companyName || 'Recruiter'}`);
+        }
+      }
+    });
+
+    const loadDashboardData = async (force = false) => {
       const promises = [];
 
-      if (!dataLoadingRef.current.applications) {
-        dataLoadingRef.current.applications = true;
-        promises.push(loadApplicationsData());
-      }
-
-      // Load interview history in parallel with applications (same data source)
-      promises.push(loadInterviewHistory());
+      // Always load applications and interview history
+      promises.push(loadApplicationsData(force));
+      promises.push(loadInterviewHistory(force));
 
       // Wait for both to complete
       await Promise.all(promises);
 
-      // Load jobs when profile is complete (requires profile data for filtering)
-      if (profileComplete && !dataLoadingRef.current.jobs) {
-        dataLoadingRef.current.jobs = true;
-        loadJobsData();
+      // Load jobs when profile is complete
+      if (profileComplete) {
+        loadJobsData(force);
       }
     };
 
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+    // If switching to dashboard or jobs, force a refresh to catch new recommendations
+    if (activeTab === 'dashboard' || activeTab === 'jobs') {
+      loadDashboardData(true);
+    } else {
+      loadDashboardData(false);
+    }
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.id, activeTab, profileComplete, loadJobsData, loadApplicationsData, loadInterviewHistory]);
 
   // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
   useEffect(() => {
@@ -1822,6 +1863,10 @@ export default function StudentDashboard() {
         }
       }
 
+      const selectedSchool = academicOptions.schools.find(s => s.value === school);
+      const selectedCenter = academicOptions.centers.find(c => c.value === center);
+      const selectedBatch = academicOptions.batches.find(b => b.value === batch);
+
       const profileData = {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
@@ -1845,6 +1890,9 @@ export default function StudentDashboard() {
         gfg: gfg.trim(),
         hackerrank: hackerrank.trim(),
         school: school.trim(),
+        schoolId: selectedSchool?.id,
+        centerId: selectedCenter?.id,
+        batchId: selectedBatch?.id,
         profilePhoto: profilePhoto.trim(),
         jobFlexibility: jobFlexibility.trim(),
         otherProfiles: otherProfiles.filter(p => p.platformName?.trim() && isValidProfileUrl(p.profileId)).map(p => ({
@@ -2009,7 +2057,9 @@ export default function StudentDashboard() {
     { id: 'jobs', label: 'Explore Jobs', icon: Briefcase },
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
+    { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },
     { id: 'editProfile', label: 'Edit Profile', icon: SquarePen },
@@ -2480,7 +2530,13 @@ export default function StudentDashboard() {
                                     navigate(`/job/${job.id}`);
                                   }
                                 }}
-                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+                                className={`group rounded-lg sm:rounded-xl border-2 transition-all duration-300 overflow-hidden cursor-pointer ${
+                                  job.isInvited 
+                                    ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
+                                    : job.isRecommended 
+                                      ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
+                                      : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl'
+                                }`}
                               >
                                 {/* Mobile Layout */}
                                 <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
@@ -2490,7 +2546,21 @@ export default function StudentDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
-                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
+                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1 truncate">{job.jobTitle}</p>
+                                      <div className="flex flex-wrap gap-1 mb-2">
+                                        {job.isRecommended && (
+                                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm">
+                                            <Star className="w-2.5 h-2.5 fill-current" />
+                                            REC
+                                          </span>
+                                        )}
+                                        {job.isInvited && (
+                                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm">
+                                            <Mail className="w-2.5 h-2.5" />
+                                            INV
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                                         <div className="flex items-center gap-1">
                                           <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
@@ -2560,8 +2630,22 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
 
-                                  <div className="min-w-0 overflow-hidden flex items-center">
+                                  <div className="min-w-0 overflow-hidden flex flex-col justify-center">
                                     <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {job.isRecommended && (
+                                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm shrink-0">
+                                          <Star className="w-2.5 h-2.5 fill-current" />
+                                          Recommended
+                                        </span>
+                                      )}
+                                      {job.isInvited && (
+                                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm shrink-0">
+                                          <Mail className="w-2.5 h-2.5" />
+                                          Invited
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center min-w-0 overflow-hidden">
@@ -3828,9 +3912,7 @@ export default function StudentDashboard() {
                             iconColor="text-indigo-600"
                             options={[
                               { value: '', label: 'Select Batch' },
-                              { value: '25-29', label: '25-29' },
-                              { value: '24-28', label: '24-28' },
-                              { value: '23-27', label: '23-27' }
+                              ...academicOptions.batches
                             ]}
                             value={batch}
                             onChange={(value) => {
@@ -3847,23 +3929,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                School <span className="text-red-500">*</span>
+                                Branch <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaGraduationCap}
                             iconColor="text-purple-600"
                             options={[
-                              { value: '', label: 'Select School' },
-                              { value: 'SOT', label: 'School of Technology' },
-                              { value: 'SOM', label: 'School of Management' },
-                              { value: 'SOH', label: 'School of HealthCare' }
+                              { value: '', label: 'Select Branch' },
+                              ...academicOptions.schools
                             ]}
                             value={school}
                             onChange={(value) => {
                               setSchool(value);
                               validateField('school', value);
                             }}
-                            placeholder="Select School"
+                            placeholder="Select Branch"
                           />
                           {validationErrors.school && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
@@ -3873,24 +3953,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                Center <span className="text-red-500">*</span>
+                                Campus <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaMapMarkerAlt}
                             iconColor="text-blue-600"
                             options={[
-                              { value: '', label: 'Select Center' },
-                              { value: 'BANGALORE', label: 'Bangalore' },
-                              { value: 'NOIDA', label: 'Noida' },
-                              { value: 'LUCKNOW', label: 'Lucknow' },
-                              { value: 'PUNE', label: 'Pune' },
+                              { value: '', label: 'Select Campus' },
+                              ...academicOptions.centers
                             ]}
                             value={center}
                             onChange={(value) => {
                               setCenter(value);
                               validateField('center', value);
                             }}
-                            placeholder="Select Center"
+                            placeholder="Select Campus"
                           />
                           {validationErrors.center && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
@@ -4673,6 +4750,12 @@ export default function StudentDashboard() {
             </div>
           </div>
         );
+
+      case 'assessments':
+        return <StudentAssessments />;
+
+      case 'mockInterviews':
+        return <MockInterviewStudentDashboard />;
 
       case 'raiseQuery':
         return <Query />;

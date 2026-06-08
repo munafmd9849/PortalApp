@@ -47,6 +47,23 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
   const [studentFilters, setStudentFilters] = useState({ school: '', center: '', batch: '' });
+  const [academicOptions, setAcademicOptions] = useState({ schools: [], centers: [], batches: [] });
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [s, c, b] = await Promise.all([
+          api.getSchools(),
+          api.getCenters(),
+          api.getBatches()
+        ]);
+        setAcademicOptions({ schools: s || [], centers: c || [], batches: b || [] });
+      } catch (err) {
+        console.error('Failed to load academic options for event filters:', err);
+      }
+    };
+    fetchOptions();
+  }, []);
 
   // Set default dates when modal opens or selectedDate changes
   useEffect(() => {
@@ -495,26 +512,26 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
                     {/* School / Center / Batch filters - CustomDropdowns */}
                     <div className="p-3 border-b border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <CustomDropdown
-                        label="School"
+                        label="Branch"
                         options={[
-                          { value: '', label: 'All Schools' },
-                          ...SCHOOL_OPTIONS.map(o => ({ value: o.id, label: o.name })),
+                          { value: '', label: 'All Branches' },
+                          ...academicOptions.schools.map(o => ({ value: o.name, label: o.name })),
                         ]}
                         value={studentFilters.school}
                         onChange={(val) => setStudentFilters(f => ({ ...f, school: val || '' }))}
-                        placeholder="All Schools"
+                        placeholder="All Branches"
                         icon={FaGraduationCap}
                         iconColor="text-blue-600"
                       />
                       <CustomDropdown
-                        label="Center"
+                        label="Campus"
                         options={[
-                          { value: '', label: 'All Centers' },
-                          ...CENTER_OPTIONS.map(o => ({ value: o.id, label: o.name })),
+                          { value: '', label: 'All Campuses' },
+                          ...academicOptions.centers.map(o => ({ value: o.name, label: o.name })),
                         ]}
                         value={studentFilters.center}
                         onChange={(val) => setStudentFilters(f => ({ ...f, center: val || '' }))}
-                        placeholder="All Centers"
+                        placeholder="All Campuses"
                         icon={FaMapMarkerAlt}
                         iconColor="text-indigo-600"
                       />
@@ -522,7 +539,7 @@ const EventCreationModal = ({ isOpen, onClose, onSuccess, userRole, selectedDate
                         label="Batch"
                         options={[
                           { value: '', label: 'All Batches' },
-                          ...BATCH_OPTIONS.map(o => ({ value: o.id, label: o.name })),
+                          ...academicOptions.batches.map(o => ({ value: o.year, label: o.year })),
                         ]}
                         value={studentFilters.batch}
                         onChange={(val) => setStudentFilters(f => ({ ...f, batch: val || '' }))}

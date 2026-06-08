@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import AboutMe from './AboutMe';
 import DashboardStatsSection from './DashboardStatsSection';
@@ -81,7 +81,20 @@ const DashboardHome = ({
   // IMPORTANT: Production behavior — no fallback datasets.
   // UI renders from real API data only (or empty arrays while loading).
   const displayApplications = Array.isArray(applications) ? applications : [];
-  const displayJobs = Array.isArray(jobs) ? jobs : [];
+  const displayJobs = useMemo(() => {
+    const rawJobs = Array.isArray(jobs) ? jobs : [];
+    // Sort jobs: isInvited first, then isRecommended, then by date (desc)
+    return [...rawJobs].sort((a, b) => {
+      if (a.isInvited && !b.isInvited) return -1;
+      if (!a.isInvited && b.isInvited) return 1;
+      if (a.isRecommended && !b.isRecommended) return -1;
+      if (!a.isRecommended && b.isRecommended) return 1;
+      // Secondary sort by date if available
+      const dateA = new Date(a.postedAt || a.createdAt || 0);
+      const dateB = new Date(b.postedAt || b.createdAt || 0);
+      return dateB - dateA;
+    });
+  }, [jobs]);
 
   // Use parent's stats (StudentDashboard sends displayStats with funnel enforced: offers <= interviewed <= shortlisted <= applied)
   const stats =

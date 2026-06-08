@@ -22,6 +22,7 @@ import { API_BASE_URL } from '../../config/api';
 import ResumeTemplate1 from './ResumeTemplate1';
 import ResumeTemplate2 from './ResumeTemplate2';
 import ResumeTemplate3 from './ResumeTemplate3';
+import JobPickerDropdown from './JobPickerDropdown';
 import { 
   FileText, 
   Download, 
@@ -59,7 +60,10 @@ import {
   Hash,
   Calendar,
   Globe,
-  Type
+  Type,
+  Zap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { validateResumeFile, formatFileSize, checkATSScore } from '../../utils/resumeUtils';
 import ResumeAnalyzer from './ResumeAnalyzer';
@@ -125,7 +129,12 @@ const ResumeBuilder = () => {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('1');
-  const [activeMode, setActiveMode] = useState('buildResume'); // 'buildResume', 'uploadResume', 'atsFriendly'
+  const [activeMode, setActiveMode] = useState('buildResume'); // 'buildResume', 'uploadResume', 'atsFriendly', 'optimize'
+  // AI Optimize state
+  const [optimizeJob, setOptimizeJob] = useState(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeResult, setOptimizeResult] = useState(null);
+  const [optimizeError, setOptimizeError] = useState('');
   const [activeSection, setActiveSection] = useState('personal'); // Only for buildResume mode
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -718,6 +727,61 @@ const ResumeBuilder = () => {
     }
   };
 
+  // Apply AI Optimized results directly to the resume state
+  const handleApplyOptimizedAI = () => {
+    if (!optimizeResult?.optimized || !student) return;
+
+    // Create a deep copy of student to avoid mutating state directly
+    const updatedStudent = JSON.parse(JSON.stringify(student));
+
+    // Update Summary
+    if (optimizeResult.optimized.summary) {
+      updatedStudent.summary = optimizeResult.optimized.summary;
+      setPersonalInfo(prev => ({ ...prev, summary: optimizeResult.optimized.summary }));
+    }
+
+    // Update Skills
+    if (optimizeResult.optimized.skills) {
+       const newSkills = [
+         ...(optimizeResult.optimized.skills.technical || []),
+         ...(optimizeResult.optimized.skills.tools || []),
+         ...(optimizeResult.optimized.skills.soft || [])
+       ].map(s => ({ skillName: s, rating: 3 }));
+       updatedStudent.skills = newSkills;
+    }
+
+    // Update Experience Bullets
+    if (optimizeResult.optimized.experience) {
+       optimizeResult.optimized.experience.forEach(optExp => {
+         const match = updatedStudent.experiences?.find(
+           e => e.title === optExp.originalTitle && e.company === optExp.originalCompany
+         );
+         if (match) {
+           match.description = optExp.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    // Update Project Bullets
+    if (optimizeResult.optimized.projects) {
+       optimizeResult.optimized.projects.forEach(optProj => {
+         const match = updatedStudent.projects?.find(
+           p => p.title === optProj.originalTitle
+         );
+         if (match) {
+           match.description = optProj.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    setStudent(updatedStudent);
+    
+    setSuccess('AI Optimization applied successfully! Review your tailored resume below.');
+    setTimeout(() => setSuccess(''), 4000);
+    setActiveMode('buildResume');
+    setActiveSection('preview');
+  };
+
   // Save all resume data
   const handleSaveAll = async () => {
     if (!user?.id) return;
@@ -1107,14 +1171,25 @@ const ResumeBuilder = () => {
           </button>
           <button
             onClick={() => setActiveMode('atsFriendly')}
-            className={`flex-1 min-w-0 sm:min-w-[180px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
+            className={`flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'atsFriendly'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
             <BarChart3 size={isMobile ? 18 : 22} />
-            <span>{isMobile ? 'ATS' : 'ATS Friendly'}</span>
+            <span>{isMobile ? 'ATS' : 'ATS Check'}</span>
+          </button>
+          <button
+            onClick={() => { setActiveMode('optimize'); setOptimizeResult(null); setOptimizeError(''); }}
+            className={`flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
+              activeMode === 'optimize'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'bg-gray-50 text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 border border-gray-200'
+            }`}
+          >
+            <Zap size={isMobile ? 18 : 22} />
+            <span>{isMobile ? 'AI Opt' : 'AI Optimize'}</span>
           </button>
         </div>
       </div>
@@ -2393,6 +2468,200 @@ const ResumeBuilder = () => {
               builderResumeText={buildResumeTextForAnalysis(student)}
             />
           </div>
+        </div>
+      )}
+
+      {/* AI Optimize Mode */}
+      {activeMode === 'optimize' && (
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-5 shadow-sm space-y-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 border-b border-gray-200 pb-4">
+            <div className="bg-purple-100 p-1.5 rounded-lg">
+              <Zap size={20} className="text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">AI Resume Optimizer</h3>
+              <p className="text-sm text-gray-500">Mistral rewrites your resume sections to match a specific job's keywords</p>
+            </div>
+            <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-semibold">Powered by Mistral</span>
+          </div>
+
+          {/* Info Banner */}
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800">
+            <p className="font-semibold mb-1">🚀 How it works</p>
+            <ul className="list-disc list-inside space-y-1 text-purple-700">
+              <li>Pick a job from your portal's posted jobs list</li>
+              <li>AI reads your profile (skills, experience, projects) from the DB — no manual input</li>
+              <li>Mistral rewrites your summary, skills, and bullet points to match the JD keywords</li>
+              <li>Copy the results into your Build Resume sections</li>
+            </ul>
+          </div>
+
+          {/* Job Picker */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Select Target Job</label>
+            <JobPickerDropdown selectedJob={optimizeJob} onSelect={setOptimizeJob} placeholder="Pick a job to optimize your resume for" />
+          </div>
+
+          {/* Optimize Button */}
+          <button
+            onClick={async () => {
+              if (!optimizeJob) return;
+              setOptimizing(true);
+              setOptimizeResult(null);
+              setOptimizeError('');
+              try {
+                const result = await api.optimizeResume({ jobId: optimizeJob.id });
+                setOptimizeResult(result);
+              } catch (err) {
+                setOptimizeError(err.message || 'Failed to optimize resume. Please try again.');
+              } finally {
+                setOptimizing(false);
+              }
+            }}
+            disabled={!optimizeJob || optimizing}
+            className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {optimizing ? (
+              <><Loader size={18} className="animate-spin" /> Optimizing with Mistral...</>
+            ) : (
+              <><Zap size={18} /> {optimizeJob ? `Optimize for ${optimizeJob.jobTitle}` : 'Select a job first'}</>
+            )}
+          </button>
+
+          {/* Error */}
+          {optimizeError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-2 text-red-700">
+              <AlertTriangle size={18} />
+              <span className="text-sm">{optimizeError}</span>
+            </div>
+          )}
+
+          {/* Results */}
+          {optimizeResult && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">
+                <CheckCircle2 size={18} />
+                <span className="text-sm font-medium">Optimized for <strong>{optimizeResult.jobTitle}</strong>{optimizeResult.companyName ? ` at ${optimizeResult.companyName}` : ''}</span>
+              </div>
+
+              {/* Optimized Summary */}
+              {optimizeResult.optimized?.summary && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <User size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">AI-Optimized Summary</span>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-700 leading-relaxed bg-green-50 border border-green-200 rounded-lg p-3">{optimizeResult.optimized.summary}</p>
+                    <p className="text-xs text-gray-400 mt-2">💡 Copy this into your Summary section in Build Resume</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Skills */}
+              {optimizeResult.optimized?.skills && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <Code size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Prioritized Skills</span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {optimizeResult.optimized.skills.technical?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Technical</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {optimizeResult.optimized.skills.technical.map((s, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {optimizeResult.optimized.skills.tools?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Tools & Platforms</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {optimizeResult.optimized.skills.tools.map((s, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full border border-indigo-200">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Experience Bullets */}
+              {optimizeResult.optimized?.experience?.length > 0 && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <Briefcase size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Optimized Experience Bullets</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {optimizeResult.optimized.experience.map((exp, i) => (
+                      <div key={i}>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">{exp.originalTitle} @ {exp.originalCompany}</p>
+                        <ul className="space-y-1.5">
+                          {exp.optimizedBullets.map((bullet, j) => (
+                            <li key={j} className="flex items-start gap-2 text-sm text-gray-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                              <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Project Bullets */}
+              {optimizeResult.optimized?.projects?.length > 0 && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <FolderKanban size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Optimized Project Bullets</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {optimizeResult.optimized.projects.map((proj, i) => (
+                      <div key={i}>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">{proj.originalTitle}</p>
+                        <ul className="space-y-1.5">
+                          {proj.optimizedBullets.map((bullet, j) => (
+                            <li key={j} className="flex items-start gap-2 text-sm text-gray-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                              <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords */}
+              {optimizeResult.optimized?.keywords?.length > 0 && (
+                <div className="border border-amber-200 rounded-xl p-4 bg-amber-50">
+                  <p className="text-xs font-semibold text-amber-700 mb-2">🔑 Keywords to weave into your resume</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {optimizeResult.optimized.keywords.map((kw, i) => (
+                      <span key={i} className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-300">{kw}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleApplyOptimizedAI}
+                className="w-full mt-4 flex items-center justify-center gap-2 py-4 px-6 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+              >
+                <CheckCircle2 size={20} />
+                Apply to Resume & Preview PDF
+              </button>
+            </div>
+          )}
         </div>
       )}
 

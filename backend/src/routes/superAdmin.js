@@ -12,9 +12,21 @@ import {
   createAdmin,
   disableAdmin,
   enableAdmin,
+  updateAdmin,
   getSuperAdminStats,
   getStatsSummary,
+  getAdminPerformance,
 } from '../controllers/superAdmin.js';
+import {
+  getOverview,
+  getFunnel,
+  getBatchPerformance,
+  getSchoolPerformance,
+  getCenterPerformance,
+  getUnplacedStudents,
+  getCompanyPerformance,
+  getAdminPerformanceAnalytics
+} from '../controllers/analytics.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -40,7 +52,19 @@ router.post(
 );
 router.patch('/admins/:userId/disable', disableAdmin);
 router.patch('/admins/:userId/enable', enableAdmin);
+router.patch('/admins/:userId', updateAdmin);
+router.get('/admins/:userId/performance', getAdminPerformance);
 router.get('/stats', getSuperAdminStats);
 router.get('/stats/summary', getStatsSummary);
+
+// Analytics (Control Tower)
+router.get('/analytics/overview', getOverview);
+router.get('/analytics/funnel', getFunnel);
+router.get('/analytics/batch-performance', getBatchPerformance);
+router.get('/analytics/school-performance', getSchoolPerformance);
+router.get('/analytics/center-performance', getCenterPerformance);
+router.get('/analytics/unplaced-students', getUnplacedStudents);
+router.get('/analytics/company-performance', getCompanyPerformance);
+router.get('/analytics/admin-performance', getAdminPerformanceAnalytics);
 
 export default router;

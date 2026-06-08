@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Management - Refined Mockup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #6366f1;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-700: #334155;
+            --slate-900: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            padding: 40px 20px;
+        }
+
+        .job-card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--slate-200);
+            max-width: 1000px;
+            margin: 0 auto 20px auto;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.2s ease;
+        }
+
+        .job-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Top Bar */
+        .card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--slate-100);
+        }
+
+        .spacing-review { padding: 14px 20px; }
+        .spacing-posted { padding: 18px 24px; }
+
+        .company-logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .logo-blue { background: #3b82f6; }
+        .logo-purple { background: #8b5cf6; }
+
+        .job-title-text {
+            font-weight: 700;
+            color: var(--slate-900);
+            font-size: 1.05rem;
+        }
+
+        .company-name-text {
+            font-weight: 500;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+
+        /* Middle Bar (Review Only) */
+        .card-mid {
+            display: grid;
+            grid-template-columns: 2.2fr 1.3fr 1fr;
+            gap: 20px;
+            padding: 16px 20px;
+            background: #fafbfc;
+            border-bottom: 1px solid var(--slate-100);
+        }
+
+        /* Static Info Bar (Posted Only) - "Little Big" */
+        .card-bottom-posted {
+            padding: 24px 24px;
+        }
+
+        .dropdown-mini {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .label-mini {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .select-mini {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        .mode-toggle-mini {
+            display: flex;
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .mode-btn-mini {
+            flex: 1;
+            padding: 7px 0;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 7px;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .mode-btn-mini.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Bottom Bar */
+        .card-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .spacing-review-bottom { padding: 12px 20px; }
+        .spacing-posted-bottom { padding: 18px 24px; }
+
+        .btn-post-action {
+            background: var(--primary);
+            color: white;
+            padding: 9px 20px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+        }
+
+        .actions-right {
+            display: flex;
+            gap: 8px;
+            margin-left: auto; /* Push to right edge */
+        }
+
+        .icon-btn-refined {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+
+        .icon-btn-refined:hover {
+            background: white;
+            color: var(--secondary);
+            border-color: var(--secondary);
+            transform: translateY(-1px);
+        }
+
+        .status-pill-refined {
+            padding: 3px 10px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .static-group-refined {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .static-item-refined {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .static-label-refined {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .static-val-refined {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #334155;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="max-w-[1000px] mx-auto mb-12">
+        <h2 class="text-xl font-bold text-slate-800 mb-6 px-2 flex items-center gap-2">
+            <span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+            Review Pending
+        </h2>
+        
+        <div class="job-card border-l-[5px] border-indigo-500">
+            <div class="card-top spacing-review">
+                <div class="flex items-center gap-4">
+                    <div class="company-logo logo-purple">UT</div>
+                    <div class="flex flex-col">
+                        <span class="job-title-text">Backend Systems Architect</span>
+                        <span class="company-name-text">ULICA Technologies</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right mr-2">
+                        <p class="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">Interview Date</p>
+                        <p class="text-[13px] font-bold text-slate-700">24 Oct 2026</p>
+                    </div>
+                    <span class="status-pill-refined bg-amber-100 text-amber-700 border border-amber-200">In Review</span>
+                </div>
+            </div>
+
+            <div class="card-mid">
+                <!-- Dropdowns... -->
+                <div class="flex gap-4">
+                    <div class="dropdown-mini flex-1">
+                        <span class="label-mini">Target Schools</span>
+                        <div class="select-mini">SOT, SOM <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+                    </div>
+                    <div class="dropdown-mini flex-1">
+                        <span class="label-mini">Eligible Batches</span>
+                        <div class="select-mini">2024, 2025 <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+                    </div>
+                    <div class="dropdown-mini flex-1">
+                        <span class="label-mini">Target Centers</span>
+                        <div class="select-mini">Dehradun <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+                    </div>
+                </div>
+
+                <div class="dropdown-mini">
+                    <span class="label-mini">Visibility Strategy</span>
+                    <div class="mode-toggle-mini">
+                        <div class="mode-btn-mini">Open</div>
+                        <div class="mode-btn-mini active">Priority</div>
+                        <div class="mode-btn-mini">Invite</div>
+                    </div>
+                </div>
+
+                <div class="dropdown-mini">
+                    <span class="label-mini">Candidates</span>
+                    <button class="bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg py-2 text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        Analyze (12 Selected)
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-bottom spacing-review-bottom">
+                <button class="btn-post-action">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    Post Job
+                </button>
+                
+                <div class="actions-right">
+                    <button class="icon-btn-refined" title="View JD"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-width="2"></path></svg></button>
+                    <button class="icon-btn-refined" title="Edit"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" stroke-width="2"></path></svg></button>
+                    <button class="icon-btn-refined" title="Share"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+                    <button class="icon-btn-refined hover:!text-red-500 hover:!border-red-200" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="text-xl font-bold text-slate-800 mb-6 px-2 mt-12 flex items-center gap-2">
+            <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+            Active Published
+        </h2>
+        
+        <div class="job-card border-l-[5px] border-emerald-500">
+            <div class="card-top spacing-posted">
+                <div class="flex items-center gap-4">
+                    <div class="company-logo logo-blue">G</div>
+                    <div class="flex flex-col">
+                        <span class="job-title-text">Cloud Systems Engineer</span>
+                        <span class="company-name-text">Google Cloud</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right mr-2">
+                        <p class="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">Application Deadline</p>
+                        <p class="text-[13px] font-bold text-slate-700">15 Nov 2026</p>
+                    </div>
+                    <span class="status-pill-refined bg-emerald-50 text-emerald-600 border border-emerald-100">Live</span>
+                </div>
+            </div>
+
+            <div class="card-bottom spacing-posted-bottom">
+                <div class="static-group-refined !gap-6">
+                    <div class="static-item-refined">
+                        <span class="static-label-refined">Schools</span>
+                        <span class="static-val-refined text-xs">SOT, SOM, SOD, SOE</span>
+                    </div>
+                    <div class="static-item-refined">
+                        <span class="static-label-refined">Batches</span>
+                        <span class="static-val-refined text-xs">2023, 2024</span>
+                    </div>
+                    <div class="static-item-refined">
+                        <span class="static-label-refined">Centers</span>
+                        <span class="static-val-refined text-xs">Dehradun, Ahmedabad</span>
+                    </div>
+                    <div class="static-item-refined">
+                        <span class="static-label-refined">Strategy</span>
+                        <div class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100">PRIORITY</div>
+                    </div>
+                </div>
+                
+                <div class="actions-right">
+                    <button class="icon-btn-refined" title="View JD"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-width="2"></path></svg></button>
+                    <button class="icon-btn-refined" title="Edit Dates"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" stroke-width="2"></path></svg></button>
+                    <button class="icon-btn-refined" title="Share"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+                    <button class="icon-btn-refined hover:!text-red-500 hover:!border-red-200" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

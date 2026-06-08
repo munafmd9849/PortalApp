@@ -21,6 +21,11 @@ export default function StudentOnboarding() {
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const [loadingInitial, setLoadingInitial] = useState(true);
+    const [academicOptions, setAcademicOptions] = useState({
+        schools: [],
+        centers: [],
+        batches: []
+    });
 
     // If profile is already completed, redirect to dashboard
     useEffect(() => {
@@ -35,10 +40,24 @@ export default function StudentOnboarding() {
         let cancelled = false;
         setEmail(user.email || '');
 
-        const loadProfile = async () => {
+        const loadInitialData = async () => {
             try {
-                const profile = await api.getStudentProfile();
-                if (cancelled || !profile) return;
+                const [profile, s, c, b] = await Promise.all([
+                    api.getStudentProfile(),
+                    api.getSchools(),
+                    api.getCenters(),
+                    api.getBatches()
+                ]);
+                
+                if (cancelled) return;
+
+                setAcademicOptions({
+                    schools: (s || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
+                    centers: (c || []).map(item => ({ value: item.name, label: item.name, id: item.id })),
+                    batches: (b || []).map(item => ({ value: item.year, label: item.year, id: item.id }))
+                });
+
+                if (!profile) return;
 
                 const emailVal = profile.email || user.email || '';
                 setEmail(emailVal);
@@ -49,17 +68,17 @@ export default function StudentOnboarding() {
 
                 setPhone(profile.phone || '');
                 setEnrollmentId(profile.enrollmentId || '');
-                setSchool(profile.school || '');
-                setCenter(profile.center || '');
-                setBatch(profile.batch || '');
+                setSchool(profile.school?.name || profile.school || '');
+                setCenter(profile.center?.name || profile.center || '');
+                setBatch(profile.batch?.year || profile.batch || '');
             } catch (e) {
-                console.error('Failed to load profile for onboarding', e);
+                console.error('Failed to load initial data for onboarding', e);
             } finally {
                 setLoadingInitial(false);
             }
         };
 
-        loadProfile();
+        loadInitialData();
 
         return () => {
             cancelled = true;
@@ -96,6 +115,10 @@ export default function StudentOnboarding() {
 
         setSaving(true);
         try {
+            const selectedSchool = academicOptions.schools.find(s => s.value === school);
+            const selectedCenter = academicOptions.centers.find(c => c.value === center);
+            const selectedBatch = academicOptions.batches.find(b => b.value === batch);
+
             await api.updateStudentProfile({
                 fullName: fullName || user?.displayName || user?.email?.split('@')[0],
                 email,
@@ -104,6 +127,9 @@ export default function StudentOnboarding() {
                 school,
                 center,
                 batch,
+                schoolId: selectedSchool?.id,
+                centerId: selectedCenter?.id,
+                batchId: selectedBatch?.id,
             });
 
             if (user?.id) {
@@ -274,14 +300,12 @@ export default function StudentOnboarding() {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
                                         <CustomDropdown
-                                            label={<span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">School <span className="text-red-500">*</span></span>}
+                                            label={<span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Branch <span className="text-red-500">*</span></span>}
                                             icon={FaGraduationCap}
                                             iconColor="text-blue-600"
                                             options={[
                                                 { value: '', label: 'Select' },
-                                                { value: 'SOT', label: 'School of Technology' },
-                                                { value: 'SOM', label: 'School of Management' },
-                                                { value: 'SOH', label: 'School of HealthCare' }
+                                                ...academicOptions.schools
                                             ]}
                                             value={school}
                                             onChange={(value) => setSchool(value)}
@@ -291,15 +315,12 @@ export default function StudentOnboarding() {
 
                                     <div>
                                         <CustomDropdown
-                                            label={<span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Center <span className="text-red-500">*</span></span>}
+                                            label={<span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Campus <span className="text-red-500">*</span></span>}
                                             icon={FaMapMarkerAlt}
                                             iconColor="text-indigo-600"
                                             options={[
                                                 { value: '', label: 'Select' },
-                                                { value: 'BANGALORE', label: 'Bangalore' },
-                                                { value: 'NOIDA', label: 'Noida' },
-                                                { value: 'LUCKNOW', label: 'Lucknow' },
-                                                { value: 'PUNE', label: 'Pune' },
+                                                ...academicOptions.centers
                                             ]}
                                             value={center}
                                             onChange={(value) => setCenter(value)}
@@ -314,9 +335,7 @@ export default function StudentOnboarding() {
                                             iconColor="text-purple-600"
                                             options={[
                                                 { value: '', label: 'Select' },
-                                                { value: '25-29', label: '25-29' },
-                                                { value: '24-28', label: '24-28' },
-                                                { value: '23-27', label: '23-27' }
+                                                ...academicOptions.batches
                                             ]}
                                             value={batch}
                                             onChange={(value) => setBatch(value)}

@@ -40,6 +40,16 @@ import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContextJWT'
 import AuthRedirect from './components/AuthRedirect'
 import { ToastProvider } from './components/ui/Toast'
+import AssessmentApp from './pages/assessment/AssessmentApp'
+import AdminAssessments from './pages/admin/AdminAssessments'
+import AdminAssessmentResults from './pages/admin/AdminAssessmentResults'
+import MockInterviewManagement from './pages/admin/MockInterviewManagement';
+import MockInterviewCreate from './pages/admin/MockInterviewCreate';
+import MockInterviewSlots from './pages/admin/MockInterviewSlots';
+import MockInterviewStudentDashboard from './pages/student/MockInterviewStudentDashboard';
+import MockInterviewPreCheck from './pages/assessment/MockInterviewPreCheck';
+import MockInterviewRoom from './pages/assessment/MockInterviewRoom';
+import AssessmentResultStudent from './pages/assessment/AssessmentResultStudent';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -221,16 +231,29 @@ function AppContent() {
         <Route element={<ProtectedRoute allowRoles={['student']} />}>
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/onboarding" element={<StudentOnboarding />} />
+          <Route path="/student/mock-interviews" element={<MockInterviewStudentDashboard />} />
+        </Route>
+
+        <Route element={<ProtectedRoute allowRoles={['student', 'admin', 'recruiter', 'super_admin']} />}>
+          <Route path="/assessment/:assessmentId" element={<AssessmentApp />} />
+          <Route path="/mock-interview-room/:assessmentId" element={<MockInterviewRoom />} />
+          <Route path="/mock-interview-precheck/:slotId" element={<MockInterviewPreCheck />} />
+          <Route path="/assessment/results/:sessionId" element={<AssessmentResultStudent />} />
         </Route>
 
         <Route element={<ProtectedRoute allowRoles={['recruiter']} />}>
           <Route path="/recruiter" element={<RecruiterDashboard />} />
         </Route>
 
-        {/* Admin routes - ADMIN and RECRUITER can access */}
-        <Route element={<ProtectedRoute allowRoles={['admin', 'recruiter']} />}>
+        {/* Admin routes - ADMIN, RECRUITER and SUPER_ADMIN can access */}
+        <Route element={<ProtectedRoute allowRoles={['admin', 'recruiter', 'super_admin']} />}>
           <Route path="/admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/admin/assessment/:interviewId/:roundName" element={<Assessment />} />
+          <Route path="/admin/mock-interviews" element={<MockInterviewManagement />} />
+          <Route path="/admin/mock-interviews/create" element={<MockInterviewCreate />} />
+          <Route path="/admin/mock-interviews/:id/slots" element={<MockInterviewSlots />} />
+          <Route path="/admin/assessments" element={<AdminAssessments />} />
+          <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/admin/jobs/:jobId/applications" element={<AdminDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
@@ -240,9 +263,10 @@ function AppContent() {
         <Route element={<ProtectedRoute allowRoles={['super_admin']} />}>
           <Route path="/super-admin/interview-session/:interviewId" element={<InterviewSessionPage />} />
           <Route path="/super-admin/assessment/:interviewId/:roundName" element={<Assessment />} />
-          <Route path="/super-admin/job/:jobId" element={<SuperAdminDashboard />} />
-          <Route path="/super-admin/jobs/:jobId/applications" element={<SuperAdminDashboard />} />
-          <Route path="/super-admin" element={<SuperAdminDashboard />} />
+          <Route path="/super-admin/assessments/:id/results" element={<AdminAssessmentResults />} />
+          <Route path="/super-admin/job/:jobId" element={<AdminDashboard />} />
+          <Route path="/super-admin/jobs/:jobId/applications" element={<AdminDashboard />} />
+          <Route path="/super-admin" element={<AdminDashboard />} />
         </Route>
 
         {/* Admin-only routes - Only ADMIN can access */}
