@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Loader, XCircle, Star, Mail } from 'lucide-react';
+import { Star, Mail } from 'lucide-react';
+import { JobListingStatus, JOB_LISTING_GRID_COLS } from './JobListingStatus';
 
 export default function JobPostingsSection({
   jobs,
@@ -24,10 +25,6 @@ export default function JobPostingsSection({
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
-  // Shared button sizing for consistent appearance across statuses
-  // Mobile: full width; Desktop: fixed min-width so all statuses align
-  const BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
-
   // Function to get company logo URL from Clearbit API or other sources
   const getCompanyLogoUrl = (companyName) => {
     if (!companyName) return null;
@@ -157,7 +154,7 @@ export default function JobPostingsSection({
 
   return (
     <div className="w-full">
-      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-4 px-4 sm:px-6 transition-all duration-200 shadow-lg">
+      <fieldset className="bg-white rounded-lg border-2 border-[#8ec5ff] py-3 px-3 sm:px-4 transition-all duration-200 shadow-lg">
         <legend className="text-lg sm:text-xl font-bold px-2 bg-gradient-to-r from-[#211868] to-[#b5369d] rounded-full text-transparent bg-clip-text">
           Latest Job Postings
         </legend>
@@ -171,7 +168,7 @@ export default function JobPostingsSection({
           ) : (
             <div className="space-y-2 sm:space-y-3">
               {/* Column Headers - Hidden on mobile; equal spacing */}
-              <div className="hidden md:grid mb-3 py-3 px-4 lg:px-6 min-w-0 items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}>
+              <div className="hidden md:grid mb-2 py-2 px-3 min-w-0 items-center" style={{ gridTemplateColumns: JOB_LISTING_GRID_COLS, columnGap: '0.75rem' }}>
                 <div className="text-black font-bold text-sm lg:text-lg min-w-0">Company</div>
                 <div className="text-black font-bold text-sm lg:text-lg min-w-0">Job Title</div>
                 <div className="text-black font-bold text-sm lg:text-lg min-w-0">Salary (CTC)</div>
@@ -255,14 +252,14 @@ export default function JobPostingsSection({
                         openJobDetails();
                       }
                     }}
-                    className={`flex flex-col md:grid gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl transition-all duration-200 border min-w-0 overflow-hidden md:items-center cursor-pointer ${
+                    className={`flex flex-col md:grid gap-1.5 p-2 md:px-3 md:py-2 rounded-lg transition-all duration-200 border min-w-0 overflow-hidden md:items-center cursor-pointer ${
                       job.isInvited 
                         ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
                         : job.isRecommended 
                           ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
                           : 'bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-[#f0f8fa] hover:shadow-md border-gray-200'
                     }`}
-                    style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', columnGap: '1.25rem' }}
+                    style={{ gridTemplateColumns: JOB_LISTING_GRID_COLS, columnGap: '0.75rem' }}
                   >
                     {/* Mobile Layout */}
                     <div className="md:hidden space-y-2">
@@ -301,66 +298,34 @@ export default function JobPostingsSection({
                           <span className="ml-1 text-gray-800 font-medium truncate block">{formatSalary(job.salary || job.ctc)}</span>
                         </div>
                       </div>
-                      <div className="flex gap-1.5 sm:gap-2">
-                        <button
-                          onClick={(e) => {
+                      <div className="flex">
+                        <JobListingStatus
+                          mobile
+                          isApplied={hasApplied && hasApplied(job.id)}
+                          isApplying={applying && applying[job.id]}
+                          deadlinePassed={isDeadlinePassed && isDeadlinePassed(job)}
+                          notEligible={notEligible && !(isDeadlinePassed && isDeadlinePassed(job))}
+                          title={
+                            hasApplied && hasApplied(job.id)
+                              ? 'Already applied'
+                              : notEligible
+                                ? failedReasons.join(' • ')
+                                : isDeadlinePassed && isDeadlinePassed(job)
+                                  ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
+                                  : ''
+                          }
+                          onApply={(e) => {
                             e.stopPropagation();
                             onApply && onApply(job);
                           }}
-                          disabled={
-                            (hasApplied && hasApplied(job.id)) ||
-                            (applying && applying[job.id]) ||
-                            (isDeadlinePassed && isDeadlinePassed(job)) ||
-                            notEligible
-                          }
-                          title={ (hasApplied && hasApplied(job.id)) ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (
-                            (isDeadlinePassed && isDeadlinePassed(job))
-                              ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
-                              : ''
-                          ))}
-                          className={`w-full ${BUTTON_SIZE} font-medium rounded-md sm:rounded-lg transition-all duration-200 shadow-sm text-[11px] sm:text-xs text-center flex items-center justify-center gap-1 border-2 touch-manipulation ${
-                            hasApplied && hasApplied(job.id)
-                              ? 'bg-green-100 text-green-800 cursor-not-allowed border-green-300'
-                              : applying && applying[job.id]
-                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                              : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ||
-                                (isDeadlinePassed && isDeadlinePassed(job)) ||
-                                yopNotEligible
-                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                              : 'border-transparent bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                          }`}
-                        >
-                          {hasApplied && hasApplied(job.id) ? (
-                            <>
-                              <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied
-                            </>
-                          ) : applying && applying[job.id] ? (
-                            <>
-                              <Loader className="h-3 w-3 inline mr-1 animate-spin" />
-                              Applying...
-                            </>
-                          ) : (isDeadlinePassed && isDeadlinePassed(job)) ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              Deadline Passed
-                            </>
-                          ) : notEligible ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              Not eligible
-                            </>
-                          ) : (
-                            'Apply Now'
-                          )}
-                        </button>
+                        />
                       </div>
                     </div>
 
                     {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
                     <>
-                      <div className="hidden md:flex items-center min-w-0 overflow-hidden space-x-3">
-                        {renderCompanyLogo(companyName)}
+                      <div className="hidden md:flex items-center min-w-0 overflow-hidden space-x-2">
+                        {renderCompanyLogo(companyName, true)}
                         <span className="text-sm lg:text-base font-semibold text-black truncate min-w-0">
                           {companyName}
                         </span>
@@ -390,59 +355,26 @@ export default function JobPostingsSection({
                         {job.driveDate ? formatDate(job.driveDate) : 'TBD'}
                       </div>
 
-                      <div className="hidden md:flex items-center min-w-0 overflow-hidden">
-                        <button
-                          onClick={(e) => {
+                      <div className="hidden md:flex items-center justify-end min-w-0 overflow-hidden">
+                        <JobListingStatus
+                          isApplied={hasApplied && hasApplied(job.id)}
+                          isApplying={applying && applying[job.id]}
+                          deadlinePassed={isDeadlinePassed && isDeadlinePassed(job)}
+                          notEligible={notEligible && !(isDeadlinePassed && isDeadlinePassed(job))}
+                          title={
+                            hasApplied && hasApplied(job.id)
+                              ? 'Already applied'
+                              : notEligible
+                                ? failedReasons.join(' • ')
+                                : isDeadlinePassed && isDeadlinePassed(job)
+                                  ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
+                                  : ''
+                          }
+                          onApply={(e) => {
                             e.stopPropagation();
                             onApply && onApply(job);
                           }}
-                          disabled={
-                            (hasApplied && hasApplied(job.id)) ||
-                            (applying && applying[job.id]) ||
-                            (isDeadlinePassed && isDeadlinePassed(job)) ||
-                            notEligible
-                          }
-                          title={ (hasApplied && hasApplied(job.id)) ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (
-                            (isDeadlinePassed && isDeadlinePassed(job))
-                              ? `Applications closed on ${new Date(job.applicationDeadline || job.deadline).toLocaleDateString()}`
-                              : ''
-                          ))}
-                          className={`${BUTTON_SIZE} font-medium rounded-lg transition-all duration-200 shadow-sm text-xs whitespace-nowrap border-2 ${
-                            hasApplied && hasApplied(job.id)
-                              ? 'bg-green-100 text-green-800 cursor-not-allowed border-green-300'
-                              : applying && applying[job.id]
-                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                              : (meetsCgpaRequirement && !meetsCgpaRequirement(job)) ||
-                                (isDeadlinePassed && isDeadlinePassed(job)) ||
-                                yopNotEligible
-                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                              : 'border-transparent bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                          }`}
-                        >
-                          {hasApplied && hasApplied(job.id) ? (
-                            <>
-                              <CheckCircle className="h-3 w-3 inline mr-1" />
-                              Applied
-                            </>
-                          ) : applying && applying[job.id] ? (
-                            <>
-                              <Loader className="h-3 w-3 inline mr-1 animate-spin" />
-                              Applying...
-                            </>
-                          ) : (isDeadlinePassed && isDeadlinePassed(job)) ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              Deadline Passed
-                            </>
-                          ) : notEligible ? (
-                            <>
-                              <XCircle className="h-3 w-3 inline mr-1" />
-                              Not eligible
-                            </>
-                          ) : (
-                            'Apply Now'
-                          )}
-                        </button>
+                        />
                       </div>
                     </>
                   </div>

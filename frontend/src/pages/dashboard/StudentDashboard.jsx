@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/dashboard/shared/DashboardLayout';
 import DashboardHome from '../../components/dashboard/student/DashboardHome';
+import { JobListingStatus, JOB_LISTING_GRID_COLS } from '../../components/dashboard/student/JobListingStatus';
 
 import { useAuth } from '../../hooks/useAuth';
 import showLogoutConfirm from '../../utils/logoutConfirm';
@@ -18,6 +19,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { formatApplicationSuccessMessage } from '../../utils/applicationMessages';
+import { sanitizeScoreInput } from '../../utils/scoreInput';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -414,9 +416,6 @@ export default function StudentDashboard() {
   const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
   const APPLICATIONS_LIST_PER_PAGE = 10;
   const [focusedJobId, setFocusedJobId] = useState(null); // when navigating from dashboard tracker
-  // Shared button sizing for consistent appearance across statuses
-  // Mobile: full width; Desktop: fixed min-width so all statuses align
-  const BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
 
   // Reset pagination to page 1 when switching between Current and Past applications
   useEffect(() => {
@@ -2430,7 +2429,7 @@ export default function StudentDashboard() {
               ) : (
                 <div className="space-y-4">
                   {/* Column Headers - Desktop Only; equal spacing between Company, Job Title, Drive Date, Salary (CTC), Status */}
-                  <div className="hidden md:grid mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 min-w-0 items-center justify-items-stretch w-full" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', columnGap: '1.5rem' }}>
+                  <div className="hidden md:grid mb-2 py-2 px-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 min-w-0 items-center justify-items-stretch w-full" style={{ gridTemplateColumns: JOB_LISTING_GRID_COLS, columnGap: '0.75rem' }}>
                     <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
                       <Briefcase className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
                       Company
@@ -2453,7 +2452,7 @@ export default function StudentDashboard() {
                     const paginatedJobs = jobs.slice(start, start + JOBS_PER_PAGE);
                     return (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-1 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-1 gap-2">
                           {paginatedJobs.map((job) => {
                             const companyName = job.company?.name || job.company || 'Company';
                             const isApplied = hasApplied(job.id);
@@ -2516,7 +2515,7 @@ export default function StudentDashboard() {
                                 }`}
                               >
                                 {/* Mobile Layout */}
-                                <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
+                                <div className="md:hidden p-2.5 space-y-2">
                                   <div className="flex items-start gap-3 sm:gap-4 min-w-0">
                                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 shadow-md ${getCompanyColor(companyName)}`}>
                                       {getCompanyInitial(companyName)}
@@ -2549,57 +2548,34 @@ export default function StudentDashboard() {
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
-                                      <button
-                                      onClick={(event) => {
+                                  <div className="flex pt-1.5 border-t border-gray-200">
+                                    <JobListingStatus
+                                      mobile
+                                      isApplied={isApplied}
+                                      isApplying={isApplying}
+                                      deadlinePassed={deadlinePassed}
+                                      notEligible={notEligible && !deadlinePassed}
+                                      title={
+                                        isApplied
+                                          ? 'Already applied'
+                                          : notEligible
+                                            ? failedReasons.join(' • ')
+                                            : deadlinePassed
+                                              ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                              : ''
+                                      }
+                                      onApply={(event) => {
                                         event.stopPropagation();
                                         handleApplyToJob(job);
                                       }}
-                                      disabled={isApplied || isApplying || deadlinePassed || notEligible}
-                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
-                                      className={`flex-1 min-w-0 ${BUTTON_SIZE} rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
-                                        ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
-                                        : isApplying
-                                          ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                          : deadlinePassed || notEligible
-                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                                            : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
-                                        }`}
-                                    >
-                                      {isApplied ? (
-                                        <>
-                                          <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">Applied</span>
-                                        </>
-                                      ) : isApplying ? (
-                                        <>
-                                          <Loader className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 animate-spin" />
-                                          <span className="truncate">Applying...</span>
-                                        </>
-                                      ) : deadlinePassed ? (
-                                        <>
-                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">Deadline Passed</span>
-                                        </>
-                                      ) : notEligible ? (
-                                        <>
-                                          <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">Not eligible</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Briefcase className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                          <span className="truncate">Apply Now</span>
-                                        </>
-                                      )}
-                                    </button>
+                                    />
                                   </div>
                                 </div>
 
                                 {/* Desktop Layout - 5 equal columns: Company, Job Title, Drive Date, Salary (CTC), Status */}
-                                <div className="hidden md:grid p-6 items-center min-w-0 overflow-hidden justify-items-stretch w-full" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', columnGap: '1.5rem' }}>
-                                  <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-                                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${getCompanyColor(companyName)}`}>
+                                <div className="hidden md:grid px-3 py-2.5 items-center min-w-0 overflow-hidden justify-items-stretch w-full" style={{ gridTemplateColumns: JOB_LISTING_GRID_COLS, columnGap: '0.75rem' }}>
+                                  <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md ${getCompanyColor(companyName)}`}>
                                       {getCompanyInitial(companyName)}
                                     </div>
                                     <div className="min-w-0 flex-1 overflow-hidden">
@@ -2636,50 +2612,26 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center min-w-0 overflow-hidden">
-                                    <button
-                                      onClick={(event) => {
+                                  <div className="flex items-center justify-end min-w-0 overflow-hidden">
+                                    <JobListingStatus
+                                      isApplied={isApplied}
+                                      isApplying={isApplying}
+                                      deadlinePassed={deadlinePassed}
+                                      notEligible={notEligible && !deadlinePassed}
+                                      title={
+                                        isApplied
+                                          ? 'Already applied'
+                                          : notEligible
+                                            ? failedReasons.join(' • ')
+                                            : deadlinePassed
+                                              ? 'Application deadline has passed. Applications are no longer being accepted.'
+                                              : ''
+                                      }
+                                      onApply={(event) => {
                                         event.stopPropagation();
                                         handleApplyToJob(job);
                                       }}
-                                      disabled={isApplied || isApplying || deadlinePassed || notEligible}
-                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
-                          className={`${BUTTON_SIZE} px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
-                                        ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
-                                        : isApplying
-                                          ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
-                                          : deadlinePassed || notEligible
-                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300'
-                                            : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-transparent'
-                                        }`}
-                                    >
-                                      {isApplied ? (
-                                        <>
-                                          <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                                          Applied
-                                        </>
-                                      ) : isApplying ? (
-                                        <>
-                                          <Loader className="h-4 w-4 flex-shrink-0 animate-spin" />
-                                          Applying...
-                                        </>
-                                      ) : deadlinePassed ? (
-                                        <>
-                                          <XCircle className="h-4 w-4 flex-shrink-0" />
-                                          Deadline Passed
-                                        </>
-                                      ) : notEligible ? (
-                                        <>
-                                          <XCircle className="h-4 w-4 flex-shrink-0" />
-                                          Not eligible
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Briefcase className="h-4 w-4 flex-shrink-0" />
-                                          Apply Now
-                                        </>
-                                      )}
-                                    </button>
+                                    />
                                   </div>
                                 </div>
                               </div>
@@ -3729,15 +3681,7 @@ export default function StudentDashboard() {
                             placeholder="Enter your CGPA (e.g., 9.00, 8.75)"
                             value={cgpa}
                             onChange={(e) => {
-                              let value = e.target.value;
-                              // Allow only numbers and one decimal point
-                              value = value.replace(/[^0-9.]/g, '');
-                              // Ensure only one decimal point
-                              const parts = value.split('.');
-                              if (parts.length > 2) {
-                                value = parts[0] + '.' + parts.slice(1).join('');
-                              }
-                              // Limit to 5 characters (e.g., 10.00)
+                              let value = sanitizeScoreInput(e.target.value, 'CGPA');
                               if (value.length > 5) {
                                 value = value.substring(0, 5);
                               }
