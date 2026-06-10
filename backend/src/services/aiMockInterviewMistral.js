@@ -29,8 +29,10 @@ async function callMistralJSON(systemPrompt, userPrompt) {
   }
 }
 
+const clamp = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
 /**
- * Generate reviewer-assist insights from Q&A transcript (no video analysis).
+ * Comprehensive post-interview report (reviewer-assist; video not transcribed).
  */
 export async function generateAiInterviewInsights({
   interviewTitle,
@@ -42,45 +44,61 @@ export async function generateAiInterviewInsights({
   const qaBlock = questions
     .map((q, i) => {
       const a = answers.find((x) => x.questionId === q.id);
-      return `Q${i + 1}: ${q.questionText}\nAnswer submitted: ${a?.submittedAt ? 'Yes (video recorded)' : 'No'}\nDuration: ${a?.durationSeconds ?? 0}s`;
+      return `Q${i + 1}: ${q.questionText}
+Submitted: ${a?.submittedAt ? 'Yes (video)' : 'No'}
+Duration: ${a?.durationSeconds ?? 0}s
+Acknowledgement given: ${a?.acknowledgementText ? 'Yes' : 'No'}`;
     })
     .join('\n\n');
 
-  const system = `You are a placement interview coach. Return strict JSON only.
+  const system = `You are a placement interview analyst. Return strict JSON only.
 Schema:
 {
   "communicationScore": number 0-100,
   "confidenceScore": number 0-100,
   "clarityScore": number 0-100,
+  "professionalismScore": number 0-100,
+  "technicalDepthScore": number 0-100,
   "technicalUnderstanding": number 0-100,
+  "behavioralScore": number 0-100,
   "overallPerformance": number 0-100,
   "strengths": string[],
   "improvements": string[],
-  "recommendedFocus": string[]
+  "recommendedFocus": string[],
+  "improvementPlan": string[],
+  "interviewSummary": string
 }
-Scores are indicative for human reviewers — be fair and constructive.`;
+Evaluate fluency, pace, structure, professionalism, technical depth, and behavioral signals as inferable from completion pattern and timing. Be fair and constructive.`;
 
   const user = `Interview: ${interviewTitle}
 Type: ${interviewType}
-Proctoring violations logged: ${violationsCount}
+Proctoring violations: ${violationsCount}
 
-Questions and submission status:
 ${qaBlock}
 
-Based on interview type and completion pattern, suggest scores and feedback areas. Note: actual answers are video recordings not transcribed here — infer readiness from structure and timing only, and state assumptions briefly in improvements if needed.`;
+Note: Answers are video recordings without transcripts — infer readiness from structure, timing, and interview type. State assumptions briefly in improvements if needed.`;
 
   const json = await callMistralJSON(system, user);
-  const clamp = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
+  const strengths = Array.isArray(json.strengths) ? json.strengths : [];
+  const improvements = Array.isArray(json.improvements) ? json.improvements : [];
+  const recommendedFocus = Array.isArray(json.recommendedFocus) ? json.recommendedFocus : [];
+  const improvementPlan = Array.isArray(json.improvementPlan) ? json.improvementPlan : recommendedFocus;
 
   return {
     communicationScore: clamp(json.communicationScore),
     confidenceScore: clamp(json.confidenceScore),
     clarityScore: clamp(json.clarityScore),
-    technicalUnderstanding: clamp(json.technicalUnderstanding),
+    professionalismScore: clamp(json.professionalismScore),
+    technicalDepthScore: clamp(json.technicalDepthScore ?? json.technicalUnderstanding),
+    technicalUnderstanding: clamp(json.technicalUnderstanding ?? json.technicalDepthScore),
+    behavioralScore: clamp(json.behavioralScore),
     overallPerformance: clamp(json.overallPerformance),
-    strengths: Array.isArray(json.strengths) ? json.strengths.join('\n') : String(json.strengths || ''),
-    improvements: Array.isArray(json.improvements) ? json.improvements.join('\n') : String(json.improvements || ''),
-    recommendedFocus: Array.isArray(json.recommendedFocus) ? json.recommendedFocus.join('\n') : String(json.recommendedFocus || ''),
+    strengths: strengths.join('\n'),
+    improvements: improvements.join('\n'),
+    recommendedFocus: recommendedFocus.join('\n'),
+    improvementPlan: improvementPlan.map((s, i) => `${i + 1}. ${s}`).join('\n'),
+    interviewSummary: String(json.interviewSummary || '').trim(),
     rawJson: JSON.stringify(json),
   };
 }

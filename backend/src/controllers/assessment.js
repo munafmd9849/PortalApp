@@ -443,12 +443,10 @@ export async function updateAssessment(req, res) {
 export async function deleteAssessment(req, res) {
   try {
     const { id } = req.params;
+    const { deleteAssessmentWithAssets } = await import('../utils/assessmentCleanup.js');
+    await deleteAssessmentWithAssets(id);
 
-    await prisma.assessment.delete({
-      where: { id }
-    });
-
-    res.json({ message: 'Assessment deleted successfully' });
+    res.json({ message: 'Assessment deleted successfully (including proctoring screenshots from Cloudinary)' });
   } catch (error) {
     console.error(`[ERROR] Failed to delete assessment ${req.params.id}:`, error);
     res.status(500).json({ error: 'Failed to delete assessment' });

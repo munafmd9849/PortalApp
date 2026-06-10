@@ -9,7 +9,15 @@ export default function ProctoringConsole({
   cameraLive = false,
   borderless = false,
   compact = false,
+  title = 'Active Monitoring',
+  mirrored = false,
+  onVideoMount,
 }) {
+  const setVideoNode = (node) => {
+    if (typeof videoRef === 'function') videoRef(node);
+    else if (videoRef) videoRef.current = node;
+    onVideoMount?.(node);
+  };
   const shellBorder = borderless ? '' : 'border border-slate-800';
   const videoBorder = borderless ? '' : 'border border-slate-800';
   const feedBadgeBorder = borderless ? '' : 'border';
@@ -22,7 +30,7 @@ export default function ProctoringConsole({
     <div className={`${flush ? 'flex-1 min-h-0 h-full flex flex-col p-3' : 'shrink-0'} ${!flush && (compact ? 'bg-slate-900/50 backdrop-blur-xl rounded-xl p-3' : `bg-slate-900/50 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl ${shellBorder}`)}`}>
       <div className={`flex items-center justify-between shrink-0 ${flush ? 'mb-2' : compact ? 'mb-2' : 'mb-6'}`}>
         <p className={`font-bold text-slate-500 uppercase tracking-tight ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
-          Active Monitoring
+          {title}
         </p>
         <div className={`rounded-full flex items-center ${feedBadgeBorder} ${compact ? 'px-2 py-0.5 gap-1.5' : 'px-3 py-1 gap-2'} ${
           cameraLive ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-amber-950/80 border-amber-500/30 text-amber-400'
@@ -35,12 +43,12 @@ export default function ProctoringConsole({
       </div>
 
       <div className={`relative overflow-hidden bg-black shadow-inner w-full min-h-0 ${videoBorder} ${flush ? 'flex-1 rounded-lg' : compact ? 'h-44 shrink-0 rounded-lg' : 'aspect-video rounded-2xl'}`}>
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          muted 
-          playsInline 
-          className="w-full h-full object-cover" 
+        <video
+          ref={setVideoNode}
+          autoPlay
+          muted
+          playsInline
+          className={`w-full h-full object-cover ${mirrored ? 'scale-x-[-1]' : ''}`}
         />
         {!cameraLive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 pointer-events-none">

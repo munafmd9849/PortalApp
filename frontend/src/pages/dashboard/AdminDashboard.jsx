@@ -25,8 +25,9 @@ import AdminAssessments from '../admin/AdminAssessments';
 import AdminAssessmentResults from '../admin/AdminAssessmentResults';
 import MockInterviewManagement from '../admin/MockInterviewManagement';
 import MockInterviewSlots from '../admin/MockInterviewSlots';
+import ConversationalInterviewManagement from '../admin/ConversationalInterviewManagement';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
-import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2, UserPlus, History, BarChart3, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2, UserPlus, History, BarChart3, LayoutDashboard, ShieldCheck, Sparkles, Video, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import showLogoutConfirm from '../../utils/logoutConfirm';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
@@ -102,11 +103,15 @@ export default function AdminDashboard() {
     }
   }, [contentRoute.tab, activeTab]);
 
-  // Legacy tab aliases → dashboard
+  // Legacy tab aliases → dashboard / AI interviews
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
       navigate(`${basePath}?tab=dashboard`, { replace: true });
+      return;
+    }
+    if (tab === 'mockInterviews' && searchParams.get('mode') === 'ai') {
+      navigate(`${basePath}?tab=aiInterviews`, { replace: true });
     }
   }, [searchParams, basePath, navigate]);
 
@@ -196,8 +201,10 @@ export default function AdminDashboard() {
     { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
-    { id: 'mockInterviews', label: 'Mock Interviews', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
-    { id: 'assessments', label: 'Assessments', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
+    { id: 'mockInterviews', label: 'Live Mock Interviews', icon: Video, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'aiInterviews', label: 'AI Interviews', icon: Sparkles, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'conversationalInterviews', label: 'Conversational AI', icon: MessageCircle, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'assessments', label: 'Assessments', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
     { id: 'createDisableAdmins', label: 'Manage Admins', icon: UserPlus, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
     { id: 'auditLogs', label: 'Audit Logs', icon: History, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
@@ -390,7 +397,17 @@ export default function AdminDashboard() {
         if (!isAdminOnly) {
           return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage mock interviews.</div>;
         }
-        return <MockInterviewManagement />;
+        return <MockInterviewManagement forcedMode="live" dashboardTab="mockInterviews" />;
+      case 'aiInterviews':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage AI interviews.</div>;
+        }
+        return <MockInterviewManagement forcedMode="ai" dashboardTab="aiInterviews" />;
+      case 'conversationalInterviews':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage conversational interviews.</div>;
+        }
+        return <ConversationalInterviewManagement />;
       case 'mockInterviews-create':
         if (!isAdminOnly) {
           return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can create mock interviews.</div>;

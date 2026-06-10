@@ -32,7 +32,7 @@ function formatInterviewType(t) {
   return String(t || 'GUIDED').replace(/_/g, ' ');
 }
 
-export default function AiMockInterviewSession() {
+export default function AiConversationalInterviewSession() {
   const { id: interviewId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
@@ -40,8 +40,9 @@ export default function AiMockInterviewSession() {
   const [phase, setPhase] = useState(PHASE.LOAD);
   const [session, setSession] = useState(null);
   const [enrollmentId, setEnrollmentId] = useState(null);
-  const [qIndex, setQIndex] = useState(0);
-  const [answeredIds, setAnsweredIds] = useState(new Set());
+  const [activeQuestion, setActiveQuestion] = useState(null);
+  const [maxTurns, setMaxTurns] = useState(8);
+  const [completedTurns, setCompletedTurns] = useState(0);
   const [prepLeft, setPrepLeft] = useState(0);
   const [answerLeft, setAnswerLeft] = useState(0);
   const [phaseStep, setPhaseStep] = useState('idle');
@@ -76,24 +77,23 @@ export default function AiMockInterviewSession() {
     voiceName,
   } = useInterviewSpeech({ rateMultiplier: voiceRate });
 
-  const questions = session?.questions || [];
-  const currentQ = questions[qIndex];
-  const totalQ = questions.length;
-  const progressPct = session?.progressPercent ?? Math.round((answeredIds.size / Math.max(1, totalQ)) * 100);
+  const currentQ = activeQuestion;
+  const totalQ = maxTurns;
+  const progressPct = session?.progressPercent ?? Math.round((completedTurns / Math.max(1, maxTurns)) * 100);
 
   const loadSession = useCallback(async () => {
     try {
-      const data = await api.getStudentAiInterviewSession(interviewId);
+      const data = await api.getStudentConversationalSession(interviewId);
       setSession(data);
       setEnrollmentId(data.enrollmentId);
-      const answered = new Set(data.questions.filter((q) => q.answered).map((q) => q.id));
-      const resumeIdx = data.questions.findIndex((q) => !q.answered);
-      setQIndex(resumeIdx >= 0 ? resumeIdx : (data.currentQuestionIndex || 0));
-      setAnsweredIds(answered);
-      setPhase(PHASE.PRECHECK);
+      setMaxTurns(data.maxTurns || 8);
+      setCompletedTurns(data.completedTurns || 0);
+      setActiveQuestion(data.activeQuestion || null);
+      if (data.isComplete) setPhase(PHASE.DONE);
+      else setPhase(PHASE.PRECHECK);
     } catch (err) {
       toast.error(err.message || 'Failed to load interview');
-      navigate('/student?tab=guidedAiInterviews');
+      navigate('/student?tab=conversationalAiInterviews');
     }
   }, [interviewId, navigate, toast]);
 
@@ -115,10 +115,10 @@ export default function AiMockInterviewSession() {
       getSessionId: () => enrollmentId,
       config: cfg,
       logViolation: async (type, details, meta) => {
-        await api.logAiInterviewViolation(enrollmentId, { type, details, meta });
+        await api.logConversationalViolation(enrollmentId, { type, details, meta });
         setViolations((v) => v + 1);
       },
-      uploadScreenshot: async (blob, meta) => api.uploadAiInterviewScreenshot(enrollmentId, blob, meta),
+      uploadScreenshot: async (blob, meta) => api.uploadConversationalScreenshot(enrollmentId, blob, meta),
       onWarning: (payload) => {
         const msg = typeof payload === 'string' ? payload : payload?.message;
         if (msg) toast.error(msg);
@@ -206,7 +206,8 @@ export default function AiMockInterviewSession() {
     if (!(precheck.cameraReady && precheck.fullscreen && precheck.micReady)) return;
     setStarting(true);
     try {
-      await api.startAiInterviewSession(enrollmentId);
+      const startRes = await api.startConversationalSession(enrollmentId);
+      if (startRes.activeQuestion) setActiveQuestion(startRes.activeQuestion);
       const engine = ensureProctorEngine();
       if (!engine.getStream()) {
         await engine.initCamera({ withAudio: true });
@@ -286,7 +287,7 @@ export default function AiMockInterviewSession() {
   useEffect(() => {
     if (phase !== PHASE.LIVE || !currentQ || phaseStep !== 'idle') return;
     runQuestionFlow();
-  }, [phase, qIndex, currentQ?.id, phaseStep, runQuestionFlow]);
+  }, [phase, currentQ?.id, phaseStep, runQuestionFlow]);
 
   useEffect(() => {
     if (phaseStep !== 'prep' || prepLeft <= 0) return;
@@ -330,44 +331,30 @@ export default function AiMockInterviewSession() {
         setPhaseStep('answer');
         return;
       }
-      const res = await api.submitAiInterviewAnswer(enrollmentId, result.blob, {
+      const res = await api.submitConversationalAnswer(enrollmentId, result.blob, {
         questionId: currentQ.id,
         durationSeconds: result.duration,
       });
 
-      const nextAnswered = new Set(answeredIds);
-      nextAnswered.add(currentQ.id);
-      setAnsweredIds(nextAnswered);
+      setCompletedTurns(res.completedTurns ?? completedTurns + 1);
 
       await playAcknowledgementFlow(
         res.acknowledgement || 'Thank you for your response.',
         res.transition || "Let's continue."
       );
 
-      if (res.isLastQuestion) {
-        await api.completeAiInterview(enrollmentId);
-        proctorRef.current?.stop?.();
+      if (res.isComplete || !res.nextQuestion) {
+        proctorRef.current?.destroy?.();
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
         await speakCompletion();
         setPhase(PHASE.DONE);
       } else {
-        const next = res.nextIndex ?? qIndex + 1;
-        setQIndex(next);
-        await api.updateAiInterviewProgress(enrollmentId, {
-          currentQuestionIndex: next,
-          progressPercent: res.progressPercent ?? Math.round((nextAnswered.size / totalQ) * 100),
-        });
+        setActiveQuestion(res.nextQuestion);
         setPhaseStep('idle');
       }
     } catch (err) {
-      if (err.expectedQuestionIndex != null) {
-        setQIndex(err.expectedQuestionIndex);
-        setPhaseStep('idle');
-        toast.error(err.message || 'Resuming at the next question');
-      } else {
-        toast.error(err.message || 'Failed to submit');
-        setPhaseStep('answer');
-      }
+      toast.error(err.message || 'Failed to submit');
+      setPhaseStep('answer');
     } finally {
       setSubmitting(false);
     }
@@ -375,9 +362,7 @@ export default function AiMockInterviewSession() {
     submitting,
     currentQ,
     enrollmentId,
-    qIndex,
-    totalQ,
-    answeredIds,
+    completedTurns,
     toast,
     playAcknowledgementFlow,
     speakCompletion,
@@ -427,7 +412,7 @@ export default function AiMockInterviewSession() {
           </div>
         </div>
         <p className="text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">
-          Initializing Guided Interview
+          Initializing Conversational Interview
         </p>
       </div>
     );
@@ -447,7 +432,7 @@ export default function AiMockInterviewSession() {
           </p>
           <button
             type="button"
-            onClick={() => navigate('/student?tab=guidedAiInterviews')}
+            onClick={() => navigate('/student?tab=conversationalAiInterviews')}
             className="mt-8 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs"
           >
             Return to Dashboard
@@ -497,7 +482,7 @@ export default function AiMockInterviewSession() {
               {session?.title}
             </h1>
             <p className="text-slate-400 font-bold uppercase tracking-[0.18em] text-[10px] mt-0.5">
-              Secure AI Interview Portal · {formatInterviewType(session?.interviewType)}
+              Conversational AI Interview · {formatInterviewType(session?.interviewType)}
             </p>
           </div>
           <button
@@ -635,7 +620,7 @@ export default function AiMockInterviewSession() {
               </div>
 
               <p className="text-[11px] text-slate-500 text-center leading-snug px-1">
-                Start only after all checks pass. {totalQ} voice-guided questions.
+                Start only after all checks pass. Up to {totalQ} conversational exchanges.
                 {voiceName ? ` Interviewer voice: ${voiceName}.` : ''}
               </p>
             </div>
@@ -683,7 +668,7 @@ export default function AiMockInterviewSession() {
 
               <div className="shrink-0 w-full flex flex-wrap items-center gap-2">
                 <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
-                  Question {qIndex + 1} of {totalQ}
+                  Exchange {Math.min(completedTurns + 1, totalQ)} of {totalQ}
                 </span>
                 {speaking && (
                   <span className="px-3 py-1 bg-violet-500/10 text-violet-300 rounded-lg text-[10px] font-black uppercase border border-violet-500/20 animate-pulse">
@@ -693,7 +678,7 @@ export default function AiMockInterviewSession() {
               </div>
 
               <div className="shrink-0 w-full bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8">
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-3">Current Question</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-3">AI is asking</p>
                 <h3 className="text-xl lg:text-2xl xl:text-3xl font-black text-white leading-snug">{currentQ?.questionText}</h3>
                 {currentQ?.notes && (
                   <p className="text-slate-400 text-sm mt-4 leading-relaxed">{currentQ.notes}</p>
@@ -761,7 +746,7 @@ export default function AiMockInterviewSession() {
                 <Bot className="w-5 h-5 text-indigo-300" />
               </div>
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">AI Interviewer</p>
-              <p className="text-sm font-bold text-white mt-0.5">Guided Session</p>
+              <p className="text-sm font-bold text-white mt-0.5">Conversational</p>
               <p className="text-[10px] text-slate-500 mt-1">{formatInterviewType(session?.interviewType)}</p>
               {voiceName && (
                 <p className="text-[9px] text-indigo-400/80 mt-2 leading-tight truncate" title={voiceName}>
@@ -774,7 +759,7 @@ export default function AiMockInterviewSession() {
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Progress</p>
               <p className="text-2xl font-black text-white tabular-nums">{progressPct}%</p>
               <p className="text-[10px] text-slate-500 mt-1">
-                Question {Math.min(qIndex + 1, totalQ)} of {totalQ}
+                Exchange {Math.min(completedTurns + 1, totalQ)} of {totalQ}
               </p>
               <div className="h-1.5 bg-slate-700 rounded-full mt-3 overflow-hidden">
                 <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progressPct}%` }} />

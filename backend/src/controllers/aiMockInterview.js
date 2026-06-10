@@ -7,6 +7,56 @@ import {
   computeRiskLevel,
 } from '../utils/aiMockInterviewAssignment.js';
 import { generateAiInterviewInsights } from '../services/aiMockInterviewMistral.js';
+import { generateInterviewAcknowledgement } from '../services/aiMockInterviewAcknowledgement.js';
+import { deleteAiMockInterviewWithAssets } from '../utils/aiMockInterviewCleanup.js';
+
+function getFirstUnansweredIndex(questions, answers) {
+  const submitted = new Set(
+    (answers || []).filter((a) => a.submittedAt).map((a) => a.questionId)
+  );
+  const idx = (questions || []).findIndex((q) => !submitted.has(q.id));
+  return idx === -1 ? (questions || []).length : idx;
+}
+
+function buildTimelineFromAnswers(questions, answers) {
+  const byQ = new Map(answers.map((a) => [a.questionId, a]));
+  const events = [];
+  for (const q of questions) {
+    const a = byQ.get(q.id);
+    if (!a?.submittedAt) continue;
+    events.push({
+      type: 'question',
+      questionId: q.id,
+      orderIndex: q.orderIndex,
+      text: q.questionText,
+      at: a.submittedAt,
+    });
+    events.push({
+      type: 'answer',
+      questionId: q.id,
+      orderIndex: q.orderIndex,
+      durationSeconds: a.durationSeconds,
+      at: a.submittedAt,
+    });
+    if (a.acknowledgementText) {
+      events.push({
+        type: 'acknowledgement',
+        questionId: q.id,
+        text: a.acknowledgementText,
+        at: a.submittedAt,
+      });
+    }
+    if (a.transitionText) {
+      events.push({
+        type: 'transition',
+        questionId: q.id,
+        text: a.transitionText,
+        at: a.submittedAt,
+      });
+    }
+  }
+  return events;
+}
 
 const videoUpload = multer({
   storage: multer.memoryStorage(),
@@ -105,6 +155,7 @@ export async function createAiMockInterview(req, res) {
       data: {
         title: title.trim(),
         description: description || null,
+        sessionMode: 'GUIDED',
         interviewType: interviewType || 'AI_VIDEO',
         instructions: instructions || null,
         startDate: startAt,
@@ -229,20 +280,16 @@ export async function updateAiMockInterview(req, res) {
 export async function deleteAiMockInterview(req, res) {
   try {
     const { id } = req.params;
-    const existing = await prisma.aiMockInterview.findUnique({
-      where: { id },
-      select: { id: true, title: true },
-    });
-    if (!existing) {
+    const result = await deleteAiMockInterviewWithAssets(id);
+    if (!result) {
       return res.status(404).json({ error: 'Interview not found' });
     }
 
-    await prisma.aiMockInterview.delete({ where: { id } });
-
     res.json({
       message: 'AI mock interview deleted successfully',
-      id: existing.id,
-      title: existing.title,
+      id: result.interview.id,
+      title: result.interview.title,
+      cloudinary: result.cloudinary,
     });
   } catch (error) {
     console.error('deleteAiMockInterview:', error);
@@ -253,6 +300,7 @@ export async function deleteAiMockInterview(req, res) {
 export async function listAiMockInterviews(req, res) {
   try {
     const interviews = await prisma.aiMockInterview.findMany({
+      where: { sessionMode: { not: 'CONVERSATIONAL' } },
       include: {
         questions: { orderBy: { orderIndex: 'asc' } },
         _count: { select: { enrollments: true } },
@@ -407,8 +455,14 @@ export async function getEnrollmentReviewDetail(req, res) {
         videoUrl: a.videoUrl,
         audioUrl: a.audioUrl,
         durationSeconds: a.durationSeconds,
+        acknowledgementText: a.acknowledgementText,
+        transitionText: a.transitionText,
         submittedAt: a.submittedAt,
       })),
+      timeline: buildTimelineFromAnswers(
+        enrollment.interview.questions,
+        answers
+      ),
       violations: enrollment.violations,
       screenshots: enrollment.screenshots,
       review: enrollment.review,
@@ -459,7 +513,10 @@ export async function getStudentAiInterviews(req, res) {
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
     const enrollments = await prisma.aiMockInterviewEnrollment.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        interview: { sessionMode: { not: 'CONVERSATIONAL' } },
+      },
       include: {
         interview: {
           include: { _count: { select: { questions: true } } },
@@ -507,6 +564,9 @@ export async function getStudentAiInterviewSession(req, res) {
     });
 
     if (!enrollment) return res.status(404).json({ error: 'Interview not assigned' });
+    if (enrollment.interview.sessionMode === 'CONVERSATIONAL') {
+      return res.status(400).json({ error: 'Use the conversational interview portal for this session' });
+    }
 
     const now = new Date();
     if (enrollment.status === 'COMPLETED') {
@@ -523,16 +583,24 @@ export async function getStudentAiInterviewSession(req, res) {
     const answeredIds = new Set(
       enrollment.answers.filter((a) => a.submittedAt).map((a) => a.questionId)
     );
+    const resumeIndex = getFirstUnansweredIndex(questions, enrollment.answers);
+    if (resumeIndex !== enrollment.currentQuestionIndex) {
+      await prisma.aiMockInterviewEnrollment.update({
+        where: { id: enrollment.id },
+        data: { currentQuestionIndex: resumeIndex },
+      });
+    }
 
     res.json({
       enrollmentId: enrollment.id,
       status: enrollment.status,
-      currentQuestionIndex: enrollment.currentQuestionIndex,
+      currentQuestionIndex: resumeIndex,
       progressPercent: enrollment.progressPercent,
       instructions: enrollment.interview.instructions,
       title: enrollment.interview.title,
       interviewType: enrollment.interview.interviewType,
       totalQuestions: questions.length,
+      timeline: buildTimelineFromAnswers(questions, enrollment.answers),
       questions: questions.map((q) => ({
         id: q.id,
         orderIndex: q.orderIndex,
@@ -610,7 +678,6 @@ export async function updateAiInterviewProgress(req, res) {
 export async function submitAiInterviewAnswer(req, res) {
   try {
     const { enrollmentId } = req.params;
-    const { questionId, durationSeconds } = req.body;
 
     const access = await assertEnrollmentAccess(enrollmentId, req);
     if (access.error) return res.status(access.status).json({ error: access.error });
@@ -621,24 +688,56 @@ export async function submitAiInterviewAnswer(req, res) {
       return res.status(403).json({ error: 'Interview completed' });
     }
 
-    const question = enrollment.interview.questions.find((q) => q.id === questionId);
-    if (!question) return res.status(400).json({ error: 'Invalid question' });
-
-    const qIndex = enrollment.interview.questions.findIndex((q) => q.id === questionId);
-    if (qIndex < enrollment.currentQuestionIndex) {
-      return res.status(403).json({ error: 'Cannot modify previous answers' });
-    }
-
     videoUpload.single('recording')(req, res, async (uploadErr) => {
       if (uploadErr) return res.status(400).json({ error: uploadErr.message });
       if (!req.file?.buffer) return res.status(400).json({ error: 'Recording required' });
 
-      try {
-        const folder = `ai-mock-interviews/${enrollment.interviewId}/enrollments/${enrollmentId}`;
-        const uploaded = await uploadToCloudinary(req.file.buffer, {
-          folder,
-          resource_type: 'video',
+      const { questionId, durationSeconds } = req.body || {};
+      if (!questionId) return res.status(400).json({ error: 'Question is required' });
+
+      const question = enrollment.interview.questions.find((q) => q.id === questionId);
+      if (!question) return res.status(400).json({ error: 'Invalid question' });
+
+      const qIndex = enrollment.interview.questions.findIndex((q) => q.id === questionId);
+      const expectedIndex = getFirstUnansweredIndex(
+        enrollment.interview.questions,
+        enrollment.answers
+      );
+
+      if (qIndex !== expectedIndex) {
+        const expectedQuestion = enrollment.interview.questions[expectedIndex];
+        const alreadyDone = qIndex < expectedIndex;
+        return res.status(409).json({
+          error: alreadyDone
+            ? 'This question was already answered. Continuing from where you left off.'
+            : 'Please answer questions in order.',
+          code: alreadyDone ? 'QUESTION_ALREADY_ANSWERED' : 'QUESTION_OUT_OF_ORDER',
+          expectedQuestionIndex: expectedIndex,
+          expectedQuestionId: expectedQuestion?.id ?? null,
         });
+      }
+
+      try {
+        if (!req.file.buffer?.length || req.file.buffer.length < 256) {
+          return res.status(400).json({ error: 'Recording is too short or empty. Please record again.' });
+        }
+
+        const folder = `ai-mock-interviews/${enrollment.interviewId}/enrollments/${enrollmentId}`;
+        const mime = req.file.mimetype || 'video/webm';
+        const uploadOpts = { folder, resource_type: mime.startsWith('audio/') ? 'raw' : 'video' };
+        if (mime.includes('webm')) uploadOpts.format = 'webm';
+        else if (mime.includes('mp4')) uploadOpts.format = 'mp4';
+
+        let uploaded;
+        try {
+          uploaded = await uploadToCloudinary(req.file.buffer, uploadOpts);
+        } catch (videoErr) {
+          console.warn('submitAiInterviewAnswer video upload retry as raw:', videoErr?.message);
+          uploaded = await uploadToCloudinary(req.file.buffer, {
+            folder,
+            resource_type: 'raw',
+          });
+        }
 
         const duration = parseInt(durationSeconds, 10) || null;
         const answer = await prisma.aiMockInterviewAnswer.upsert({
@@ -675,6 +774,23 @@ export async function submitAiInterviewAnswer(req, res) {
         const totalDur =
           (enrollment.totalDurationSeconds || 0) + (duration || 0);
 
+        const ackData = await generateInterviewAcknowledgement({
+          questionText: question.questionText,
+          notes: question.notes,
+          interviewType: enrollment.interview.interviewType,
+          durationSeconds: duration,
+          questionIndex: qIndex,
+          totalQuestions: totalQ,
+        });
+
+        await prisma.aiMockInterviewAnswer.update({
+          where: { id: answer.id },
+          data: {
+            acknowledgementText: ackData.acknowledgement,
+            transitionText: ackData.transition,
+          },
+        });
+
         await prisma.aiMockInterviewEnrollment.update({
           where: { id: enrollmentId },
           data: {
@@ -685,14 +801,30 @@ export async function submitAiInterviewAnswer(req, res) {
           },
         });
 
-        res.status(201).json({ success: true, answerId: answer.id, progressPercent, nextIndex });
+        res.status(201).json({
+          success: true,
+          answerId: answer.id,
+          progressPercent,
+          nextIndex,
+          acknowledgement: ackData.acknowledgement,
+          transition: ackData.transition,
+          isLastQuestion: nextIndex >= totalQ,
+        });
       } catch (e) {
         console.error('submitAiInterviewAnswer upload:', e);
-        res.status(500).json({ error: 'Failed to save answer' });
+        const msg = e?.message || 'Failed to save answer';
+        res.status(500).json({
+          error: msg.includes('Cloudinary') ? 'Failed to upload recording. Please try again.' : 'Failed to save answer',
+          details: process.env.NODE_ENV === 'development' ? msg : undefined,
+        });
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to submit answer' });
+    console.error('submitAiInterviewAnswer outer:', error);
+    res.status(500).json({
+      error: 'Failed to submit answer',
+      details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+    });
   }
 }
 

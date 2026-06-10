@@ -57,7 +57,11 @@ export default function AuthRedirect() {
         || currentPath.startsWith('/mock-interview-precheck/')
         || currentPath.startsWith('/mock-interview/results/')
         || currentPath.startsWith('/student/mock-interviews')
+        || currentPath.startsWith('/student/live-mock-interviews')
+        || currentPath.startsWith('/student/guided-ai-interviews')
+        || currentPath.startsWith('/student/conversational-ai-interviews')
         || currentPath.startsWith('/student/interviews/')
+        || currentPath.startsWith('/student/conversational-interviews/')
         || currentPath.startsWith('/assessment/');
 
       // Admin / Super Admin sub-routes that should not redirect
@@ -68,6 +72,7 @@ export default function AuthRedirect() {
         currentPath.startsWith('/admin/job/') ||
         currentPath.startsWith('/admin/jobs/') ||
         currentPath.startsWith('/admin/mock-interviews') ||
+        currentPath.startsWith('/admin/conversational-interviews') ||
         currentPath.startsWith('/super-admin') ||
         currentPath.startsWith('/job/') ||
         currentPath.startsWith('/mock-interview-room/')

@@ -7,6 +7,8 @@ import {
   submitMockFeedback,
   updateSlotStatus,
   getMockInterviewSlot,
+  getMockInterviewLiveCode,
+  patchMockInterviewLiveCode,
   getMockInterviewSlotResults,
   getMockInterviewDriveResults,
   updateMockInterviewSlot,
@@ -34,6 +36,8 @@ router.get(
 
 // Common Routes
 router.get('/slot/:slotId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getMockInterviewSlot);
+router.get('/slot/:slotId/live-code', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getMockInterviewLiveCode);
+router.patch('/slot/:slotId/live-code', authenticate, authorize(['STUDENT']), patchMockInterviewLiveCode);
 router.put('/slot/:slotId', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), updateMockInterviewSlot);
 
 // Admin Routes

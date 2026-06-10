@@ -6,6 +6,28 @@ import {
   hydrateDrive,
 } from '../utils/mockInterviewCoding.js';
 import { buildMockSlotResult } from '../utils/mockInterviewFeedback.js';
+import { ensureMockCodeSession, updateStudentCode } from '../utils/mockCodeSession.js';
+import { getIO } from '../config/socket.js';
+
+async function assertMockCodeSlotAccess(req, slotId) {
+  const slot = await prisma.mockInterviewSlot.findUnique({
+    where: { id: slotId },
+    include: { drive: true, student: { select: { userId: true } } },
+  });
+  if (!slot) return { error: { status: 404, message: 'Slot not found' } };
+  if (!slot.drive?.enableCodeConsole) {
+    return { error: { status: 403, message: 'Code console not enabled for this drive' } };
+  }
+  const role = (req.user?.role || '').toUpperCase();
+  if (role === 'STUDENT') {
+    if (slot.student?.userId !== req.user.id) {
+      return { error: { status: 403, message: 'Access denied' } };
+    }
+  } else if (!['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    return { error: { status: 403, message: 'Access denied' } };
+  }
+  return { slot };
+}
 
 function defaultDraftSchedule() {
   const start = new Date();
@@ -354,6 +376,84 @@ export async function submitMockFeedback(req, res) {
   } catch (error) {
     console.error('Submit Feedback Error:', error);
     res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+}
+
+/**
+ * Lightweight poll endpoint for live coding sync (interviewer fallback).
+ */
+export async function getMockInterviewLiveCode(req, res) {
+  try {
+    const { slotId } = req.params;
+    const access = await assertMockCodeSlotAccess(req, slotId);
+    if (access.error) {
+      return res.status(access.error.status).json({ error: access.error.message });
+    }
+
+    const slot = access.slot;
+    res.json({
+      liveCode: slot.liveCode ?? '',
+      liveCodeLanguage: slot.liveCodeLanguage || 'javascript',
+      activeQuestionId: slot.activeQuestionId,
+      updatedAt: slot.updatedAt,
+    });
+  } catch (error) {
+    console.error('getMockInterviewLiveCode Error:', error);
+    res.status(500).json({ error: 'Failed to fetch live code' });
+  }
+}
+
+/**
+ * HTTP fallback when Socket.IO is unavailable (student pushes code).
+ */
+export async function patchMockInterviewLiveCode(req, res) {
+  try {
+    const { slotId } = req.params;
+    const access = await assertMockCodeSlotAccess(req, slotId);
+    if (access.error) {
+      return res.status(access.error.status).json({ error: access.error.message });
+    }
+    if ((req.user?.role || '').toUpperCase() !== 'STUDENT') {
+      return res.status(403).json({ error: 'Only the candidate can push live code' });
+    }
+
+    const { code, language } = req.body || {};
+    if (typeof code !== 'string') {
+      return res.status(400).json({ error: 'code is required' });
+    }
+
+    const slot = access.slot;
+    const trimmed = code.slice(0, 120000);
+    const lang = language || slot.liveCodeLanguage || 'javascript';
+
+    await prisma.mockInterviewSlot.update({
+      where: { id: slotId },
+      data: { liveCode: trimmed, liveCodeLanguage: lang },
+    });
+
+    ensureMockCodeSession(slotId, {
+      driveQuestions: slot.drive.codingQuestions,
+      extraQuestions: slot.extraQuestions,
+      liveCode: trimmed,
+      liveCodeLanguage: lang,
+      activeQuestionId: slot.activeQuestionId,
+    });
+    updateStudentCode(slotId, trimmed, lang);
+
+    try {
+      getIO().to(`mock-code:${slotId}`).emit('mock-code:code-update', {
+        slotId,
+        code: trimmed,
+        language: lang,
+      });
+    } catch {
+      /* socket not initialized */
+    }
+
+    res.json({ ok: true, liveCode: trimmed, liveCodeLanguage: lang });
+  } catch (error) {
+    console.error('patchMockInterviewLiveCode Error:', error);
+    res.status(500).json({ error: 'Failed to save live code' });
   }
 }
 

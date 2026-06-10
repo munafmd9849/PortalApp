@@ -6,7 +6,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 import MockInterviewResultBody from '../../components/mockInterview/MockInterviewResultBody';
 
-const MOCK_INTERVIEWS_HOME = '/student?tab=mockInterviews';
+const MOCK_INTERVIEWS_HOME = '/student?tab=liveMockInterviews';
 const CONTENT_WIDTH = 'w-full lg:w-[75%] max-w-full mx-auto px-4 sm:px-6';
 
 function MockInterviewResultStudentComponent() {

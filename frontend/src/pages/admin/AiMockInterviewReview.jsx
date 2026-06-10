@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ChevronLeft, Users, Trophy, AlertTriangle, Activity, Search, Sparkles,
   Star, Shield, Video, Loader2,
@@ -24,6 +24,8 @@ function statusBadge(status) {
 function AiMockInterviewReviewComponent() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const adminBase = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -172,13 +174,15 @@ function AiMockInterviewReviewComponent() {
                     <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest text-indigo-300 border border-white/5">
                       <Sparkles className="w-3.5 h-3.5" /> Assistive AI insights
                     </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                       {[
+                        ['Overall', detail.aiInsight.overallPerformance],
                         ['Communication', detail.aiInsight.communicationScore],
                         ['Confidence', detail.aiInsight.confidenceScore],
                         ['Clarity', detail.aiInsight.clarityScore],
-                        ['Technical', detail.aiInsight.technicalUnderstanding],
-                        ['Overall', detail.aiInsight.overallPerformance],
+                        ['Professionalism', detail.aiInsight.professionalismScore],
+                        ['Technical', detail.aiInsight.technicalDepthScore ?? detail.aiInsight.technicalUnderstanding],
+                        ['Behavioral', detail.aiInsight.behavioralScore],
                       ].map(([label, val]) => (
                         <div key={label} className="bg-white/5 rounded-2xl p-4 border border-white/10">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
@@ -191,6 +195,15 @@ function AiMockInterviewReviewComponent() {
                     )}
                     {detail.aiInsight.improvements && (
                       <p className="text-sm text-slate-300"><span className="font-bold text-white">Improve:</span> {detail.aiInsight.improvements}</p>
+                    )}
+                    {detail.aiInsight.interviewSummary && (
+                      <p className="text-sm text-slate-300 leading-relaxed"><span className="font-bold text-white">Summary:</span> {detail.aiInsight.interviewSummary}</p>
+                    )}
+                    {detail.aiInsight.improvementPlan && (
+                      <div className="text-sm text-slate-300">
+                        <span className="font-bold text-white block mb-1">Improvement plan</span>
+                        <pre className="whitespace-pre-wrap font-sans text-slate-400">{detail.aiInsight.improvementPlan}</pre>
+                      </div>
                     )}
                     <button
                       type="button"
@@ -212,7 +225,13 @@ function AiMockInterviewReviewComponent() {
                 <div className="p-6 sm:p-8 space-y-6 divide-y divide-slate-100">
                   {detail?.answers?.map((a, i) => (
                     <div key={a.id} className={i > 0 ? 'pt-6' : ''}>
-                      <p className="text-sm font-bold text-slate-900 mb-3">Q{i + 1}: {a.questionText}</p>
+                      <p className="text-sm font-bold text-slate-900 mb-2">Q{i + 1}: {a.questionText}</p>
+                      {a.acknowledgementText && (
+                        <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-3 italic">
+                          <span className="font-bold not-italic text-indigo-900">AI: </span>
+                          {a.acknowledgementText}
+                        </p>
+                      )}
                       {a.videoUrl ? (
                         <video src={a.videoUrl} controls className="w-full rounded-2xl max-h-64 bg-black border border-slate-200" />
                       ) : (
@@ -225,6 +244,41 @@ function AiMockInterviewReviewComponent() {
                   )}
                 </div>
               </div>
+
+              {detail?.timeline?.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Conversation timeline</h3>
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {detail.timeline.map((ev, i) => (
+                      <div key={i} className="text-sm text-slate-700 border-l-2 border-indigo-200 pl-4">
+                        <span className="text-[9px] font-black uppercase text-slate-400">{ev.type}</span>
+                        {ev.text && <p className="mt-0.5">{ev.text}</p>}
+                        {ev.type === 'answer' && ev.durationSeconds != null && (
+                          <p className="text-xs text-slate-400">Recorded · {ev.durationSeconds}s</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(detail?.violations?.length > 0 || detail?.enrollment?.violationsCount > 0) && (
+                <div className="bg-white rounded-3xl border border-rose-100 shadow-sm p-6 sm:p-8">
+                  <h3 className="text-xs font-bold text-rose-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+                    <AlertTriangle className="w-4 h-4" /> Proctoring ({detail.enrollment.violationsCount} total)
+                  </h3>
+                  <ul className="space-y-2 max-h-48 overflow-y-auto text-sm text-slate-600">
+                    {(detail.violations || []).map((v) => (
+                      <li key={v.id} className="flex justify-between gap-4 border-b border-slate-50 pb-2">
+                        <span className="font-medium">{v.type}</span>
+                        <span className="text-xs text-slate-400 shrink-0">
+                          {v.timestamp ? new Date(v.timestamp).toLocaleString() : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-5">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -285,7 +339,7 @@ function AiMockInterviewReviewComponent() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/admin?tab=mockInterviews&mode=ai')}
+              onClick={() => navigate(`${adminBase}?tab=aiInterviews`)}
               className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 bg-slate-50 rounded-lg border border-slate-200"
             >
               <ChevronLeft className="w-5 h-5" />

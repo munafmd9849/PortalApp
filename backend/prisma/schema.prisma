@@ -713,8 +713,11 @@ model AiMockInterview {
   id               String   @id @default(uuid())
   title            String
   description      String?
+  sessionMode      String   @default("GUIDED") // GUIDED, CONVERSATIONAL
   interviewType    String // HR, TECHNICAL, BEHAVIORAL, MIXED, PLACEMENT_READINESS, CUSTOM
   instructions     String?  @db.Text
+  conversationalTopic    String?  @db.Text
+  conversationalMaxTurns   Int      @default(8)
   startDate        DateTime
   endDate          DateTime
   targetBatches    String? // JSON array of batch IDs or labels
@@ -781,16 +784,18 @@ model AiMockInterviewEnrollment {
 }
 
 model AiMockInterviewAnswer {
-  id             String    @id @default(uuid())
-  enrollmentId   String
-  questionId     String
-  videoUrl       String?
-  videoPublicId  String?
-  audioUrl       String?
-  audioPublicId  String?
-  durationSeconds Int?
-  submittedAt    DateTime?
-  createdAt      DateTime  @default(now())
+  id                 String    @id @default(uuid())
+  enrollmentId       String
+  questionId         String
+  videoUrl           String?
+  videoPublicId      String?
+  audioUrl           String?
+  audioPublicId      String?
+  durationSeconds    Int?
+  acknowledgementText String?  @db.Text
+  transitionText     String?  @db.Text
+  submittedAt        DateTime?
+  createdAt          DateTime  @default(now())
 
   enrollment AiMockInterviewEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   question   AiMockInterviewQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -854,10 +859,15 @@ model AiMockInterviewAiInsight {
   confidenceScore         Int?
   clarityScore            Int?
   technicalUnderstanding  Int?
+  technicalDepthScore     Int?
+  professionalismScore    Int?
+  behavioralScore         Int?
   overallPerformance      Int?
   strengths               String?  @db.Text
   improvements            String?  @db.Text
   recommendedFocus        String?  @db.Text
+  interviewSummary        String?  @db.Text
+  improvementPlan         String?  @db.Text
   rawJson                 String?  @db.Text
   status                  String   @default("PENDING") // PENDING, COMPLETED, FAILED
   createdAt               DateTime @default(now())

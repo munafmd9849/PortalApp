@@ -480,6 +480,19 @@ async function uploadProctoringScreenshot(sessionId, blob, { flags, faceCount, c
   });
 }
 
+function parseUploadError(xhr, fallback) {
+  try {
+    const body = JSON.parse(xhr.responseText);
+    const err = new Error(body.error || body.details || fallback);
+    err.code = body.code;
+    err.expectedQuestionIndex = body.expectedQuestionIndex;
+    err.expectedQuestionId = body.expectedQuestionId;
+    return err;
+  } catch {
+    return new Error(fallback);
+  }
+}
+
 async function uploadAiInterviewMultipart(url, formData) {
   const token = getAuthToken();
   return new Promise((resolve, reject) => {
@@ -492,7 +505,7 @@ async function uploadAiInterviewMultipart(url, formData) {
           reject(new Error('Invalid response'));
         }
       } else {
-        reject(new Error(`Upload failed (${xhr.status})`));
+        reject(new Error(parseUploadError(xhr, `Upload failed (${xhr.status})`)));
       }
     });
     xhr.addEventListener('error', () => reject(new Error('Upload failed')));
@@ -1213,6 +1226,12 @@ export const api = {
     apiRequest(`/mock-interviews/drives/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMockInterviewDrive: (id) => apiRequest(`/mock-interviews/drives/${id}`, { method: 'DELETE' }),
   getMockInterviewSlot: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}`),
+  getMockInterviewLiveCode: (slotId) => apiRequest(`/mock-interviews/slot/${slotId}/live-code`),
+  patchMockInterviewLiveCode: (slotId, data) =>
+    apiRequest(`/mock-interviews/slot/${slotId}/live-code`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   getMockInterviewSlotResults: (slotId) => apiRequest(`/mock-interviews/results/slot/${slotId}`),
   getMockInterviewDriveResults: (driveId) => apiRequest(`/mock-interviews/results/drive/${driveId}`),
   updateMockInterviewSlot: (slotId, data) => apiRequest(`/mock-interviews/slot/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -1247,10 +1266,12 @@ export const api = {
     }),
   submitAiInterviewAnswer: (enrollmentId, blob, { questionId, durationSeconds }) => {
     const formData = new FormData();
+    const mime = blob.type || 'video/webm';
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
     const file =
       blob instanceof File
         ? blob
-        : new File([blob], `answer-${Date.now()}.webm`, { type: blob.type || 'video/webm' });
+        : new File([blob], `answer-${Date.now()}.${ext}`, { type: mime });
     formData.append('recording', file);
     formData.append('questionId', questionId);
     if (durationSeconds != null) formData.append('durationSeconds', String(durationSeconds));
@@ -1275,6 +1296,60 @@ export const api = {
     if (meta.riskFlag != null) formData.append('riskFlag', meta.riskFlag ? 'true' : 'false');
     if (meta.faceCount != null) formData.append('faceCount', String(meta.faceCount));
     return uploadAiInterviewMultipart(`/ai-mock-interviews/enrollment/${enrollmentId}/screenshot`, formData);
+  },
+
+  // Conversational AI Interviews (dynamic follow-up)
+  createConversationalInterview: (data) =>
+    apiRequest('/ai-conversational-interviews', { method: 'POST', body: JSON.stringify(data) }),
+  getConversationalInterviews: () => apiRequest('/ai-conversational-interviews', { noCache: true }),
+  deleteConversationalInterview: (id) =>
+    apiRequest(`/ai-conversational-interviews/${id}`, { method: 'DELETE' }),
+  getStudentConversationalInterviews: () =>
+    apiRequest('/ai-conversational-interviews/student/my-interviews'),
+  getStudentConversationalSession: (interviewId) =>
+    apiRequest(`/ai-conversational-interviews/student/session/${interviewId}`),
+  startConversationalSession: (enrollmentId) =>
+    apiRequest(`/ai-conversational-interviews/enrollment/${enrollmentId}/start`, { method: 'POST' }),
+  submitConversationalAnswer: (enrollmentId, blob, { questionId, durationSeconds }) => {
+    const formData = new FormData();
+    const mime = blob.type || 'video/webm';
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `answer-${Date.now()}.${ext}`, { type: mime });
+    formData.append('recording', file);
+    formData.append('questionId', questionId);
+    if (durationSeconds != null) formData.append('durationSeconds', String(durationSeconds));
+    return uploadAiInterviewMultipart(
+      `/ai-conversational-interviews/enrollment/${enrollmentId}/answer`,
+      formData
+    );
+  },
+  completeConversationalInterview: (enrollmentId) =>
+    apiRequest(`/ai-conversational-interviews/enrollment/${enrollmentId}/complete`, {
+      method: 'POST',
+    }),
+  logConversationalViolation: (enrollmentId, data) =>
+    apiRequest(`/ai-conversational-interviews/enrollment/${enrollmentId}/violation`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  uploadConversationalScreenshot: (enrollmentId, blob, meta = {}) => {
+    const formData = new FormData();
+    const file =
+      blob instanceof File
+        ? blob
+        : new File([blob], `shot-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+    formData.append('screenshot', file);
+    if (meta.captureType) formData.append('captureType', meta.captureType);
+    if (meta.event) formData.append('event', meta.event);
+    if (meta.riskFlag != null) formData.append('riskFlag', meta.riskFlag ? 'true' : 'false');
+    if (meta.faceCount != null) formData.append('faceCount', String(meta.faceCount));
+    return uploadAiInterviewMultipart(
+      `/ai-conversational-interviews/enrollment/${enrollmentId}/screenshot`,
+      formData
+    );
   },
 
   // Generic HTTP methods for calendar and other services

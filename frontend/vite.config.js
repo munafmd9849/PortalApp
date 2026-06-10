@@ -16,13 +16,13 @@ export default defineConfig({
   ],
 
   server: {
-    host: 'localhost',
+    // true = listen on 0.0.0.0 so other laptops on the LAN can open the dev UI
+    host: true,
     port: 5173,
     // Fail loudly if 5173 is taken instead of silently moving to 5174 (breaks HMR)
     strictPort: true,
     open: false,
     hmr: {
-      host: 'localhost',
       overlay: true,
     },
     watch: {

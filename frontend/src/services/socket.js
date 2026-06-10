@@ -11,6 +11,27 @@ import { SOCKET_URL } from '../config/api.js';
 let socket = null;
 
 /**
+ * Resolves when the shared socket is connected (or after timeout).
+ */
+export function whenSocketReady(timeoutMs = 12000) {
+  const s = initSocket();
+  if (!s) return Promise.resolve(null);
+  if (s.connected) return Promise.resolve(s);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      s.off('connect', onConnect);
+      resolve(s.connected ? s : s);
+    }, timeoutMs);
+    const onConnect = () => {
+      clearTimeout(timer);
+      s.off('connect', onConnect);
+      resolve(s);
+    };
+    s.on('connect', onConnect);
+  });
+}
+
+/**
  * Initialize Socket.IO connection
  */
 export function initSocket() {

@@ -3,11 +3,7 @@
  * Uses the same camera stream as ProctoringEngine (no second camera).
  */
 import { initSocket } from '../services/socket';
-
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
+import { resolveIceServers } from './iceServers.js';
 
 function bindSocketHandlers(socket, handlers) {
   for (const [event, fn] of handlers) {
@@ -26,20 +22,28 @@ export class ProctoringBroadcaster {
     this.sessionId = sessionId;
     this.assessmentId = assessmentId;
     this.getStream = getStream;
-    this.pc = null;
+    this.pcs = new Map();
     this.socket = null;
     this.unbind = null;
     this.viewers = new Set();
+    this.pendingViewers = new Set();
+    this._retryTimer = null;
+    this._requestRegister = null;
   }
 
   async start() {
     this.socket = initSocket();
     if (!this.socket) return;
 
-    this.socket.emit('proctor:student-register', {
-      sessionId: this.sessionId,
-      assessmentId: this.assessmentId,
-    });
+    const register = () => {
+      this.socket.emit('proctor:student-register', {
+        sessionId: this.sessionId,
+        assessmentId: this.assessmentId,
+      });
+    };
+    register();
+    this._requestRegister = register;
+    this.socket.on('connect', register);
 
     const handlers = [
       [
@@ -53,10 +57,12 @@ export class ProctoringBroadcaster {
       [
         'proctor:answer',
         async ({ sessionId, answer, fromSocketId }) => {
-          if (sessionId !== this.sessionId || !this.pc || !answer) return;
-          if (fromSocketId && !this.viewers.has(fromSocketId)) return;
+          if (sessionId !== this.sessionId || !answer || !fromSocketId) return;
+          if (!this.viewers.has(fromSocketId)) return;
+          const pc = this.pcs.get(fromSocketId);
+          if (!pc) return;
           try {
-            await this.pc.setRemoteDescription(new RTCSessionDescription(answer));
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
           } catch (e) {
             console.warn('[Proctor RTC] setRemoteDescription failed', e);
           }
@@ -65,10 +71,12 @@ export class ProctoringBroadcaster {
       [
         'proctor:ice',
         async ({ sessionId, candidate, fromSocketId }) => {
-          if (sessionId !== this.sessionId || !this.pc || !candidate) return;
-          if (fromSocketId && !this.viewers.has(fromSocketId)) return;
+          if (sessionId !== this.sessionId || !candidate || !fromSocketId) return;
+          if (!this.viewers.has(fromSocketId)) return;
+          const pc = this.pcs.get(fromSocketId);
+          if (!pc) return;
           try {
-            await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch {
             /* ignore stale ICE */
           }
@@ -77,21 +85,37 @@ export class ProctoringBroadcaster {
     ];
 
     this.unbind = bindSocketHandlers(this.socket, handlers);
+    this._retryTimer = setInterval(() => this._retryPendingViewers(), 2000);
+  }
+
+  _retryPendingViewers() {
+    if (this.pendingViewers.size === 0) return;
+    for (const viewerId of [...this.pendingViewers]) {
+      void this._sendOffer(viewerId);
+    }
   }
 
   async _sendOffer(viewerSocketId) {
     const stream = this.getStream?.();
-    if (!stream?.getVideoTracks?.().length) return;
-
-    if (this.pc) {
-      this.pc.close();
-      this.pc = null;
+    if (!stream?.getVideoTracks?.().length) {
+      this.pendingViewers.add(viewerSocketId);
+      return;
     }
 
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
+    this.pendingViewers.delete(viewerSocketId);
 
-    this.pc.onicecandidate = (event) => {
+    const existing = this.pcs.get(viewerSocketId);
+    if (existing) {
+      existing.close();
+      this.pcs.delete(viewerSocketId);
+    }
+
+    const iceServers = await resolveIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
+    this.pcs.set(viewerSocketId, pc);
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.socket.emit('proctor:ice', {
           sessionId: this.sessionId,
@@ -101,25 +125,41 @@ export class ProctoringBroadcaster {
       }
     };
 
-    const offer = await this.pc.createOffer({
-      offerToReceiveAudio: false,
-      offerToReceiveVideo: false,
-    });
-    await this.pc.setLocalDescription(offer);
-    this.socket.emit('proctor:offer', {
-      sessionId: this.sessionId,
-      targetSocketId: viewerSocketId,
-      offer,
-    });
+    try {
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false,
+      });
+      await pc.setLocalDescription(offer);
+      this.socket.emit('proctor:offer', {
+        sessionId: this.sessionId,
+        targetSocketId: viewerSocketId,
+        offer,
+      });
+    } catch (e) {
+      console.warn('[Proctor RTC] createOffer failed', e);
+      pc.close();
+      this.pcs.delete(viewerSocketId);
+      this.pendingViewers.add(viewerSocketId);
+    }
   }
 
   stop() {
-    if (this.pc) {
-      this.pc.close();
-      this.pc = null;
+    if (this._retryTimer) {
+      clearInterval(this._retryTimer);
+      this._retryTimer = null;
     }
+    for (const pc of this.pcs.values()) {
+      pc.close();
+    }
+    this.pcs.clear();
     this.viewers.clear();
+    this.pendingViewers.clear();
     if (this.socket) {
+      if (this._requestRegister) {
+        this.socket.off('connect', this._requestRegister);
+        this._requestRegister = null;
+      }
       this.socket.emit('proctor:student-unregister', { sessionId: this.sessionId });
     }
     if (this.unbind) {
@@ -141,6 +181,9 @@ export class ProctoringViewer {
     this.socket = null;
     this.unbind = null;
     this.studentSocketId = null;
+    this._requestWatch = null;
+    this._watchRetryTimer = null;
+    this._connectTimeout = null;
   }
 
   async start() {
@@ -148,10 +191,22 @@ export class ProctoringViewer {
     this.socket = initSocket();
     if (!this.socket || !this.videoEl) return;
 
-    this.socket.emit('proctor:watch', {
-      sessionId: this.sessionId,
-      assessmentId: this.assessmentId,
-    });
+    const requestWatch = () => {
+      if (!this.socket?.connected) return;
+      this.socket.emit('proctor:watch', {
+        sessionId: this.sessionId,
+        assessmentId: this.assessmentId,
+      });
+    };
+
+    requestWatch();
+    this._requestWatch = requestWatch;
+    this.socket.on('connect', requestWatch);
+
+    this._watchRetryTimer = setInterval(() => {
+      if (this.pc?.connectionState === 'connected') return;
+      requestWatch();
+    }, 5000);
 
     const handlers = [
       [
@@ -184,6 +239,12 @@ export class ProctoringViewer {
     ];
 
     this.unbind = bindSocketHandlers(this.socket, handlers);
+
+    this._connectTimeout = setTimeout(() => {
+      if (this.pc?.connectionState !== 'connected') {
+        requestWatch();
+      }
+    }, 3000);
   }
 
   async _handleOffer(offer, fromSocketId) {
@@ -192,7 +253,8 @@ export class ProctoringViewer {
       this.pc = null;
     }
 
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const iceServers = await resolveIceServers();
+    this.pc = new RTCPeerConnection({ iceServers });
 
     this.pc.ontrack = (event) => {
       const stream = event.streams?.[0];
@@ -220,17 +282,30 @@ export class ProctoringViewer {
       }
     };
 
-    await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
-    this.socket.emit('proctor:answer', {
-      sessionId: this.sessionId,
-      targetSocketId: fromSocketId,
-      answer,
-    });
+    try {
+      await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await this.pc.createAnswer();
+      await this.pc.setLocalDescription(answer);
+      this.socket.emit('proctor:answer', {
+        sessionId: this.sessionId,
+        targetSocketId: fromSocketId,
+        answer,
+      });
+    } catch (e) {
+      console.warn('[Proctor RTC] handleOffer failed', e);
+      this.onDisconnected?.();
+    }
   }
 
   stop() {
+    if (this._watchRetryTimer) {
+      clearInterval(this._watchRetryTimer);
+      this._watchRetryTimer = null;
+    }
+    if (this._connectTimeout) {
+      clearTimeout(this._connectTimeout);
+      this._connectTimeout = null;
+    }
     if (this.pc) {
       this.pc.close();
       this.pc = null;
@@ -239,6 +314,10 @@ export class ProctoringViewer {
       this.videoEl.srcObject = null;
     }
     if (this.socket) {
+      if (this._requestWatch) {
+        this.socket.off('connect', this._requestWatch);
+        this._requestWatch = null;
+      }
       this.socket.emit('proctor:unwatch', { sessionId: this.sessionId });
     }
     if (this.unbind) {

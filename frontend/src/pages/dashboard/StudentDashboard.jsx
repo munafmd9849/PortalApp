@@ -61,6 +61,9 @@ import {
   Linkedin,
   Image as ImageIcon,
   Camera,
+  Video,
+  Sparkles,
+  MessageCircle,
   Globe,
   Plus,
   Link as LinkIcon,
@@ -79,7 +82,9 @@ import Resources from '../../components/dashboard/student/Resources';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
 import StudentAssessments from '../../components/dashboard/student/StudentAssessments';
-import MockInterviewStudentDashboard from '../student/MockInterviewStudentDashboard';
+import LiveMockInterviewsStudent from '../student/LiveMockInterviewsStudent';
+import GuidedAiInterviewsStudent from '../student/GuidedAiInterviewsStudent';
+import ConversationalAiInterviewsStudent from '../student/ConversationalAiInterviewsStudent';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
 import StudentApplicationTracker from '../../components/dashboard/student/StudentApplicationTracker';
 import {
@@ -1278,7 +1283,9 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'mockInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab === 'mockInterviews') {
+      setActiveTab('liveMockInterviews');
+    } else if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'liveMockInterviews', 'guidedAiInterviews', 'conversationalAiInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -2029,7 +2036,9 @@ export default function StudentDashboard() {
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
-    { id: 'mockInterviews', label: 'Mock Interviews', icon: Camera },
+    { id: 'liveMockInterviews', label: 'Live Mocks', icon: Video },
+    { id: 'guidedAiInterviews', label: 'Guided AI', icon: Sparkles },
+    { id: 'conversationalAiInterviews', label: 'Conversational AI', icon: MessageCircle },
     { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },
@@ -4672,8 +4681,14 @@ export default function StudentDashboard() {
       case 'assessments':
         return <StudentAssessments />;
 
+      case 'liveMockInterviews':
+        return <LiveMockInterviewsStudent />;
+      case 'guidedAiInterviews':
+        return <GuidedAiInterviewsStudent />;
+      case 'conversationalAiInterviews':
+        return <ConversationalAiInterviewsStudent />;
       case 'mockInterviews':
-        return <MockInterviewStudentDashboard />;
+        return <LiveMockInterviewsStudent />;
 
       case 'raiseQuery':
         return <Query />;

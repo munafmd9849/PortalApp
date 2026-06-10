@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Plus, Calendar, Clock, Users,
   Search, MoreHorizontal, CheckCircle2,
@@ -69,12 +69,24 @@ function aiIsPast(iv) {
   return new Date(iv.endDate) < new Date();
 }
 
-export default function MockInterviewManagement({ autoOpenCreate = false }) {
+export default function MockInterviewManagement({
+  autoOpenCreate = false,
+  forcedMode = null,
+  dashboardTab = 'mockInterviews',
+}) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
-  const initialMode = searchParams.get('mode') === 'ai' ? 'ai' : 'live';
+  const adminBase = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
+
+  const initialMode =
+    forcedMode === 'ai' || forcedMode === 'live'
+      ? forcedMode
+      : searchParams.get('mode') === 'ai'
+        ? 'ai'
+        : 'live';
 
   const [loading, setLoading] = useState(true);
   const [drives, setDrives] = useState([]);
@@ -89,13 +101,14 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
   const syncUrl = useCallback(
     (mode) => {
       const next = new URLSearchParams(searchParams);
-      next.set('tab', 'mockInterviews');
-      if (mode === 'ai') next.set('mode', 'ai');
+      const tab = mode === 'ai' ? 'aiInterviews' : 'mockInterviews';
+      next.set('tab', forcedMode ? dashboardTab : tab);
+      if (!forcedMode && mode === 'ai') next.set('mode', 'ai');
       else next.delete('mode');
       next.delete('aiFilter');
       setSearchParams(next, { replace: true });
     },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams, forcedMode, dashboardTab]
   );
 
   const setMode = (mode) => {
@@ -110,6 +123,12 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
   useEffect(() => {
     if (autoOpenCreate) setShowCreateModal(true);
   }, [autoOpenCreate]);
+
+  useEffect(() => {
+    if (forcedMode === 'ai' || forcedMode === 'live') {
+      setMainMode(forcedMode);
+    }
+  }, [forcedMode]);
 
   const loadDrives = useCallback(async () => {
     try {
@@ -270,12 +289,12 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              Mock Interviews
+              {mainMode === 'live' ? 'Live Mock Interviews' : 'AI Guided Interviews'}
             </h1>
             <p className="text-slate-500 text-sm mt-1 font-medium">
               {mainMode === 'live'
                 ? 'Schedule live 1:1 drives and manage interviewer slots'
-                : 'Publish AI video interviews and review candidate submissions'}
+                : 'Publish guided AI video interviews and review candidate submissions'}
             </p>
           </div>
           {mainMode === 'live' ? (
@@ -289,7 +308,7 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
           ) : (
             <button
               type="button"
-              onClick={() => navigate('/admin/mock-interviews/create-ai-interview')}
+              onClick={() => navigate(`${adminBase}/mock-interviews/create-ai-interview`)}
               className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
             >
               <Plus className="w-4 h-4" /> New AI interview
@@ -297,35 +316,36 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
           )}
         </div>
 
-        {/* Main mode tabs — Manage Jobs style */}
-        <div className="flex justify-center">
-          <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex flex-wrap justify-center gap-1">
-            <button
-              type="button"
-              onClick={() => setMode('live')}
-              className={`px-4 sm:px-6 py-2 rounded-md font-bold text-sm transition-all touch-manipulation flex items-center gap-2 ${
-                mainMode === 'live'
-                  ? 'bg-indigo-500 text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              <Video className="w-4 h-4" />
-              Live 1:1 ({totalDrives})
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('ai')}
-              className={`px-4 sm:px-6 py-2 rounded-md font-bold text-sm transition-all touch-manipulation flex items-center gap-2 ${
-                mainMode === 'ai'
-                  ? 'bg-indigo-500 text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              AI video ({aiInterviews.length})
-            </button>
+        {!forcedMode && (
+          <div className="flex justify-center">
+            <div className="bg-white rounded-lg p-1 shadow-sm border border-slate-200 inline-flex flex-wrap justify-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMode('live')}
+                className={`px-4 sm:px-6 py-2 rounded-md font-bold text-sm transition-all touch-manipulation flex items-center gap-2 ${
+                  mainMode === 'live'
+                    ? 'bg-indigo-500 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Video className="w-4 h-4" />
+                Live 1:1 ({totalDrives})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('ai')}
+                className={`px-4 sm:px-6 py-2 rounded-md font-bold text-sm transition-all touch-manipulation flex items-center gap-2 ${
+                  mainMode === 'ai'
+                    ? 'bg-indigo-500 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                AI video ({aiInterviews.length})
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           {(mainMode === 'live' ? liveStats : aiStats).map((stat, i) => (
@@ -503,7 +523,7 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
                           <div className="flex items-center gap-3 flex-wrap">
                             <button
                               type="button"
-                              onClick={() => navigate(`/admin/mock-interviews/${drive.id}/results`)}
+                              onClick={() => navigate(`${adminBase}/mock-interviews/${drive.id}/results`)}
                               className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700"
                             >
                               View results
@@ -590,7 +610,7 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
                 {filterTab === 'all' && !searchQuery && (
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/mock-interviews/create-ai-interview')}
+                    onClick={() => navigate(`${adminBase}/mock-interviews/create-ai-interview`)}
                     className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs"
                   >
                     Create your first AI interview
@@ -708,7 +728,7 @@ export default function MockInterviewManagement({ autoOpenCreate = false }) {
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => navigate(`/admin/mock-interviews/${iv.id}/review`)}
+                            onClick={() => navigate(`${adminBase}/mock-interviews/${iv.id}/review`)}
                             className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700"
                           >
                             View results

@@ -54,8 +54,12 @@ export default function AdminAssessmentLiveMonitor() {
   const [expandedShot, setExpandedShot] = useState(null);
   const [rtcConnected, setRtcConnected] = useState(false);
   const [rtcConnecting, setRtcConnecting] = useState(false);
-  const liveVideoRef = useRef(null);
+  const [liveVideoEl, setLiveVideoEl] = useState(null);
   const rtcViewerRef = useRef(null);
+
+  const setLiveVideoRef = useCallback((el) => {
+    setLiveVideoEl(el);
+  }, []);
 
   const refreshSessions = useCallback(async (showSpinner = false) => {
     try {
@@ -123,7 +127,7 @@ export default function AdminAssessmentLiveMonitor() {
   }, [id, applyLiveScreenshot, refreshSessions]);
 
   useEffect(() => {
-    if (!selectedSessionId) {
+    if (!selectedSessionId || !liveVideoEl) {
       rtcViewerRef.current?.stop();
       rtcViewerRef.current = null;
       setRtcConnected(false);
@@ -138,7 +142,7 @@ export default function AdminAssessmentLiveMonitor() {
     const viewer = new ProctoringViewer({
       sessionId: selectedSessionId,
       assessmentId: id,
-      videoEl: liveVideoRef.current,
+      videoEl: liveVideoEl,
       onConnected: () => {
         if (!cancelled) {
           setRtcConnected(true);
@@ -164,7 +168,7 @@ export default function AdminAssessmentLiveMonitor() {
       setRtcConnected(false);
       setRtcConnecting(false);
     };
-  }, [selectedSessionId, id]);
+  }, [selectedSessionId, id, liveVideoEl]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -413,7 +417,7 @@ export default function AdminAssessmentLiveMonitor() {
                 </div>
                 <div className="relative bg-black">
                   <video
-                    ref={liveVideoRef}
+                    ref={setLiveVideoRef}
                     autoPlay
                     playsInline
                     muted

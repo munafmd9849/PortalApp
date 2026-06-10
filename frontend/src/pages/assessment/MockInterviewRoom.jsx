@@ -64,13 +64,13 @@ export default function MockInterviewRoom() {
   const [savingFeedback, setSavingFeedback] = useState(false);
 
   const codeConsoleEnabled = Boolean(slot?.drive?.enableCodeConsole);
-  const techBoardActive = showTechnicalBoard && codeConsoleEnabled;
+  const codeSyncEnabled = codeConsoleEnabled && !loading && !isEarly;
 
   const codeSync = useMockInterviewCodeSync({
     slotId,
     slot,
     isInterviewer,
-    enabled: techBoardActive && !loading && !isEarly,
+    enabled: codeSyncEnabled,
   });
 
   const initRoom = useCallback(async () => {

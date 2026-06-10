@@ -49,6 +49,9 @@ import MockInterviewManagement from './pages/admin/MockInterviewManagement';
 import MockInterviewCreate from './pages/admin/MockInterviewCreate';
 import MockInterviewSlots from './pages/admin/MockInterviewSlots';
 import MockInterviewStudentDashboard from './pages/student/MockInterviewStudentDashboard';
+import LiveMockInterviewsStudent from './pages/student/LiveMockInterviewsStudent';
+import GuidedAiInterviewsStudent from './pages/student/GuidedAiInterviewsStudent';
+import ConversationalAiInterviewsStudent from './pages/student/ConversationalAiInterviewsStudent';
 import MockInterviewResultStudent from './pages/student/MockInterviewResultStudent';
 import MockInterviewPreCheck from './pages/assessment/MockInterviewPreCheck';
 import MockInterviewRoom from './pages/assessment/MockInterviewRoom';
@@ -56,7 +59,9 @@ import AssessmentResultStudent from './pages/assessment/AssessmentResultStudent'
 import AdminMockInterviewResults from './pages/admin/AdminMockInterviewResults';
 import AiMockInterviewCreate from './pages/admin/AiMockInterviewCreate';
 import AiMockInterviewReview from './pages/admin/AiMockInterviewReview';
+import AiConversationalInterviewCreate from './pages/admin/AiConversationalInterviewCreate';
 import AiMockInterviewSession from './pages/student/AiMockInterviewSession';
+import AiConversationalInterviewSession from './pages/student/AiConversationalInterviewSession';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -239,7 +244,11 @@ function AppContent() {
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/onboarding" element={<StudentOnboarding />} />
           <Route path="/student/mock-interviews" element={<MockInterviewStudentDashboard />} />
+          <Route path="/student/live-mock-interviews" element={<LiveMockInterviewsStudent />} />
+          <Route path="/student/guided-ai-interviews" element={<GuidedAiInterviewsStudent />} />
+          <Route path="/student/conversational-ai-interviews" element={<ConversationalAiInterviewsStudent />} />
           <Route path="/student/interviews/:id" element={<AiMockInterviewSession />} />
+          <Route path="/student/conversational-interviews/:id" element={<AiConversationalInterviewSession />} />
           <Route path="/mock-interview/results/:slotId" element={<MockInterviewResultStudent />} />
         </Route>
 
@@ -264,6 +273,7 @@ function AppContent() {
           <Route path="/admin/mock-interviews/:id/slots" element={<MockInterviewSlots />} />
           <Route path="/admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
           <Route path="/admin/mock-interviews/:id/review" element={<AiMockInterviewReview />} />
+          <Route path="/admin/conversational-interviews/create" element={<AiConversationalInterviewCreate />} />
           <Route path="/admin/assessments" element={<AdminAssessments />} />
           <Route path="/admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
@@ -280,6 +290,9 @@ function AppContent() {
           <Route path="/super-admin/assessments" element={<AdminAssessments />} />
           <Route path="/super-admin/assessments/:id/results" element={<AdminAssessmentResults />} />
           <Route path="/super-admin/assessments/:id/live-monitor" element={<AdminAssessmentLiveMonitor />} />
+          <Route path="/super-admin/mock-interviews/create-ai-interview" element={<AiMockInterviewCreate />} />
+          <Route path="/super-admin/conversational-interviews/create" element={<AiConversationalInterviewCreate />} />
+          <Route path="/super-admin/mock-interviews/:id/review" element={<AiMockInterviewReview />} />
           <Route path="/super-admin/mock-interviews/:id/results" element={<AdminMockInterviewResults />} />
           <Route path="/super-admin/job/:jobId" element={<AdminDashboard />} />
           <Route path="/super-admin/jobs/:jobId/applications/:applicationId" element={<AdminDashboard />} />

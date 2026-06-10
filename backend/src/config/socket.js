@@ -154,6 +154,18 @@ export function initSocket(server) {
       if (socket.userRole !== 'STUDENT' || !sessionId) return;
       proctorStudentSockets.set(sessionId, socket.id);
       socket.join(`proctor:student:${sessionId}`);
+
+      // Admins may join before the student registers — notify student about waiting viewers.
+      const viewersRoom = io.sockets.adapter.rooms.get(`proctor:viewers:${sessionId}`);
+      if (viewersRoom) {
+        for (const viewerSocketId of viewersRoom) {
+          if (viewerSocketId === socket.id) continue;
+          io.to(socket.id).emit('proctor:viewer-joined', {
+            sessionId,
+            viewerSocketId,
+          });
+        }
+      }
     });
 
     socket.on('proctor:student-unregister', ({ sessionId }) => {
@@ -217,14 +229,18 @@ export function initSocket(server) {
       }
     };
 
+    const loadMockCodeSlot = async (slotId) => {
+      const prisma = (await import('../config/database.js')).default;
+      return prisma.mockInterviewSlot.findUnique({
+        where: { id: slotId },
+        include: { drive: true, student: { select: { userId: true } } },
+      });
+    };
+
     socket.on('mock-code:join', async ({ slotId, role }) => {
       if (!slotId || !['student', 'interviewer'].includes(role)) return;
       try {
-        const prisma = (await import('../config/database.js')).default;
-        const slot = await prisma.mockInterviewSlot.findUnique({
-          where: { id: slotId },
-          include: { drive: true, student: { select: { userId: true } } },
-        });
+        const slot = await loadMockCodeSlot(slotId);
         if (!slot?.drive?.enableCodeConsole) return;
 
         if (role === 'student') {
@@ -243,7 +259,10 @@ export function initSocket(server) {
           activeQuestionId: slot.activeQuestionId,
         });
 
-        socket.emit('mock-code:state', { slotId, ...session });
+        const payload = { slotId, ...session };
+        socket.emit('mock-code:state', payload);
+        // Sync peers already in the room (e.g. interviewer waiting before student joins).
+        socket.to(`mock-code:${slotId}`).emit('mock-code:state', payload);
       } catch (e) {
         console.error('[mock-code:join]', e);
       }
@@ -255,14 +274,35 @@ export function initSocket(server) {
 
     socket.on('mock-code:code-update', async ({ slotId, code, language }) => {
       if (!slotId || socket.userRole !== 'STUDENT') return;
-      const state = updateStudentCode(slotId, code, language);
-      if (!state) return;
-      socket.to(`mock-code:${slotId}`).emit('mock-code:code-update', {
-        slotId,
-        code: state.code,
-        language: state.language,
-      });
-      await persistMockCode(slotId);
+      try {
+        const slot = await loadMockCodeSlot(slotId);
+        if (!slot?.drive?.enableCodeConsole) return;
+        if (socket.userRole !== 'STUDENT' || slot.student?.userId !== socket.userId) return;
+
+        socket.join(`mock-code:${slotId}`);
+
+        let state = updateStudentCode(slotId, code, language);
+        if (!state) {
+          ensureMockCodeSession(slotId, {
+            driveQuestions: slot.drive.codingQuestions,
+            extraQuestions: slot.extraQuestions,
+            liveCode: slot.liveCode,
+            liveCodeLanguage: slot.liveCodeLanguage,
+            activeQuestionId: slot.activeQuestionId,
+          });
+          state = updateStudentCode(slotId, code, language);
+        }
+        if (!state) return;
+
+        io.to(`mock-code:${slotId}`).emit('mock-code:code-update', {
+          slotId,
+          code: state.code,
+          language: state.language,
+        });
+        await persistMockCode(slotId);
+      } catch (e) {
+        console.error('[mock-code:code-update]', e);
+      }
     });
 
     socket.on('mock-code:set-question', async ({ slotId, questionId }) => {

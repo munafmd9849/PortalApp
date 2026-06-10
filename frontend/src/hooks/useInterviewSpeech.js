@@ -1,68 +1,61 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { aiInterviewerVoice } from '../services/AIInterviewerVoiceService';
 
 /**
- * Browser Speech Synthesis for AI interviewer voice.
+ * React hook wrapping AIInterviewerVoiceService for Guided AI Interviews.
  */
-export function useInterviewSpeech({ rate = 1, pitch = 1, lang = 'en-IN' } = {}) {
+export function useInterviewSpeech({ rateMultiplier = 1 } = {}) {
   const [speaking, setSpeaking] = useState(false);
   const [supported, setSupported] = useState(false);
-  const utterRef = useRef(null);
+  const [voiceName, setVoiceName] = useState(null);
+  const rateRef = useRef(rateMultiplier);
+
+  rateRef.current = rateMultiplier;
 
   useEffect(() => {
-    setSupported(typeof window !== 'undefined' && 'speechSynthesis' in window);
-  }, []);
+    setSupported(aiInterviewerVoice.isSupported);
+    aiInterviewerVoice.setSpeakingListener(setSpeaking);
 
-  const pickVoice = useCallback(() => {
-    const voices = window.speechSynthesis?.getVoices() || [];
-    const preferred = voices.find(
-      (v) =>
-        v.lang.startsWith('en') &&
-        (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel'))
-    );
-    return preferred || voices.find((v) => v.lang.startsWith('en')) || voices[0];
+    let cancelled = false;
+    aiInterviewerVoice.initialize().then((voice) => {
+      if (!cancelled && voice) setVoiceName(voice.name);
+    });
+
+    return () => {
+      cancelled = true;
+      aiInterviewerVoice.setSpeakingListener(null);
+      aiInterviewerVoice.stop();
+    };
   }, []);
 
   const stop = useCallback(() => {
-    window.speechSynthesis?.cancel();
-    setSpeaking(false);
+    aiInterviewerVoice.stop();
   }, []);
 
-  const speak = useCallback(
-    (text) => {
-      if (!supported || !text?.trim()) return Promise.resolve();
-      stop();
-      return new Promise((resolve) => {
-        const u = new SpeechSynthesisUtterance(text.trim());
-        u.rate = rate;
-        u.pitch = pitch;
-        u.lang = lang;
-        const voice = pickVoice();
-        if (voice) u.voice = voice;
-        u.onend = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        u.onerror = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        utterRef.current = u;
-        setSpeaking(true);
-        window.speechSynthesis.speak(u);
-      });
-    },
-    [supported, rate, pitch, lang, pickVoice, stop]
-  );
+  const speak = useCallback((text) => {
+    return aiInterviewerVoice.speak(text, { rateMultiplier: rateRef.current });
+  }, []);
 
-  useEffect(() => {
-    const loadVoices = () => pickVoice();
-    loadVoices();
-    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices);
-    return () => {
-      window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices);
-      stop();
-    };
-  }, [pickVoice, stop]);
+  const speakWelcome = useCallback(() => {
+    return aiInterviewerVoice.speakWelcome(rateRef.current);
+  }, []);
 
-  return { speak, stop, speaking, supported, setRate: () => {} };
+  const speakCompletion = useCallback(() => {
+    return aiInterviewerVoice.speakCompletion(rateRef.current);
+  }, []);
+
+  const speakInstructions = useCallback((instructions) => {
+    return aiInterviewerVoice.speakInstructions(instructions, rateRef.current);
+  }, []);
+
+  return {
+    speak,
+    speakWelcome,
+    speakCompletion,
+    speakInstructions,
+    stop,
+    speaking,
+    supported,
+    voiceName,
+  };
 }
