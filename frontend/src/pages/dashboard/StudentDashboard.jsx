@@ -19,7 +19,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import { formatApplicationSuccessMessage } from '../../utils/applicationMessages';
-import { sanitizeScoreInput } from '../../utils/scoreInput';
+import { sanitizeScoreInput, formatCgpaForDisplay } from '../../utils/scoreInput';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -107,15 +107,6 @@ function isValidProfileUrl(url) {
   } catch {
     return false;
   }
-}
-
-/** Format CGPA for display (avoids floating-point e.g. 8.699999999999999 → "8.70") */
-function formatCgpaForDisplay(val) {
-  if (val === undefined || val === null || val === '') return '';
-  const n = parseFloat(val);
-  if (Number.isNaN(n)) return String(val).trim();
-  const clamped = Math.max(0, Math.min(10, n));
-  return clamped.toFixed(2);
 }
 
 const normalizeProfileSnapshot = (profile = {}) => ({
@@ -797,7 +788,9 @@ export default function StudentDashboard() {
           email: profileData.email || '',
           phone: profileData.phone || '',
           enrollmentId: profileData.enrollmentId || '',
-          cgpa: profileData.cgpa?.toString?.() || '',
+          cgpa: profileData.cgpa != null && profileData.cgpa !== ''
+            ? formatCgpaForDisplay(profileData.cgpa)
+            : '',
           batch: profileData.batch || '',
           center: profileData.center || '',
           school: profileData.school || '',
@@ -1940,7 +1933,9 @@ export default function StudentDashboard() {
           email: updatedProfile.email || '',
           phone: updatedProfile.phone || '',
           enrollmentId: updatedProfile.enrollmentId || '',
-          cgpa: updatedProfile.cgpa?.toString?.() || '',
+          cgpa: updatedProfile.cgpa != null && updatedProfile.cgpa !== ''
+            ? formatCgpaForDisplay(updatedProfile.cgpa)
+            : '',
           backlogs: updatedProfile.backlogs || '',
           batch: updatedProfile.batch || '',
           center: updatedProfile.center || '',

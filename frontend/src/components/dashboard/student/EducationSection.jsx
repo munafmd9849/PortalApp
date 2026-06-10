@@ -9,7 +9,7 @@ import {
   deleteEducationArray,
   getStudentProfile
 } from '../../../services/students';
-import { sanitizeScoreInput, hasAtMostTwoDecimals } from '../../../utils/scoreInput';
+import { sanitizeScoreInput, hasAtMostTwoDecimals, formatCgpaForDisplay } from '../../../utils/scoreInput';
 
 const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEducation = null }) => {
   const { user } = useAuth();
@@ -65,13 +65,13 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
             scoreType = 'Percentage';
             score = String(descData.originalScore);
           } else if (edu.cgpa) {
-            score = String(edu.cgpa);
+            score = formatCgpaForDisplay(edu.cgpa);
           }
         } catch {
-          if (edu.cgpa) score = String(edu.cgpa);
+          if (edu.cgpa) score = formatCgpaForDisplay(edu.cgpa);
         }
       } else if (edu.cgpa) {
-        score = String(edu.cgpa);
+        score = formatCgpaForDisplay(edu.cgpa);
       }
       return {
         id: edu.id,
@@ -255,21 +255,21 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
               if (descData.scoreType === 'Percentage' && descData.originalScore) {
                 score = String(descData.originalScore);
               } else if (edu.cgpa) {
-                score = String(edu.cgpa);
+                score = formatCgpaForDisplay(edu.cgpa);
               }
             } else if (edu.cgpa) {
               // No scoreType in description but cgpa exists - default to CGPA
-              score = String(edu.cgpa);
+              score = formatCgpaForDisplay(edu.cgpa);
             }
           } catch (e) {
             // Not JSON, fallback to cgpa if exists
             if (edu.cgpa) {
-              score = String(edu.cgpa);
+              score = formatCgpaForDisplay(edu.cgpa);
             }
           }
         } else if (edu.cgpa) {
           // No description, use cgpa as CGPA
-          score = String(edu.cgpa);
+          score = formatCgpaForDisplay(edu.cgpa);
         }
         
         return {
@@ -445,21 +445,21 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
               if (descData.scoreType === 'Percentage' && descData.originalScore) {
                 score = String(descData.originalScore);
               } else if (edu.cgpa) {
-                score = String(edu.cgpa);
+                score = formatCgpaForDisplay(edu.cgpa);
               }
             } else if (edu.cgpa) {
               // No scoreType in description but cgpa exists - default to CGPA
-              score = String(edu.cgpa);
+              score = formatCgpaForDisplay(edu.cgpa);
             }
           } catch (e) {
             // Not JSON, fallback to cgpa if exists
             if (edu.cgpa) {
-              score = String(edu.cgpa);
+              score = formatCgpaForDisplay(edu.cgpa);
             }
           }
         } else if (edu.cgpa) {
           // No description, use cgpa as CGPA
-          score = String(edu.cgpa);
+          score = formatCgpaForDisplay(edu.cgpa);
         }
         
         return {

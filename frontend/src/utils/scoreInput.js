@@ -1,3 +1,12 @@
+/** Format CGPA for display (avoids 9.199999999999999 → "9.20"). */
+export function formatCgpaForDisplay(val) {
+  if (val === undefined || val === null || val === '') return '';
+  const n = parseFloat(val);
+  if (Number.isNaN(n)) return String(val).trim();
+  const clamped = Math.max(0, Math.min(10, n));
+  return clamped.toFixed(2);
+}
+
 /** Limit numeric score input to at most 2 decimal places (CGPA or percentage). */
 export function sanitizeScoreInput(raw, scoreType = 'CGPA') {
   if (raw === '' || raw === '.') return raw;
