@@ -17,6 +17,10 @@ router.use(authenticate);
 // Get recruiter directory (admin only)
 router.get('/directory', requireRole(['ADMIN', 'SUPER_ADMIN']), recruiterController.getRecruiterDirectory);
 
+// Recruiter dashboard & company analytics (must be before /:email)
+router.get('/dashboard-stats', requireRole(['RECRUITER']), recruiterController.getRecruiterDashboardStats);
+router.get('/company-analytics', requireRole(['RECRUITER']), recruiterController.getRecruiterCompanyAnalytics);
+
 // MOU documents (recruiter only) - must be before /:email
 router.get('/mou', requireRole(['RECRUITER', 'ADMIN']), recruiterController.listMouDocuments);
 router.post('/mou', requireRole(['RECRUITER', 'ADMIN']), uploadMouMiddleware, recruiterController.uploadMouDocument);

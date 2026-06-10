@@ -95,6 +95,7 @@ export default function AdminAssessments() {
 
   const hasCodingQuestions =
     formData.type === 'CODING_TEST' ||
+    formData.type === 'MIXED' ||
     (formData.questions || []).some((q) => q.type === 'CODING');
 
   const fetchBatches = useCallback(async () => {
@@ -275,8 +276,10 @@ export default function AdminAssessments() {
   };
 
   const addQuestion = () => {
-    const defaultType = formData.type === 'MOCK_TEST' ? 'MCQ' : 
-                       formData.type === 'CODING_TEST' ? 'CODING' : 'DESCRIPTIVE';
+    const defaultType = formData.type === 'MOCK_TEST' ? 'MCQ'
+      : formData.type === 'CODING_TEST' ? 'CODING'
+      : formData.type === 'MIXED' ? 'MCQ'
+      : 'DESCRIPTIVE';
     setFormData({
       ...formData,
       questions: [
@@ -315,7 +318,18 @@ export default function AdminAssessments() {
       case 'MOCK_TEST': return <FileText className="w-5 h-5" />;
       case 'CODING_TEST': return <Terminal className="w-5 h-5" />;
       case 'DESCRIPTIVE': return <BookOpen className="w-5 h-5" />;
+      case 'MIXED': return <Layers className="w-5 h-5" />;
       default: return <Activity className="w-5 h-5" />;
+    }
+  };
+
+  const getAssessmentTypeStyle = (type) => {
+    switch (type) {
+      case 'MOCK_TEST': return 'bg-indigo-50 border-indigo-100 text-indigo-600';
+      case 'CODING_TEST': return 'bg-emerald-50 border-emerald-100 text-emerald-600';
+      case 'DESCRIPTIVE': return 'bg-amber-50 border-amber-100 text-amber-600';
+      case 'MIXED': return 'bg-violet-50 border-violet-100 text-violet-600';
+      default: return 'bg-slate-50 border-slate-100 text-slate-600';
     }
   };
 
@@ -469,7 +483,7 @@ export default function AdminAssessments() {
                 {filteredAssessments.map((item) => (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group flex flex-col h-full relative overflow-hidden">
               <div className="flex justify-between items-start mb-5">
-                <div className={`p-3 rounded-xl ${item.type === 'MOCK_TEST' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'} border border-current opacity-20`}>
+                <div className={`p-3 rounded-xl border border-current opacity-20 ${getAssessmentTypeStyle(item.type)}`}>
                   {getAssessmentTypeIcon(item.type)}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -478,9 +492,7 @@ export default function AdminAssessments() {
                        Draft
                      </span>
                    )}
-                   <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${
-                     item.type === 'MOCK_TEST' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                   }`}>
+                   <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${getAssessmentTypeStyle(item.type)}`}>
                      {item.type?.replace(/_/g, ' ')}
                    </span>
                 </div>

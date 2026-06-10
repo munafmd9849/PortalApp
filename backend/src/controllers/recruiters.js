@@ -205,6 +205,302 @@ export async function blockUnblockRecruiter(req, res) {
   }
 }
 
+function isPostedJob(job) {
+  return job.isPosted || String(job.status || '').toUpperCase() === 'POSTED';
+}
+
+function isManagerRecruiter(recruiter) {
+  const relationship = String(recruiter.relationshipType || '').toLowerCase();
+  const zone = String(recruiter.zone || '').toLowerCase();
+  return relationship.includes('manager') || zone.includes('manager');
+}
+
+async function resolveRecruiterForUser(userId) {
+  return prisma.recruiter.findFirst({
+    where: { userId },
+    include: {
+      user: { select: { status: true, displayName: true, email: true } },
+      company: { select: { id: true, name: true } },
+    },
+  });
+}
+
+async function aggregateApplicationStats(jobIds) {
+  if (!jobIds.length) {
+    return {
+      total: 0,
+      shortlisted: 0,
+      selected: 0,
+      rejected: 0,
+      interviewing: 0,
+    };
+  }
+
+  const hasInterviewSession = await prisma.interviewSession.findFirst({
+    where: { jobId: { in: jobIds } },
+    select: { id: true },
+  });
+
+  const [total, selected, rejected, shortlisted, interviewing] = await Promise.all([
+    prisma.application.count({ where: { jobId: { in: jobIds } } }),
+    prisma.application.count({
+      where: { jobId: { in: jobIds }, OR: [{ interviewStatus: 'SELECTED' }, { status: 'SELECTED' }] },
+    }),
+    prisma.application.count({
+      where: {
+        jobId: { in: jobIds },
+        OR: [
+          { status: 'REJECTED' },
+          { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
+          { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+        ],
+      },
+    }),
+    prisma.application.count({
+      where: {
+        jobId: { in: jobIds },
+        screeningStatus: { in: ['RESUME_SELECTED', 'SCREENING_SELECTED'] },
+        NOT: {
+          OR: [
+            { status: 'REJECTED' },
+            { status: 'SELECTED' },
+            { interviewStatus: 'SELECTED' },
+            { screeningStatus: { in: ['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'] } },
+            { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+          ],
+        },
+      },
+    }),
+    hasInterviewSession
+      ? prisma.application.count({
+        where: {
+          jobId: { in: jobIds },
+          screeningStatus: { in: ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE'] },
+          roundEvaluations: { some: {} },
+          NOT: {
+            OR: [
+              { interviewStatus: 'SELECTED' },
+              { interviewStatus: { startsWith: 'REJECTED_IN_ROUND_' } },
+            ],
+          },
+        },
+      })
+      : Promise.resolve(0),
+  ]);
+
+  return { total, shortlisted, selected, rejected, interviewing };
+}
+
+/**
+ * Recruiter dashboard aggregate stats (all posted jobs)
+ * GET /api/recruiters/dashboard-stats
+ */
+export async function getRecruiterDashboardStats(req, res) {
+  try {
+    const recruiter = await resolveRecruiterForUser(req.userId);
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter profile not found' });
+    }
+
+    const postedJobs = await prisma.job.findMany({
+      where: {
+        recruiterId: recruiter.id,
+        OR: [{ status: 'POSTED' }, { isPosted: true }],
+      },
+      select: {
+        id: true,
+        jobTitle: true,
+        postedAt: true,
+        createdAt: true,
+      },
+    });
+
+    const jobIds = postedJobs.map((j) => j.id);
+    const stats = await aggregateApplicationStats(jobIds);
+    const selectionRate = stats.total > 0 ? Math.round((stats.selected / stats.total) * 100) : null;
+
+    const recentApplications = jobIds.length
+      ? await prisma.application.findMany({
+        where: { jobId: { in: jobIds } },
+        orderBy: [{ appliedDate: 'desc' }, { createdAt: 'desc' }],
+        take: 30,
+        include: {
+          student: {
+            select: {
+              fullName: true,
+              email: true,
+              school: true,
+            },
+          },
+          job: {
+            select: {
+              id: true,
+              jobTitle: true,
+            },
+          },
+        },
+      })
+      : [];
+
+    const schoolCounts = {};
+    if (jobIds.length) {
+      const allApps = await prisma.application.findMany({
+        where: { jobId: { in: jobIds } },
+        select: { student: { select: { school: true } } },
+      });
+      allApps.forEach((app) => {
+        const school = app.student?.school || 'Other';
+        schoolCounts[school] = (schoolCounts[school] || 0) + 1;
+      });
+    }
+
+    res.json({
+      jobsPosted: postedJobs.length,
+      stats,
+      selectionRate,
+      schoolCounts,
+      recentApplications: recentApplications.map((app) => ({
+        id: app.id,
+        appliedAt: app.appliedDate || app.createdAt,
+        jobId: app.job?.id || app.jobId,
+        jobTitle: app.job?.jobTitle || 'Job',
+        student: app.student,
+        status: app.status,
+        screeningStatus: app.screeningStatus,
+        interviewStatus: app.interviewStatus,
+      })),
+    });
+  } catch (error) {
+    console.error('Get recruiter dashboard stats error:', error);
+    res.status(500).json({ error: 'Failed to load recruiter dashboard stats' });
+  }
+}
+
+/**
+ * Company-level recruiter team analytics
+ * GET /api/recruiters/company-analytics
+ */
+export async function getRecruiterCompanyAnalytics(req, res) {
+  try {
+    const recruiter = await resolveRecruiterForUser(req.userId);
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter profile not found' });
+    }
+
+    const teamRecruiters = recruiter.companyId
+      ? await prisma.recruiter.findMany({
+        where: { companyId: recruiter.companyId },
+        include: {
+          user: { select: { status: true, displayName: true, email: true } },
+        },
+      })
+      : [recruiter];
+
+    const activeRecruiters = teamRecruiters.filter(
+      (r) => (r.user?.status || 'ACTIVE').toUpperCase() === 'ACTIVE',
+    );
+    const managerRecruiters = teamRecruiters.filter(isManagerRecruiter);
+
+    const hrByCenter = {};
+    activeRecruiters.forEach((r) => {
+      const center = r.location || 'Not specified';
+      hrByCenter[center] = (hrByCenter[center] || 0) + 1;
+    });
+
+    const managerByCenter = {};
+    managerRecruiters.forEach((r) => {
+      const center = r.location || 'Not specified';
+      managerByCenter[center] = (managerByCenter[center] || 0) + 1;
+    });
+
+    const teamRecruiterIds = teamRecruiters.map((r) => r.id);
+    const companyJobs = await prisma.job.findMany({
+      where: { recruiterId: { in: teamRecruiterIds } },
+      select: {
+        id: true,
+        status: true,
+        isPosted: true,
+        postedAt: true,
+        createdAt: true,
+        targetSchools: true,
+        companyLocation: true,
+        location: true,
+      },
+    });
+
+    const postedJobs = companyJobs.filter(isPostedJob);
+    const totalDrives = postedJobs.length;
+    const jobPostingFrequency = companyJobs.length;
+
+    const driveByMonth = {};
+    const last12Months = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      last12Months.push(monthKey);
+      driveByMonth[monthKey] = 0;
+    }
+
+    postedJobs.forEach((job) => {
+      const jobDate = job.postedAt || job.createdAt;
+      if (!jobDate) return;
+      const monthKey = new Date(jobDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      if (Object.prototype.hasOwnProperty.call(driveByMonth, monthKey)) {
+        driveByMonth[monthKey] += 1;
+      }
+    });
+
+    const jobsBySchool = {};
+    companyJobs.forEach((job) => {
+      let schools = job.targetSchools || [];
+      if (typeof schools === 'string') {
+        try {
+          schools = JSON.parse(schools);
+        } catch {
+          schools = [];
+        }
+      }
+      if (Array.isArray(schools) && schools.length > 0) {
+        schools.forEach((school) => {
+          jobsBySchool[school] = (jobsBySchool[school] || 0) + 1;
+        });
+      }
+    });
+
+    res.json({
+      companyName: recruiter.company?.name || recruiter.companyName || null,
+      stats: {
+        totalHRs: activeRecruiters.length,
+        totalManagers: managerRecruiters.length,
+        totalDrives,
+        jobPostingFrequency,
+      },
+      charts: {
+        hrDistribution: {
+          labels: Object.keys(hrByCenter).length ? Object.keys(hrByCenter) : ['Not specified'],
+          data: Object.keys(hrByCenter).length ? Object.values(hrByCenter) : [activeRecruiters.length || 0],
+        },
+        managerDistribution: {
+          labels: Object.keys(managerByCenter),
+          data: Object.values(managerByCenter),
+        },
+        driveParticipation: {
+          labels: last12Months,
+          data: last12Months.map((month) => driveByMonth[month] || 0),
+        },
+        jobPostingFrequency: {
+          labels: Object.keys(jobsBySchool).length ? Object.keys(jobsBySchool) : ['All Schools'],
+          data: Object.keys(jobsBySchool).length ? Object.values(jobsBySchool) : [jobPostingFrequency],
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get recruiter company analytics error:', error);
+    res.status(500).json({ error: 'Failed to load recruiter company analytics' });
+  }
+}
+
 /**
  * List MOU documents for the authenticated recruiter
  * GET /api/recruiters/mou

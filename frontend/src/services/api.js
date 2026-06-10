@@ -588,7 +588,10 @@ export const api = {
   }),
 
   // Students
-  getStudentProfile: (studentId) => apiRequest(studentId ? `/students/profile?studentId=${studentId}` : '/students/profile'),
+  getStudentProfile: (studentId, options = {}) => apiRequest(
+    studentId ? `/students/profile?studentId=${studentId}` : '/students/profile',
+    { noCache: options.noCache },
+  ),
   updateStudentProfile: (data) => apiRequest('/students/profile', {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -623,7 +626,10 @@ export const api = {
     const query = toQueryString(params);
     return apiRequest(`/students?${query}`);
   },
-  getStudentSkills: (studentId) => apiRequest(studentId ? `/students/skills?studentId=${studentId}` : '/students/skills'),
+  getStudentSkills: (studentId, options = {}) => apiRequest(
+    studentId ? `/students/skills?studentId=${studentId}` : '/students/skills',
+    { noCache: options.noCache },
+  ),
   addOrUpdateSkill: (skill) => apiRequest('/students/skills', {
     method: 'POST',
     body: JSON.stringify(skill),
@@ -835,6 +841,10 @@ export const api = {
       return data;
     });
   },
+
+  // Recruiter dashboard & analytics
+  getRecruiterDashboardStats: () => apiRequest('/recruiters/dashboard-stats'),
+  getRecruiterCompanyAnalytics: () => apiRequest('/recruiters/company-analytics'),
 
   // Recruiter MOU (stored in Cloudinary)
   getMouDocuments: () => apiRequest('/recruiters/mou'),

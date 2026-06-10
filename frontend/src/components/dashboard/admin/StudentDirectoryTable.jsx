@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Download, Edit3, Eye, Loader, Search, ShieldAlert, ShieldOff } from 'lucide-react';
+import { Download, Edit3, Eye, FileSpreadsheet, Loader, Search, ShieldAlert, ShieldOff } from 'lucide-react';
 
 const ACTIONS_WIDTH = 144;
 
@@ -184,6 +184,10 @@ export default function StudentDirectoryTable({
   searchQuery = '',
   onSearchChange,
   onExport,
+  onExportToSheets,
+  sheetsExporting = false,
+  onConfigureSheets,
+  showSheetsConfig = false,
   operationLoading = false,
   canModifyStudents,
   isSuperAdmin,
@@ -241,9 +245,32 @@ export default function StudentDirectoryTable({
           </div>
           <button
             type="button"
+            onClick={onExportToSheets}
+            disabled={sheetsExporting}
+            className="p-2 border border-slate-200 rounded-xl text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 active:scale-95 transition-all bg-white disabled:opacity-50"
+            title="Export to Google Sheets"
+          >
+            {sheetsExporting ? (
+              <Loader className="w-5 h-5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-5 h-5" />
+            )}
+          </button>
+          {showSheetsConfig && (
+            <button
+              type="button"
+              onClick={onConfigureSheets}
+              className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50"
+              title="Configure Google Sheets workbook"
+            >
+              Sheets setup
+            </button>
+          )}
+          <button
+            type="button"
             onClick={onExport}
             className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 hover:border-slate-300 active:scale-95 transition-all bg-white"
-            title="Export Directory"
+            title="Export CSV"
           >
             <Download className="w-5 h-5" />
           </button>

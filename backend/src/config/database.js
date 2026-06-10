@@ -34,33 +34,39 @@ function getOptimizedDatabaseUrl() {
     throw new Error('CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://) or a local SQLite file (file:).');
   }
 
-  // PostgreSQL: add connection pool parameters
+  // PostgreSQL: keep pool small — Render shares a low connection budget across clients/processes
+  const connectionLimit = process.env.DATABASE_CONNECTION_LIMIT || '5';
+  const poolTimeout = process.env.DATABASE_POOL_TIMEOUT || '30';
+
   try {
     const urlObj = new URL(url);
-    if (!urlObj.searchParams.has('connection_limit')) {
-      urlObj.searchParams.set('connection_limit', '10');
-    }
-    if (!urlObj.searchParams.has('pool_timeout')) {
-      urlObj.searchParams.set('pool_timeout', '20');
-    }
+    urlObj.searchParams.set('connection_limit', connectionLimit);
+    urlObj.searchParams.set('pool_timeout', poolTimeout);
     if (!urlObj.searchParams.has('connect_timeout')) {
-      urlObj.searchParams.set('connect_timeout', '10');
+      urlObj.searchParams.set('connect_timeout', '15');
     }
     return urlObj.toString();
   } catch (error) {
     console.warn('Failed to parse DATABASE_URL for optimization:', error.message);
-    return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}connection_limit=${connectionLimit}&pool_timeout=${poolTimeout}&connect_timeout=15`;
   }
 }
 
 const optimizedDatabaseUrl = getOptimizedDatabaseUrl();
 process.env.DATABASE_URL = optimizedDatabaseUrl;
 
-const prisma = new PrismaClient({
+const globalForPrisma = globalThis;
+
+const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: process.env.NODE_ENV === 'development'
     ? ['error', 'warn']
     : ['error'],
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
 
 process.on('beforeExit', async () => {
   await prisma.$disconnect();

@@ -27,6 +27,10 @@ import {
   getCompanyPerformance,
   getAdminPerformanceAnalytics
 } from '../controllers/analytics.js';
+import {
+  getGoogleSheetsSettings,
+  updateGoogleSheetsSettings,
+} from '../controllers/googleSheetsConfig.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -56,6 +60,9 @@ router.patch('/admins/:userId', updateAdmin);
 router.get('/admins/:userId/performance', getAdminPerformance);
 router.get('/stats', getSuperAdminStats);
 router.get('/stats/summary', getStatsSummary);
+
+router.get('/google-sheets/config', getGoogleSheetsSettings);
+router.put('/google-sheets/config', updateGoogleSheetsSettings);
 
 // Analytics (Control Tower)
 router.get('/analytics/overview', getOverview);

@@ -338,9 +338,5 @@ export async function getAdminStudentProfilePanel(studentId) {
 }
 
 export async function getStudentPanelExtras(studentId) {
-  const panel = await getAdminStudentProfilePanel(studentId);
-  if (!panel) return null;
-  return {
-    ...panel,
-  };
+  return getAdminStudentProfilePanel(studentId);
 }

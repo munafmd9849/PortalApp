@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database.js';
 import {
   parseCodingQuestions,
   serializeCodingQuestions,
@@ -6,8 +6,6 @@ import {
   hydrateDrive,
 } from '../utils/mockInterviewCoding.js';
 import { buildMockSlotResult } from '../utils/mockInterviewFeedback.js';
-
-const prisma = new PrismaClient();
 
 function defaultDraftSchedule() {
   const start = new Date();

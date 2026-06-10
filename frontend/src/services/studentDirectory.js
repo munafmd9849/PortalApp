@@ -25,7 +25,17 @@ export async function exportStudentDirectory(params = {}) {
   return res?.data ?? res;
 }
 
+export async function exportStudentDirectoryToGoogleSheets(params = {}) {
+  const res = await api.post(
+    `/admin/student-directory/export/google-sheets${buildQuery(params)}`,
+    undefined,
+    { silent: true },
+  );
+  return res?.data ?? res;
+}
+
 export async function fetchStudentPanelExtras(studentId) {
   const res = await api.get(`/admin/student-directory/${studentId}/panel`, { noCache: true });
-  return res?.data ?? res;
+  const data = res?.data ?? res;
+  return data;
 }

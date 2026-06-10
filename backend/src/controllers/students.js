@@ -1024,7 +1024,14 @@ export async function getAllStudents(req, res) {
     console.log('   Where clause:', JSON.stringify(where, null, 2));
     console.log('   Pagination:', { page: pageNum, limit: limitNum });
 
-    const [students, totalCount] = await Promise.all([
+    const buildBaseWhere = () => {
+      const base = { ...where };
+      delete base.user;
+      return base;
+    };
+    const baseWhere = buildBaseWhere();
+
+    const [students, totalCount, statusBreakdown] = await Promise.all([
       prisma.student.findMany({
         where,
         skip: (pageNum - 1) * limitNum,
@@ -1047,6 +1054,14 @@ export async function getAllStudents(req, res) {
         },
       }),
       prisma.student.count({ where }),
+      Promise.all([
+        prisma.student.count({ where: { ...baseWhere, user: { status: 'ACTIVE' } } }),
+        prisma.student.count({ where: { ...baseWhere, user: { status: 'BLOCKED' } } }),
+        prisma.student.count({
+          where: { ...baseWhere, user: { status: { in: ['INACTIVE', 'PENDING', 'REJECTED'] } } },
+        }),
+        prisma.student.count({ where: baseWhere }),
+      ]).then(([active, blocked, inactive, total]) => ({ total, active, blocked, inactive })),
     ]);
 
     console.log('✅ getAllStudents - Query successful');
@@ -1100,6 +1115,7 @@ export async function getAllStudents(req, res) {
 
     const response = {
       students: safeStudents,
+      statusBreakdown,
       pagination: {
         page: pageNum,
         limit: limitNum,

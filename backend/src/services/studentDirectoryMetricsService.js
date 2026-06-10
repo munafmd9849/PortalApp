@@ -426,6 +426,22 @@ export function mapStudentToDirectoryRow(
 /**
  * Paginated directory rows with all computed fields.
  */
+async function computeDirectoryStatusBreakdown(query = {}) {
+  const { status: _status, page: _page, limit: _limit, sortBy: _sortBy, sortDir: _sortDir, tier: _tier, minReadiness: _minReadiness, csStatus: _csStatus, activityTier: _activityTier, ...rest } = query;
+  const baseWhere = buildDirectoryWhere(rest);
+
+  const [active, blocked, inactive, total] = await Promise.all([
+    prisma.student.count({ where: { ...baseWhere, user: { status: 'ACTIVE' } } }),
+    prisma.student.count({ where: { ...baseWhere, user: { status: 'BLOCKED' } } }),
+    prisma.student.count({
+      where: { ...baseWhere, user: { status: { in: ['INACTIVE', 'PENDING', 'REJECTED'] } } },
+    }),
+    prisma.student.count({ where: baseWhere }),
+  ]);
+
+  return { total, active, blocked, inactive };
+}
+
 export async function getStudentDirectory(query = {}) {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
   const limit = Math.min(500, Math.max(1, parseInt(query.limit, 10) || 50));
@@ -479,14 +495,22 @@ export async function getStudentDirectory(query = {}) {
     filtered = filtered.filter((r) => r.placementReadiness?.tier === t);
   }
 
+  const summary = {
+    totalStudents: summaryTotal,
+    activeStudents,
+    blockedStudents,
+    pendingStudents,
+    rejectedStudents,
+  };
+
   return {
     students: filtered,
-    summary: {
-      totalStudents: summaryTotal,
-      activeStudents,
-      blockedStudents,
-      pendingStudents,
-      rejectedStudents,
+    summary,
+    statusBreakdown: {
+      total: summaryTotal,
+      active: activeStudents,
+      blocked: blockedStudents,
+      inactive: Math.max(0, summaryTotal - activeStudents - blockedStudents),
     },
     pagination: {
       page,

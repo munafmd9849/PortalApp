@@ -1,7 +1,8 @@
 /**
- * Creates a 25-question mixed assessment (MCQ + Coding + Descriptive)
+ * Creates mixed assessments (25 questions each: MCQ + Coding + Descriptive)
  * with all coding languages, assigned to batch 2024-2028.
- * Run: node scripts/seedMixedAssessment.js
+ * Run: node scripts/seedMixedAssessment.js [count]
+ * Example: node scripts/seedMixedAssessment.js 10
  */
 import prisma from '../src/config/database.js';
 import {
@@ -12,8 +13,13 @@ import { serializeStarterCodesForStorage } from '../src/coding-engine/starterCod
 import { findStudentsForBatchIds } from '../src/utils/studentAssignmentScope.js';
 
 const BATCH_YEAR = '2024-2028';
-const ASSESSMENT_TITLE = 'Comprehensive Mixed Assessment (2024-2028)';
 const ALL_LANGS = ['javascript', 'python', 'java', 'cpp'];
+const DEFAULT_COUNT = 10;
+
+function assessmentTitle(index, total) {
+  if (total === 1) return 'Comprehensive Mixed Assessment (2024-2028)';
+  return `Mixed Assessment ${String(index).padStart(2, '0')} (2024-2028)`;
+}
 
 const MCQ_QUESTIONS = [
   {
@@ -588,44 +594,25 @@ function buildQuestions() {
   return rows;
 }
 
-async function main() {
-  const batch = await prisma.batch.findFirst({
-    where: {
-      OR: [
-        { year: BATCH_YEAR },
-        { label: { contains: '24-28', mode: 'insensitive' } },
-      ],
-    },
-  });
-
-  if (!batch) {
-    console.error(`Batch "${BATCH_YEAR}" not found. Create it in Admin → Batches first.`);
-    process.exit(1);
-  }
-
-  const existing = await prisma.assessment.findFirst({
-    where: { title: ASSESSMENT_TITLE },
-  });
-
+async function createMixedAssessment({ batch, batchStudents, title, index, total }) {
+  const existing = await prisma.assessment.findFirst({ where: { title } });
   if (existing) {
-    console.log('Assessment already exists:', existing.id);
-    console.log('Title:', existing.title);
-    process.exit(0);
+    console.log(`Skip (exists): ${title} [${existing.id}]`);
+    return null;
   }
 
   const now = new Date();
   const end = new Date(now);
   end.setDate(end.getDate() + 30);
 
-  const batchStudents = await findStudentsForBatchIds([batch.id]);
   const studentAssignments = batchStudents.map((s) => ({ studentId: s.id }));
   const questions = buildQuestions();
 
   const assessment = await prisma.assessment.create({
     data: {
-      title: ASSESSMENT_TITLE,
+      title,
       description:
-        'Full mixed assessment: 10 MCQ, 10 coding (all languages), and 5 descriptive questions for batch 2024-2028.',
+        `Mixed assessment ${index} of ${total}: 10 MCQ, 10 coding (all languages), and 5 descriptive questions for batch ${BATCH_YEAR}.`,
       type: 'MIXED',
       difficulty: 'MEDIUM',
       duration: 120,
@@ -658,16 +645,54 @@ async function main() {
     return acc;
   }, {});
 
-  console.log('Created mixed assessment');
-  console.log('  ID:', assessment.id);
-  console.log('  Title:', assessment.title);
-  console.log('  Type:', assessment.type);
-  console.log('  Batch:', batch.year, `(${batch.label || batch.id})`);
-  console.log('  Questions:', assessment.questions.length, byType);
-  console.log('  Coding languages:', ALL_LANGS.join(', '));
-  console.log('  Assignments:', assessment.assignments.length);
-  console.log('  Students in batch:', batchStudents.length);
-  console.log('  Window:', now.toISOString(), '→', end.toISOString());
+  console.log(`Created: ${assessment.title}`);
+  console.log(`  ID: ${assessment.id}`);
+  console.log(`  Questions: ${assessment.questions.length}`, byType);
+  return assessment;
+}
+
+async function main() {
+  const countArg = parseInt(process.argv[2], 10);
+  const total = Number.isFinite(countArg) && countArg > 0 ? countArg : DEFAULT_COUNT;
+
+  const batch = await prisma.batch.findFirst({
+    where: {
+      OR: [
+        { year: BATCH_YEAR },
+        { label: { contains: '24-28', mode: 'insensitive' } },
+      ],
+    },
+  });
+
+  if (!batch) {
+    console.error(`Batch "${BATCH_YEAR}" not found. Create it in Admin → Batches first.`);
+    process.exit(1);
+  }
+
+  const batchStudents = await findStudentsForBatchIds([batch.id]);
+  const created = [];
+
+  for (let i = 1; i <= total; i += 1) {
+    const title = assessmentTitle(i, total);
+    const assessment = await createMixedAssessment({
+      batch,
+      batchStudents,
+      title,
+      index: i,
+      total,
+    });
+    if (assessment) created.push(assessment);
+  }
+
+  console.log('\n--- Summary ---');
+  console.log(`Batch: ${batch.year} (${batch.label || batch.id})`);
+  console.log(`Students in batch: ${batchStudents.length}`);
+  console.log(`Requested: ${total} | Created: ${created.length} | Skipped: ${total - created.length}`);
+  console.log(`Coding languages: ${ALL_LANGS.join(', ')}`);
+  if (created.length) {
+    console.log('New assessment IDs:');
+    created.forEach((a) => console.log(`  - ${a.title}: ${a.id}`));
+  }
 }
 
 main()

@@ -7,8 +7,9 @@ import { Loader, Download, Upload, SquarePen, User, Activity, TrendingUp, Gradua
 import PWIOILOGO from '../../../assets/images/brand_logo.webp';
 import { getAllStudents, updateStudentProfile } from '../../../services/students';
 import { fetchStudentsWithScores } from '../../../services/adminReadiness';
-import { fetchStudentDirectory, exportStudentDirectory, fetchStudentPanelExtras } from '../../../services/studentDirectory';
+import { fetchStudentDirectory, exportStudentDirectory, exportStudentDirectoryToGoogleSheets, fetchStudentPanelExtras } from '../../../services/studentDirectory';
 import StudentDirectoryTable from './StudentDirectoryTable';
+import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import DirectoryLoadingPanel from './DirectoryLoading';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../services/api';
@@ -195,30 +196,46 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen || !student) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-green-600 to-emerald-600">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FaEdit className="text-green-200" />
+  const inputClass = (hasError) =>
+    `w-full px-4 py-3 border rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${
+      hasError
+        ? 'border-rose-300 bg-rose-50 focus:border-rose-400'
+        : 'border-slate-200 bg-white focus:border-emerald-400'
+    }`;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <FaEdit className="text-emerald-600" />
             Edit Student
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-all duration-200"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="Close"
           >
-            <FaTimes size={20} />
+            <FaTimes size={18} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 bg-gray-50">
-          <div className="space-y-5">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Full Name *
               </label>
               <input
@@ -226,17 +243,14 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.fullName
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
-                  }`}
+                className={inputClass(errors.fullName)}
                 placeholder="Enter student's full name"
               />
-              {errors.fullName && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.fullName}</p>}
+              {errors.fullName && <p className="text-rose-600 text-xs mt-1.5 font-medium">{errors.fullName}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Email Address *
               </label>
               <input
@@ -244,17 +258,14 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.email
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
-                  }`}
+                className={inputClass(errors.email)}
                 placeholder="Enter student email"
               />
-              {errors.email && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.email}</p>}
+              {errors.email && <p className="text-rose-600 text-xs mt-1.5 font-medium">{errors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Phone Number *
               </label>
               <input
@@ -262,17 +273,14 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.phone
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
-                  }`}
+                className={inputClass(errors.phone)}
                 placeholder="+91 12345 67890"
               />
-              {errors.phone && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.phone}</p>}
+              {errors.phone && <p className="text-rose-600 text-xs mt-1.5 font-medium">{errors.phone}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 CGPA *
               </label>
               <input
@@ -283,22 +291,18 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 min="0"
                 max="10"
                 step="0.01"
-                placeholder="Enter CGPA (0-10)"
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.cgpa
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
-                  }`}
+                placeholder="e.g. 9.00"
+                className={inputClass(errors.cgpa)}
               />
-              {errors.cgpa && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.cgpa}</p>}
+              {errors.cgpa && <p className="text-rose-600 text-xs mt-1.5 font-medium">{errors.cgpa}</p>}
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+          <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold transition-all duration-200 border-2 border-gray-200"
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors"
               disabled={loading}
             >
               Cancel
@@ -306,15 +310,16 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
-              {loading && <Loader className="h-4 w-4 animate-spin mr-2" />}
+              {loading && <Loader className="h-4 w-4 animate-spin" />}
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -558,6 +563,8 @@ export default function StudentDirectory() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [operationLoading, setOperationLoading] = useState(false);
+  const [sheetsExporting, setSheetsExporting] = useState(false);
+  const [showSheetsConfigModal, setShowSheetsConfigModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [dashboardData, setDashboardData] = useState({ loading: true, error: null, jobs: [], applications: [], skills: [] });
   const studentsPerPage = 50;
@@ -687,6 +694,15 @@ export default function StudentDirectory() {
       setTotalStudents(paginationData.total || studentsArray.length);
       if (studentsData?.summary) {
         setStudentSummary(studentsData.summary);
+      } else if (studentsData?.statusBreakdown) {
+        const b = studentsData.statusBreakdown;
+        setStudentSummary({
+          totalStudents: b.total ?? 0,
+          activeStudents: b.active ?? 0,
+          blockedStudents: b.blocked ?? 0,
+          pendingStudents: 0,
+          rejectedStudents: 0,
+        });
       }
 
       // Format students with safe defaults
@@ -943,7 +959,51 @@ export default function StudentDirectory() {
     }
   }, [filters, appliedSearch]);
 
-  
+  const exportToGoogleSheets = useCallback(async () => {
+    setSheetsExporting(true);
+    try {
+      const result = await exportStudentDirectoryToGoogleSheets({
+        search: appliedSearch,
+        center: filters.center,
+        school: filters.school,
+        status: filters.status,
+        batch: filters.batch,
+        minCgpa: filters.minCgpa,
+        maxCgpa: filters.maxCgpa,
+        tier: filters.tier,
+        limit: 2000,
+        page: 1,
+      });
+
+      if (result?.error) {
+        throw new Error(result.message || result.error);
+      }
+
+      const rowCount = result?.rowCount ?? 0;
+      const tabName = result?.tabName || 'new tab';
+      if (result?.spreadsheetUrl) {
+        window.open(result.spreadsheetUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      alert(`Exported ${rowCount} students to Google Sheets tab "${tabName}".`);
+    } catch (error) {
+      console.error('Google Sheets export error:', error);
+      const message = error?.response?.data?.message
+        || error?.response?.data?.error
+        || error?.message
+        || 'Failed to export to Google Sheets';
+
+      const isSuperAdminUser = (user?.role || user?.userType || '').toLowerCase() === 'super_admin';
+      if (error?.response?.status === 503 && isSuperAdminUser) {
+        const openConfig = window.confirm(`${message}\n\nOpen Google Sheets setup now?`);
+        if (openConfig) setShowSheetsConfigModal(true);
+      } else {
+        alert(message);
+      }
+    } finally {
+      setSheetsExporting(false);
+    }
+  }, [filters, appliedSearch, user]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -1205,7 +1265,6 @@ export default function StudentDirectory() {
     }
   };
 
-  // Calculate statistics from ALL students (not filtered) - must be before conditional returns to follow Rules of Hooks
   const stats = studentSummary;
 
   if (loading) {
@@ -1471,6 +1530,10 @@ export default function StudentDirectory() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onExport={() => downloadFilteredStudents('export')}
+              onExportToSheets={exportToGoogleSheets}
+              sheetsExporting={sheetsExporting}
+              showSheetsConfig={isSuperAdmin()}
+              onConfigureSheets={() => setShowSheetsConfigModal(true)}
               operationLoading={operationLoading}
               canModifyStudents={canModifyStudents}
               isSuperAdmin={isSuperAdmin}
@@ -1544,6 +1607,11 @@ export default function StudentDirectory() {
         isUnblocking={selectedStudent?.status === 'Blocked'}
         canUnblockPermanent={isSuperAdmin()}
         onConfirm={handleBlockConfirm}
+      />
+
+      <GoogleSheetsConfigModal
+        isOpen={showSheetsConfigModal}
+        onClose={() => setShowSheetsConfigModal(false)}
       />
 
       {/* Student Profile Sidebar */}
@@ -1723,6 +1791,11 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
       .join('')
       .substring(0, 2)
       .toUpperCase();
+  };
+
+  const getSkillLabel = (skill) => {
+    if (typeof skill === 'string') return skill.trim();
+    return (skill?.skillName || skill?.name || skill?.title || '').trim();
   };
 
   const readiness = getReadinessDisplay(
@@ -2127,15 +2200,28 @@ const StudentDashboardPanel = ({ isOpen, onClose, student, dashboardData }) => {
                       <CheckCircle2 className="w-4.5 h-4.5 text-indigo-500" /> Skills
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {dashboardData.skills?.map((skill, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100"
-                        >
-                          {typeof skill === 'string' ? skill : (skill.name || skill.title)}
-                        </span>
-                      ))}
-                      {(!dashboardData.skills || dashboardData.skills.length === 0) && (
+                      {dashboardData.skills
+                        ?.map((skill, idx) => ({
+                          key: skill?.id || idx,
+                          label: getSkillLabel(skill),
+                          skill: typeof skill === 'object' ? skill : null,
+                        }))
+                        .filter(({ label }) => label)
+                        .map(({ key, label, skill }) => (
+                          <span
+                            key={key}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100"
+                          >
+                            {label}
+                            {typeof skill?.rating === 'number' && skill.rating > 0 && (
+                              <span className="text-[10px] font-bold text-indigo-500/80">
+                                {skill.rating}/5
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      {(!dashboardData.skills?.length ||
+                        !dashboardData.skills.some((skill) => getSkillLabel(skill))) && (
                         <span className="text-slate-400 text-xs font-medium">No verified skills entered.</span>
                       )}
                     </div>

@@ -8,9 +8,9 @@ import api from './api.js';
 /**
  * Get student profile (includes skills, education, projects, achievements)
  */
-export const getStudentProfile = async (studentId) => {
+export const getStudentProfile = async (studentId, options = {}) => {
   try {
-    const profile = await api.getStudentProfile(studentId);
+    const profile = await api.getStudentProfile(studentId, options);
     return profile;
   } catch (error) {
     console.error('getStudentProfile error:', error);
@@ -61,10 +61,10 @@ export const updateCompleteStudentProfile = async (studentId, profileData, skill
 /**
  * Get student skills
  */
-export const getStudentSkills = async (studentId) => {
+export const getStudentSkills = async (studentId, options = {}) => {
   try {
-    const skills = await api.getStudentSkills(studentId);
-    return skills;
+    const skills = await api.getStudentSkills(studentId, options);
+    return Array.isArray(skills) ? skills : [];
   } catch (error) {
     console.error('getStudentSkills error:', error);
     throw error;

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Shield, Clock, Calendar, ChevronRight, 
   CheckCircle, AlertCircle, PlayCircle, 
   Camera, Users, FileText, Activity,
-  Lock, ArrowRight, Star
+  Lock, ArrowRight, Star, Terminal, BookOpen, Layers
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
@@ -32,9 +32,30 @@ export default function StudentAssessments() {
     fetchAssessments();
   }, [fetchAssessments]);
 
+  const stats = useMemo(() => {
+    const sessionOf = (a) => a.sessions?.[0];
+    const pending = assessments.filter((a) => !sessionOf(a)).length;
+    const ongoing = assessments.filter((a) => sessionOf(a)?.status === 'IN_PROGRESS').length;
+    const completed = assessments.filter((a) => {
+      const status = sessionOf(a)?.status;
+      return status === 'COMPLETED' || status === 'PENDING_REVIEW';
+    }).length;
+    const scoredSessions = assessments
+      .map(sessionOf)
+      .filter((s) => (s?.status === 'COMPLETED' || s?.status === 'PENDING_REVIEW') && typeof s.score === 'number');
+    const avgScore = scoredSessions.length
+      ? Math.round(scoredSessions.reduce((sum, s) => sum + s.score, 0) / scoredSessions.length)
+      : null;
+
+    return { pending, ongoing, completed, avgScore };
+  }, [assessments]);
+
+  const isFinishedSession = (status) => status === 'COMPLETED' || status === 'PENDING_REVIEW';
+
   const getStatusConfig = (status) => {
     switch (status) {
       case 'COMPLETED': return { color: 'text-emerald-600 bg-emerald-50 border-emerald-100', label: 'Completed' };
+      case 'PENDING_REVIEW': return { color: 'text-violet-600 bg-violet-50 border-violet-100', label: 'Awaiting Review' };
       case 'IN_PROGRESS': return { color: 'text-amber-600 bg-amber-50 border-amber-100', label: 'In Progress' };
       default: return { color: 'text-indigo-600 bg-indigo-50 border-indigo-100', label: 'Not Started' };
     }
@@ -43,6 +64,9 @@ export default function StudentAssessments() {
   const getTypeIcon = (type) => {
     switch (type) {
       case 'MOCK_TEST': return <FileText className="w-5 h-5" />;
+      case 'CODING_TEST': return <Terminal className="w-5 h-5" />;
+      case 'DESCRIPTIVE': return <BookOpen className="w-5 h-5" />;
+      case 'MIXED': return <Layers className="w-5 h-5" />;
       case 'MOCK_INTERVIEW_AUTO': return <Camera className="w-5 h-5" />;
       case 'MOCK_INTERVIEW_LIVE': return <Users className="w-5 h-5" />;
       default: return <Activity className="w-5 h-5" />;
@@ -82,10 +106,10 @@ export default function StudentAssessments() {
       {/* Statistics Row (Mini-cards) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          {[
-           { label: 'Pending Tests', val: assessments.filter(a => !a.sessions?.length).length, color: 'indigo' },
-           { label: 'Completed', val: assessments.filter(a => a.sessions?.[0]?.status === 'COMPLETED').length, color: 'emerald' },
-           { label: 'Ongoing', val: assessments.filter(a => a.sessions?.[0]?.status === 'IN_PROGRESS').length, color: 'amber' },
-           { label: 'Avg Score', val: '84%', color: 'purple' }
+           { label: 'Pending Tests', val: stats.pending, color: 'indigo' },
+           { label: 'Completed', val: stats.completed, color: 'emerald' },
+           { label: 'Ongoing', val: stats.ongoing, color: 'amber' },
+           { label: 'Avg Score', val: stats.avgScore !== null ? `${stats.avgScore}%` : '—', color: 'purple' }
          ].map((stat, i) => (
            <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
@@ -103,7 +127,7 @@ export default function StudentAssessments() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         {assessments.map((item) => {
           const session = item.sessions?.[0];
-          const isCompleted = session?.status === 'COMPLETED';
+          const isCompleted = isFinishedSession(session?.status);
           const assignment =
             item.assignments?.find((a) => a.scheduledAt) ||
             item.assignments?.find((a) => a.studentId) ||

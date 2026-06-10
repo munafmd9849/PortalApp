@@ -32,7 +32,7 @@ function CompanyFilterDropdown({ companies, value, onChange }) {
   }, []);
 
   return (
-    <div className="relative w-full lg:w-72" ref={ref}>
+    <div className="relative w-full sm:w-72" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -261,7 +261,7 @@ export default function AdminApplicantsHub() {
 
       {/* Control Bar (Filters) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 w-full">
           <CompanyFilterDropdown
             companies={allCompanies}
             value={filters.company}
@@ -270,7 +270,7 @@ export default function AdminApplicantsHub() {
           {hasActiveFilters && (
             <button
               onClick={resetFilters}
-              className="p-2.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shrink-0"
+              className="p-2.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shrink-0 self-end sm:self-auto"
               title="Clear filter"
             >
               <X className="w-5 h-5" />

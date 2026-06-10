@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Doughnut, Bar, Line } from 'react-chartjs-2';
+import { Doughnut, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,10 +14,9 @@ import {
   Filler
 } from 'chart.js';
 import { 
-  FaFileAlt, FaCheckCircle, FaBullseye, FaPauseCircle, FaTimesCircle,
-  FaEye, FaBookmark, FaRegBookmark, FaCalendar, FaHourglassHalf, FaCheck,
-  FaGraduationCap, FaBriefcase, FaProjectDiagram, FaEnvelope, FaPhone, FaMapMarkerAlt,
-  FaUser, FaChartLine, FaBell, FaSearch, FaFilter, FaCog, FaQuestionCircle
+  FaFileAlt, FaCheckCircle, FaTimesCircle,
+  FaCalendar, FaHourglassHalf,
+  FaBriefcase, FaChartLine
 } from 'react-icons/fa';
 import api from '../../services/api';
 
@@ -35,10 +34,10 @@ ChartJS.register(
 );
 
 const RecruiterDashboard = () => {
-  // Actual data from API
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [jobsCount, setJobsCount] = useState(0);
+  const [selectionRate, setSelectionRate] = useState(null);
   const [aggregateStats, setAggregateStats] = useState({
     total: 0,
     shortlisted: 0,
@@ -46,80 +45,31 @@ const RecruiterDashboard = () => {
     rejected: 0,
     interviewing: 0,
   });
-  const [retentionRate, setRetentionRate] = useState(92); // Can be fetched from API later
-  const [recentApplications, setRecentApplications] = useState([]);
   const [schoolCounts, setSchoolCounts] = useState({});
-  const [jobTitles, setJobTitles] = useState({});
 
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const me = await api.getCurrentUser();
-      const recruiterId = me?.user?.recruiter?.id;
-      if (!recruiterId) {
-        setAggregateStats({ total: 0, shortlisted: 0, selected: 0, rejected: 0, interviewing: 0 });
-        setRecentApplications([]);
-        setSchoolCounts({});
-        setLoading(false);
-        return;
-      }
+      const data = await api.getRecruiterDashboardStats();
+      const stats = data?.stats || {};
 
-      const jobsRes = await api.getJobs({ recruiterId, limit: 100 });
-      const jobs = Array.isArray(jobsRes) ? jobsRes : (jobsRes?.jobs || []);
-      const jobMap = {};
-      jobs.forEach((j) => { jobMap[j.id] = j.jobTitle || j.title || 'Job'; });
-      setJobTitles(jobMap);
-      const postedJobs = jobs.filter((j) => j.isPosted || (j.status && String(j.status).toUpperCase() === 'POSTED'));
-      setJobsCount(postedJobs.length);
-
-      let total = 0;
-      let shortlisted = 0;
-      let selected = 0;
-      let rejected = 0;
-      let interviewing = 0;
-      const allApplications = [];
-      const schoolMap = {};
-
-      await Promise.all(
-        postedJobs.slice(0, 15).map(async (job) => {
-          try {
-            const res = await api.get(`/admin/jobs/${job.id}/applications`, {
-              params: { limit: 1, page: 1 },
-            });
-            const data = res?.data || res;
-            const stats = data.stats || {};
-            total += stats.totalApplications || 0;
-            shortlisted += stats.shortlisted || 0;
-            selected += stats.selected || 0;
-            rejected += stats.rejected || 0;
-            interviewing += stats.interviewing || 0;
-
-            const appRes = await api.get(`/admin/jobs/${job.id}/applications`, {
-              params: { limit: 25, page: 1, sortBy: 'appliedAt', order: 'desc' },
-            });
-            const appData = appRes?.data || appRes;
-            const apps = appData.applications || [];
-            apps.forEach((a) => {
-              allApplications.push({ ...a, jobId: job.id, jobTitle: jobMap[job.id] });
-              const school = a.student?.school || 'Other';
-              schoolMap[school] = (schoolMap[school] || 0) + 1;
-            });
-          } catch (_) {
-            // Skip job if no access or error
-          }
-        })
-      );
-
-      setAggregateStats({ total, shortlisted, selected, rejected, interviewing });
-      setSchoolCounts(schoolMap);
-      allApplications.sort((a, b) => new Date(b.appliedAt || 0) - new Date(a.appliedAt || 0));
-      setRecentApplications(allApplications.slice(0, 30));
+      setJobsCount(data?.jobsPosted ?? 0);
+      setSelectionRate(data?.selectionRate ?? null);
+      setAggregateStats({
+        total: stats.total ?? 0,
+        shortlisted: stats.shortlisted ?? 0,
+        selected: stats.selected ?? 0,
+        rejected: stats.rejected ?? 0,
+        interviewing: stats.interviewing ?? 0,
+      });
+      setSchoolCounts(data?.schoolCounts || {});
     } catch (err) {
       console.error('Recruiter dashboard load error:', err);
       setError(err?.message || 'Failed to load dashboard data');
+      setJobsCount(0);
+      setSelectionRate(null);
       setAggregateStats({ total: 0, shortlisted: 0, selected: 0, rejected: 0, interviewing: 0 });
-      setRecentApplications([]);
       setSchoolCounts({});
     } finally {
       setLoading(false);
@@ -130,11 +80,10 @@ const RecruiterDashboard = () => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // Stats data: Jobs Posted, Applications Received, Shortlisted (Hired)
   const statsData = useMemo(() => [
-    { label: 'Jobs Posted', value: jobsCount, trend: 0, color: 'from-violet-300 to-violet-400', icon: <FaBriefcase className="text-white" /> },
-    { label: 'Applications Received', value: aggregateStats.total, trend: 0, color: 'from-cyan-300 to-cyan-400', icon: <FaFileAlt className="text-white" /> },
-    { label: 'Shortlisted (Hired)', value: aggregateStats.selected, trend: 0, color: 'from-emerald-300 to-emerald-400', icon: <FaCheckCircle className="text-white" /> },
+    { label: 'Jobs Posted', value: jobsCount, color: 'from-violet-300 to-violet-400', icon: <FaBriefcase className="text-white" /> },
+    { label: 'Applications Received', value: aggregateStats.total, color: 'from-cyan-300 to-cyan-400', icon: <FaFileAlt className="text-white" /> },
+    { label: 'Shortlisted (Hired)', value: aggregateStats.selected, color: 'from-emerald-300 to-emerald-400', icon: <FaCheckCircle className="text-white" /> },
   ], [aggregateStats, jobsCount]);
 
   const totalForPct = aggregateStats.total || 1;
@@ -161,7 +110,6 @@ const RecruiterDashboard = () => {
     };
   }, [aggregateStats, totalForPct, pendingCount]);
 
-  // Pipeline chart - dynamic data: Shortlisted (Hired), Interviewing, Pending, Rejected
   const pipelineChartData = useMemo(() => {
     const pending = Math.max(0, aggregateStats.total - aggregateStats.selected - aggregateStats.rejected - aggregateStats.interviewing - aggregateStats.shortlisted);
     return {
@@ -179,7 +127,6 @@ const RecruiterDashboard = () => {
     };
   }, [aggregateStats]);
 
-  // Doughnut chart from actual school distribution
   const doughnutData = useMemo(() => {
     const labels = Object.keys(schoolCounts);
     const data = Object.values(schoolCounts);
@@ -224,29 +171,25 @@ const RecruiterDashboard = () => {
 
   return (
     <div>
-      {/* Retention Rate - top, styled like INDIA on banner */}
       <div className="mb-8">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
-          Retention rate of PW IOI alumni:{' '}
+          Selection rate across your posted jobs:{' '}
           <span className="italic px-1 rounded-xs bg-gradient-to-t from-yellow-400 to-yellow-400 bg-no-repeat [background-size:100%_25%] [background-position:0_100%] transition-all duration-300 ease-in-out hover:[background-size:100%_100%] hover:[background-position:100%_100%] underline decoration-yellow-400 decoration-2 underline-offset-2">
-            {retentionRate}%
+            {selectionRate !== null ? `${selectionRate}%` : '—'}
           </span>
         </h2>
+        <p className="text-sm text-gray-500 mt-2">
+          Based on {aggregateStats.total} application{aggregateStats.total === 1 ? '' : 's'} across {jobsCount} posted job{jobsCount === 1 ? '' : 's'}.
+        </p>
       </div>
 
-      {/* Masonry Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        
-        {/* Stats Cards: Jobs Posted, Applications Received, Shortlisted (Hired) */}
         <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {statsData.map((stat, index) => (
               <div key={index} className="bg-white p-5 rounded-lg shadow-sm border border-gray-100">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-gray-600 font-medium text-sm">{stat.label}</h3>
-                  <span className={`text-xs font-semibold ${stat.trend > 0 ? 'text-green-500' : 'text-rose-500'}`}>
-                    {stat.trend > 0 ? '+' : ''}{stat.trend}%
-                  </span>
                 </div>
                 <div className="flex items-end justify-between">
                   <span className="text-2xl font-bold text-gray-800">{stat.value}</span>
@@ -259,7 +202,6 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
-        {/* Pipeline Graph - Actual data */}
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 md:col-span-2 lg:col-span-3">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-gray-800 flex items-center">
@@ -290,7 +232,6 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
-        {/* Acquisition Breakdown */}
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100">
           <h2 className="text-lg font-bold text-gray-800 mb-6">Acquisition Breakdown</h2>
           <div className="space-y-5">
@@ -304,7 +245,7 @@ const RecruiterDashboard = () => {
                   <div
                     className={`h-2 rounded-full ${pipelineData.colors[index]}`}
                     style={{ width: `${pipelineData.percentages[index]}%` }}
-                  ></div>
+                  />
                 </div>
               </div>
             ))}
@@ -329,7 +270,6 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
-        {/* Track Applications Section - Shortlisted (Hired), Rejected, Pending, Interviewing */}
         <div className="bg-white bg-gradient-to-r from-cyan-400 via-green-100 to-green-500 p-5 rounded-lg shadow-sm border border-gray-100 md:col-span-2 lg:col-span-3 xl:col-span-4">
           <h2 className="text-lg font-bold text-gray-800 mb-6">Track Applications</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
