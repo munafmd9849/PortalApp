@@ -9,6 +9,7 @@ import {
   deleteEducationArray,
   getStudentProfile
 } from '../../../services/students';
+import { sanitizeScoreInput, hasAtMostTwoDecimals } from '../../../utils/scoreInput';
 
 const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEducation = null }) => {
   const { user } = useAuth();
@@ -310,6 +311,13 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
   };
 
   const handleInputChange = (field, value) => {
+    if (field === 'score') {
+      setCurrentEdu((prev) => ({
+        ...prev,
+        score: sanitizeScoreInput(value, prev.scoreType),
+      }));
+      return;
+    }
     setCurrentEdu((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -343,7 +351,11 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
       setError(`${currentEdu.scoreType} is required`);
       return;
     }
-    
+    if (!hasAtMostTwoDecimals(currentEdu.score)) {
+      setError(`${currentEdu.scoreType} can have at most 2 decimal places`);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -791,13 +803,11 @@ const EducationSection = ({ isAdminView = false, viewStudentId = null, initialEd
                   {currentEdu.scoreType} <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   required
-                  step={currentEdu.scoreType === 'CGPA' ? '0.01' : '0.1'}
-                  min={currentEdu.scoreType === 'CGPA' ? '0' : '0'}
-                  max={currentEdu.scoreType === 'CGPA' ? '10' : '100'}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder={currentEdu.scoreType === 'CGPA' ? 'e.g., 8.4' : 'e.g., 80.4'}
+                  placeholder={currentEdu.scoreType === 'CGPA' ? 'e.g., 8.45' : 'e.g., 80.45'}
                   value={currentEdu.score}
                   onChange={(e) => handleInputChange('score', e.target.value)}
                 />
