@@ -5,61 +5,85 @@
 
 import api from './api.js';
 
+const DIRECTORY_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+
+function getRoleFromAccessToken() {
+  try {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return null;
+    const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    if (!base64) return null;
+    const payload = JSON.parse(atob(base64));
+    return payload.role ? String(payload.role).toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+function canAccessRecruiterDirectory(options = {}) {
+  if (options.enabled === false) return false;
+  if (typeof options.canAccess === 'function') return options.canAccess();
+  const role = options.role ? String(options.role).toUpperCase() : getRoleFromAccessToken();
+  return DIRECTORY_ROLES.has(role);
+}
+
 export function subscribeRecruiterDirectory(onChange, options = {}) {
+  let active = true;
   let intervalId = null;
   let socket = null;
-  
+
   const loadRecruiters = async () => {
+    if (!active) return false;
+
+    if (!canAccessRecruiterDirectory(options)) {
+      onChange([]);
+      return false;
+    }
+
     try {
       const data = await api.getRecruiterDirectory();
+      if (!active) return false;
       onChange(Array.isArray(data) ? data : []);
       return true;
     } catch (error) {
-      console.warn('Recruiter directory fetch failed:', error);
+      if (!active) return false;
+      if (error?.status !== 403 && error?.message !== 'Forbidden') {
+        console.warn('Recruiter directory fetch failed:', error);
+      }
       onChange([]);
       return false;
     }
   };
-  
-  // Try to set up Socket.IO subscription
-  try {
-    // Dynamic import to avoid circular dependencies
-    import('./socket.js').then((socketModule) => {
-      const { initSocket } = socketModule;
+
+  const bindSocket = async () => {
+    if (!active || !canAccessRecruiterDirectory(options)) return;
+
+    try {
+      const { initSocket } = await import('./socket.js');
+      if (!active) return;
       socket = initSocket();
-      
-      // Listen for new recruiter events
-      socket.on('recruiter:new', (newRecruiter) => {
-        console.log('📢 New recruiter registered:', newRecruiter);
-        // Reload the directory to get updated list
-        loadRecruiters();
-      });
-      
-      // Listen for recruiter updates
-      socket.on('recruiter:updated', () => {
-        console.log('📢 Recruiter updated');
-        loadRecruiters();
-      });
-    }).catch((error) => {
-      console.warn('Socket.IO not available, using polling:', error);
-    });
-  } catch (error) {
-    console.warn('Socket.IO not available, using polling:', error);
-  }
-  
-  // Initial load
-  (async () => {
-    await loadRecruiters();
-    
-    // Set up polling as fallback (every 30 seconds)
-    // This ensures updates even if Socket.IO fails
+
+      const refresh = () => {
+        if (active) loadRecruiters();
+      };
+
+      socket.on('recruiter:new', refresh);
+      socket.on('recruiter:updated', refresh);
+    } catch {
+      // Polling fallback only
+    }
+  };
+
+  loadRecruiters().then(() => {
+    if (!active) return;
+    bindSocket();
     intervalId = setInterval(() => {
-      loadRecruiters();
+      if (active) loadRecruiters();
     }, 30000);
-  })();
-  
-  // Return cleanup function
+  });
+
   return () => {
+    active = false;
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
@@ -116,12 +140,10 @@ export async function blockUnblockRecruiter(recruiterId, blockData, user = null)
  */
 export async function getRecruiterJobs(recruiterEmail) {
   try {
-    // Call the real API endpoint
     const jobs = await api.getRecruiterJobs(recruiterEmail);
     return jobs;
   } catch (error) {
     console.error('getRecruiterJobs error:', error);
-    // Return empty array on error instead of throwing
     return [];
   }
 }
@@ -162,7 +184,6 @@ export async function getRecruiterSummary(recruiterId) {
   }
 }
 
-// Export all other functions as placeholders
 export async function blockRecruiter(recruiterId, reason) {
   console.warn('blockRecruiter: Placeholder - use blockUnblockRecruiter instead');
   return blockUnblockRecruiter(recruiterId, { recruiter: { id: recruiterId }, isUnblocking: false, reason });
