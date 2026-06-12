@@ -5,7 +5,7 @@ import {
   hydrateSlot,
   hydrateDrive,
 } from '../utils/mockInterviewCoding.js';
-import { buildMockSlotResult } from '../utils/mockInterviewFeedback.js';
+import { buildMockSlotResult, feedbackScorePercent } from '../utils/mockInterviewFeedback.js';
 import { ensureMockCodeSession, updateStudentCode } from '../utils/mockCodeSession.js';
 import { getIO } from '../config/socket.js';
 
@@ -335,6 +335,84 @@ export async function getStudentMockInterviews(req, res) {
     res.json(slots);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch your mock interviews' });
+  }
+}
+
+/**
+ * Aggregated stats for the student mock interview dashboard.
+ */
+export async function getStudentMockInterviewStats(req, res) {
+  try {
+    const student = await prisma.student.findUnique({
+      where: { userId: req.user.id },
+    });
+
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const [slots, enrollments] = await Promise.all([
+      prisma.mockInterviewSlot.findMany({
+        where: { studentId: student.id },
+        include: { feedback: true },
+      }),
+      prisma.aiMockInterviewEnrollment.findMany({
+        where: { studentId: student.id },
+        include: {
+          review: true,
+          aiInsight: true,
+          interview: { select: { endDate: true } },
+        },
+      }),
+    ]);
+
+    const now = new Date();
+    const upcomingSlotStatuses = ['SCHEDULED', 'WAITING', 'LIVE'];
+
+    const liveCompleted = slots.filter((s) => s.status === 'COMPLETED').length;
+    const liveUpcoming = slots.filter((s) => upcomingSlotStatuses.includes(s.status)).length;
+
+    const aiCompleted = enrollments.filter((e) => e.status === 'COMPLETED').length;
+    const aiUpcoming = enrollments.filter((e) => {
+      if (e.status === 'COMPLETED') return false;
+      if (e.status === 'IN_PROGRESS') return true;
+      const endDate = e.interview?.endDate;
+      return !endDate || now <= endDate;
+    }).length;
+
+    const scoreValues = [];
+    for (const slot of slots) {
+      const score = feedbackScorePercent(slot.feedback);
+      if (score != null) scoreValues.push(score);
+    }
+    for (const enrollment of enrollments) {
+      const reviewRating = enrollment.review?.overallRating;
+      if (typeof reviewRating === 'number' && reviewRating > 0) {
+        scoreValues.push(Math.round((reviewRating / 10) * 100));
+        continue;
+      }
+      const aiOverall = enrollment.aiInsight?.overallPerformance;
+      if (typeof aiOverall === 'number' && aiOverall > 0) {
+        scoreValues.push(Math.round(aiOverall));
+      }
+    }
+
+    const avgScore = scoreValues.length
+      ? Math.round(scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length)
+      : null;
+
+    res.json({
+      completed: liveCompleted + aiCompleted,
+      upcoming: liveUpcoming + aiUpcoming,
+      avgScore,
+      assigned: slots.length + enrollments.length,
+      liveCompleted,
+      aiCompleted,
+      liveUpcoming,
+      aiUpcoming,
+      scoredSessions: scoreValues.length,
+    });
+  } catch (error) {
+    console.error('getStudentMockInterviewStats Error:', error);
+    res.status(500).json({ error: 'Failed to fetch mock interview stats' });
   }
 }
 

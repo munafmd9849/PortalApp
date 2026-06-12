@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  Shield, Camera, Mic, Wifi, CheckCircle2, 
-  AlertCircle, ArrowRight, Loader2, Video, Timer
+import {
+  Camera, Mic, Wifi, CheckCircle2,
+  AlertCircle, ArrowRight, Loader2, Clock,
 } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
@@ -12,19 +12,19 @@ export default function MockInterviewPreCheck() {
   const { slotId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, role: userRole } = useAuth();
-  
+  const { role: userRole } = useAuth();
+
   const [checks, setChecks] = useState({
-    camera: 'pending', // pending, success, failed
+    camera: 'pending',
     mic: 'pending',
-    network: 'pending'
+    network: 'pending',
   });
   const [loading, setLoading] = useState(true);
   const [slot, setSlot] = useState(null);
   const [isEarly, setIsEarly] = useState(false);
   const [timeUntilStart, setTimeUntilStart] = useState('');
   const [isTooLate, setIsTooLate] = useState(false);
-  
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -33,7 +33,7 @@ export default function MockInterviewPreCheck() {
     runDiagnostics();
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
@@ -48,7 +48,7 @@ export default function MockInterviewPreCheck() {
       const startTime = new Date(slotData.startTime);
       const endTime = new Date(slotData.endTime);
       const tenMinsBefore = new Date(startTime.getTime() - 10 * 60000);
-      const oneHourAfter = new Date(endTime.getTime() + 60 * 60000); // 1 hour buffer after end
+      const oneHourAfter = new Date(endTime.getTime() + 60 * 60000);
       const now = new Date();
 
       if (!isAdmin) {
@@ -56,7 +56,6 @@ export default function MockInterviewPreCheck() {
           setIsEarly(true);
           startCountdown(startTime);
         } else if (now > oneHourAfter) {
-          // If the drive date is before today, it's definitely too late
           const driveDate = new Date(slotData.drive?.date || slotData.startTime);
           driveDate.setHours(23, 59, 59, 999);
           if (now > driveDate) {
@@ -76,12 +75,12 @@ export default function MockInterviewPreCheck() {
       const now = new Date();
       const diff = startTime.getTime() - now.getTime();
       const tenMinsInMs = 10 * 60000;
-      
+
       if (diff <= tenMinsInMs) {
         setIsEarly(false);
         return;
       }
-      
+
       const mins = Math.floor(diff / 60000);
       const secs = Math.floor((diff % 60000) / 1000);
       setTimeUntilStart(`${mins}:${secs.toString().padStart(2, '0')}`);
@@ -92,153 +91,172 @@ export default function MockInterviewPreCheck() {
   };
 
   const runDiagnostics = async () => {
-    // 1. Camera & Mic Check
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
-      setChecks(prev => ({ ...prev, camera: 'success', mic: 'success' }));
+      setChecks((prev) => ({ ...prev, camera: 'success', mic: 'success' }));
     } catch (err) {
-      setChecks(prev => ({ ...prev, camera: 'failed', mic: 'failed' }));
-      toast.error('Camera/Microphone access denied');
+      setChecks((prev) => ({ ...prev, camera: 'failed', mic: 'failed' }));
+      toast.error('Camera or microphone access was denied');
     }
 
-    // 2. Network Check
     const start = Date.now();
     try {
       await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors' });
       const latency = Date.now() - start;
-      setChecks(prev => ({ ...prev, network: latency < 500 ? 'success' : 'failed' }));
+      setChecks((prev) => ({ ...prev, network: latency < 500 ? 'success' : 'failed' }));
     } catch (err) {
-      setChecks(prev => ({ ...prev, network: 'failed' }));
+      setChecks((prev) => ({ ...prev, network: 'failed' }));
     }
   };
 
   const handleJoin = () => {
-    if (Object.values(checks).some(c => c !== 'success')) {
-      toast.error('Please resolve all hardware issues before joining');
+    if (Object.values(checks).some((c) => c !== 'success')) {
+      toast.error('Please fix the device checks before joining');
       return;
     }
     if (isEarly) {
-      toast.error('Room is not yet open. Please wait.');
+      toast.error('The room opens 10 minutes before your scheduled time');
       return;
     }
     if (isTooLate) {
-      toast.error('This session has already expired.');
+      toast.error('This session is no longer available');
       return;
     }
     navigate(`/mock-interview-room/${slotId}?role=student`);
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-       <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-       <p className="text-xs font-black uppercase tracking-widest text-slate-500">Preparing Pre-Check...</p>
-    </div>
-  );
+  const sessionTitle = slot?.drive?.title || 'Mock Interview';
+  const allChecksPassed = Object.values(checks).every((c) => c === 'success');
+  const canEnter = allChecksPassed && !isEarly && !isTooLate;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
+        <p className="text-sm text-gray-500">Loading session...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
-      <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10">
-        
-        {/* Left: Video Preview */}
-        <div className="space-y-6">
-          <div className="relative aspect-video bg-slate-900 rounded-[2.5rem] overflow-hidden border border-slate-800 shadow-2xl">
-            {checks.camera === 'success' ? (
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                muted 
-                playsInline 
-                className="w-full h-full object-cover grayscale brightness-75"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-slate-500">
-                <Camera className="w-12 h-12 opacity-20" />
-                <p className="text-xs font-bold uppercase tracking-widest">Camera Feed Inactive</p>
-              </div>
-            )}
-            
-            <div className="absolute top-6 left-6 flex items-center gap-3">
-               <div className="px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-full flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Live Preview</span>
-               </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-900/50 rounded-[2rem] p-6 border border-slate-800">
-             <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Hardware Diagnostics</h3>
-             <div className="space-y-3">
-               {[
-                 { id: 'camera', label: 'High-Definition Webcam', icon: Camera },
-                 { id: 'mic', label: 'Microphone Input', icon: Mic },
-                 { id: 'network', label: 'Network Stability', icon: Wifi }
-               ].map((item) => {
-                 const Icon = item.icon;
-                 const status = checks[item.id];
-                 return (
-                   <div key={item.id} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 transition-all">
-                     <div className="flex items-center gap-3">
-                       <Icon className={`w-4 h-4 ${status === 'success' ? 'text-indigo-400' : status === 'failed' ? 'text-rose-400' : 'text-slate-600'}`} />
-                       <span className="text-xs font-bold">{item.label}</span>
-                     </div>
-                     {status === 'success' ? (
-                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                     ) : status === 'failed' ? (
-                       <AlertCircle className="w-4 h-4 text-rose-500" />
-                     ) : (
-                       <Loader2 className="w-4 h-4 text-slate-700 animate-spin" />
-                     )}
-                   </div>
-                 );
-               })}
-             </div>
-          </div>
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center p-4 sm:p-6">
+      <div className="max-w-5xl w-full bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6">
+        <div className="mb-4 pb-4 border-b border-gray-100">
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{sessionTitle}</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Check your camera and microphone, then join when the room is open.
+          </p>
         </div>
 
-        {/* Right: Waiting Room Info */}
-        <div className="flex flex-col justify-center space-y-10">
-          <div>
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-indigo-600/20">
-               <Shield className="w-8 h-8" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="space-y-4">
+            <div className="relative aspect-video max-h-44 sm:max-h-52 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+              {checks.camera === 'success' ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+                  <Camera className="w-8 h-8" />
+                  <p className="text-xs">Camera not detected</p>
+                </div>
+              )}
+              {checks.camera === 'success' && (
+                <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 border border-gray-200 rounded text-[10px] font-medium text-gray-600 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  Preview
+                </div>
+              )}
             </div>
-            <h1 className="text-4xl font-black tracking-tight leading-tight">Ready to start your <br /> <span className="text-indigo-500">Mock Interview?</span></h1>
-            <p className="text-slate-400 mt-4 text-sm font-medium leading-relaxed max-w-sm">
-              Please ensure you are in a quiet environment and have your resume ready. This session will be recorded for evaluation.
-            </p>
+
+            <div className="rounded-md border border-gray-200 p-3">
+              <h3 className="text-xs font-medium text-gray-500 mb-2">Device checks</h3>
+              <div className="space-y-2">
+                {[
+                  { id: 'camera', label: 'Camera', icon: Camera },
+                  { id: 'mic', label: 'Microphone', icon: Mic },
+                  { id: 'network', label: 'Internet connection', icon: Wifi },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const status = checks[item.id];
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-md border border-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-3.5 h-3.5 ${status === 'success' ? 'text-blue-600' : status === 'failed' ? 'text-red-500' : 'text-gray-400'}`} />
+                        <span className="text-xs font-medium text-gray-700">{item.label}</span>
+                      </div>
+                      {status === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : status === 'failed' ? (
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-6">
-            <div className={`p-6 border rounded-[2rem] transition-all ${isEarly || isTooLate ? 'bg-rose-500/10 border-rose-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-               <div className="flex items-center gap-4 mb-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${isEarly || isTooLate ? 'bg-rose-500 shadow-rose-500/20' : 'bg-emerald-500 shadow-emerald-500/20'}`}>
-                    <Timer className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className={`text-[10px] font-black uppercase tracking-widest ${isEarly || isTooLate ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {isEarly ? 'Waiting Room' : isTooLate ? 'Session Expired' : 'Room is Open'}
-                    </div>
-                    <div className="text-lg font-black tabular-nums">
-                      {isEarly ? `Starts in ${timeUntilStart}` : isTooLate ? 'Access Period Ended' : 'You can enter now'}
-                    </div>
-                  </div>
-               </div>
-               <p className={`text-[10px] font-medium italic leading-relaxed ${isEarly || isTooLate ? 'text-rose-300/60' : 'text-emerald-300/60'}`}>
-                 {isEarly ? 'The room will unlock 10 minutes before the interview.' : isTooLate ? 'This session is no longer active. Please contact support if you missed it.' : 'All checks passed. You can proceed to the secure interview room.'}
-               </p>
+          <div className="flex flex-col justify-between gap-4">
+            <div
+              className={`p-4 rounded-md border ${
+                isEarly || isTooLate
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-emerald-50 border-emerald-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 ${
+                    isEarly || isTooLate ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                  }`}
+                >
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className={`text-xs font-medium ${isEarly || isTooLate ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {isEarly ? 'Not open yet' : isTooLate ? 'Session closed' : 'Room is open'}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5 tabular-nums">
+                    {isEarly
+                      ? `Opens in ${timeUntilStart}`
+                      : isTooLate
+                        ? 'This session has ended'
+                        : 'You may enter now'}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">
+                    {isEarly
+                      ? 'You can join 10 minutes before the scheduled start time.'
+                      : isTooLate
+                        ? 'Contact your placement office if you missed this session.'
+                        : 'Use a quiet space and keep your resume handy. This session is recorded.'}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <button 
+            <button
+              type="button"
               onClick={handleJoin}
-              disabled={Object.values(checks).some(c => c !== 'success') || isEarly || isTooLate}
-              className="w-full py-5 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-100 transition-all shadow-xl disabled:opacity-30 active:scale-95"
+              disabled={!canEnter}
+              className="w-full py-2.5 bg-gray-900 hover:bg-black text-white rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isTooLate ? 'Session Closed' : 'Enter Interview Room'} <ArrowRight className="w-5 h-5" />
+              {isTooLate ? 'Session closed' : 'Enter interview room'}
+              {!isTooLate && <ArrowRight className="w-4 h-4" />}
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );
