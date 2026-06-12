@@ -319,7 +319,11 @@ const DashboardHome = ({
         viewStudentId={viewStudentId}
         initialEducation={initialEducation}
       />
-      <SkillsSection isAdminView={isAdminView} initialSkills={skillsEntries} />
+      <SkillsSection
+        isAdminView={isAdminView}
+        initialSkills={skillsEntries}
+        school={formattedStudentData?.school || profileData?.school || ''}
+      />
       <ProjectsSection
         studentId={isAdminView ? viewStudentId : user?.id}
         isAdminView={isAdminView}

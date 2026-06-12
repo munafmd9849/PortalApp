@@ -221,7 +221,7 @@ const JobDescriptionPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-slate-100">
       {/* Header with Back Button */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -249,14 +249,14 @@ const JobDescriptionPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Loading State */}
         {loading && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <JobDescriptionSkeleton />
           </div>
         )}
 
         {/* Error State */}
         {error && !loading && !displayJob && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-8">
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-500 via-pink-500 to-red-600 flex items-center justify-center shadow-2xl">
                 <span className="text-white text-4xl">⚠️</span>
@@ -286,7 +286,7 @@ const JobDescriptionPage = () => {
 
         {/* Job Content */}
         {!loading && displayJob && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <Suspense fallback={<JobDescriptionSkeleton />}>
               <JobContent
                 job={displayJob}
@@ -313,7 +313,7 @@ const JobDescriptionPage = () => {
 
         {/* Error with cached data */}
         {error && displayJob && !loading && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             {/* Error Banner */}
             <div className="bg-gradient-to-r from-yellow-50 via-amber-50 to-yellow-50 border-b border-yellow-200 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Shield, Clock, Calendar, ChevronRight, 
-  CheckCircle, AlertCircle, PlayCircle, 
+import {
+  Clock, Calendar,
+  CheckCircle, PlayCircle,
   Camera, Users, FileText, Activity,
-  Lock, ArrowRight, Star
+  Lock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
 import { getAssessmentEntryStatus, formatAssessmentWindow } from '../../../utils/assessmentEntryWindow';
 import { useToast } from '../../ui/Toast';
+
+const STAT_ICON_BOX = {
+  blue: 'bg-blue-50 border-blue-100',
+  emerald: 'bg-emerald-50 border-emerald-100',
+  amber: 'bg-amber-50 border-amber-100',
+  slate: 'bg-gray-50 border-gray-200',
+};
+
+const STAT_ICON_COLOR = {
+  blue: 'text-blue-600',
+  emerald: 'text-emerald-600',
+  amber: 'text-amber-600',
+  slate: 'text-gray-600',
+};
 
 export default function StudentAssessments() {
   const [assessments, setAssessments] = useState([]);
@@ -34,73 +48,68 @@ export default function StudentAssessments() {
 
   const getStatusConfig = (status) => {
     switch (status) {
-      case 'COMPLETED': return { color: 'text-emerald-600 bg-emerald-50 border-emerald-100', label: 'Completed' };
-      case 'IN_PROGRESS': return { color: 'text-amber-600 bg-amber-50 border-amber-100', label: 'In Progress' };
-      default: return { color: 'text-indigo-600 bg-indigo-50 border-indigo-100', label: 'Not Started' };
+      case 'COMPLETED':
+        return { color: 'text-emerald-700 bg-emerald-50 border-emerald-100', label: 'Completed' };
+      case 'IN_PROGRESS':
+        return { color: 'text-amber-700 bg-amber-50 border-amber-100', label: 'In Progress' };
+      default:
+        return { color: 'text-blue-700 bg-blue-50 border-blue-100', label: 'Not Started' };
     }
   };
 
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'MOCK_TEST': return <FileText className="w-5 h-5" />;
-      case 'MOCK_INTERVIEW_AUTO': return <Camera className="w-5 h-5" />;
-      case 'MOCK_INTERVIEW_LIVE': return <Users className="w-5 h-5" />;
-      default: return <Activity className="w-5 h-5" />;
+      case 'MOCK_TEST':
+        return <FileText className="w-5 h-5" />;
+      case 'MOCK_INTERVIEW_AUTO':
+        return <Camera className="w-5 h-5" />;
+      case 'MOCK_INTERVIEW_LIVE':
+        return <Users className="w-5 h-5" />;
+      default:
+        return <Activity className="w-5 h-5" />;
     }
   };
 
+  const pendingCount = assessments.filter((a) => !a.sessions?.length).length;
+  const completedCount = assessments.filter((a) => a.sessions?.[0]?.status === 'COMPLETED').length;
+  const ongoingCount = assessments.filter((a) => a.sessions?.[0]?.status === 'IN_PROGRESS').length;
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 space-y-4">
-        <div className="w-12 h-12 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin" />
-        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Syncing Assessment Engine...</p>
+      <div className="flex flex-col items-center justify-center py-24 space-y-3">
+        <div className="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin" />
+        <p className="text-sm text-gray-500">Loading assessments...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 sm:space-y-12 py-6 sm:py-8 animate-in fade-in duration-500">
-      {/* Page Header / Hero Section */}
-      <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-900/10">
-        <div className="relative z-10 space-y-5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10">
-            <Shield className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Secure Testing Environment</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Your Assessment Hub</h1>
-          <p className="text-slate-400 max-w-xl text-sm sm:text-base leading-relaxed font-medium">
-            Improve your performance with standardized mock tests and live interview sessions. 
-            Track your progress and receive detailed institutional feedback.
-          </p>
-        </div>
-        
-        {/* Modern decorative background elements */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[100px] -mr-48 -mt-48 rounded-full" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 blur-[80px] -ml-32 -mb-32 rounded-full" />
-      </div>
-
-      {/* Statistics Row (Mini-cards) */}
+    <div className="max-w-[1400px] mx-auto space-y-6 p-4 sm:p-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-         {[
-           { label: 'Pending Tests', val: assessments.filter(a => !a.sessions?.length).length, color: 'indigo' },
-           { label: 'Completed', val: assessments.filter(a => a.sessions?.[0]?.status === 'COMPLETED').length, color: 'emerald' },
-           { label: 'Ongoing', val: assessments.filter(a => a.sessions?.[0]?.status === 'IN_PROGRESS').length, color: 'amber' },
-           { label: 'Avg Score', val: '84%', color: 'purple' }
-         ].map((stat, i) => (
-           <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-              <div>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-                 <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{stat.val}</p>
-              </div>
-              <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 border border-${stat.color}-100 flex items-center justify-center`}>
-                 <Activity className={`w-4 h-4 text-${stat.color}-600`} />
-              </div>
-           </div>
-         ))}
+        {[
+          { label: 'Pending', val: pendingCount, color: 'blue' },
+          { label: 'Completed', val: completedCount, color: 'emerald' },
+          { label: 'In Progress', val: ongoingCount, color: 'amber' },
+          { label: 'Total', val: assessments.length, color: 'slate' },
+        ].map((stat, i) => (
+          <div
+            key={i}
+            className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between"
+          >
+            <div>
+              <p className="text-xs font-medium text-gray-500">{stat.label}</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{stat.val}</p>
+            </div>
+            <div
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center ${STAT_ICON_BOX[stat.color]}`}
+            >
+              <Activity className={`w-4 h-4 ${STAT_ICON_COLOR[stat.color]}`} />
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {assessments.map((item) => {
           const session = item.sessions?.[0];
           const isCompleted = session?.status === 'COMPLETED';
@@ -118,38 +127,36 @@ export default function StudentAssessments() {
           const isLate = entry.status === 'TOO_LATE';
 
           return (
-            <div 
-              key={item.id} 
-              className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group flex flex-col h-full relative"
+            <div
+              key={item.id}
+              className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-shadow flex flex-col h-full"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className={`p-3 rounded-xl ${status.color} border shadow-sm`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-2.5 rounded-lg border ${status.color}`}>
                   {getTypeIcon(item.type)}
                 </div>
-                <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${status.color}`}>
+                <span className={`px-2 py-0.5 rounded-md text-xs font-medium border ${status.color}`}>
                   {status.label}
-                </div>
+                </span>
               </div>
 
-              <div className="flex-1 space-y-2">
-                <h3 className="text-lg font-bold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed font-medium">
-                  {item.description || 'Institutional assessment for performance evaluation.'}
+              <div className="flex-1 space-y-1.5">
+                <h3 className="text-base font-semibold text-gray-900 leading-snug">{item.title}</h3>
+                <p className="text-sm text-gray-500 line-clamp-2">
+                  {item.description || 'Assessment assigned by your institution.'}
                 </p>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
                     <Clock className="w-4 h-4" />
-                    <span className="uppercase">{item.duration} Mins</span>
+                    <span>{item.duration} min</span>
                   </div>
                   {(item.startTime || scheduledAt) && (
-                    <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
+                    <div className="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase">
+                      <span className="text-xs font-medium">
                         {item.startTime
                           ? formatAssessmentWindow(item.startTime)
                           : new Date(scheduledAt).toLocaleString([], {
@@ -165,28 +172,31 @@ export default function StudentAssessments() {
 
                 {isCompleted ? (
                   <div className="space-y-3">
-                     <div className="flex items-center justify-between px-1">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">Performance Score</span>
-                        <span className="text-sm font-bold text-emerald-600">{session.score}%</span>
-                     </div>
-                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${session.score}%` }} />
-                     </div>
-                     <button 
-                       onClick={() => navigate(`/assessment/results/${session.id}`)}
-                       className="w-full mt-4 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
-                     >
-                       <FileText className="w-4 h-4" /> View Detailed Analytics
-                     </button>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Score</span>
+                      <span className="text-sm font-semibold text-emerald-700">{session.score}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full"
+                        style={{ width: `${session.score}%` }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => navigate(`/assessment/results/${session.id}`)}
+                      className="w-full mt-2 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" /> View results
+                    </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => canJoin && navigate(`/assessment/${item.id}`)}
                     disabled={isEarly || isLate}
-                    className={`w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 ${
+                    className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                       isEarly || isLate
-                        ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
-                        : 'bg-slate-900 text-white shadow-lg shadow-slate-900/10 hover:bg-indigo-600 hover:shadow-indigo-500/20'
+                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     {isEarly ? (
@@ -202,7 +212,7 @@ export default function StudentAssessments() {
                     ) : (
                       <>
                         <PlayCircle className="w-4 h-4" />
-                        {item.type?.includes('INTERVIEW') ? 'Join Session' : 'Start Mock Test'}
+                        {item.type?.includes('INTERVIEW') ? 'Join session' : 'Start test'}
                       </>
                     )}
                   </button>
@@ -213,9 +223,9 @@ export default function StudentAssessments() {
         })}
 
         {assessments.length === 0 && (
-          <div className="col-span-full py-40 flex flex-col items-center justify-center text-slate-600">
-             <Shield className="w-16 h-16 mb-4 opacity-10" />
-             <p className="font-bold text-sm">No pending assessments at the moment.</p>
+          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center bg-white rounded-lg border border-gray-200">
+            <FileText className="w-10 h-10 mb-3 text-gray-300" />
+            <p className="text-sm font-medium text-gray-600">No assessments assigned yet.</p>
           </div>
         )}
       </div>

@@ -971,6 +971,7 @@ export const api = {
     body: JSON.stringify(data),
   }),
   getStudentEndorsements: () => apiRequest('/endorsements/student'),
+  getEndorsementTeachers: () => apiRequest('/endorsements/teachers', { noCache: true }),
   deleteEndorsementRequest: (tokenId) => apiRequest(`/endorsements/request/${tokenId}`, {
     method: 'DELETE',
   }),
@@ -1197,7 +1198,8 @@ export const api = {
   getMockInterviewDrives: (opts = {}) => apiRequest('/mock-interviews/all', { noCache: true, ...opts }),
   assignStudentToSlot: (data) => apiRequest('/mock-interviews/assign', { method: 'POST', body: JSON.stringify(data) }),
   updateMockSlotStatus: (data) => apiRequest('/mock-interviews/update-status', { method: 'POST', body: JSON.stringify(data) }),
-  getStudentMockInterviews: () => apiRequest('/mock-interviews/my-sessions'),
+  getStudentMockInterviews: () => apiRequest('/mock-interviews/my-sessions', { noCache: true }),
+  getStudentMockInterviewStats: () => apiRequest('/mock-interviews/student/stats', { noCache: true }),
   submitMockFeedback: (data) => apiRequest('/mock-interviews/feedback', { method: 'POST', body: JSON.stringify(data) }),
   updateMockInterviewDrive: (id, data) =>
     apiRequest(`/mock-interviews/drives/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -1225,7 +1227,7 @@ export const api = {
     }),
   regenerateAiInsights: (enrollmentId) =>
     apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/regenerate-ai`, { method: 'POST' }),
-  getStudentAiInterviews: () => apiRequest('/ai-mock-interviews/student/my-interviews'),
+  getStudentAiInterviews: () => apiRequest('/ai-mock-interviews/student/my-interviews', { noCache: true }),
   getStudentAiInterviewSession: (interviewId) =>
     apiRequest(`/ai-mock-interviews/student/session/${interviewId}`),
   startAiInterviewSession: (enrollmentId) =>

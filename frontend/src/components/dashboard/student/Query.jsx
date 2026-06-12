@@ -543,13 +543,6 @@ const StudentQuerySystem = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-3 py-5 md:p-4 md:py-8 min-w-0 overflow-x-hidden pb-24 sm:pb-8 md:pb-8">
       <div className="max-w-6xl mx-auto min-w-0">
-        <div className="text-center mb-5 md:mb-10">
-          <h1 className="text-lg sm:text-xl md:text-3xl font-bold text-gray-800 mb-2 md:mb-3 break-words">Student Query Portal</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto text-xs sm:text-sm md:text-base px-1">
-            Contact the placement cell for questions, CGPA/backlog updates, or scheduling
-          </p>
-        </div>
-
         {/* View Toggle */}
         <div className="flex justify-center mb-4 md:mb-8">
           <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex w-full max-w-sm md:max-w-none md:w-auto">
@@ -1156,40 +1149,6 @@ const StudentQuerySystem = () => {
                 </button>
               </div>
             </form>
-          </div>
-        )}
-
-        {/* Additional Information */}
-        {activeView === 'new' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mt-6 sm:mt-8 min-w-0">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div className="bg-blue-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                <FaQuestionCircle className="text-blue-600 text-xl" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">General Questions</h3>
-              <p className="text-sm text-gray-600">Get clarification on placement procedures, company requirements, or application processes.</p>
-            </div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div className="bg-green-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                <FaChartLine className="text-green-600 text-xl" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">CGPA Updates</h3>
-              <p className="text-sm text-gray-600">Submit your updated marks with official documentation for verification.</p>
-            </div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                <FaChartLine className="text-orange-600 text-xl" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">Backlog Updates</h3>
-              <p className="text-sm text-gray-600">Submit your updated backlogs count with official documentation for verification.</p>
-            </div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div className="bg-purple-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                <FaCalendarAlt className="text-purple-600 text-xl" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">Calendar Management</h3>
-              <p className="text-sm text-gray-600">Block your calendar for interviews, exams, or personal commitments.</p>
-            </div>
           </div>
         )}
       </div>

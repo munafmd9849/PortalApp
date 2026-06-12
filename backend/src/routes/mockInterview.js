@@ -4,6 +4,7 @@ import {
   getMockInterviewDrives, 
   assignStudentToSlot, 
   getStudentMockInterviews,
+  getStudentMockInterviewStats,
   submitMockFeedback,
   updateSlotStatus,
   getMockInterviewSlot,
@@ -47,6 +48,7 @@ router.post('/drives/:id/publish', authenticate, authorize(['ADMIN', 'SUPER_ADMI
 router.delete('/drives/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteMockInterviewDrive);
 
 // Student Routes
+router.get('/student/stats', authenticate, authorize(['STUDENT']), getStudentMockInterviewStats);
 router.get('/my-sessions', authenticate, authorize(['STUDENT']), getStudentMockInterviews);
 
 export default router;

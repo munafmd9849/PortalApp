@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Shield, AlertTriangle, Clock, ChevronRight, CheckCircle, XCircle, Loader2,
-  Video, Maximize2, Send, RotateCcw, Volume2, Mic,
+  AlertTriangle, Clock, ChevronRight, CheckCircle, XCircle, Loader2,
+  Video, Maximize2, Send, RotateCcw, Mic,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
@@ -266,38 +266,30 @@ export default function AiMockInterviewSession() {
 
   if (phase === PHASE.LOAD) {
     return (
-      <div className="h-screen bg-slate-950 flex flex-col items-center justify-center gap-6">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-indigo-500 animate-pulse" />
-          </div>
-        </div>
-        <p className="text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">
-          Initializing Secure Environment
-        </p>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <p className="text-sm text-gray-500">Loading interview...</p>
       </div>
     );
   }
 
   if (phase === PHASE.DONE) {
     return (
-      <div className="h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent opacity-50 pointer-events-none" />
-        <div className="max-w-xl w-full bg-slate-900/40 backdrop-blur-2xl rounded-[3rem] p-12 border border-slate-800 shadow-2xl relative z-10">
-          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
-            <CheckCircle className="w-10 h-10 text-emerald-400" />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white rounded-lg p-8 border border-gray-200 shadow-sm">
+          <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center mx-auto mb-4 border border-emerald-100">
+            <CheckCircle className="w-6 h-6 text-emerald-600" />
           </div>
-          <h2 className="text-3xl font-black text-white tracking-tight mb-3">Interview Submitted</h2>
-          <p className="text-slate-400 text-sm font-medium leading-relaxed">
-            Your video responses are saved securely. Reviewers will evaluate your performance; AI insights assist the review process.
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Interview submitted</h2>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Your responses have been saved. Your institution will review them and share feedback when ready.
           </p>
           <button
             type="button"
             onClick={() => navigate('/student?tab=mockInterviews')}
-            className="mt-8 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs"
+            className="mt-6 px-5 py-2.5 bg-gray-900 hover:bg-black text-white rounded-md text-sm font-medium"
           >
-            Return to Dashboard
+            Back to mock interviews
           </button>
         </div>
       </div>
@@ -305,112 +297,111 @@ export default function AiMockInterviewSession() {
   }
 
   if (phase === PHASE.PRECHECK) {
+    const readyToStart = precheck.cameraReady && precheck.micReady && precheck.fullscreen;
+
     return (
-      <div className="h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent opacity-50 pointer-events-none" />
-
-        <div className="max-w-2xl w-full bg-slate-900/40 backdrop-blur-2xl rounded-[3rem] p-12 border border-slate-800 shadow-2xl relative z-10">
-          <div className="flex flex-col items-center text-center mb-10">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/20">
-              <Shield className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight mb-2">{session?.title}</h1>
-            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px]">
-              AI Video Mock Interview · Secure Portal
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 mb-10">
-            <div className="bg-slate-800/40 rounded-3xl p-6 border border-slate-700/50">
-              <Video className="w-6 h-6 text-indigo-400 mb-3" />
-              <h4 className="text-sm font-black text-white uppercase mb-1">Camera & Mic</h4>
-              <p className="text-[11px] text-slate-500 font-medium">Required for proctoring and recorded answers.</p>
-            </div>
-            <div className="bg-slate-800/40 rounded-3xl p-6 border border-slate-700/50">
-              <Maximize2 className="w-6 h-6 text-indigo-400 mb-3" />
-              <h4 className="text-sm font-black text-white uppercase mb-1">Fullscreen</h4>
-              <p className="text-[11px] text-slate-500 font-medium">Exiting fullscreen logs a violation.</p>
-            </div>
-          </div>
-
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 mb-10 flex items-start gap-4">
-            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
-            <div>
-              <h4 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-1">Important</h4>
-              <p className="text-[11px] text-amber-200/70 leading-relaxed">
-                Questions are read aloud automatically. You cannot go back or edit answers after submit.
-                {session?.instructions ? ` ${session.instructions}` : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Camera Preview</p>
-              <div className="rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video">
-                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+      <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="max-w-5xl w-full bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-5 my-4">
+          <div className="grid lg:grid-cols-5 gap-4 lg:gap-5">
+            <div className="lg:col-span-2 space-y-3">
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900 leading-snug">{session?.title}</h1>
+                <p className="text-xs text-gray-500 mt-1">Video mock interview setup</p>
               </div>
-              {precheck.error && <p className="text-xs text-rose-300 mt-2">{precheck.error}</p>}
-              <div className="mt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={startCameraPrecheck}
-                  className="flex-1 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-black uppercase tracking-widest"
-                >
-                  Enable Camera
-                </button>
-                <button
-                  type="button"
-                  onClick={enterFullscreenPrecheck}
-                  className="flex-1 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-black uppercase tracking-widest"
-                >
-                  Fullscreen
-                </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                  <Video className="w-4 h-4 text-blue-600 mb-1.5" />
+                  <p className="text-xs font-medium text-gray-900">Camera & mic</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">Required for recording your answers.</p>
+                </div>
+                <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                  <Maximize2 className="w-4 h-4 text-blue-600 mb-1.5" />
+                  <p className="text-xs font-medium text-gray-900">Fullscreen</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">Stay in fullscreen during the interview.</p>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 flex gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-amber-800">Before you begin</p>
+                  <p className="text-[11px] text-amber-700/90 mt-0.5 leading-relaxed">
+                    Questions are read aloud. You cannot change an answer after submitting.
+                    {session?.instructions ? ` ${session.instructions}` : ''}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Validation</p>
-              <div className="space-y-3">
-                {[
-                  ['Camera active', precheck.cameraReady],
-                  ['Microphone active', precheck.micReady],
-                  ['Fullscreen enabled', precheck.fullscreen],
-                ].map(([label, ok]) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3"
+            <div className="lg:col-span-3 grid sm:grid-cols-2 gap-3">
+              <div className="rounded-md border border-gray-200 p-3">
+                <p className="text-xs font-medium text-gray-500 mb-2">Camera preview</p>
+                <div className="rounded-md overflow-hidden border border-gray-200 bg-gray-100 h-32 sm:h-36">
+                  <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                </div>
+                {precheck.error && <p className="text-xs text-red-600 mt-1.5">{precheck.error}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={startCameraPrecheck}
+                    className="flex-1 px-2 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-xs font-medium text-gray-700"
                   >
-                    <span className="text-xs font-bold text-slate-200">{label}</span>
-                    {ok ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-rose-400" />
-                    )}
-                  </div>
-                ))}
+                    Enable camera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={enterFullscreenPrecheck}
+                    className="flex-1 px-2 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-xs font-medium text-gray-700"
+                  >
+                    Go fullscreen
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-4">{totalQ} questions · AI voice interviewer</p>
+
+              <div className="rounded-md border border-gray-200 p-3">
+                <p className="text-xs font-medium text-gray-500 mb-2">Setup checklist</p>
+                <div className="space-y-1.5">
+                  {[
+                    ['Camera enabled', precheck.cameraReady],
+                    ['Microphone enabled', precheck.micReady],
+                    ['Fullscreen on', precheck.fullscreen],
+                  ].map(([label, ok]) => (
+                    <div
+                      key={label}
+                      className="flex items-center justify-between px-2.5 py-2 bg-gray-50 rounded-md border border-gray-100"
+                    >
+                      <span className="text-xs text-gray-700">{label}</span>
+                      {ok ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-gray-300" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">{totalQ} questions</p>
+              </div>
             </div>
           </div>
 
           <button
             type="button"
             onClick={startInterview}
-            disabled={starting || !(precheck.cameraReady && precheck.micReady && precheck.fullscreen)}
-            className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 ${
-              starting || !(precheck.cameraReady && precheck.micReady && precheck.fullscreen)
-                ? 'bg-slate-700/60 text-slate-300 cursor-not-allowed border border-slate-600'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/20'
+            disabled={starting || !readyToStart}
+            className={`w-full mt-4 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              starting || !readyToStart
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                : 'bg-gray-900 hover:bg-black text-white'
             }`}
           >
             {starting ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" /> Starting Secure Session
+                <Loader2 className="w-4 h-4 animate-spin" /> Starting...
               </>
             ) : (
               <>
-                Start Secure Interview <ChevronRight className="w-5 h-5" />
+                Start interview <ChevronRight className="w-4 h-4" />
               </>
             )}
           </button>
@@ -419,67 +410,75 @@ export default function AiMockInterviewSession() {
     );
   }
 
+  const phaseStepLabel = {
+    prep: 'Preparation',
+    answer: 'Recording',
+    uploading: 'Uploading',
+    speak: 'Listening',
+    idle: 'Standby',
+  }[phaseStep] || 'Standby';
+
+  const phaseStepDetail = {
+    prep: `${prepLeft}s remaining`,
+    answer: `${answerLeft}s remaining`,
+    uploading: 'Saving your answer…',
+    speak: 'Question is being read',
+    idle: 'Getting ready…',
+  };
+
   return (
-    <div className="h-screen bg-slate-950 flex flex-col overflow-hidden text-slate-200">
-      <header className="h-20 bg-slate-900/50 backdrop-blur-md border-b border-slate-800/50 px-8 flex items-center justify-between z-30 shrink-0">
-        <div className="flex items-center gap-6">
-          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Video className="w-6 h-6 text-white" />
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden text-gray-900">
+      <header className="h-14 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
+            <Video className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h2 className="text-base font-black text-white tracking-tight">{session?.title}</h2>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                  Live Secure Session
-                </span>
-              </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-gray-900 truncate">{session?.title}</h2>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+              <span className="text-[11px] text-emerald-700 font-medium">In progress</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div
-            className={`flex items-center gap-4 px-6 py-3 rounded-2xl border ${
-              phaseStep === 'answer'
-                ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                : 'bg-slate-800/50 border-slate-700/50 text-white'
-            }`}
-          >
-            <Clock className={`w-4 h-4 ${phaseStep === 'answer' ? 'animate-pulse' : ''}`} />
-            <div className="flex flex-col">
-              <span className="text-[8px] font-black uppercase tracking-widest opacity-50">
-                {phaseStep === 'prep' ? 'Preparation' : phaseStep === 'answer' ? 'Recording' : phaseStep === 'uploading' ? 'Uploading' : speaking ? 'AI Voice' : 'Standby'}
-              </span>
-              <span className="text-base font-black tabular-nums">
-                {phaseStep === 'prep'
-                  ? `${prepLeft}s`
-                  : phaseStep === 'answer'
-                    ? `${answerLeft}s`
-                    : `${progressPct}%`}
-              </span>
-            </div>
+        <div
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md border flex-shrink-0 ${
+            phaseStep === 'answer'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : 'bg-gray-50 border-gray-200 text-gray-900'
+          }`}
+        >
+          <Clock className={`w-3.5 h-3.5 ${phaseStep === 'answer' ? 'animate-pulse' : ''}`} />
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 leading-none">{phaseStepLabel}</span>
+            <span className="text-sm font-semibold tabular-nums leading-tight">
+              {phaseStep === 'prep'
+                ? `${prepLeft}s`
+                : phaseStep === 'answer'
+                  ? `${answerLeft}s`
+                  : `${progressPct}%`}
+            </span>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-20 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-8 gap-4 overflow-y-auto z-20 shrink-0">
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        <aside className="w-14 sm:w-16 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-2 overflow-y-auto shrink-0">
           {questions.map((q, i) => {
             const done = answeredIds.has(q.id);
             const current = i === qIndex;
             return (
               <div
                 key={q.id}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black ${
+                className={`w-9 h-9 rounded-md flex items-center justify-center text-xs font-medium ${
                   current
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/40 ring-4 ring-indigo-500/20'
+                    ? 'bg-blue-600 text-white'
                     : done
-                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                      : 'bg-gray-50 text-gray-400 border border-gray-200'
                 }`}
-                title={q.mandatory ? 'Mandatory' : 'Optional'}
+                title={q.mandatory ? 'Required' : 'Optional'}
               >
                 {i + 1}
               </div>
@@ -487,64 +486,62 @@ export default function AiMockInterviewSession() {
           })}
         </aside>
 
-        <main className="flex-1 flex overflow-hidden bg-slate-950 relative">
-          <div className="flex-1 flex flex-col p-10 overflow-y-auto">
-            <div className="max-w-4xl w-full mx-auto space-y-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
+        <main className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col p-4 sm:p-6 overflow-y-auto min-h-0">
+            <div className="max-w-3xl w-full mx-auto space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
                     Question {qIndex + 1} of {totalQ}
                   </span>
                   {speaking && (
-                    <span className="px-3 py-1 bg-violet-500/10 text-violet-300 rounded-lg text-[10px] font-black uppercase border border-violet-500/20">
-                      AI reading…
+                    <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-md text-xs font-medium border border-violet-100">
+                      Reading question…
                     </span>
                   )}
                 </div>
-                <div className="h-2 w-32 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progressPct}%` }} />
+                <div className="h-1.5 w-24 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                  <div className="h-full bg-blue-600 transition-all" style={{ width: `${progressPct}%` }} />
                 </div>
               </div>
 
-              <h3 className="text-2xl font-black text-white leading-tight tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 leading-snug">
                 {currentQ?.questionText}
               </h3>
               {currentQ?.notes && (
-                <p className="text-slate-400 text-sm leading-relaxed font-medium">{currentQ.notes}</p>
+                <p className="text-sm text-gray-500 leading-relaxed">{currentQ.notes}</p>
               )}
 
-              <div className="bg-slate-900/50 border border-slate-800 rounded-3xl flex flex-col items-center justify-center p-10 gap-6">
+              <div className="bg-white border border-gray-200 rounded-lg flex flex-col items-center justify-center p-6 sm:p-8 gap-4">
                 <div
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
                     phaseStep === 'answer'
-                      ? 'bg-rose-500 animate-pulse shadow-2xl shadow-rose-500/40'
-                      : 'bg-slate-800 border border-slate-700'
+                      ? 'bg-red-500 animate-pulse'
+                      : 'bg-gray-100 border border-gray-200'
                   }`}
                 >
-                  <Mic className={`w-10 h-10 ${phaseStep === 'answer' ? 'text-white' : 'text-slate-500'}`} />
+                  <Mic className={`w-7 h-7 ${phaseStep === 'answer' ? 'text-white' : 'text-gray-400'}`} />
                 </div>
-                <h4 className="text-white font-black uppercase tracking-widest text-sm">Video Response</h4>
-                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                  {phaseStep === 'prep' && `Preparation ${prepLeft}s`}
-                  {phaseStep === 'answer' && `Recording ${answerLeft}s remaining`}
-                  {phaseStep === 'uploading' && 'Saving answer…'}
-                  {phaseStep === 'speak' && 'Listen to the question'}
-                  {phaseStep === 'idle' && 'Preparing next step…'}
-                </p>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-900">Video response</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {phaseStepDetail[phaseStep] || phaseStepDetail.idle}
+                  </p>
+                </div>
 
-                <div className="flex flex-wrap gap-3 justify-center">
+                <div className="flex flex-wrap gap-2 justify-center">
                   <button
                     type="button"
                     onClick={() => currentQ && speak(currentQ.questionText)}
                     disabled={speaking || !speechSupported}
-                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-40"
+                    className="px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-md text-xs font-medium flex items-center gap-1.5 disabled:opacity-40"
                   >
-                    <RotateCcw className="w-4 h-4" /> Replay
+                    <RotateCcw className="w-3.5 h-3.5" /> Replay
                   </button>
                   <select
                     value={voiceRate}
                     onChange={(e) => setVoiceRate(Number(e.target.value))}
-                    className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-2xl text-[10px] font-black uppercase text-slate-300"
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-700"
                   >
                     <option value={0.85}>Slow voice</option>
                     <option value={1}>Normal voice</option>
@@ -557,7 +554,7 @@ export default function AiMockInterviewSession() {
                     type="button"
                     onClick={handleSubmitAnswer}
                     disabled={submitting}
-                    className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+                    className="px-5 py-2 bg-gray-900 hover:bg-black text-white rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                   >
                     <Send className="w-4 h-4" /> Submit answer
                   </button>
@@ -567,12 +564,12 @@ export default function AiMockInterviewSession() {
           </div>
         </main>
 
-        <aside className="w-[380px] bg-slate-900 border-l border-slate-800 flex flex-col p-8 gap-6 z-20 shrink-0 overflow-y-auto">
-          <ProctoringConsole videoRef={videoRef} violations={violations} cameraLive={cameraLive} />
-          <div className="bg-slate-800/30 rounded-[2rem] p-6 border border-slate-800/50">
-            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Progress</h4>
-            <p className="text-2xl font-black text-white tabular-nums">{progressPct}%</p>
-            <p className="text-[11px] text-slate-500 mt-2 font-medium">
+        <aside className="w-64 sm:w-72 bg-white border-l border-gray-200 flex flex-col p-4 gap-3 shrink-0 overflow-y-auto min-h-0">
+          <ProctoringConsole videoRef={videoRef} violations={violations} cameraLive={cameraLive} variant="light" />
+          <div className="rounded-lg p-4 border border-gray-200 bg-gray-50">
+            <h4 className="text-xs font-medium text-gray-500 mb-2">Progress</h4>
+            <p className="text-xl font-semibold text-gray-900 tabular-nums">{progressPct}%</p>
+            <p className="text-xs text-gray-500 mt-1">
               {answeredIds.size} of {totalQ} answers submitted
             </p>
           </div>

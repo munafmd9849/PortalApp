@@ -43,7 +43,6 @@ import {
   FolderKanban,
   Trophy,
   Save,
-  RefreshCw,
   Upload,
   BarChart3,
   X,
@@ -581,32 +580,6 @@ const ResumeBuilder = () => {
     }
   };
 
-  // Refresh profile
-  const handleRefresh = async () => {
-    try {
-      setLoading(true);
-      const profile = await getStudentProfile(user.id);
-      setStudent(profile);
-      
-      // Reload resumes (don't fail refresh if this fails)
-      try {
-        await loadResumes();
-      } catch (resumeErr) {
-        console.error('Error loading resumes:', resumeErr);
-        // Don't show error - just log it
-      }
-      
-      setSuccess('Profile refreshed!');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      console.error('Refresh error:', err);
-      setError('Failed to refresh.');
-      setTimeout(() => setError(''), 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Handle file upload
   const handleFileSelect = (file) => {
     if (!file) return;
@@ -1111,37 +1084,34 @@ const ResumeBuilder = () => {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
-      {/* Header - compact on mobile */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 sm:p-6 text-white shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-base sm:text-xl font-bold flex items-center gap-2 mb-0.5 sm:mb-1 flex-wrap">
-              <div className="bg-white/20 p-1.5 rounded-lg flex-shrink-0">
-                <FileText size={isMobile ? 18 : 20} />
-              </div>
-              Resume Builder
-            </h2>
-            <p className={`text-blue-100 ml-0 sm:ml-9 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              Build, upload, or analyze your resume
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleRefresh}
-              className="bg-white/20 hover:bg-white/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-medium shadow-md hover:shadow-lg text-xs sm:text-sm"
-            >
-              <RefreshCw size={isMobile ? 14 : 16} />
-              Refresh
-            </button>
-            {!isMobile && (
-            <div className="flex items-center gap-2 bg-white/20 rounded-lg px-4 py-2 shadow-md text-sm">
-              <Sparkles size={16} className="animate-pulse" />
-              <span className="font-semibold">AI-Powered</span>
-            </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <style>{`
+        .resume-ai-glare {
+          position: relative;
+          overflow: hidden;
+        }
+        .resume-ai-glare::after {
+          content: '';
+          position: absolute;
+          top: -40%;
+          left: -80%;
+          width: 45%;
+          height: 180%;
+          background: linear-gradient(
+            105deg,
+            transparent 42%,
+            rgba(255, 255, 255, 0.4) 50%,
+            transparent 58%
+          );
+          animation: resumeAiGlare 2.8s ease-in-out infinite;
+          pointer-events: none;
+        }
+        @keyframes resumeAiGlare {
+          0%, 100% { left: -80%; opacity: 0; }
+          15% { opacity: 1; }
+          50% { left: 120%; opacity: 1; }
+          85% { opacity: 0; }
+        }
+      `}</style>
 
       {/* Success/Error Messages */}
       {success && (
@@ -1198,14 +1168,16 @@ const ResumeBuilder = () => {
           </button>
           <button
             onClick={() => { setActiveMode('optimize'); setOptimizeResult(null); setOptimizeError(''); }}
-            className={`flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
+            className={`resume-ai-glare flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'optimize'
-                ? 'bg-purple-600 text-white shadow-lg'
-                : 'bg-gray-50 text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 border border-gray-200'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
-            <Zap size={isMobile ? 18 : 22} />
-            <span>{isMobile ? 'AI Opt' : 'AI Optimize'}</span>
+            <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-3">
+              <Zap size={isMobile ? 18 : 22} />
+              <span>{isMobile ? 'AI Opt' : 'AI Optimize'}</span>
+            </span>
           </button>
         </div>
       </div>
@@ -2259,14 +2231,11 @@ const ResumeBuilder = () => {
               </h3>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">💡 Quick Tip:</p>
-                  <p>Upload multiple resumes in PDF format. You can upload different versions of your resume (e.g., technical, non-technical, different industries) and manage them all in one place.</p>
-                </div>
-              </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+              <ul className="space-y-1.5">
+                <li>Upload your resume as a PDF (max 10 MB) for the best compatibility.</li>
+                <li>You can store multiple versions and analyze them in ATS Check.</li>
+              </ul>
             </div>
             
             {/* List of uploaded resumes */}
@@ -2416,20 +2385,6 @@ const ResumeBuilder = () => {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">💡 Tips for Resume Upload:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Upload a PDF format resume for best compatibility</li>
-                    <li>Ensure your resume is ATS-friendly (simple formatting, standard fonts)</li>
-                    <li>Keep file size under 10MB</li>
-                    <li>After uploading, use the ATS Friendly section to analyze your resume</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -2447,26 +2402,14 @@ const ResumeBuilder = () => {
               </h3>
             </div>
 
-            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-5">
-              <div className="flex items-start gap-3">
-                <Info size={22} className="text-orange-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-orange-800">
-                  <p className="font-bold text-base mb-2">💡 What is ATS?</p>
-                  <p className="mb-2">ATS (Applicant Tracking System) is software used by recruiters to filter resumes. Our analyzer checks your resume for:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Keyword optimization and relevance</li>
-                    <li>Format compatibility and structure</li>
-                    <li>Overall ATS-friendliness score</li>
-                    <li>Suggestions for improvement</li>
-                  </ul>
-                </div>
-              </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+              <ul className="space-y-1.5">
+                <li>Run an ATS check on an uploaded resume or your built resume to review compatibility and keyword coverage.</li>
+                <li>Use the suggested improvements before applying to jobs.</li>
+              </ul>
             </div>
 
-            <p className="text-gray-600">
-              Get detailed analysis of your uploaded resume including ATS compatibility, keyword matching, and improvement suggestions.
-            </p>
-            <ResumeAnalyzer 
+            <ResumeAnalyzer
               resumeInfo={resumes.length > 0 ? {
                 hasResume: true,
                 resumeUrl: resumes[0].fileUrl,
@@ -2492,24 +2435,17 @@ const ResumeBuilder = () => {
         <div className="bg-white rounded-xl border-2 border-gray-200 p-5 shadow-sm space-y-6">
           {/* Header */}
           <div className="flex items-center gap-3 border-b border-gray-200 pb-4">
-            <div className="bg-purple-100 p-1.5 rounded-lg">
-              <Zap size={20} className="text-purple-600" />
+            <div className="bg-blue-100 p-1.5 rounded-lg">
+              <Zap size={20} className="text-blue-600" />
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">AI Resume Optimizer</h3>
-              <p className="text-sm text-gray-500">Mistral rewrites your resume sections to match a specific job's keywords</p>
-            </div>
-            <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-semibold">Powered by Mistral</span>
+            <h3 className="text-xl font-bold text-gray-800">AI Resume Optimizer</h3>
           </div>
 
-          {/* Info Banner */}
-          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800">
-            <p className="font-semibold mb-1">🚀 How it works</p>
-            <ul className="list-disc list-inside space-y-1 text-purple-700">
-              <li>Pick a job from your portal's posted jobs list</li>
-              <li>AI reads your profile (skills, experience, projects) from the DB — no manual input</li>
-              <li>Mistral rewrites your summary, skills, and bullet points to match the JD keywords</li>
-              <li>Copy the results into your Build Resume sections</li>
+          {/* Guidance */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+            <ul className="space-y-1.5">
+              <li>Select a posted job, then run Optimize to tailor your summary, skills, and experience to that role.</li>
+              <li>Review the suggestions and apply them in Build Resume before downloading.</li>
             </ul>
           </div>
 
@@ -2536,13 +2472,15 @@ const ResumeBuilder = () => {
               }
             }}
             disabled={!optimizeJob || optimizing}
-            className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="resume-ai-glare w-full flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
           >
+            <span className="relative z-10 flex items-center justify-center gap-2">
             {optimizing ? (
-              <><Loader size={18} className="animate-spin" /> Optimizing with Mistral...</>
+              <><Loader size={18} className="animate-spin" /> Optimizing...</>
             ) : (
               <><Zap size={18} /> {optimizeJob ? `Optimize for ${optimizeJob.jobTitle}` : 'Select a job first'}</>
             )}
+            </span>
           </button>
 
           {/* Error */}
@@ -2570,7 +2508,7 @@ const ResumeBuilder = () => {
                   </div>
                   <div className="p-4">
                     <p className="text-sm text-gray-700 leading-relaxed bg-green-50 border border-green-200 rounded-lg p-3">{optimizeResult.optimized.summary}</p>
-                    <p className="text-xs text-gray-400 mt-2">💡 Copy this into your Summary section in Build Resume</p>
+                    <p className="text-xs text-gray-500 mt-2">Copy this into your Summary section in Build Resume.</p>
                   </div>
                 </div>
               )}
@@ -2660,7 +2598,7 @@ const ResumeBuilder = () => {
               {/* Keywords */}
               {optimizeResult.optimized?.keywords?.length > 0 && (
                 <div className="border border-amber-200 rounded-xl p-4 bg-amber-50">
-                  <p className="text-xs font-semibold text-amber-700 mb-2">🔑 Keywords to weave into your resume</p>
+                  <p className="text-xs font-semibold text-amber-700 mb-2">Keywords to include in your resume</p>
                   <div className="flex flex-wrap gap-1.5">
                     {optimizeResult.optimized.keywords.map((kw, i) => (
                       <span key={i} className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-300">{kw}</span>
