@@ -63,6 +63,9 @@ export function derivePipelineFromApplication(app) {
   if (SHORTLIST.includes(status) || screening === 'TEST_SELECTED' || screening === 'INTERVIEW_ELIGIBLE') {
     return { pipelineStatus: PIPELINE_STATUS.IN_PROCESS, pipelineSubStatus: PIPELINE_SUB_STATUS.SHORTLISTED };
   }
+  if (upper(app.status) === 'WITHDRAWN') {
+    return { pipelineStatus: PIPELINE_STATUS.CLOSED, pipelineSubStatus: PIPELINE_SUB_STATUS.CLOSED_WITH_REJECTION };
+  }
   if (status === 'APPLIED' || !status) {
     return { pipelineStatus: PIPELINE_STATUS.ACTIVE, pipelineSubStatus: PIPELINE_SUB_STATUS.PENDING };
   }

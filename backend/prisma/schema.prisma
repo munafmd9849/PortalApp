@@ -792,6 +792,8 @@ model AiMockInterviewAnswer {
   audioUrl           String?
   audioPublicId      String?
   durationSeconds    Int?
+  transcriptText      String?  @db.Text
+  transcriptStatus    String?  // PENDING, COMPLETED, FAILED, SKIPPED
   acknowledgementText String?  @db.Text
   transitionText     String?  @db.Text
   submittedAt        DateTime?

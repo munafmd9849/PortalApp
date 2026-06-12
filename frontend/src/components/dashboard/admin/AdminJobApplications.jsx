@@ -43,9 +43,10 @@ function StatusPill({ value }) {
     'REJECTED': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: 'X' },
     'ONGOING': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: 'Clock' },
     'REVOKED_BY_ADMIN': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300', icon: 'Lock' },
+    'WITHDRAWN': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: 'X' },
   };
   const style = config[v] || config['ONGOING'];
-  const label = v === 'REVOKED_BY_ADMIN' ? 'REVOKED' : v;
+  const label = v === 'REVOKED_BY_ADMIN' ? 'REVOKED' : v === 'WITHDRAWN' ? 'WITHDRAWN' : v;
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${style.bg} ${style.text} ${style.border}`}>
       {label}
@@ -63,6 +64,7 @@ function StageBadge({ stage }) {
     'Selected': { color: 'bg-emerald-100 text-emerald-700', label: 'Selected' },
     'Rejected': { color: 'bg-rose-100 text-rose-700', label: 'Rejected' },
     'REVOKED_BY_ADMIN': { color: 'bg-slate-200 text-slate-700', label: 'Revoked' },
+    'WITHDRAWN': { color: 'bg-amber-100 text-amber-800', label: 'Withdrawn' },
   };
   const stageConfig = stages[stage] || stages['Applied'];
   return (

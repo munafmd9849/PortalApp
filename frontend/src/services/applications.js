@@ -145,6 +145,19 @@ export const applyToJob = async (studentId, jobId, applicationData = {}) => {
 };
 
 /**
+ * Withdraw application (student only)
+ */
+export const withdrawApplication = async (applicationId) => {
+  try {
+    const response = await api.withdrawApplication(applicationId);
+    return response;
+  } catch (error) {
+    console.error('withdrawApplication error:', error);
+    throw error;
+  }
+};
+
+/**
  * Update application status (admin/recruiter only)
  */
 export const updateApplicationStatus = async (applicationId, status, interviewDate) => {

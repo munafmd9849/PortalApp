@@ -45,7 +45,12 @@ function buildHistoryBlock(questions, answers) {
     const a = byQ.get(q.id);
     if (!a?.submittedAt) continue;
     lines.push(`Interviewer: ${q.questionText}`);
-    lines.push(`Candidate: [video answer, ${a.durationSeconds || 0}s]`);
+    const spoken = a.transcriptText?.trim();
+    if (spoken) {
+      lines.push(`Candidate: ${spoken}`);
+    } else {
+      lines.push(`Candidate: [no clear speech detected, ${a.durationSeconds || 0}s recording]`);
+    }
     if (a.acknowledgementText) lines.push(`Interviewer (brief): ${a.acknowledgementText}`);
   }
   return lines.join('\n');
@@ -90,15 +95,28 @@ export async function generateConversationalFollowUp({
   answers,
   turnIndex,
   maxTurns,
+  answeredTurnIndex,
+  lastTranscript,
+  lastDurationSeconds,
 }) {
   const history = buildHistoryBlock(questions, answers);
-  const isLast = turnIndex + 1 >= maxTurns;
+  const isLast = turnIndex >= maxTurns;
+  const ackTurnIndex = answeredTurnIndex ?? Math.max(0, turnIndex - 1);
+  const ackQuestion = questions[ackTurnIndex];
 
   if (isLast) {
+    const ackData = await generateInterviewAcknowledgement({
+      questionText: ackQuestion?.questionText || 'your last answer',
+      interviewType,
+      durationSeconds: lastDurationSeconds,
+      transcriptText: lastTranscript,
+      questionIndex: ackTurnIndex,
+      totalQuestions: maxTurns,
+    });
     return {
       question: null,
       isComplete: true,
-      acknowledgement: 'Thank you for sharing your thoughts throughout this conversation.',
+      acknowledgement: ackData.acknowledgement,
       transition: 'That concludes our interview. Thank you for your time today.',
     };
   }
@@ -107,9 +125,10 @@ export async function generateConversationalFollowUp({
     const json = await callMistralJSON(
       `You are a professional interviewer in a live conversational interview. Return JSON only: {"question":"..."}.
 Rules:
-- Ask ONE follow-up question based on the conversation so far
+- Ask ONE follow-up question based on the conversation so far — especially the candidate's last answer
 - 1-2 sentences, under 40 words
 - Probe deeper, clarify, or explore related skills — do not repeat earlier questions
+- If the last answer was empty or nonsensical, ask a simpler clarifying question on the same topic
 - Stay professional; never give scores or coaching`,
       `Topic: ${topic || 'placement readiness'}
 Type: ${interviewType || 'GENERAL'}
@@ -124,10 +143,11 @@ Generate the next question only.`
     const q = String(json?.question || '').trim();
     if (q && q.split(/\s+/).length <= 50) {
       const ackData = await generateInterviewAcknowledgement({
-        questionText: questions[turnIndex]?.questionText || q,
+        questionText: ackQuestion?.questionText || q,
         interviewType,
-        durationSeconds: answers.find((a) => a.questionId === questions[turnIndex]?.id)?.durationSeconds,
-        questionIndex: turnIndex,
+        durationSeconds: lastDurationSeconds,
+        transcriptText: lastTranscript,
+        questionIndex: ackTurnIndex,
         totalQuestions: maxTurns,
       });
       return {
@@ -147,9 +167,11 @@ Generate the next question only.`
     'How would you approach a similar situation differently next time?',
   ];
   const ackData = await generateInterviewAcknowledgement({
-    questionText: questions[turnIndex]?.questionText || 'your last answer',
+    questionText: ackQuestion?.questionText || 'your last answer',
     interviewType,
-    questionIndex: turnIndex,
+    durationSeconds: lastDurationSeconds,
+    transcriptText: lastTranscript,
+    questionIndex: ackTurnIndex,
     totalQuestions: maxTurns,
   });
   return {

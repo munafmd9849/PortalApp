@@ -8,7 +8,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader, FileText, FilePlus, X, CheckCircle } from 'lucide-react';
 import { useJobDetails } from '../hooks/useJobDetails';
 import { useAuth } from '../hooks/useAuth';
-import { applyToJob, getStudentApplications } from '../services/applications';
+import { applyToJob, withdrawApplication, getStudentApplications } from '../services/applications';
+import { canStudentWithdrawApplication, isActiveApplication } from '../utils/applicationWithdraw';
 import { getStudentProfile } from '../services/students';
 import api from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
@@ -71,7 +72,9 @@ const JobDescriptionPage = () => {
   const [resumes, setResumes] = useState([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [jobApplication, setJobApplication] = useState(null);
 
   // Fetch job details
   const { job: jobDetails, loading, error, refetch } = useJobDetails(
@@ -82,24 +85,39 @@ const JobDescriptionPage = () => {
 
   const displayJob = jobDetails;
 
-  useEffect(() => {
+  const loadJobApplication = useCallback(async () => {
     if (!user?.id || !jobId) {
       setHasApplied(false);
+      setJobApplication(null);
       return;
     }
+    try {
+      const apps = await getStudentApplications(user.id, { noCache: true });
+      const match = Array.isArray(apps)
+        ? apps.find((app) => app.jobId === jobId || app.job?.id === jobId)
+        : null;
+      setJobApplication(match || null);
+      setHasApplied(Boolean(match && isActiveApplication(match)));
+    } catch {
+      setHasApplied(false);
+      setJobApplication(null);
+    }
+  }, [user?.id, jobId]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const apps = await getStudentApplications(user.id, { noCache: true });
+      if (!user?.id || !jobId) {
         if (!cancelled) {
-          setHasApplied(Array.isArray(apps) && apps.some((app) => app.jobId === jobId || app.job?.id === jobId));
+          setHasApplied(false);
+          setJobApplication(null);
         }
-      } catch {
-        if (!cancelled) setHasApplied(false);
+        return;
       }
+      await loadJobApplication();
     })();
     return () => { cancelled = true; };
-  }, [user?.id, jobId]);
+  }, [user?.id, jobId, loadJobApplication]);
 
   const loadResumes = useCallback(async () => {
     if (!user?.id) return;
@@ -159,6 +177,35 @@ const JobDescriptionPage = () => {
     await loadResumes();
     setIsResumeModalOpen(true);
   }, [user, role, navigate, loadResumes, hasApplied]);
+
+  const handleWithdraw = useCallback(async () => {
+    if (!jobApplication?.id) return;
+
+    const check = canStudentWithdrawApplication(jobApplication);
+    if (!check.allowed) {
+      showError(check.reason || 'This application cannot be withdrawn');
+      return;
+    }
+
+    const jobTitle = displayJob?.jobTitle || jobApplication.job?.jobTitle || 'this job';
+    if (!window.confirm(`Withdraw your application for ${jobTitle}? You can apply again later if the job is still open.`)) {
+      return;
+    }
+
+    setWithdrawing(true);
+    try {
+      await withdrawApplication(jobApplication.id);
+      showSuccess('Application withdrawn successfully');
+      setHasApplied(false);
+      setJobApplication(null);
+      await loadJobApplication();
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.message || 'Failed to withdraw application';
+      showError(errMsg);
+    } finally {
+      setWithdrawing(false);
+    }
+  }, [jobApplication, displayJob?.jobTitle, loadJobApplication]);
 
   const handleResumeSelection = useCallback(async (resumeId = null) => {
     if (!pendingJob || !user?.id) return;
@@ -287,6 +334,22 @@ const JobDescriptionPage = () => {
         {/* Job Content */}
         {!loading && displayJob && (
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            {(role || '').toLowerCase() === 'student' && hasApplied && jobApplication && canStudentWithdrawApplication(jobApplication).allowed && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 py-4 bg-emerald-50 border-b border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-800">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm font-medium">You have applied to this job.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleWithdraw}
+                  disabled={withdrawing}
+                  className="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 text-sm font-medium disabled:opacity-60"
+                >
+                  {withdrawing ? 'Withdrawing...' : 'Withdraw Application'}
+                </button>
+              </div>
+            )}
             <Suspense fallback={<JobDescriptionSkeleton />}>
               <JobContent
                 job={displayJob}

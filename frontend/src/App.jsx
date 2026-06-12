@@ -52,6 +52,7 @@ import MockInterviewStudentDashboard from './pages/student/MockInterviewStudentD
 import LiveMockInterviewsStudent from './pages/student/LiveMockInterviewsStudent';
 import GuidedAiInterviewsStudent from './pages/student/GuidedAiInterviewsStudent';
 import ConversationalAiInterviewsStudent from './pages/student/ConversationalAiInterviewsStudent';
+import AiInterviewResultStudent from './pages/student/AiInterviewResultStudent';
 import MockInterviewResultStudent from './pages/student/MockInterviewResultStudent';
 import MockInterviewPreCheck from './pages/assessment/MockInterviewPreCheck';
 import MockInterviewRoom from './pages/assessment/MockInterviewRoom';
@@ -249,6 +250,7 @@ function AppContent() {
           <Route path="/student/conversational-ai-interviews" element={<ConversationalAiInterviewsStudent />} />
           <Route path="/student/interviews/:id" element={<AiMockInterviewSession />} />
           <Route path="/student/conversational-interviews/:id" element={<AiConversationalInterviewSession />} />
+          <Route path="/student/ai-interview/results/:enrollmentId" element={<AiInterviewResultStudent />} />
           <Route path="/mock-interview/results/:slotId" element={<MockInterviewResultStudent />} />
         </Route>
 

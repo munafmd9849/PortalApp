@@ -173,7 +173,31 @@ function AiMockInterviewReviewComponent() {
                   <div className="relative z-10 space-y-6">
                     <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest text-indigo-300 border border-white/5">
                       <Sparkles className="w-3.5 h-3.5" /> Assistive AI insights
+                      {detail.aiInsight.status === 'PENDING' && (
+                        <span className="ml-2 text-amber-300">· Processing</span>
+                      )}
+                      {detail.aiInsight.status === 'FAILED' && (
+                        <span className="ml-2 text-rose-300">· Failed</span>
+                      )}
                     </span>
+                    {detail.aiInsight.status === 'PENDING' ? (
+                      <div className="flex items-center gap-3 text-slate-300">
+                        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                        <p className="text-sm">AI report is being generated from interview transcripts…</p>
+                      </div>
+                    ) : detail.aiInsight.status === 'FAILED' ? (
+                      <div className="space-y-3">
+                        <p className="text-sm text-rose-200">Automatic insight generation failed. Regenerate or complete a human review.</p>
+                        <button
+                          type="button"
+                          onClick={regenerateAi}
+                          className="text-xs font-bold uppercase tracking-widest text-indigo-300 hover:text-white"
+                        >
+                          Retry generation
+                        </button>
+                      </div>
+                    ) : (
+                      <>
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                       {[
                         ['Overall', detail.aiInsight.overallPerformance],
@@ -212,6 +236,8 @@ function AiMockInterviewReviewComponent() {
                     >
                       Regenerate insights
                     </button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -226,6 +252,20 @@ function AiMockInterviewReviewComponent() {
                   {detail?.answers?.map((a, i) => (
                     <div key={a.id} className={i > 0 ? 'pt-6' : ''}>
                       <p className="text-sm font-bold text-slate-900 mb-2">Q{i + 1}: {a.questionText}</p>
+                      {a.transcriptText ? (
+                        <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 leading-relaxed">
+                          <span className="font-bold text-slate-800">Transcript: </span>
+                          {a.transcriptText}
+                        </p>
+                      ) : a.transcriptStatus === 'FAILED' ? (
+                        <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 mb-3">
+                          Transcription failed — review the video recording.
+                        </p>
+                      ) : a.submittedAt ? (
+                        <p className="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 mb-3 italic">
+                          No clear speech detected in this answer.
+                        </p>
+                      ) : null}
                       {a.acknowledgementText && (
                         <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-3 italic">
                           <span className="font-bold not-italic text-indigo-900">AI: </span>

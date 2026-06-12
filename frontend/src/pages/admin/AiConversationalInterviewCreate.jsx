@@ -123,14 +123,14 @@ export default function AiConversationalInterviewCreate() {
   return (
     <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-4xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-        <div className="px-8 py-6 border-b flex items-center justify-between bg-violet-50/50 shrink-0">
+        <div className="px-8 py-6 border-b flex items-center justify-between bg-indigo-50/50 shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
               <MessageCircle className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">Conversational AI Interview</h2>
-              <p className="text-[10px] font-bold text-violet-500 uppercase tracking-widest">Step {step} of 2</p>
+              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Step {step} of 2</p>
             </div>
           </div>
           <button type="button" onClick={() => navigate(`${adminBase}?tab=conversationalInterviews`)} className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -191,7 +191,7 @@ export default function AiConversationalInterviewCreate() {
                 <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="p-3 border rounded-xl" />
                 <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="p-3 border rounded-xl" />
               </div>
-              <button type="button" onClick={() => setStep(2)} className="w-full py-3 bg-violet-600 text-white rounded-xl font-bold uppercase text-xs">
+              <button type="button" onClick={() => setStep(2)} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs">
                 Next: Assign students
               </button>
             </>
@@ -224,7 +224,7 @@ export default function AiConversationalInterviewCreate() {
               <p className="text-xs text-slate-500">{selectedStudents.length} students selected</p>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 border rounded-xl font-bold text-xs uppercase">Back</button>
-                <button type="button" disabled={submitting} onClick={() => handleSave(true)} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2">
+                <button type="button" disabled={submitting} onClick={() => handleSave(true)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2">
                   <Save className="w-4 h-4" /> Publish
                 </button>
               </div>

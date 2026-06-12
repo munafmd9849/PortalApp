@@ -10,6 +10,7 @@ export const APPLICATION_STATUS = {
   SELECTED: 'SELECTED',
   OFFERED: 'OFFERED',
   ACCEPTED: 'ACCEPTED',
+  WITHDRAWN: 'WITHDRAWN',
   REVOKED_BY_ADMIN: 'REVOKED_BY_ADMIN'
 };
 
@@ -26,6 +27,10 @@ export function validateApplicationStateTransition(currentStatus, nextStatus) {
     // This helper is used for normal status updates. 
     // Restoration should be handled by its own dedicated controller.
     throw new Error('Applications revoked by admin cannot be updated. Restore them first.');
+  }
+
+  if (currentStatus === APPLICATION_STATUS.WITHDRAWN) {
+    throw new Error('Withdrawn applications cannot be updated through this endpoint.');
   }
 
   // 2. Prevent updating already final states (optional, but good for hardening)

@@ -901,6 +901,9 @@ export const api = {
     body: JSON.stringify({ status, interviewDate }),
   }),
   getApplicationResumeViewUrl: (applicationId) => apiRequest(`/applications/${applicationId}/resume-view-url`),
+  withdrawApplication: (applicationId) => apiRequest(`/applications/${applicationId}/withdraw`, {
+    method: 'POST',
+  }),
   revokeApplication: (applicationId, reason) => apiRequest(`/applications/${applicationId}/revoke`, {
     method: 'POST',
     body: JSON.stringify({ reason }),
@@ -1255,6 +1258,8 @@ export const api = {
   regenerateAiInsights: (enrollmentId) =>
     apiRequest(`/ai-mock-interviews/enrollment/${enrollmentId}/regenerate-ai`, { method: 'POST' }),
   getStudentAiInterviews: () => apiRequest('/ai-mock-interviews/student/my-interviews'),
+  getStudentAiInterviewResults: (enrollmentId) =>
+    apiRequest(`/ai-mock-interviews/student/results/${enrollmentId}`),
   getStudentAiInterviewSession: (interviewId) =>
     apiRequest(`/ai-mock-interviews/student/session/${interviewId}`),
   startAiInterviewSession: (enrollmentId) =>

@@ -15,6 +15,20 @@ export function getApplicationPrimaryStatus(application) {
   if (finalStatus === 'REJECTED') {
     return { label: 'Rejected', code: 'REJECTED', variant: 'danger', final: true };
   }
+  if (finalStatus === 'WITHDRAWN') {
+    return { label: 'Withdrawn', code: 'WITHDRAWN', variant: 'neutral', final: true };
+  }
+  if (finalStatus === 'REVOKED' || finalStatus === 'REVOKED_BY_ADMIN') {
+    return { label: 'Revoked by Admin', code: 'REVOKED_BY_ADMIN', variant: 'neutral', final: true };
+  }
+
+  const status = String(application?.status || '').toUpperCase();
+  if (status === 'WITHDRAWN') {
+    return { label: 'Withdrawn', code: 'WITHDRAWN', variant: 'neutral', final: true };
+  }
+  if (status === 'REVOKED_BY_ADMIN') {
+    return { label: 'Revoked by Admin', code: 'REVOKED_BY_ADMIN', variant: 'neutral', final: true };
+  }
 
   const fromApi = application?.primaryStatus || application?.tracker?.primaryStatus;
   if (fromApi) return fromApi;
@@ -34,7 +48,8 @@ export function isTerminalApplication(application) {
   const primary = getApplicationPrimaryStatus(application);
   if (primary.final) return true;
   const finalStatus = (application?.finalStatus || application?.tracker?.details?.finalStatus || '').toString().toUpperCase();
-  return finalStatus === 'SELECTED' || finalStatus === 'REJECTED';
+  return ['SELECTED', 'REJECTED', 'WITHDRAWN', 'REVOKED', 'REVOKED_BY_ADMIN'].includes(finalStatus)
+    || ['WITHDRAWN', 'REVOKED_BY_ADMIN'].includes(String(application?.status || '').toUpperCase());
 }
 
 export function getApplicationTimeline(application) {

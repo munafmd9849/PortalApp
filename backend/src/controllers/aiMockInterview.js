@@ -6,8 +6,12 @@ import {
   createEnrollmentsForInterview,
   computeRiskLevel,
 } from '../utils/aiMockInterviewAssignment.js';
-import { generateAiInterviewInsights } from '../services/aiMockInterviewMistral.js';
 import { generateInterviewAcknowledgement } from '../services/aiMockInterviewAcknowledgement.js';
+import { transcribeInterviewRecording } from '../services/aiInterviewTranscription.js';
+import {
+  scheduleAiInterviewInsights,
+  regenerateAiInterviewInsightsSync,
+} from '../services/aiInterviewInsightsJob.js';
 import { deleteAiMockInterviewWithAssets } from '../utils/aiMockInterviewCleanup.js';
 
 function getFirstUnansweredIndex(questions, answers) {
@@ -36,6 +40,8 @@ function buildTimelineFromAnswers(questions, answers) {
       questionId: q.id,
       orderIndex: q.orderIndex,
       durationSeconds: a.durationSeconds,
+      text: a.transcriptText?.trim() || null,
+      transcriptStatus: a.transcriptStatus || null,
       at: a.submittedAt,
     });
     if (a.acknowledgementText) {
@@ -455,6 +461,8 @@ export async function getEnrollmentReviewDetail(req, res) {
         videoUrl: a.videoUrl,
         audioUrl: a.audioUrl,
         durationSeconds: a.durationSeconds,
+        transcriptText: a.transcriptText,
+        transcriptStatus: a.transcriptStatus,
         acknowledgementText: a.acknowledgementText,
         transitionText: a.transitionText,
         submittedAt: a.submittedAt,
@@ -521,6 +529,7 @@ export async function getStudentAiInterviews(req, res) {
         interview: {
           include: { _count: { select: { questions: true } } },
         },
+        aiInsight: { select: { status: true, overallPerformance: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -540,6 +549,8 @@ export async function getStudentAiInterviews(req, res) {
         questionCount: e.interview._count.questions,
         isWithinWindow: now >= e.interview.startDate && now <= e.interview.endDate,
         canStart: e.status !== 'COMPLETED' && now >= e.interview.startDate && now <= e.interview.endDate,
+        aiInsightStatus: e.aiInsight?.status || null,
+        overallPerformance: e.aiInsight?.overallPerformance ?? null,
       }))
     );
   } catch (error) {
@@ -740,6 +751,22 @@ export async function submitAiInterviewAnswer(req, res) {
         }
 
         const duration = parseInt(durationSeconds, 10) || null;
+
+        const { transcript, status: transcriptStatus } = await transcribeInterviewRecording(
+          req.file.buffer,
+          mime
+        );
+
+        const ackData = await generateInterviewAcknowledgement({
+          questionText: question.questionText,
+          notes: question.notes,
+          interviewType: enrollment.interview.interviewType,
+          durationSeconds: duration,
+          questionIndex: qIndex,
+          totalQuestions: enrollment.interview.questions.length,
+          transcriptText: transcript,
+        });
+
         const answer = await prisma.aiMockInterviewAnswer.upsert({
           where: {
             enrollmentId_questionId: { enrollmentId, questionId },
@@ -752,6 +779,10 @@ export async function submitAiInterviewAnswer(req, res) {
             audioUrl: uploaded.url,
             audioPublicId: uploaded.public_id,
             durationSeconds: duration,
+            transcriptText: transcript,
+            transcriptStatus,
+            acknowledgementText: ackData.acknowledgement,
+            transitionText: ackData.transition,
             submittedAt: new Date(),
           },
           update: {
@@ -760,6 +791,10 @@ export async function submitAiInterviewAnswer(req, res) {
             audioUrl: uploaded.url,
             audioPublicId: uploaded.public_id,
             durationSeconds: duration,
+            transcriptText: transcript,
+            transcriptStatus,
+            acknowledgementText: ackData.acknowledgement,
+            transitionText: ackData.transition,
             submittedAt: new Date(),
           },
         });
@@ -773,23 +808,6 @@ export async function submitAiInterviewAnswer(req, res) {
 
         const totalDur =
           (enrollment.totalDurationSeconds || 0) + (duration || 0);
-
-        const ackData = await generateInterviewAcknowledgement({
-          questionText: question.questionText,
-          notes: question.notes,
-          interviewType: enrollment.interview.interviewType,
-          durationSeconds: duration,
-          questionIndex: qIndex,
-          totalQuestions: totalQ,
-        });
-
-        await prisma.aiMockInterviewAnswer.update({
-          where: { id: answer.id },
-          data: {
-            acknowledgementText: ackData.acknowledgement,
-            transitionText: ackData.transition,
-          },
-        });
 
         await prisma.aiMockInterviewEnrollment.update({
           where: { id: enrollmentId },
@@ -858,42 +876,9 @@ export async function completeAiInterview(req, res) {
       },
     });
 
-    await prisma.aiMockInterviewAiInsight.upsert({
-      where: { enrollmentId },
-      create: { enrollmentId, status: 'PENDING' },
-      update: { status: 'PENDING' },
-    });
+    await scheduleAiInterviewInsights(enrollmentId);
 
     res.json({ success: true });
-
-    setImmediate(async () => {
-      try {
-        const full = await prisma.aiMockInterviewEnrollment.findUnique({
-          where: { id: enrollmentId },
-          include: {
-            interview: { include: { questions: { orderBy: { orderIndex: 'asc' } } } },
-            answers: true,
-          },
-        });
-        const insights = await generateAiInterviewInsights({
-          interviewTitle: full.interview.title,
-          interviewType: full.interview.interviewType,
-          questions: full.interview.questions,
-          answers: full.answers,
-          violationsCount: full.violationsCount,
-        });
-        await prisma.aiMockInterviewAiInsight.update({
-          where: { enrollmentId },
-          data: { ...insights, status: 'COMPLETED' },
-        });
-      } catch (err) {
-        console.error('AI insight generation failed:', err.message);
-        await prisma.aiMockInterviewAiInsight.update({
-          where: { enrollmentId },
-          data: { status: 'FAILED' },
-        }).catch(() => {});
-      }
-    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to complete interview' });
   }
@@ -974,31 +959,94 @@ export async function regenerateAiInsights(req, res) {
     if (access.error) return res.status(access.status).json({ error: access.error });
     if (!access.isAdmin) return res.status(403).json({ error: 'Forbidden' });
 
-    const full = await prisma.aiMockInterviewEnrollment.findUnique({
-      where: { id: enrollmentId },
-      include: {
-        interview: { include: { questions: { orderBy: { orderIndex: 'asc' } } } },
-        answers: true,
-      },
-    });
-
-    const insights = await generateAiInterviewInsights({
-      interviewTitle: full.interview.title,
-      interviewType: full.interview.interviewType,
-      questions: full.interview.questions,
-      answers: full.answers,
-      violationsCount: full.violationsCount,
-    });
-
-    const saved = await prisma.aiMockInterviewAiInsight.upsert({
-      where: { enrollmentId },
-      create: { enrollmentId, ...insights, status: 'COMPLETED' },
-      update: { ...insights, status: 'COMPLETED' },
-    });
-
+    const saved = await regenerateAiInterviewInsightsSync(enrollmentId);
     res.json(saved);
   } catch (error) {
     console.error('regenerateAiInsights:', error);
     res.status(500).json({ error: error.message || 'Failed to generate insights' });
+  }
+}
+
+function sanitizeAiInsightForStudent(aiInsight) {
+  if (!aiInsight) return null;
+  const {
+    id,
+    enrollmentId,
+    communicationScore,
+    confidenceScore,
+    clarityScore,
+    technicalUnderstanding,
+    technicalDepthScore,
+    professionalismScore,
+    behavioralScore,
+    overallPerformance,
+    strengths,
+    improvements,
+    recommendedFocus,
+    interviewSummary,
+    improvementPlan,
+    status,
+    createdAt,
+    updatedAt,
+  } = aiInsight;
+  return {
+    id,
+    enrollmentId,
+    communicationScore,
+    confidenceScore,
+    clarityScore,
+    technicalUnderstanding,
+    technicalDepthScore,
+    professionalismScore,
+    behavioralScore,
+    overallPerformance,
+    strengths,
+    improvements,
+    recommendedFocus,
+    interviewSummary,
+    improvementPlan,
+    status,
+    createdAt,
+    updatedAt,
+  };
+}
+
+export async function getStudentAiInterviewResults(req, res) {
+  try {
+    const { enrollmentId } = req.params;
+    const { enrollment, error, status, isOwner } = await assertEnrollmentAccess(enrollmentId, req);
+    if (error) return res.status(status).json({ error });
+    if (!isOwner) return res.status(403).json({ error: 'Forbidden' });
+
+    if (enrollment.status !== 'COMPLETED') {
+      return res.status(403).json({ error: 'Interview not completed yet', code: 'NOT_COMPLETED' });
+    }
+
+    res.json({
+      enrollment: {
+        id: enrollment.id,
+        status: enrollment.status,
+        progressPercent: enrollment.progressPercent,
+        totalDurationSeconds: enrollment.totalDurationSeconds,
+        completedAt: enrollment.completedAt,
+      },
+      interview: {
+        id: enrollment.interview.id,
+        title: enrollment.interview.title,
+        interviewType: enrollment.interview.interviewType,
+        sessionMode: enrollment.interview.sessionMode,
+      },
+      aiInsight: sanitizeAiInsightForStudent(enrollment.aiInsight),
+      humanReview: enrollment.review
+        ? {
+            overallRating: enrollment.review.overallRating,
+            comments: enrollment.review.comments,
+            strengths: enrollment.review.strengths,
+            improvements: enrollment.review.improvements,
+          }
+        : null,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load results' });
   }
 }

@@ -6,7 +6,8 @@ import {
   createEnrollmentsForInterview,
   computeRiskLevel,
 } from '../utils/aiMockInterviewAssignment.js';
-import { generateInterviewAcknowledgement } from '../services/aiMockInterviewAcknowledgement.js';
+import { transcribeInterviewRecording } from '../services/aiInterviewTranscription.js';
+import { scheduleAiInterviewInsights } from '../services/aiInterviewInsightsJob.js';
 import {
   generateConversationalOpening,
   generateConversationalFollowUp,
@@ -231,7 +232,10 @@ export async function getStudentConversationalInterviews(req, res) {
         studentId: student.id,
         interview: { sessionMode: CONVERSATIONAL },
       },
-      include: { interview: true },
+      include: {
+        interview: true,
+        aiInsight: { select: { status: true, overallPerformance: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -251,6 +255,8 @@ export async function getStudentConversationalInterviews(req, res) {
         canStart:
           e.status !== 'COMPLETED' && now >= e.interview.startDate && now <= e.interview.endDate,
         isWithinWindow: now >= e.interview.startDate && now <= e.interview.endDate,
+        aiInsightStatus: e.aiInsight?.status || null,
+        overallPerformance: e.aiInsight?.overallPerformance ?? null,
       }))
     );
   } catch (error) {
@@ -421,12 +427,30 @@ export async function submitConversationalAnswer(req, res) {
         const turnIndex = completedTurns;
         const maxTurns = enrollment.interview.conversationalMaxTurns;
 
-        const ackData = await generateInterviewAcknowledgement({
-          questionText: question.questionText,
+        const { transcript, status: transcriptStatus } = await transcribeInterviewRecording(
+          req.file.buffer,
+          mime
+        );
+
+        const followUp = await generateConversationalFollowUp({
+          topic: enrollment.interview.conversationalTopic,
           interviewType: enrollment.interview.interviewType,
-          durationSeconds: duration,
-          questionIndex: turnIndex,
-          totalQuestions: maxTurns,
+          instructions: enrollment.interview.instructions,
+          questions: enrollment.interview.questions,
+          answers: [
+            ...enrollment.answers.filter((a) => a.questionId !== questionId),
+            {
+              questionId,
+              durationSeconds: duration,
+              transcriptText: transcript,
+              submittedAt: new Date(),
+            },
+          ],
+          turnIndex: turnIndex + 1,
+          maxTurns,
+          answeredTurnIndex: turnIndex,
+          lastTranscript: transcript,
+          lastDurationSeconds: duration,
         });
 
         await prisma.aiMockInterviewAnswer.upsert({
@@ -439,8 +463,10 @@ export async function submitConversationalAnswer(req, res) {
             audioUrl: uploaded.url,
             audioPublicId: uploaded.public_id,
             durationSeconds: duration,
-            acknowledgementText: ackData.acknowledgement,
-            transitionText: ackData.transition,
+            transcriptText: transcript,
+            transcriptStatus,
+            acknowledgementText: followUp.acknowledgement,
+            transitionText: followUp.transition,
             submittedAt: new Date(),
           },
           update: {
@@ -449,32 +475,16 @@ export async function submitConversationalAnswer(req, res) {
             audioUrl: uploaded.url,
             audioPublicId: uploaded.public_id,
             durationSeconds: duration,
-            acknowledgementText: ackData.acknowledgement,
-            transitionText: ackData.transition,
+            transcriptText: transcript,
+            transcriptStatus,
+            acknowledgementText: followUp.acknowledgement,
+            transitionText: followUp.transition,
             submittedAt: new Date(),
           },
         });
 
         const newCompleted = turnIndex + 1;
         const progressPercent = Math.round((newCompleted / maxTurns) * 100);
-
-        const followUp = await generateConversationalFollowUp({
-          topic: enrollment.interview.conversationalTopic,
-          interviewType: enrollment.interview.interviewType,
-          instructions: enrollment.interview.instructions,
-          questions: enrollment.interview.questions,
-          answers: [
-            ...enrollment.answers.filter((a) => a.questionId !== questionId),
-            {
-              questionId,
-              durationSeconds: duration,
-              submittedAt: new Date(),
-              acknowledgementText: ackData.acknowledgement,
-            },
-          ],
-          turnIndex: newCompleted,
-          maxTurns,
-        });
 
         let nextQuestion = null;
         if (!followUp.isComplete && followUp.question) {
@@ -510,12 +520,16 @@ export async function submitConversationalAnswer(req, res) {
           },
         });
 
+        if (isLast) {
+          await scheduleAiInterviewInsights(enrollmentId);
+        }
+
         res.status(201).json({
           success: true,
           progressPercent,
           completedTurns: newCompleted,
-          acknowledgement: followUp.acknowledgement || ackData.acknowledgement,
-          transition: followUp.transition || ackData.transition,
+          acknowledgement: followUp.acknowledgement,
+          transition: followUp.transition,
           nextQuestion,
           isComplete: isLast,
         });
@@ -539,6 +553,8 @@ export async function completeConversationalInterview(req, res) {
       where: { id: access.enrollment.id },
       data: { status: 'COMPLETED', completedAt: new Date(), progressPercent: 100 },
     });
+
+    await scheduleAiInterviewInsights(access.enrollment.id);
 
     res.json({ success: true });
   } catch (error) {

@@ -17,6 +17,7 @@ import {
   logAiInterviewViolation,
   uploadAiInterviewScreenshot,
   regenerateAiInsights,
+  getStudentAiInterviewResults,
 } from '../controllers/aiMockInterview.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -25,6 +26,7 @@ const router = express.Router();
 // Student (before /:id)
 router.get('/student/my-interviews', authenticate, authorize(['STUDENT']), getStudentAiInterviews);
 router.get('/student/session/:id', authenticate, authorize(['STUDENT']), getStudentAiInterviewSession);
+router.get('/student/results/:enrollmentId', authenticate, authorize(['STUDENT']), getStudentAiInterviewResults);
 
 // Enrollment actions
 router.get('/enrollment/:enrollmentId/detail', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STUDENT']), getEnrollmentReviewDetail);

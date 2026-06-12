@@ -49,14 +49,30 @@ export function aiInterviewStatusMeta(status) {
 }
 
 export function conversationalStatusMeta(status) {
-  const isCompleted = status === 'COMPLETED';
-  if (isCompleted) {
-    return { label: 'Completed', color: 'text-emerald-600 bg-emerald-50 border-emerald-100' };
+  return aiInterviewStatusMeta(status);
+}
+
+export function getAiEnrollmentStatusBadge(status) {
+  switch (status) {
+    case 'COMPLETED':
+      return (
+        <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-full border border-slate-200 uppercase tracking-wider">
+          Completed
+        </span>
+      );
+    case 'IN_PROGRESS':
+      return (
+        <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-full border border-amber-100 uppercase tracking-wider animate-pulse">
+          In Progress
+        </span>
+      );
+    default:
+      return (
+        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-full border border-indigo-100 uppercase tracking-wider">
+          Not Started
+        </span>
+      );
   }
-  if (status === 'IN_PROGRESS') {
-    return { label: 'In Progress', color: 'text-amber-600 bg-amber-50 border-amber-100' };
-  }
-  return { label: 'Not Started', color: 'text-violet-600 bg-violet-50 border-violet-100' };
 }
 
 export function StatGrid({ stats, loading }) {

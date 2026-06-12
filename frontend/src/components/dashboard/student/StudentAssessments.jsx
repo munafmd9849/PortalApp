@@ -84,25 +84,6 @@ export default function StudentAssessments() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8 sm:space-y-12 py-6 sm:py-8 animate-in fade-in duration-500">
-      {/* Page Header / Hero Section */}
-      <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-900/10">
-        <div className="relative z-10 space-y-5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10">
-            <Shield className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Secure Testing Environment</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Your Assessment Hub</h1>
-          <p className="text-slate-400 max-w-xl text-sm sm:text-base leading-relaxed font-medium">
-            Improve your performance with standardized mock tests and live interview sessions. 
-            Track your progress and receive detailed institutional feedback.
-          </p>
-        </div>
-        
-        {/* Modern decorative background elements */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[100px] -mr-48 -mt-48 rounded-full" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 blur-[80px] -ml-32 -mb-32 rounded-full" />
-      </div>
-
       {/* Statistics Row (Mini-cards) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          {[

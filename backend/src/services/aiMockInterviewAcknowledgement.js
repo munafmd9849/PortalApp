@@ -83,9 +83,12 @@ export async function generateInterviewAcknowledgement({
   durationSeconds,
   questionIndex,
   totalQuestions,
+  transcriptText,
 }) {
   const transition = buildTransition(questionIndex, totalQuestions);
   const category = pickCategory(questionText, notes, interviewType);
+  const spoken = transcriptText?.trim();
+  const noSpeech = !spoken || spoken.length < 3;
 
   try {
     const json = await callMistralAck(
@@ -94,12 +97,16 @@ Rules:
 - 1-2 sentences, 15-40 words maximum
 - Professional, natural, human-like
 - Context-aware to the question topic (${category})
+- Reference specific points the candidate mentioned when transcript is substantive
+- If transcript is empty, nonsense, or off-topic filler only, acknowledge briefly without praising content (e.g. note you'd like more detail)
 - NEVER give scores, evaluation criteria, correct answers, coaching, or strengths/weaknesses
 - Do not ask a new question`,
       `Interview type: ${interviewType || 'GENERAL'}
 Question asked: ${questionText}
 ${notes ? `Interviewer notes: ${notes}` : ''}
-Student spoke for approximately ${durationSeconds || 0} seconds.
+Student answer transcript: ${spoken || '(no clear speech detected)'}
+Recording duration: approximately ${durationSeconds || 0} seconds.
+${noSpeech ? 'The candidate did not provide a clear verbal answer.' : ''}
 Generate a brief acknowledgement only.`
     );
 

@@ -16,6 +16,7 @@ import { getAdminScopeFilter } from '../utils/adminScope.js';
 import { validateApplicationStateTransition } from '../utils/applicationIntegrity.js';
 import { isAdminViewer } from '../utils/adminAccess.js';
 import { buildApplicationTrackerState } from '../utils/applicationTrackerState.js';
+import { canStudentWithdrawApplication } from '../utils/applicationWithdraw.js';
 
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -1794,7 +1795,7 @@ export async function applyToJob(req, res) {
       },
     });
 
-    if (existing) {
+    if (existing && existing.status !== 'WITHDRAWN') {
       return res.status(400).json({ error: 'Already applied to this job' });
     }
 
@@ -2029,18 +2030,40 @@ export async function applyToJob(req, res) {
       hasResumeId: !!resumeId,
     });
 
-    const application = await prisma.application.create({
-      data: applicationData,
-      include: {
-        job: {
-          include: {
-            company: true,
+    const isReapply = Boolean(existing?.status === 'WITHDRAWN');
+    const application = isReapply
+      ? await prisma.application.update({
+        where: { id: existing.id },
+        data: {
+          ...applicationData,
+          interviewStatus: null,
+          interviewDate: null,
+          lastRoundReached: 0,
+          screeningRemarks: null,
+          screeningCompletedAt: null,
+          pipelineStatus: null,
+          pipelineSubStatus: null,
+        },
+        include: {
+          job: {
+            include: {
+              company: true,
+            },
           },
         },
-      },
-    });
+      })
+      : await prisma.application.create({
+        data: applicationData,
+        include: {
+          job: {
+            include: {
+              company: true,
+            },
+          },
+        },
+      });
 
-    console.log('✅ [applyToJob] Application created:', {
+    console.log(`✅ [applyToJob] Application ${isReapply ? 're-opened' : 'created'}:`, {
       applicationId: application.id,
       resumeId,
     });
@@ -2170,8 +2193,15 @@ export async function applyToJob(req, res) {
       io.to(`student:${userId}`).emit('application:created', formattedApplication);
     }
 
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(application.id);
+    } catch (pipelineError) {
+      logger.warn(`Failed to sync pipeline after apply for application ${application.id}:`, pipelineError);
+    }
+
     // Return formatted application (matching getStudentApplications format)
-    res.status(201).json(formattedApplication);
+    res.status(isReapply ? 200 : 201).json(formattedApplication);
   } catch (error) {
     console.error('❌ [applyToJob] Error:', error);
     console.error('❌ [applyToJob] Error message:', error.message);
@@ -2331,6 +2361,112 @@ export async function updateApplicationStatus(req, res) {
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });
+  }
+}
+
+/**
+ * Withdraw an application (Student action)
+ */
+export async function withdrawApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const userId = req.userId;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true, statsApplied: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student profile not found' });
+    }
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: { include: { company: true } },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.studentId !== student.id) {
+      return res.status(403).json({ error: 'Not authorized to withdraw this application' });
+    }
+
+    const check = canStudentWithdrawApplication(application);
+    if (!check.allowed) {
+      return res.status(400).json({ error: check.reason });
+    }
+
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: 'WITHDRAWN',
+        interviewStatus: null,
+        interviewDate: null,
+        lastRoundReached: 0,
+        pipelineStatus: null,
+        pipelineSubStatus: null,
+      },
+      include: {
+        job: { include: { company: true } },
+      },
+    });
+
+    if ((student.statsApplied || 0) > 0) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { statsApplied: { decrement: 1 } },
+      });
+    }
+
+    try {
+      await prisma.jobTracking.updateMany({
+        where: {
+          studentId: student.id,
+          jobId: application.jobId,
+        },
+        data: {
+          applied: false,
+          appliedAt: null,
+        },
+      });
+    } catch (trackingError) {
+      logger.warn(`Failed to update job tracking after withdraw for application ${applicationId}:`, trackingError);
+    }
+
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(applicationId);
+    } catch (pipelineError) {
+      logger.warn(`Failed to sync pipeline after withdraw for application ${applicationId}:`, pipelineError);
+    }
+
+    await logAction(req, {
+      actionType: 'APPLICATION_WITHDRAWN',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Student withdrew application for ${application.job?.jobTitle || 'job'}`,
+    });
+
+    const io = getIO();
+    if (io) {
+      io.to(`student:${userId}`).emit('application:withdrawn', {
+        applicationId,
+        jobId: application.jobId,
+      });
+    }
+
+    res.json({
+      message: 'Application withdrawn successfully',
+      application: updated,
+    });
+  } catch (error) {
+    logger.error('Withdraw application error:', error);
+    res.status(500).json({ error: 'Failed to withdraw application' });
   }
 }
 

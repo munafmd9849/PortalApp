@@ -26,6 +26,8 @@ function getFinalStatus({ status, screeningStatus, interviewStatus }) {
   }
 
   const normalized = status ? String(status).toUpperCase() : null;
+  if (normalized === 'WITHDRAWN') return 'WITHDRAWN';
+  if (normalized === 'REVOKED_BY_ADMIN') return 'REVOKED';
   if (normalized === 'SELECTED') return 'SELECTED';
   if (normalized === 'REJECTED') return 'REJECTED';
 
@@ -170,7 +172,7 @@ export function buildApplicationTrackerState(input = {}) {
   const showInterviewSteps = interviewEligible(screening) && !screeningRejected
     && (finalStatus === 'ONGOING' || finalStatus === 'SELECTED' || rejectedRoundNumber != null);
 
-  const isTerminal = finalStatus === 'SELECTED' || finalStatus === 'REJECTED';
+  const isTerminal = ['SELECTED', 'REJECTED', 'WITHDRAWN', 'REVOKED'].includes(finalStatus);
 
   if (showInterviewSteps && hasSession) {
     if (interviewStarted || interviewDate) {
@@ -276,6 +278,12 @@ export function buildApplicationTrackerState(input = {}) {
   } else if (finalStatus === 'REJECTED') {
     primaryLabel = 'Rejected';
     primaryCode = 'REJECTED';
+  } else if (finalStatus === 'WITHDRAWN') {
+    primaryLabel = 'Withdrawn';
+    primaryCode = 'WITHDRAWN';
+  } else if (finalStatus === 'REVOKED') {
+    primaryLabel = 'Revoked by Admin';
+    primaryCode = 'REVOKED_BY_ADMIN';
   } else if (highestQualifiedRound > 0) {
     primaryLabel = `Round ${highestQualifiedRound} Qualified`;
     primaryCode = `ROUND_${highestQualifiedRound}_QUALIFIED`;
@@ -335,7 +343,7 @@ export function buildApplicationTrackerState(input = {}) {
       label: primaryLabel,
       code: primaryCode,
       variant: variantForPrimary(primaryCode),
-      final: finalStatus === 'SELECTED' || finalStatus === 'REJECTED',
+      final: isTerminal,
     },
     timeline,
     details,

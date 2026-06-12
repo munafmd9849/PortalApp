@@ -31,25 +31,47 @@ async function callMistralJSON(systemPrompt, userPrompt) {
 
 const clamp = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
+function isWeakTranscript(text) {
+  if (!text?.trim()) return true;
+  const t = text.trim().toLowerCase();
+  if (t.length < 8) return true;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 3) return true;
+  const unique = new Set(words);
+  if (unique.size <= 2 && words.length >= 3) return true;
+  if (/^(bla|blah|um+|uh+|test|hello|hi|ok|okay|yes|no)[\s.!]*$/i.test(t)) return true;
+  return false;
+}
+
+function formatAnswerBlock(q, a, index) {
+  const transcript = a?.transcriptText?.trim();
+  const weak = isWeakTranscript(transcript);
+  return `Q${index + 1}: ${q.questionText}
+Submitted: ${a?.submittedAt ? 'Yes' : 'No'}
+Duration: ${a?.durationSeconds ?? 0}s
+Transcript status: ${a?.transcriptStatus || (transcript ? 'COMPLETED' : 'missing')}
+Transcript: ${transcript || '(no speech detected)'}
+Answer quality flag: ${weak ? 'WEAK_OR_EMPTY — score this answer low' : 'SUBSTANTIVE'}
+Acknowledgement given: ${a?.acknowledgementText ? 'Yes' : 'No'}`;
+}
+
 /**
- * Comprehensive post-interview report (reviewer-assist; video not transcribed).
+ * Content-based post-interview report from answer transcripts.
  */
 export async function generateAiInterviewInsights({
   interviewTitle,
   interviewType,
+  sessionMode,
   questions,
   answers,
   violationsCount,
 }) {
-  const qaBlock = questions
-    .map((q, i) => {
-      const a = answers.find((x) => x.questionId === q.id);
-      return `Q${i + 1}: ${q.questionText}
-Submitted: ${a?.submittedAt ? 'Yes (video)' : 'No'}
-Duration: ${a?.durationSeconds ?? 0}s
-Acknowledgement given: ${a?.acknowledgementText ? 'Yes' : 'No'}`;
-    })
-    .join('\n\n');
+  const qaBlock = questions.map((q, i) => formatAnswerBlock(q, answers.find((x) => x.questionId === q.id), i)).join('\n\n');
+
+  const weakCount = questions.filter((q) => {
+    const a = answers.find((x) => x.questionId === q.id);
+    return isWeakTranscript(a?.transcriptText);
+  }).length;
 
   const system = `You are a placement interview analyst. Return strict JSON only.
 Schema:
@@ -68,15 +90,18 @@ Schema:
   "improvementPlan": string[],
   "interviewSummary": string
 }
-Evaluate fluency, pace, structure, professionalism, technical depth, and behavioral signals as inferable from completion pattern and timing. Be fair and constructive.`;
+Score based on what the candidate actually said in transcripts — content, structure, relevance, and depth.
+Penalize heavily for empty, nonsense, or off-topic answers. Be fair and constructive.`;
 
   const user = `Interview: ${interviewTitle}
 Type: ${interviewType}
+Mode: ${sessionMode || 'GUIDED'}
 Proctoring violations: ${violationsCount}
+Weak or empty answers: ${weakCount} of ${questions.length}
 
 ${qaBlock}
 
-Note: Answers are video recordings without transcripts — infer readiness from structure, timing, and interview type. State assumptions briefly in improvements if needed.`;
+Evaluate fluency, relevance, structure, professionalism, technical depth, and behavioral signals from transcript content.`;
 
   const json = await callMistralJSON(system, user);
 
