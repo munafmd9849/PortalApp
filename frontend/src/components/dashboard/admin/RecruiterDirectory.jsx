@@ -553,28 +553,23 @@ export default function RecruiterDirectory() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <div className="flex items-center gap-2.5 mb-5">
-          <FaFilter className="w-4 h-4 text-indigo-500" />
-          <h3 className="text-md font-bold text-slate-800 font-outfit uppercase tracking-wider">Filters</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Filters</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <CustomDropdown
             label="Status"
-            icon={FaCheckCircle}
-            iconColor="text-emerald-600"
+            compact
             options={[
-              { value: '', label: 'All Status' },
+              { value: '', label: 'All status' },
               { value: 'Active', label: 'Active' },
               { value: 'Blocked', label: 'Blocked' },
             ]}
             value={filters.status}
             onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-            placeholder="All Status"
+            placeholder="All status"
           />
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <FaMapMarkerAlt className="w-4 h-4 text-indigo-600" />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Location
             </label>
             <input
@@ -582,13 +577,12 @@ export default function RecruiterDirectory() {
               placeholder="Filter by location"
               value={filters.location}
               onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}
-              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 bg-white text-gray-800"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <FaBriefcase className="w-4 h-4 text-purple-600" />
-              Min Jobs
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Min jobs
             </label>
             <input
               type="number"
@@ -596,13 +590,12 @@ export default function RecruiterDirectory() {
               min="0"
               value={filters.minJobs}
               onChange={(e) => setFilters((prev) => ({ ...prev, minJobs: e.target.value }))}
-              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 bg-white text-gray-800"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <FaBriefcase className="w-4 h-4 text-orange-600" />
-              Max Jobs
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Max jobs
             </label>
             <input
               type="number"
@@ -610,7 +603,7 @@ export default function RecruiterDirectory() {
               min="0"
               value={filters.maxJobs}
               onChange={(e) => setFilters((prev) => ({ ...prev, maxJobs: e.target.value }))}
-              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 bg-white text-gray-800"
             />
           </div>
         </div>
@@ -622,9 +615,9 @@ export default function RecruiterDirectory() {
               setDebouncedSearch('');
               setFilters({ status: '', location: '', minJobs: '', maxJobs: '' });
             }}
-            className="px-6 py-2.5 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 rounded-xl transition-all duration-200 font-bold shadow-sm"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-sm font-medium transition-colors"
           >
-            Reset Filters
+            Reset filters
           </button>
         </div>
       </div>

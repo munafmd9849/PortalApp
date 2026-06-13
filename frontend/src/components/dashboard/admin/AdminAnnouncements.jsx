@@ -5,7 +5,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../../services/api';
 import {
-  Megaphone,
   Send,
   ImagePlus,
   Link as LinkIcon,
@@ -219,18 +218,6 @@ export default function AdminAnnouncements() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8">
-        <div className="flex items-center gap-3 pb-5 mb-6 border-b border-slate-200">
-          <div className="p-2.5 bg-slate-100 rounded-lg">
-            <Megaphone className="w-5 h-5 text-slate-700" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Create Announcement</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Compose and distribute notices to students via email.
-            </p>
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="flex flex-wrap items-end gap-4 pb-5 border-b border-slate-100">
             {filterDropdown(

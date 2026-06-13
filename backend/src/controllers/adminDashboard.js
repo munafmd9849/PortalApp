@@ -1,5 +1,258 @@
 import prisma from '../config/database.js';
 import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { deriveJobDriveStatus } from '../services/jobOpportunitiesPipeline.js';
+
+const PLACED_STATUSES = ['SELECTED', 'ACCEPTED', 'OFFERED'];
+const SHORTLIST_STATUSES = ['SHORTLISTED', 'INTERVIEWED', ...PLACED_STATUSES];
+
+function upper(s) {
+    return String(s || '').trim().toUpperCase();
+}
+
+function isShortlisted(app) {
+    const status = upper(app.status);
+    const screening = upper(app.screeningStatus);
+    const interview = upper(app.interviewStatus);
+    return (
+        SHORTLIST_STATUSES.includes(status)
+        || SHORTLIST_STATUSES.includes(interview)
+        || screening === 'TEST_SELECTED'
+        || screening === 'INTERVIEW_ELIGIBLE'
+    );
+}
+
+const SCREENING_QUALIFIED = ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'SCREENING_SELECTED', 'SHORTLISTED'];
+const INTERVIEWED_STATUSES = ['INTERVIEWED', 'SELECTED', ...PLACED_STATUSES];
+
+function stageFlags(app) {
+    const status = upper(app.status);
+    const screening = upper(app.screeningStatus);
+    const interview = upper(app.interviewStatus);
+    return {
+        applied: true,
+        shortlisted:
+            SCREENING_QUALIFIED.includes(screening)
+            || SHORTLIST_STATUSES.includes(status)
+            || SHORTLIST_STATUSES.includes(interview),
+        interviewed:
+            (app.lastRoundReached || 0) > 0
+            || status === 'INTERVIEWED'
+            || interview.startsWith('REJECTED_IN_ROUND_')
+            || INTERVIEWED_STATUSES.includes(interview)
+            || INTERVIEWED_STATUSES.includes(status),
+        offered:
+            PLACED_STATUSES.includes(status)
+            || PLACED_STATUSES.includes(interview)
+            || status === 'OFFERED',
+        joined: status === 'JOINED',
+    };
+}
+
+function bumpBreakdown(map, key, stage, studentId) {
+    const label = key || 'Unknown';
+    if (!map[label]) {
+        map[label] = {
+            applied: new Set(),
+            shortlisted: new Set(),
+            interviewed: new Set(),
+            offered: new Set(),
+            joined: new Set(),
+        };
+    }
+    map[label][stage].add(studentId);
+}
+
+async function getScopeFunnelStats(studentWhere) {
+    const eligible = await prisma.student.count({
+        where: {
+            ...studentWhere,
+            user: { status: 'ACTIVE' },
+        },
+    });
+
+    const baseAppWhere = Object.keys(studentWhere).length
+        ? { student: studentWhere }
+        : {};
+
+    const applications = await prisma.application.findMany({
+        where: baseAppWhere,
+        select: {
+            studentId: true,
+            status: true,
+            screeningStatus: true,
+            interviewStatus: true,
+            lastRoundReached: true,
+            student: { select: { school: true, center: true, batch: true } },
+        },
+    });
+
+    const studentStages = new Map();
+    const schoolBreakdown = {};
+    const centerBreakdown = {};
+    const batchBreakdown = {};
+
+    applications.forEach((app) => {
+        const flags = stageFlags(app);
+        const sid = app.studentId;
+        const current = studentStages.get(sid) || {
+            applied: false,
+            shortlisted: false,
+            interviewed: false,
+            offered: false,
+            joined: false,
+        };
+
+        if (flags.applied) current.applied = true;
+        if (flags.shortlisted) current.shortlisted = true;
+        if (flags.interviewed) current.interviewed = true;
+        if (flags.offered) current.offered = true;
+        if (flags.joined) current.joined = true;
+        studentStages.set(sid, current);
+
+        const school = app.student?.school?.trim() || 'Unknown';
+        const center = app.student?.center?.trim() || 'Unknown';
+        const batch = app.student?.batch?.trim() || 'Unknown';
+
+        if (flags.applied) {
+            bumpBreakdown(schoolBreakdown, school, 'applied', sid);
+            bumpBreakdown(centerBreakdown, center, 'applied', sid);
+            bumpBreakdown(batchBreakdown, batch, 'applied', sid);
+        }
+        if (flags.shortlisted) {
+            bumpBreakdown(schoolBreakdown, school, 'shortlisted', sid);
+            bumpBreakdown(centerBreakdown, center, 'shortlisted', sid);
+            bumpBreakdown(batchBreakdown, batch, 'shortlisted', sid);
+        }
+        if (flags.interviewed) {
+            bumpBreakdown(schoolBreakdown, school, 'interviewed', sid);
+            bumpBreakdown(centerBreakdown, center, 'interviewed', sid);
+            bumpBreakdown(batchBreakdown, batch, 'interviewed', sid);
+        }
+        if (flags.offered) {
+            bumpBreakdown(schoolBreakdown, school, 'offered', sid);
+            bumpBreakdown(centerBreakdown, center, 'offered', sid);
+            bumpBreakdown(batchBreakdown, batch, 'offered', sid);
+        }
+        if (flags.joined) {
+            bumpBreakdown(schoolBreakdown, school, 'joined', sid);
+            bumpBreakdown(centerBreakdown, center, 'joined', sid);
+            bumpBreakdown(batchBreakdown, batch, 'joined', sid);
+        }
+    });
+
+    const countStage = (key) => {
+        let n = 0;
+        studentStages.forEach((st) => {
+            if (st[key]) n += 1;
+        });
+        return n;
+    };
+
+    const counts = {
+        applied: countStage('applied'),
+        shortlisted: countStage('shortlisted'),
+        interviewed: countStage('interviewed'),
+        offered: countStage('offered'),
+        joined: countStage('joined'),
+    };
+
+    const toBreakdownList = (map, stage) =>
+        Object.entries(map)
+            .map(([label, vals]) => ({ label, count: vals[stage]?.size || 0 }))
+            .filter((row) => row.count > 0)
+            .sort((a, b) => b.count - a.count);
+
+    const stageDefs = [
+        { key: 'applied', label: 'Applied', count: counts.applied, previous: eligible },
+        { key: 'shortlisted', label: 'Shortlisted', count: counts.shortlisted, previous: counts.applied },
+        { key: 'interviewed', label: 'Interviewed', count: counts.interviewed, previous: counts.shortlisted },
+        { key: 'offered', label: 'Offered', count: counts.offered, previous: counts.interviewed },
+        { key: 'joined', label: 'Joined', count: counts.joined, previous: counts.offered },
+    ];
+
+    const stages = stageDefs.map((stage) => ({
+        key: stage.key,
+        label: stage.label,
+        count: stage.count,
+        pctOfEligible: eligible > 0 ? Math.round((stage.count / eligible) * 1000) / 10 : 0,
+        drop: Math.max(0, stage.previous - stage.count),
+        breakdown: {
+            schools: toBreakdownList(schoolBreakdown, stage.key),
+            centers: toBreakdownList(centerBreakdown, stage.key),
+            batches: toBreakdownList(batchBreakdown, stage.key),
+        },
+    }));
+
+    return { eligible, stages };
+}
+
+async function getActiveDrives(studentWhere) {
+    const jobs = await prisma.job.findMany({
+        where: {
+            isPosted: true,
+            isActive: true,
+            archivedAt: null,
+        },
+        select: {
+            id: true,
+            jobTitle: true,
+            companyName: true,
+            status: true,
+            isPosted: true,
+            isActive: true,
+            archivedAt: true,
+            company: { select: { name: true } },
+            interviewSession: {
+                select: {
+                    id: true,
+                    status: true,
+                    startedAt: true,
+                },
+            },
+            applications: {
+                where: Object.keys(studentWhere).length ? { student: studentWhere } : {},
+                select: {
+                    id: true,
+                    status: true,
+                    screeningStatus: true,
+                    interviewStatus: true,
+                    interviewDate: true,
+                },
+            },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+    });
+
+    return jobs
+        .map((job) => {
+            const driveStatus = deriveJobDriveStatus(job);
+            const apps = job.applications || [];
+            const shortlisted = apps.filter(isShortlisted).length;
+
+            let interviewDate = null;
+            apps.forEach((app) => {
+                if (app.interviewDate) {
+                    const d = new Date(app.interviewDate);
+                    if (!interviewDate || d < interviewDate) interviewDate = d;
+                }
+            });
+            if (job.interviewSession?.startedAt) {
+                interviewDate = new Date(job.interviewSession.startedAt);
+            }
+
+            return {
+                id: job.id,
+                company: job.company?.name || job.companyName || '—',
+                role: job.jobTitle || '—',
+                applications: apps.length,
+                shortlisted,
+                interviewDate: interviewDate ? interviewDate.toISOString() : null,
+                status: driveStatus,
+            };
+        })
+        .filter((row) => ['ACTIVE', 'IN_PROCESS', 'HOLD'].includes(row.status));
+}
 
 
 /**
@@ -364,6 +617,11 @@ export const getDashboardStats = async (req, res) => {
             };
         });
 
+        const [myStats, activeDrives] = await Promise.all([
+            getScopeFunnelStats(studentWhere),
+            getActiveDrives(studentWhere),
+        ]);
+
         res.json({
             stats: {
                 totalJobsPosted,
@@ -377,6 +635,8 @@ export const getDashboardStats = async (req, res) => {
                 totalApplications,
                 placedStudents,
             },
+            myStats,
+            activeDrives,
             chartData: {
                 placementTrend,
                 recruiterActivity,

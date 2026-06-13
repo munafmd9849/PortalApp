@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 import { JobOpportunitiesSection } from './JobOpportunitiesDashboard';
+import CrManagerCard from './CrManagerCard';
+import FunnelStatCard from './FunnelStatCard';
+import { fetchCrManagers } from '../../../services/jobOpportunities';
 // import useRef removed - unused
 import { PieChart } from 'react-minimal-pie-chart';
-import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, BarChart3, Target, DollarSign, X, Loader2 } from 'lucide-react';
+import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, Target, DollarSign, X, Loader2 } from 'lucide-react';
 import { FaChevronDown, FaTimes, FaMapMarkerAlt, FaGraduationCap, FaUsers, FaUserShield } from 'react-icons/fa';
 import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
 import { Radar } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
 import { useAuth } from '../../../hooks/useAuth';
+import {
+  getAdminDisplayName,
+  getAdminWelcomePrefix,
+  getDashboardWelcomeSubtitle,
+} from '../../../utils/adminScopeDisplay';
 // import api from '../../../services/api'; // Unused import removed
 // TODO: Replace Firebase operations with API calls
 // Register Chart.js components
@@ -46,7 +54,17 @@ export default function AdminHome() {
     batches: [],
     admins: []
   });
+  const [academicData, setAcademicData] = useState({ schools: [], centers: [], batches: [] });
   const [loadingFilters, setLoadingFilters] = useState(true);
+  const [adminOverview, setAdminOverview] = useState({ jdsPunched: 0, managers: [] });
+  const [loadingAdminOverview, setLoadingAdminOverview] = useState(true);
+
+  const adminDisplayName = getAdminDisplayName(user);
+  const welcomePrefix = useMemo(() => getAdminWelcomePrefix(user?.id), [user?.id]);
+  const welcomeSubtitle = useMemo(
+    () => getDashboardWelcomeSubtitle(user, userRole, academicData),
+    [user, userRole, academicData]
+  );
 
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -57,6 +75,7 @@ export default function AdminHome() {
         );
         const raw = await fetchAcademicOptions();
         const academic = buildStandardFilterOptions(raw);
+        setAcademicData(raw);
         setFilterOptions({
           campuses: academic.centers,
           schools: academic.schools,
@@ -72,6 +91,24 @@ export default function AdminHome() {
     };
 
     loadFilterOptions();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAdminOverview = async () => {
+      setLoadingAdminOverview(true);
+      try {
+        const data = await fetchCrManagers({});
+        if (!cancelled) setAdminOverview(data || { jdsPunched: 0, managers: [] });
+      } catch (error) {
+        console.error('Error loading admin overview:', error);
+        if (!cancelled) setAdminOverview({ jdsPunched: 0, managers: [] });
+      } finally {
+        if (!cancelled) setLoadingAdminOverview(false);
+      }
+    };
+    loadAdminOverview();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -139,30 +176,8 @@ export default function AdminHome() {
 
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
 
-  const insightTone = (kind, value) => {
-    const n = Number(value) || 0;
-    if (kind === 'recruiters') return n > 0 ? 'good' : 'bad';
-    if (kind === 'placementRate') return n >= 40 ? 'good' : n >= 15 ? 'warn' : 'bad';
-    if (kind === 'pendingQueries') return n === 0 ? 'good' : 'bad';
-    if (kind === 'avgApplications') return n >= 2 ? 'good' : n >= 1 ? 'warn' : 'bad';
-    return 'neutral';
-  };
-
-  const INSIGHT_TONES = {
-    good: { card: 'bg-emerald-50 border border-emerald-100', iconBg: 'bg-emerald-100', icon: 'text-emerald-700', value: 'text-emerald-800', sub: 'text-emerald-600' },
-    bad: { card: 'bg-red-50 border border-red-100', iconBg: 'bg-red-100', icon: 'text-red-700', value: 'text-red-800', sub: 'text-red-600' },
-    warn: { card: 'bg-amber-50 border border-amber-100', iconBg: 'bg-amber-100', icon: 'text-amber-700', value: 'text-amber-800', sub: 'text-amber-600' },
-    neutral: { card: 'bg-sky-50 border border-sky-100', iconBg: 'bg-sky-100', icon: 'text-sky-700', value: 'text-slate-800', sub: 'text-slate-600' },
-  };
-
   // Stats with real-time data and consistent Chart.js colors
   const s = dashboardData?.stats;
-  const placementRatePct = (s?.totalApplications ?? 0) > 0
-    ? Math.round(((s?.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
-    : 0;
-  const avgApplicationsPerStudent = (s?.activeStudents ?? 0) > 0
-    ? Math.round(((s?.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
-    : 0;
   const stats = dashboardData && s ? [
     { 
       title: 'Job Postings', 
@@ -205,6 +220,71 @@ export default function AdminHome() {
       ] 
     }
   ] : [];
+
+  const scopeFunnel = dashboardData?.myStats;
+  const funnelStages = scopeFunnel?.stages || [];
+  const funnelEligible = scopeFunnel?.eligible ?? 0;
+
+  const activeDrives = dashboardData?.activeDrives || [];
+
+  const formatDriveDate = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const driveStatusLabel = (status) => {
+    const map = {
+      ACTIVE: 'Active',
+      IN_PROCESS: 'In Process',
+      HOLD: 'On Hold',
+      YET_TO_START: 'Yet to Start',
+      CLOSED: 'Closed',
+      NOT_DELIVERABLE: 'Not Deliverable',
+    };
+    return map[status] || status || '—';
+  };
+
+  const renderStatCards = (items, loading) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {loading ? (
+        Array.from({ length: 4 }).map((_, idx) => (
+          <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-gray-200 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
+            <div className="h-8 bg-gray-200 rounded w-16" />
+          </div>
+        ))
+      ) : (
+        items.map((stat, idx) => (
+          <div key={idx} className={`bg-white p-4 rounded-xl shadow-sm border-l-4 hover:shadow-md transition-all duration-300 ${stat.borderColor}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 flex items-center">
+                  {stat.icon}
+                  <span className="ml-2">{stat.title}</span>
+                </p>
+                <h3 className="text-2xl font-bold text-gray-800 mt-2">{stat.value}</h3>
+              </div>
+              {stat.chartData && (
+                <div className="w-16 h-16">
+                  <PieChart
+                    data={stat.chartData}
+                    lineWidth={20}
+                    radius={40}
+                    label={() => ''}
+                    labelStyle={{ fontSize: '0px', fill: '#000' }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   // School data with real-time performance and application metrics
   // Ensure we always have a valid structure with all schools
@@ -310,14 +390,16 @@ export default function AdminHome() {
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/30 min-h-screen overflow-x-hidden">
-      {/* Header with consistent colors */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div className="relative">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ background: `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Admin Dashboard
-          </h1>
-          <div className="absolute -bottom-1 left-0 w-1/2 h-0.5" style={{ background: `linear-gradient(to right, ${chartColors.blue}, transparent)` }}></div>
-        </div>
+      {/* Header */}
+      <div className="mb-1">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
+          {welcomePrefix}, {adminDisplayName}!
+        </h1>
+        {welcomeSubtitle && (
+          <p className="text-sm sm:text-base text-gray-600 mt-1.5 max-w-3xl">
+            {welcomeSubtitle}
+          </p>
+        )}
       </div>
 
       {/* Filter Section with consistent colors - Only visible to SuperAdmin */}
@@ -422,127 +504,119 @@ export default function AdminHome() {
         </div>
       )}
 
-      {/* Info message for regular admins */}
-      {!isSuperAdmin && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Filter className="w-5 h-5 text-blue-500" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-blue-700">
-                <strong>Viewing your data:</strong> You are viewing data for your assigned center/school only.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Cards with consistent colors */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoading ? (
-          // Loading skeleton
-          Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-gray-200 animate-pulse">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-16"></div>
-                </div>
-                <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
-              </div>
-            </div>
-          ))
-        ) : (
-          stats.map((stat, idx) => (
-            <div key={idx} className={`bg-white p-4 rounded-xl shadow-sm border-l-4 hover:shadow-md transition-all duration-300 ${stat.borderColor}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 flex items-center">
-                    {stat.icon}
-                    <span className="ml-2">{stat.title}</span>
-                  </p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-2">{stat.value}</h3>
-                </div>
-                <div className="w-16 h-16">
-                  <PieChart 
-                    data={stat.chartData} 
-                    lineWidth={20} 
-                    radius={40} 
-                    label={({ dataEntry }) => `${dataEntry.value}`}
-                    labelStyle={{ fontSize: '0px', fill: '#000' }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+      {/* Overall Campus Stats */}
+      <div className="space-y-3">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Overall Campus Stats</h2>
+        {renderStatCards(stats, isLoading)}
       </div>
 
-      {/* Overall Insights and Metrics */}
-      {!isLoading && dashboardData && s && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="p-4 sm:p-6 border-b border-gray-200">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-              Key Insights & Metrics
-            </h2>
-          </div>
-          <div className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {[
-                {
-                  key: 'recruiters',
-                  icon: Users,
-                  value: s.activeRecruiters ?? 0,
-                  label: 'Companies Onboarded',
-                  sub: 'With active job postings',
-                  tone: insightTone('recruiters', s.activeRecruiters),
-                },
-                {
-                  key: 'placement',
-                  icon: Target,
-                  value: `${placementRatePct}%`,
-                  label: 'Placement Rate',
-                  sub: `${s.placedStudents ?? 0} placed of ${s.totalApplications ?? 0} applications`,
-                  tone: insightTone('placementRate', placementRatePct),
-                },
-                {
-                  key: 'support',
-                  icon: MessageSquare,
-                  value: s.pendingQueries ?? 0,
-                  label: 'Support Queue',
-                  sub: (s.pendingQueries ?? 0) === 0 ? 'No pending queries' : 'Queries awaiting response',
-                  tone: insightTone('pendingQueries', s.pendingQueries),
-                },
-                {
-                  key: 'applications',
-                  icon: TrendingUp,
-                  value: avgApplicationsPerStudent,
-                  label: 'Avg Applications',
-                  sub: `Per active student (${s.activeStudents ?? 0} active)`,
-                  tone: insightTone('avgApplications', avgApplicationsPerStudent),
-                },
-              ].map(({ key, icon: Icon, value, label, sub, tone }) => {
-                const t = INSIGHT_TONES[tone] || INSIGHT_TONES.neutral;
-                return (
-                  <div key={key} className={`rounded-xl p-4 text-center ${t.card}`}>
-                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-3 ${t.iconBg}`}>
-                      <Icon className={`w-6 h-6 ${t.icon}`} />
-                    </div>
-                    <h3 className={`text-2xl font-bold mb-1 tabular-nums ${t.value}`}>{value}</h3>
-                    <p className="text-sm text-gray-700 font-medium">{label}</p>
-                    <p className={`text-xs mt-1 ${t.sub}`}>{sub}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+      {/* My Stats — overview-style funnel cards */}
+      <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-visible">
+        <div className="bg-[#c5d9e8] px-4 py-2 rounded-t-md border border-[#b0c9db] border-b-0">
+          <h2 className="text-sm font-semibold text-gray-800">My Stats</h2>
+          {!isLoading && (
+            <p className="text-xs text-gray-600 mt-0.5 tabular-nums">
+              {funnelEligible.toLocaleString()} eligible students in your assigned scope
+            </p>
+          )}
         </div>
-      )}
+        <div className="relative p-3 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md min-h-[120px]">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2.5">
+              {funnelStages.map((stage, i) => (
+                <FunnelStatCard
+                  key={stage.key}
+                  stageKey={stage.key}
+                  label={stage.label}
+                  count={stage.count}
+                  pctOfEligible={stage.pctOfEligible}
+                  drop={stage.drop}
+                  popoverAlign={i >= funnelStages.length - 2 ? 'end' : 'start'}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
-      {/* Job Opportunities — below Key Insights */}
-      {isAdminUser && <JobOpportunitiesSection embedded />}
+      {/* Currently active drives */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Currently Active Drives</h2>
+        </div>
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-700">
+                  {['Company', 'Role', 'Applications', 'Shortlisted', 'Interview Date', 'Status'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left font-semibold border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {activeDrives.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No active drives in your campus scope</td>
+                  </tr>
+                ) : (
+                  activeDrives.map((drive) => (
+                    <tr key={drive.id} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3 border-b border-gray-100 font-medium text-gray-900">{drive.company}</td>
+                      <td className="px-4 py-3 border-b border-gray-100 text-gray-700">{drive.role}</td>
+                      <td className="px-4 py-3 border-b border-gray-100 tabular-nums">{drive.applications}</td>
+                      <td className="px-4 py-3 border-b border-gray-100 tabular-nums">{drive.shortlisted}</td>
+                      <td className="px-4 py-3 border-b border-gray-100 whitespace-nowrap">{formatDriveDate(drive.interviewDate)}</td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {driveStatusLabel(drive.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Admins overview */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
+        <div className="p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Admins Overview</h2>
+        </div>
+        <div className="p-4 sm:p-5 bg-[#eef4fa]">
+          {loadingAdminOverview ? (
+            <Loader2 className="w-6 h-6 animate-spin mx-auto my-6 text-blue-600" />
+          ) : (
+            <div className="flex flex-wrap gap-2.5">
+              <CrManagerCard name="JDs Punched" value={adminOverview?.jdsPunched ?? 0} variant="jds" />
+              {(adminOverview?.managers || []).map((m, i) => (
+                <CrManagerCard
+                  key={m.id}
+                  name={m.name}
+                  value={m.count}
+                  breakdown={m.breakdown || []}
+                  adminStatusLabel={m.adminStatusLabel}
+                  popoverAlign={i >= (adminOverview.managers.length - 2) ? 'end' : 'start'}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Job Opportunities */}
+      {isAdminUser && <JobOpportunitiesSection embedded showAdminOverview={false} />}
 
       {/* School Performance Radar Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">

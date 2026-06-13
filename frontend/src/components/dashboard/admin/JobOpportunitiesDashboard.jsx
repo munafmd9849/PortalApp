@@ -58,7 +58,7 @@ const EMPTY_OVERVIEW = {
 };
 
 /** Job Opportunities block — use embedded on Admin Dashboard or standalone page */
-export function JobOpportunitiesSection({ embedded = false }) {
+export function JobOpportunitiesSection({ embedded = false, showAdminOverview = true }) {
   const [filterOpts, setFilterOpts] = useState({ segments: [], quarters: [], months: [], crManagers: [] });
   const [filters, setFilters] = useState({
     segment: '',
@@ -149,7 +149,7 @@ export function JobOpportunitiesSection({ embedded = false }) {
 
   const exportCsv = () => {
     const headers = [
-      'CR Manager', 'Segment', 'Goal', 'Closed Drives', 'Achieved %',
+      'Admin', 'Segment', 'Goal', 'Closed Drives', 'Achieved %',
       'Companies', 'Jobs', 'Transitions', 'Yet To Start', 'Hold', 'In Process', 'Not Applied', 'Not Deliverable',
     ];
     const lines = momRows.map((row) => [
@@ -269,9 +269,10 @@ export function JobOpportunitiesSection({ embedded = false }) {
           </div>
         </section>
 
-        {/* CR Managers */}
+        {/* Admins overview */}
+        {showAdminOverview && (
         <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-visible">
-          <SectionBar title="CR Managers Overview" />
+          <SectionBar title="Admins Overview" />
           <div className="p-3 bg-[#eef4fa] border border-[#b0c9db] border-t-0 rounded-b-md">
             {loadingOverview ? (
               <Loader2 className="w-6 h-6 animate-spin mx-auto my-6 text-blue-600" />
@@ -296,10 +297,11 @@ export function JobOpportunitiesSection({ embedded = false }) {
             )}
           </div>
         </section>
+        )}
 
         {/* MoM Table */}
         <section className="bg-white rounded-md border border-[#b0c9db] shadow-sm overflow-hidden">
-          <SectionBar title="CR Manager wise MoM Detailed Analysis" />
+          <SectionBar title="Admin wise MoM Detailed Analysis" />
           <div className="space-y-3 p-3 border border-[#b0c9db] border-t-0 bg-white rounded-b-md">
             <div className="flex flex-wrap gap-2 items-end">
               <div className="w-40">
@@ -343,7 +345,7 @@ export function JobOpportunitiesSection({ embedded = false }) {
               </div>
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-2.5 top-8 w-4 h-4 text-gray-400" />
-                <label className="block text-xs font-medium text-gray-600 mb-1">Search Cr Manager</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Search Admin</label>
                 <input
                   type="text"
                   value={filters.search}
@@ -373,7 +375,7 @@ export function JobOpportunitiesSection({ embedded = false }) {
                   <thead>
                     <tr className="bg-[#c5d9e8] text-gray-900">
                       {[
-                        'CR Manager', 'Segment', 'Goal', 'Closed Drives', 'Achieved Goal %',
+                        'Admin', 'Segment', 'Goal', 'Closed Drives', 'Achieved Goal %',
                         'Companies', 'Jobs', 'Transitions', 'Yet To Start', 'Hold', 'In Process', 'Not Applied', 'Not Deliverable',
                       ].map((h) => (
                         <th key={h} className="px-2 py-2 text-left font-semibold border border-[#b0c9db] whitespace-nowrap">

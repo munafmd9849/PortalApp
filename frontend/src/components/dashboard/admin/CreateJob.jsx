@@ -1582,7 +1582,7 @@ export default function CreateJob({ onCreated }) {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 overflow-x-hidden">
+    <div className="space-y-3 sm:space-y-4 p-3 sm:p-4 overflow-x-hidden">
       {/* Custom Calendar Styles */}
       <style>{`
         .react-datepicker {
@@ -1625,20 +1625,6 @@ export default function CreateJob({ onCreated }) {
           display: none;
         }
       `}</style>
-
-      {/* Saved Drafts — top right only */}
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={() => {
-            loadDrafts();
-            setShowDraftsPanel(!showDraftsPanel);
-          }}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg border border-blue-300 transition-colors"
-        >
-          <Archive className="w-4 h-4" />
-          Saved Drafts ({savedDrafts.length})
-        </button>
-      </div>
 
       {/* Saved Drafts Panel */}
       {showDraftsPanel && (
@@ -1723,7 +1709,20 @@ export default function CreateJob({ onCreated }) {
       )}
 
       {/* THREE CREATION METHOD OPTIONS - ALWAYS VISIBLE */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-5">
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              loadDrafts();
+              setShowDraftsPanel(!showDraftsPanel);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            Saved Drafts ({savedDrafts.length})
+          </button>
+        </div>
         <div className="flex justify-center">
           <div className="bg-gray-50 rounded-lg p-1 inline-flex gap-2 border border-gray-200">
             <button

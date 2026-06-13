@@ -198,81 +198,77 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
   if (!isOpen || !student) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-green-600 to-emerald-600">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FaEdit className="text-green-200" />
-            Edit Student
-          </h2>
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+        <div className="flex items-center justify-between px-6 py-4 bg-slate-800 text-white border-b border-slate-700">
+          <h2 className="text-lg font-semibold">Edit student</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-all duration-200"
+            className="p-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
           >
-            <FaTimes size={20} />
+            <FaTimes size={18} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 bg-gray-50">
-          <div className="space-y-5">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Full Name *
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Full name *
               </label>
               <input
                 type="text"
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.fullName
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 transition-colors ${errors.fullName
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-300 bg-white'
                   }`}
-                placeholder="Enter student's full name"
+                placeholder="Student full name"
               />
-              {errors.fullName && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.fullName}</p>}
+              {errors.fullName && <p className="text-red-600 text-xs mt-1">{errors.fullName}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email Address *
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email *
               </label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.email
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 transition-colors ${errors.email
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-300 bg-white'
                   }`}
-                placeholder="Enter student email"
+                placeholder="Email address"
               />
-              {errors.email && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.email}</p>}
+              {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone Number *
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Phone *
               </label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.phone
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 transition-colors ${errors.phone
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-300 bg-white'
                   }`}
                 placeholder="+91 12345 67890"
               />
-              {errors.phone && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.phone}</p>}
+              {errors.phone && <p className="text-red-600 text-xs mt-1">{errors.phone}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 CGPA *
               </label>
               <input
@@ -283,22 +279,21 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
                 min="0"
                 max="10"
                 step="0.01"
-                placeholder="Enter CGPA (0-10)"
-                className={`w-full p-3.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 ${errors.cgpa
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white focus:border-green-500'
+                placeholder="e.g. 8.75"
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 transition-colors ${errors.cgpa
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-300 bg-white'
                   }`}
               />
-              {errors.cgpa && <p className="text-red-600 text-sm mt-1.5 font-medium">{errors.cgpa}</p>}
+              {errors.cgpa && <p className="text-red-600 text-xs mt-1">{errors.cgpa}</p>}
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold transition-all duration-200 border-2 border-gray-200"
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
               disabled={loading}
             >
               Cancel
@@ -306,10 +301,10 @@ const EditStudentModal = ({ isOpen, onClose, student, onSave }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              className="px-5 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
             >
               {loading && <Loader className="h-4 w-4 animate-spin mr-2" />}
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         </form>
@@ -1322,73 +1317,60 @@ export default function StudentDirectory() {
       )}
 
       {/* Filters and Search - Upgraded design */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <div className="flex items-center gap-2.5 mb-5">
-          <FaFilter className="w-4 h-4 text-indigo-500" />
-          <h3 className="text-md font-bold text-slate-800 font-outfit uppercase tracking-wider">Filters & Search</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          {/* Center Filter */}
+      <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Filters</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <CustomDropdown
             label="Center"
-            icon={FaMapMarkerAlt}
-            iconColor="text-indigo-600"
+            compact
             options={academicFilterOptions.centers.map((opt) => ({ value: opt.id, label: opt.name }))}
             value={filters.center}
             onChange={(value) => handleFilterDropdownChange('center', value)}
-            placeholder="All Centers"
+            placeholder="All centres"
           />
 
-          {/* School Filter */}
           <CustomDropdown
             label="School"
-            icon={FaGraduationCap}
-            iconColor="text-purple-600"
+            compact
             options={academicFilterOptions.schools.map((opt) => ({ value: opt.id, label: opt.name }))}
             value={filters.school}
             onChange={(value) => handleFilterDropdownChange('school', value)}
-            placeholder="All Schools"
+            placeholder="All schools"
           />
 
-          {/* Batch Filter */}
           <CustomDropdown
             label="Batch"
-            icon={FaCalendarAlt}
-            iconColor="text-fuchsia-600"
+            compact
             options={academicFilterOptions.batches.map((opt) => ({
               value: opt.id,
               label: opt.label || opt.name,
             }))}
             value={filters.batch}
             onChange={(value) => handleFilterDropdownChange('batch', value)}
-            placeholder="All Batches"
+            placeholder="All batches"
           />
 
-          {/* Status Filter */}
           <CustomDropdown
             label="Status"
-            icon={FaCheckCircle}
-            iconColor="text-green-600"
+            compact
             options={STATUS_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
             value={filters.status}
             onChange={(value) => handleFilterDropdownChange('status', value)}
-            placeholder="All Status"
+            placeholder="All status"
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <CustomDropdown
             label="Readiness tier"
-            icon={FaChartLine}
-            iconColor="text-indigo-600"
+            compact
             options={READINESS_TIER_OPTIONS.map(opt => ({ value: opt.id, label: opt.name }))}
             value={filters.tier}
             onChange={(value) => handleFilterDropdownChange('tier', value)}
             placeholder="All readiness"
           />
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <FaGraduationCap className="w-4 h-4 text-blue-600" />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Min CGPA
             </label>
             <input
@@ -1400,12 +1382,11 @@ export default function StudentDirectory() {
               step="0.01"
               value={filters.minCgpa}
               onChange={handleFilterChange}
-              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 bg-white text-gray-800"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <FaGraduationCap className="w-4 h-4 text-orange-600" />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Max CGPA
             </label>
             <input
@@ -1417,15 +1398,16 @@ export default function StudentDirectory() {
               step="0.01"
               value={filters.maxCgpa}
               onChange={handleFilterChange}
-              className="w-full pl-4 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer bg-white text-slate-800 font-medium hover:border-slate-300 shadow-sm"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800 bg-white text-gray-800"
             />
           </div>
           <div className="flex items-end">
             <button
+              type="button"
               onClick={clearFilters}
-              className="w-full px-4 py-2.5 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 rounded-xl transition-all duration-200 font-bold shadow-sm"
+              className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-sm font-medium transition-colors"
             >
-              Reset Filters
+              Reset filters
             </button>
           </div>
         </div>

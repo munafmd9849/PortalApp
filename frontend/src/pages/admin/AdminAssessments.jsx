@@ -349,72 +349,61 @@ export default function AdminAssessments() {
 
   return (
     <>
-      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              Assessments
-            </h1>
-            <p className="text-slate-500 text-sm mt-1 font-medium">Design, deploy and monitor student assessments</p>
-          </div>
+      <div className="space-y-5 p-4 sm:p-6 max-w-[1600px] mx-auto">
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={() => {
               setStep(1);
               setShowCreateModal(true);
             }}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/10 active:scale-95"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900 transition-colors"
           >
-            <Plus className="w-4 h-4" /> Create Assessment
+            <Plus className="w-4 h-4" /> New assessment
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Total Assessments', val: totalAssessments, icon: Layout, color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
-            { label: 'Upcoming Scheduled', val: upcomingScheduled, icon: Clock, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-            { label: 'Active Sessions', val: activeSessions, icon: Users, color: 'bg-amber-50 text-amber-600 border-amber-100' },
-            { label: 'Completed', val: completedAttempts, icon: CheckCircle, color: 'bg-blue-50 text-blue-600 border-blue-100' },
+            { label: 'Total', val: totalAssessments },
+            { label: 'Upcoming', val: upcomingScheduled },
+            { label: 'Active', val: activeSessions },
+            { label: 'Completed', val: completedAttempts },
           ].map((stat, i) => (
             <div
               key={i}
-              className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md"
+              className="bg-white p-4 rounded-lg border border-gray-200 flex flex-col gap-1"
             >
-              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center border ${stat.color}`}>
-                <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-                <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{stat.val}</p>
-              </div>
+              <p className="text-xs text-gray-500">{stat.label}</p>
+              <p className="text-xl font-semibold text-gray-900 tabular-nums">{stat.val}</p>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-200/50 p-1 shadow-inner lg:max-w-3xl lg:flex-1">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid w-full grid-cols-4 gap-1 rounded-md bg-gray-100 p-1 lg:max-w-3xl lg:flex-1">
               {[
-                { id: 'all', label: 'All Assessments', shortLabel: 'All', count: totalAssessments },
-                { id: 'active', label: 'Active Now', shortLabel: 'Active', count: activeAssessmentsCount },
+                { id: 'all', label: 'All', shortLabel: 'All', count: totalAssessments },
+                { id: 'active', label: 'Active', shortLabel: 'Active', count: activeAssessmentsCount },
                 { id: 'upcoming', label: 'Upcoming', shortLabel: 'Upcoming', count: upcomingScheduled },
-                { id: 'past', label: 'Past Archives', shortLabel: 'Past', count: pastAssessmentsCount },
+                { id: 'past', label: 'Past', shortLabel: 'Past', count: pastAssessmentsCount },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-[10px] font-bold transition-all sm:gap-2 sm:px-3 sm:text-[11px] ${
+                  className={`flex items-center justify-center gap-1.5 rounded px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-3 ${
                     activeTab === tab.id
-                      ? 'bg-white text-indigo-600 shadow-md'
-                      : 'text-slate-500 hover:bg-white/40 hover:text-slate-700'
+                      ? 'bg-white text-blue-800 shadow-sm'
+                      : 'text-gray-500 hover:bg-white/60 hover:text-gray-700'
                   }`}
                 >
                   <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
                   <span className="sm:hidden whitespace-nowrap">{tab.shortLabel}</span>
                   <span
-                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] tabular-nums ${
-                      activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] tabular-nums ${
+                      activeTab === tab.id ? 'bg-blue-50 text-blue-800' : 'bg-gray-200 text-gray-600'
                     }`}
                   >
                     {tab.count}
@@ -423,34 +412,27 @@ export default function AdminAssessments() {
               ))}
             </div>
 
-            <div className="relative w-full shrink-0 lg:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div className="relative w-full shrink-0 lg:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by assessment title..."
+                placeholder="Search assessments…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+                className="w-full bg-white border border-gray-300 rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-800 focus:border-blue-800"
               />
             </div>
           </div>
 
-          <div className="p-4 sm:p-6">
+          <div className="p-4">
             {loading ? (
               <DirectoryLoadingPanel title="Loading assessments..." subtitle="Please wait while we fetch the data" />
             ) : filteredAssessments.length === 0 ? (
-              <div className="py-24 flex flex-col items-center justify-center gap-6 text-center">
-                <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center">
-                  <AlertCircle className="w-10 h-10 text-slate-200" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">No {activeTab === 'all' ? '' : `${activeTab} `}assessments found</h3>
-                  <p className="text-sm text-slate-500 max-w-xs mx-auto mt-2 font-medium">
-                    {assessments.length === 0
-                      ? 'Create your first assessment to get started.'
-                      : 'Try another tab or adjust your search.'}
-                  </p>
-                </div>
+              <div className="py-16 flex flex-col items-center justify-center gap-4 text-center">
+                <AlertCircle className="w-10 h-10 text-gray-200" />
+                <p className="text-sm font-medium text-gray-700">
+                  No {activeTab === 'all' ? '' : `${activeTab} `}assessments found
+                </p>
                 {assessments.length === 0 && (
                   <button
                     type="button"
@@ -458,84 +440,71 @@ export default function AdminAssessments() {
                       setStep(1);
                       setShowCreateModal(true);
                     }}
-                    className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all active:scale-95"
+                    className="px-4 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900"
                   >
-                    Create Your First Assessment
+                    Create assessment
                   </button>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredAssessments.map((item) => (
-            <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group flex flex-col h-full relative overflow-hidden">
-              <div className="flex justify-between items-start mb-5">
-                <div className={`p-3 rounded-xl ${item.type === 'MOCK_TEST' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'} border border-current opacity-20`}>
-                  {getAssessmentTypeIcon(item.type)}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                   {assessmentIsDraft(item) && (
-                     <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border bg-amber-50 border-amber-100 text-amber-700">
-                       Draft
-                     </span>
-                   )}
-                   <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md border ${
-                     item.type === 'MOCK_TEST' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                   }`}>
-                     {item.type?.replace(/_/g, ' ')}
-                   </span>
+            <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors flex flex-col h-full">
+              <div className="flex justify-between items-start mb-3 gap-2">
+                <span className="text-xs text-gray-500 font-medium">
+                  {item.type?.replace(/_/g, ' ')}
+                </span>
+                {assessmentIsDraft(item) && (
+                  <span className="px-2 py-0.5 text-[10px] font-medium rounded border bg-amber-50 border-amber-200 text-amber-800">
+                    Draft
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1 truncate">{item.title}</h3>
+                <p className="text-xs text-gray-500 line-clamp-2 mb-4">{item.description || 'No description.'}</p>
+
+                <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
+                  <span>{item.duration} min</span>
+                  <span>{item.sessions?.length || 0} attempts</span>
+                  <span>{item.questions?.length || 0} questions</span>
                 </div>
               </div>
 
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">{item.title}</h3>
-                <p className="text-sm text-slate-500 font-medium line-clamp-2 mb-6">{item.description || 'No description provided.'}</p>
-                
-                <div className="flex flex-wrap gap-4 mb-6">
-                   <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
-                      <Clock className="w-3.5 h-3.5" /> {item.duration} Mins
-                   </div>
-                   <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
-                      <Users className="w-3.5 h-3.5" /> {item.sessions?.length || 0} Attempts
-                   </div>
-                   <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500">
-                      <Target className="w-3.5 h-3.5" /> {item.questions?.length || 0} Items
-                   </div>
-                </div>
-              </div>
-
-              <div className="pt-5 border-t border-slate-100 flex flex-col gap-2">
+              <div className="pt-3 border-t border-gray-100 flex flex-col gap-2">
                 {assessmentIsDraft(item) ? (
                   <button
                     type="button"
                     onClick={() => handlePublishExisting(item.id)}
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-blue-800 hover:bg-blue-900 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2"
                   >
-                    <CheckCircle className="w-4 h-4" /> Publish assessment
+                    <CheckCircle className="w-3.5 h-3.5" /> Publish
                   </button>
                 ) : (
                   <>
                     <button
                       type="button"
                       onClick={() => navigate(`${basePath}/assessments/${item.id}/live-monitor`)}
-                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                      className="w-full py-2 bg-blue-800 hover:bg-blue-900 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2"
                     >
-                      <Video className="w-4 h-4" /> Live Monitor (webcam & violations)
+                      <Video className="w-3.5 h-3.5" /> Live monitor
                     </button>
                     <button
                       type="button"
                       onClick={() => navigate(`${basePath}?tab=assessmentResults&assessmentId=${item.id}`)}
-                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10 active:scale-95"
+                      className="w-full py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-medium rounded-md transition-colors"
                     >
-                      View Results
+                      Results
                     </button>
                   </>
                 )}
                 <button
                   type="button"
                   onClick={() => setSettingsAssessment(item)}
-                  className="w-full py-2.5 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-slate-100 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
+                  className="w-full py-2 text-gray-600 hover:bg-gray-50 border border-gray-200 rounded-md transition-colors flex items-center justify-center gap-2 text-xs font-medium"
                 >
-                  <Settings className="w-4 h-4" /> Settings
+                  <Settings className="w-3.5 h-3.5" /> Settings
                 </button>
               </div>
             </div>
@@ -550,36 +519,30 @@ export default function AdminAssessments() {
       
       {/* Creation Wizard - Clean Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-8 duration-500">
-            {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-               <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-                     <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                     <h2 className="text-lg font-bold text-slate-900">New Assessment</h2>
-                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Configuration Wizard • Step {step} of 3</p>
-                  </div>
+        <div className="fixed inset-0 bg-slate-900/50 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-5xl h-[85vh] rounded-lg shadow-xl flex flex-col overflow-hidden border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-slate-800 text-white">
+               <div>
+                  <p className="text-sm font-medium">New assessment</p>
+                  <p className="text-xs text-slate-300 mt-0.5">Step {step} of 3</p>
                </div>
                <button 
+                 type="button"
                  onClick={() => setShowCreateModal(false)}
-                 className="w-10 h-10 bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl flex items-center justify-center transition-all"
+                 className="p-1.5 hover:bg-slate-700 rounded-md transition-colors"
                >
                  <X className="w-5 h-5" />
                </button>
             </div>
 
-            {/* Step Progress Bar */}
-            <div className="h-1.5 w-full bg-slate-100 relative">
+            <div className="h-1 w-full bg-gray-100 relative">
                <div 
-                 className="absolute inset-0 bg-indigo-600 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(79,70,229,0.5)]" 
+                 className="absolute inset-y-0 left-0 bg-blue-800 transition-all duration-300" 
                  style={{ width: `${(step / 3) * 100}%` }} 
                />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 sm:p-10 custom-scrollbar bg-white">
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar bg-white">
                {step === 1 && (
                  <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -702,16 +665,14 @@ export default function AdminAssessments() {
 
                {step === 2 && (
                  <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                       <div>
-                          <h3 className="text-lg font-bold text-slate-900">Manage Content</h3>
-                          <p className="text-xs text-slate-500 font-medium">Add questions, prompts or grading criteria.</p>
-                       </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg border border-gray-200 bg-gray-50">
+                       <p className="text-sm text-gray-600">Add questions and grading criteria.</p>
                        <button 
+                         type="button"
                          onClick={addQuestion}
-                         className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95"
+                         className="px-4 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0"
                        >
-                         <Plus className="w-4 h-4" /> Add Item
+                         <Plus className="w-4 h-4" /> Add question
                        </button>
                     </div>
 
@@ -947,39 +908,40 @@ export default function AdminAssessments() {
                )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
                <button 
+                 type="button"
                  disabled={step === 1}
                  onClick={() => setStep(step - 1)}
-                 className="px-6 py-3 text-xs font-bold text-slate-400 hover:text-slate-900 disabled:opacity-0 transition-all uppercase tracking-widest"
+                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-0 transition-colors"
                >
                  Back
                </button>
                
-               <div className="flex gap-3">
+               <div className="flex gap-2">
                  {step < 3 ? (
                    <button 
+                     type="button"
                      onClick={() => setStep(step + 1)}
-                     className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                     className="px-5 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
                    >
-                     Next Step <ChevronRight className="w-4 h-4" />
+                     Continue <ChevronRight className="w-4 h-4" />
                    </button>
                  ) : (
                    <>
                      <button
                        type="button"
                        onClick={handleSaveDraft}
-                       className="px-6 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-white"
+                       className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-white"
                      >
                        Save draft
                      </button>
                      <button
                        type="button"
                        onClick={handlePublish}
-                       className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                       className="px-5 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-md text-sm font-medium transition-colors"
                      >
-                       Publish assessment
+                       Publish
                      </button>
                    </>
                  )}

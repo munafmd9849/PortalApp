@@ -17,7 +17,7 @@ const STATUS_BADGE = {
 };
 
 /**
- * CR Manager stat card with hover breakdown (reference dashboard style).
+ * Admin stat card with hover breakdown (reference dashboard style).
  */
 export default function CrManagerCard({
   name,
