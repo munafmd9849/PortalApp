@@ -404,10 +404,10 @@ curl -X POST http://localhost:3001/api/auth/register \
 
 No changes needed - existing `.env` should have:
 - `DATABASE_URL` ✅
-- `EMAIL_USER` ✅
-- `EMAIL_PASS` ✅
-- `EMAIL_HOST` ✅
-- `EMAIL_PORT` ✅
+- `SMTP_USER` ✅
+- `SMTP_PASS` ✅
+- `SMTP_HOST` ✅
+- `SMTP_PORT` ✅
 - `JWT_SECRET` ✅
 - `REDIS_HOST` (optional, defaults to localhost)
 - `REDIS_PORT` (optional, defaults to 6379)

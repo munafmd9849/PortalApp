@@ -214,7 +214,7 @@ Backend (routes/auth.js):
         └─ Call config/email.js.sendEmail()
             ↓
             config/email.js:
-              ├─ Validate EMAIL_USER, EMAIL_PASS env vars
+              ├─ Validate SMTP_USER, SMTP_PASS env vars
               ├─ Use Nodemailer transporter (Gmail SMTP:587)
               └─ Send email via SMTP
                   ↓
@@ -273,7 +273,7 @@ Frontend receives: { success: true, message: 'OTP sent', expiresIn: 300 }
   - Create Nodemailer transporter (Gmail SMTP port 587)
   - Verify transporter on startup (non-blocking)
   - Send emails with error handling
-- **Dependencies**: `dotenv` (loads EMAIL_* env vars)
+- **Dependencies**: `dotenv` (loads SMTP_* env vars)
 - **Issues**: 
   - Uses `tls: { rejectUnauthorized: false }` (development only)
   - Verification is non-blocking (good)

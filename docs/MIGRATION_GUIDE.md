@@ -92,8 +92,8 @@ REDIS_PORT=6379
 AWS_ACCESS_KEY_ID="your-key"
 AWS_SECRET_ACCESS_KEY="your-secret"
 S3_BUCKET_NAME="portal-uploads"
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-app-password"
+SMTP_USER=your@email.com
+SMTP_PASS=your_password
 ```
 
 ### Step 3: Start Backend Server

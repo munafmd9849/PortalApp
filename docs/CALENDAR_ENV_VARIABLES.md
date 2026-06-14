@@ -137,8 +137,8 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
 
 # Email (if using)
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
+SMTP_USER=your@email.com
+SMTP_PASS=your_password
 ```
 
 ---

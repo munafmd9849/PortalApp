@@ -64,11 +64,11 @@ Testing complete OTP email flow end-to-end.
 **Status**: Checking...
 
 **Required**:
-- EMAIL_HOST
-- EMAIL_PORT
-- EMAIL_USER
-- EMAIL_PASS
-- EMAIL_FROM
+- SMTP_HOST
+- SMTP_PORT
+- SMTP_USER
+- SMTP_PASS
+- SMTP_FROM (optional)
 
 ---
 

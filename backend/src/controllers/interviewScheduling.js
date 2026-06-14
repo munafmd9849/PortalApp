@@ -1819,7 +1819,11 @@ export const endRound = async (req, res) => {
 
     const sessionCompleted = updatedSession?.status === 'COMPLETED';
     if (sessionCompleted) {
-      setImmediate(() => sendDriveThankYouEmailsForSession(round.sessionId).catch(() => { }));
+      try {
+        await sendDriveThankYouEmailsForSession(round.sessionId);
+      } catch (e) {
+        logger.error(`Failed to send thank you emails for session ${round.sessionId}:`, e);
+      }
     }
 
     const message = sessionCompleted
@@ -2044,7 +2048,11 @@ export const endSession = async (req, res) => {
       },
     });
 
-    setImmediate(() => sendDriveThankYouEmailsForSession(sessionId).catch(() => { }));
+    try {
+      await sendDriveThankYouEmailsForSession(sessionId);
+    } catch (e) {
+      logger.error(`Failed to send thank you emails for session ${sessionId}:`, e);
+    }
 
     res.json({
       message: 'Interview session ended successfully',

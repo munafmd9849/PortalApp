@@ -152,7 +152,7 @@ Required variables:
 - `JWT_SECRET` - JWT signing secret
 - `REDIS_URL` - Redis connection
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - AWS S3 credentials
-- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS` - Email configuration
+- `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` - Email configuration
 
 ### 4. **Initialize Database**
 ```bash

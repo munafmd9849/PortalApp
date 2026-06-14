@@ -26,12 +26,11 @@ Starting comprehensive backend health check and diagnostic scan.
   - ✅ AWS_ACCESS_KEY_ID
   - ✅ AWS_SECRET_ACCESS_KEY
   - ✅ AWS_REGION
-  - ✅ EMAIL_HOST
-  - ✅ EMAIL_PORT
-  - ✅ EMAIL_SECURE
-  - ✅ EMAIL_USER
-  - ✅ EMAIL_PASS
-  - ✅ EMAIL_FROM
+  - ✅ SMTP_HOST
+  - ✅ SMTP_PORT
+  - ✅ SMTP_USER
+  - ✅ SMTP_PASS
+  - ✅ SMTP_FROM (optional)
 
 ---
 

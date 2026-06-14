@@ -135,11 +135,11 @@ All email notification triggers tested and verified.
 **Status**: ✅ Configured
 
 **Environment Variables**:
-- `EMAIL_HOST`
-- `EMAIL_PORT`
-- `EMAIL_USER`
-- `EMAIL_PASS`
-- `EMAIL_FROM`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (optional)
 
 **Email Provider**: Gmail SMTP (configured)
 
