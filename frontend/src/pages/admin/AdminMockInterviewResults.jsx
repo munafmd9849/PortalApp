@@ -85,10 +85,8 @@ function AdminMockInterviewResultsComponent() {
   if (loading) {
     return (
       <div className="h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">
-          Loading mock interview results
-        </p>
+        <div className="w-12 h-12 border-4 border-gray-100 border-t-blue-800 rounded-full animate-spin" />
+        <p className="text-gray-500 text-sm">Loading results…</p>
       </div>
     );
   }
@@ -110,9 +108,8 @@ function AdminMockInterviewResultsComponent() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-sm font-bold text-slate-900 truncate">
-                Mock Interview Review:{' '}
-                <span className="text-indigo-600">{selectedSession.student?.fullName}</span>
+              <h1 className="text-sm font-semibold text-gray-900 truncate">
+                Results: <span className="text-blue-800">{selectedSession.student?.fullName}</span>
               </h1>
             </div>
             <p className="hidden sm:block text-xs text-slate-400 font-medium shrink-0 ml-4">
@@ -147,43 +144,36 @@ function AdminMockInterviewResultsComponent() {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-sm font-bold text-slate-900">
-              Mock Interview Review:{' '}
-              <span className="text-indigo-600">{drive?.title}</span>
+            <h1 className="text-sm font-semibold text-gray-900">
+              Results: <span className="text-blue-800">{drive?.title}</span>
             </h1>
           </div>
         </div>
       </div>
 
       <div className={`${CONTENT_WIDTH} mt-8 space-y-8`}>
-        <div className="bg-slate-900 rounded-[32px] p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
-          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
+        <div className="bg-slate-800 rounded-lg p-6 sm:p-8 text-white border border-slate-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div className="space-y-4">
               <div>
-                <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest text-indigo-300 border border-white/5">
+                <span className="text-xs text-slate-400">
                   {drive?.category || 'Mock'} · Drive results
                 </span>
-                <h2 className="text-4xl font-bold mt-4 leading-tight">{avgScore}% Average</h2>
-                <p className="text-slate-400 text-sm mt-3 font-medium">
+                <h2 className="text-2xl font-semibold mt-2">{avgScore}% average</h2>
+                <p className="text-slate-400 text-sm mt-2">
                   {stats.totalAttempts} completed session{stats.totalAttempts === 1 ? '' : 's'} with feedback
                 </p>
               </div>
-              <div className="flex flex-wrap gap-6 pt-4 border-t border-white/5">
+              <div className="flex flex-wrap gap-6 pt-3 border-t border-slate-700 text-sm">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Candidates</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Users className="w-4 h-4 text-indigo-400" />
-                    <span className="text-lg font-bold tabular-nums">{stats.totalAttempts}</span>
-                  </div>
+                  <p className="text-slate-400 text-xs">Candidates</p>
+                  <span className="font-semibold tabular-nums">{stats.totalAttempts}</span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Drive date</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Clock className="w-4 h-4 text-emerald-400" />
-                    <span className="text-lg font-bold">
-                      {drive?.date ? new Date(drive.date).toLocaleDateString() : '—'}
-                    </span>
-                  </div>
+                  <p className="text-slate-400 text-xs">Drive date</p>
+                  <span className="font-semibold">
+                    {drive?.date ? new Date(drive.date).toLocaleDateString() : '—'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -210,24 +200,22 @@ function AdminMockInterviewResultsComponent() {
                     strokeLinecap="round"
                   />
                 </svg>
-                <Trophy className="absolute w-10 h-10 text-indigo-400" />
+                <Trophy className="absolute w-8 h-8 text-slate-500" />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Activity className="w-4 h-4 text-indigo-600" /> Candidate performance
-            </h3>
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-              <Search className="w-4 h-4 text-slate-400" />
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-sm font-medium text-gray-700">Candidate performance</h3>
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md">
+              <Search className="w-4 h-4 text-gray-400" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search candidate..."
-                className="bg-transparent border-none outline-none text-sm font-medium text-slate-700 w-40 sm:w-52 placeholder:text-slate-400"
+                placeholder="Search candidate"
+                className="bg-transparent border-none outline-none text-sm text-gray-700 w-40 sm:w-48 placeholder:text-gray-400"
               />
             </div>
           </div>
@@ -235,41 +223,41 @@ function AdminMockInterviewResultsComponent() {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-100">
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rank</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Candidate</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Score</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Result</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Session</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Rank</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Candidate</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500 text-center">Score</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500 text-center">Result</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Session</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-gray-100">
                 {sessions.map((session, idx) => (
-                  <tr key={session.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-500">#{idx + 1}</td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-900">{session.student?.fullName || '—'}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{session.student?.enrollmentId}</p>
+                  <tr key={session.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-sm text-gray-500">#{idx + 1}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-gray-900">{session.student?.fullName || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{session.student?.enrollmentId}</p>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-lg font-bold text-indigo-600 tabular-nums">
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-sm font-semibold text-blue-800 tabular-nums">
                         {session.scorePercent ?? 0}%
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-xs font-bold uppercase text-slate-600">
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-xs text-gray-600">
                         {session.feedback?.result?.replace(/_/g, ' ') || '—'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">{formatSessionTime(session.startTime)}</td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-3 text-sm text-gray-500">{formatSessionTime(session.startTime)}</td>
+                    <td className="px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => openReport(session)}
-                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-md shadow-indigo-600/20 active:scale-95 transition-colors"
+                        className="px-3 py-2 bg-blue-800 hover:bg-blue-900 text-white text-xs font-medium rounded-md transition-colors"
                       >
-                        View Report
+                        View report
                       </button>
                     </td>
                   </tr>

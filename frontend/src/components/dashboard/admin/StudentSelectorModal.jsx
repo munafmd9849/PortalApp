@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Search, Filter, Check, GraduationCap, Users, MapPin, 
-  ChevronRight, Loader2, UserCheck, SearchX, MousePointer2, ChevronDown
+import {
+  X, Search, Check, GraduationCap, Users, MapPin,
+  Loader2, ChevronDown,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../../services/api';
 
 const CustomDropdown = ({ label, value, options, onChange, icon: Icon }) => {
@@ -21,60 +20,55 @@ const CustomDropdown = ({ label, value, options, onChange, icon: Icon }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedOption = options.find(opt => opt.value === value);
+  const selectedOption = options.find((opt) => opt.value === value);
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button 
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all ${
-          isOpen ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-500/5' : 'border-slate-200 bg-white hover:border-slate-300'
+        className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm transition-colors ${
+          isOpen ? 'border-blue-800 bg-blue-50' : 'border-gray-300 bg-white hover:border-gray-400'
         }`}
       >
-        {Icon && <Icon className={`w-4 h-4 ${isOpen ? 'text-indigo-600' : 'text-slate-400'}`} />}
-        <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {Icon && <Icon className={`w-3.5 h-3.5 ${isOpen ? 'text-blue-800' : 'text-gray-400'}`} />}
+        <span className="text-xs font-medium text-gray-700 whitespace-nowrap">
           {selectedOption?.label || label}
         </span>
-        <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isOpen ? 'rotate-180 text-indigo-600' : 'text-slate-400'}`} />
+        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180 text-blue-800' : 'text-gray-400'}`} />
       </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: 5, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 5, scale: 0.95 }}
-            className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl z-[110] py-2 overflow-hidden"
-          >
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-4 py-2 text-left text-xs font-semibold transition-colors flex items-center justify-between ${
-                  value === opt.value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {opt.label}
-                {value === opt.value && <Check className="w-3 h-3 text-indigo-600" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-[110] py-1">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full px-3 py-2 text-left text-xs font-medium transition-colors flex items-center justify-between ${
+                value === opt.value ? 'bg-blue-50 text-blue-800' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {opt.label}
+              {value === opt.value && <Check className="w-3 h-3 text-blue-800" />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
-const StudentSelectorModal = ({ 
-  isOpen, 
-  onClose, 
-  onSelect, 
-  initialSelected = [], 
+const StudentSelectorModal = ({
+  isOpen,
+  onClose,
+  onSelect,
+  initialSelected = [],
   jobTitle = '',
-  isReadOnly = false
+  isReadOnly = false,
 }) => {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
@@ -83,12 +77,12 @@ const StudentSelectorModal = ({
   const [filters, setFilters] = useState({
     school: 'ALL',
     batch: 'ALL',
-    center: 'ALL'
+    center: 'ALL',
   });
 
-  const [schoolOptions, setSchoolOptions] = useState([{ label: 'All Schools', value: 'ALL' }]);
-  const [batchOptions, setBatchOptions] = useState([{ label: 'All Batches', value: 'ALL' }]);
-  const [centerOptions, setCenterOptions] = useState([{ label: 'All Centers', value: 'ALL' }]);
+  const [schoolOptions, setSchoolOptions] = useState([{ label: 'All schools', value: 'ALL' }]);
+  const [batchOptions, setBatchOptions] = useState([{ label: 'All batches', value: 'ALL' }]);
+  const [centerOptions, setCenterOptions] = useState([{ label: 'All centres', value: 'ALL' }]);
 
   useEffect(() => {
     const loadAcademicFilters = async () => {
@@ -99,15 +93,15 @@ const StudentSelectorModal = ({
         const raw = await fetchAcademicOptions();
         const academic = buildStandardFilterOptions(raw);
         setSchoolOptions([
-          { label: 'All Schools', value: 'ALL' },
+          { label: 'All schools', value: 'ALL' },
           ...academic.schools.map((s) => ({ label: s.code || s.name, value: s.id })),
         ]);
         setBatchOptions([
-          { label: 'All Batches', value: 'ALL' },
+          { label: 'All batches', value: 'ALL' },
           ...academic.batches.map((b) => ({ label: b.label || b.id, value: b.id })),
         ]);
         setCenterOptions([
-          { label: 'All Centers', value: 'ALL' },
+          { label: 'All centres', value: 'ALL' },
           ...academic.centers.map((c) => ({ label: c.name, value: c.id })),
         ]);
       } catch (err) {
@@ -120,10 +114,8 @@ const StudentSelectorModal = ({
   useEffect(() => {
     if (isOpen) {
       fetchStudents();
-      // Extract IDs if objects are passed, otherwise use directly
-      const ids = initialSelected.map(item => typeof item === 'object' ? (item.studentId || item.id) : item);
-      setSelectedIds(new Set(ids.filter(id => !!id)));
-      // Disable body scroll when modal is open
+      const ids = initialSelected.map((item) => (typeof item === 'object' ? (item.studentId || item.id) : item));
+      setSelectedIds(new Set(ids.filter((id) => !!id)));
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -145,24 +137,18 @@ const StudentSelectorModal = ({
   };
 
   const filteredStudents = useMemo(() => {
-    return students.filter(student => {
+    return students.filter((student) => {
       const name = student.fullName || student.name || '';
       const roll = student.enrollmentId || student.rollNumber || student.studentId || '';
-      
-      const matchesSearch = 
+
+      const matchesSearch =
         name.toLowerCase().includes(search.toLowerCase()) ||
         roll.toLowerCase().includes(search.toLowerCase());
-      
+
       const norm = (v) => (v || '').toString().trim().toLowerCase();
-      const matchesSchool =
-        filters.school === 'ALL' ||
-        norm(student.school) === norm(filters.school);
-      const matchesBatch =
-        filters.batch === 'ALL' ||
-        norm(student.batch) === norm(filters.batch);
-      const matchesCenter =
-        filters.center === 'ALL' ||
-        norm(student.center) === norm(filters.center);
+      const matchesSchool = filters.school === 'ALL' || norm(student.school) === norm(filters.school);
+      const matchesBatch = filters.batch === 'ALL' || norm(student.batch) === norm(filters.batch);
+      const matchesCenter = filters.center === 'ALL' || norm(student.center) === norm(filters.center);
 
       const isSelected = selectedIds.has(student.id);
       if (isReadOnly && !isSelected) return false;
@@ -173,23 +159,18 @@ const StudentSelectorModal = ({
 
   const toggleStudent = (id) => {
     const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
     setSelectedIds(newSelected);
   };
 
   const selectAllFiltered = () => {
     const newSelected = new Set(selectedIds);
-    filteredStudents.forEach(s => newSelected.add(s.id));
+    filteredStudents.forEach((s) => newSelected.add(s.id));
     setSelectedIds(newSelected);
   };
 
-  const clearSelection = () => {
-    setSelectedIds(new Set());
-  };
+  const clearSelection = () => setSelectedIds(new Set());
 
   const handleConfirm = () => {
     onSelect(Array.from(selectedIds));
@@ -199,99 +180,75 @@ const StudentSelectorModal = ({
   if (!isOpen) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/45 backdrop-blur-[2px]">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/20"
-      >
-        
-        {/* Header - Solid Indigo */}
-        <div className="px-8 py-6 bg-indigo-600 text-white relative">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20">
-                <MousePointer2 className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold tracking-tight leading-none">
-                  {isReadOnly ? 'Targeted Candidates' : 'Cherry Pick Candidates'}
-                </h2>
-                <p className="text-indigo-100 text-xs font-medium opacity-80 mt-1">
-                  Targeting for <span className="text-white font-semibold">{jobTitle}</span>
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <div className="hidden md:flex items-center gap-3">
-                <div className="px-3 py-1.5 bg-white/10 rounded-xl border border-white/10 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{students.length} Available</span>
-                </div>
-                <div className="px-3 py-1.5 bg-white/20 rounded-xl border border-white/20 flex items-center gap-2">
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{selectedIds.size} Picked</span>
-                </div>
-              </div>
-              <button 
-                onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors group"
-              >
-                <X className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />
-              </button>
-            </div>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50">
+      <div className="bg-white w-full max-w-5xl h-[85vh] rounded-lg shadow-xl flex flex-col overflow-hidden border border-gray-200">
+
+        <div className="px-6 py-4 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {isReadOnly ? 'Invited candidates' : 'Select candidates'}
+            </h2>
+            <p className="text-slate-300 text-sm mt-0.5">
+              {jobTitle ? `Role: ${jobTitle}` : 'Choose students to invite to this drive'}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-slate-300 hidden sm:inline">
+              {selectedIds.size} of {students.length} selected
+            </span>
+            <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-700 rounded-md transition-colors">
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Search and Custom Dropdowns */}
-        <div className="px-8 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
               type="text"
-              placeholder="Search Name, Email or ID..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
+              placeholder="Search by name or enrollment ID"
+              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-blue-800 focus:border-blue-800 outline-none"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          
-          <div className="flex items-center flex-wrap gap-2">
-            <CustomDropdown 
-              label="School" 
-              value={filters.school} 
-              options={schoolOptions} 
-              onChange={(val) => setFilters(f => ({ ...f, school: val }))} 
-              icon={GraduationCap}
-            />
-            <CustomDropdown 
-              label="Batch" 
-              value={filters.batch} 
-              options={batchOptions} 
-              onChange={(val) => setFilters(f => ({ ...f, batch: val }))} 
-              icon={Users}
-            />
-            <CustomDropdown 
-              label="Center" 
-              value={filters.center} 
-              options={centerOptions} 
-              onChange={(val) => setFilters(f => ({ ...val, center: val }))} 
-              icon={MapPin}
-            />
-          </div>
+
+          <CustomDropdown
+            label="School"
+            value={filters.school}
+            options={schoolOptions}
+            onChange={(val) => setFilters((f) => ({ ...f, school: val }))}
+            icon={GraduationCap}
+          />
+          <CustomDropdown
+            label="Batch"
+            value={filters.batch}
+            options={batchOptions}
+            onChange={(val) => setFilters((f) => ({ ...f, batch: val }))}
+            icon={Users}
+          />
+          <CustomDropdown
+            label="Centre"
+            value={filters.center}
+            options={centerOptions}
+            onChange={(val) => setFilters((f) => ({ ...f, center: val }))}
+            icon={MapPin}
+          />
 
           {!isReadOnly && (
             <div className="flex items-center gap-2 ml-auto">
-              <button 
+              <button
+                type="button"
                 onClick={selectAllFiltered}
-                className="px-4 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors uppercase tracking-widest"
+                className="px-3 py-1.5 text-sm font-medium text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
               >
-                Select All
+                Select all
               </button>
-              <button 
+              <button
+                type="button"
                 onClick={clearSelection}
-                className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors uppercase tracking-widest"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
               >
                 Clear
               </button>
@@ -299,114 +256,106 @@ const StudentSelectorModal = ({
           )}
         </div>
 
-        {/* Student Grid */}
-        <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-6 bg-white">
           {loading ? (
-            <div className="h-full flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
-              <p className="text-slate-500 font-semibold">Loading Directory...</p>
+            <div className="h-full flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-800" />
+              <p className="text-gray-500 text-sm">Loading student directory…</p>
             </div>
           ) : filteredStudents.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 text-center">
-              <SearchX className="w-12 h-12 text-slate-300" />
-              <div>
-                <p className="text-lg font-semibold text-slate-600">No students found</p>
-                <p className="text-sm">Try different filters or search terms.</p>
-              </div>
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-2 text-center">
+              <p className="text-base font-medium text-gray-700">No students found</p>
+              <p className="text-sm">Try adjusting your search or filters.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              <AnimatePresence mode="popLayout">
-                {filteredStudents.map((student) => (
-                  <motion.div 
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredStudents.map((student) => {
+                const selected = selectedIds.has(student.id);
+                return (
+                  <div
                     key={student.id}
                     onClick={isReadOnly ? undefined : () => toggleStudent(student.id)}
-                    className={`group relative p-4 rounded-3xl border-2 transition-all ${isReadOnly ? 'cursor-default' : 'cursor-pointer active:scale-95 hover:shadow-xl'} ${
-                      selectedIds.has(student.id) 
-                        ? 'border-indigo-500 bg-indigo-50/30' 
-                        : 'border-slate-100 bg-white hover:border-indigo-200'
+                    className={`p-3 rounded-md border transition-colors ${
+                      isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-blue-300'
+                    } ${
+                      selected
+                        ? 'border-blue-800 bg-blue-50/50'
+                        : 'border-gray-200 bg-white'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold transition-all ${
-                        selectedIds.has(student.id) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-100 text-slate-600'
+                    <div className="flex items-start justify-between mb-2">
+                      <div className={`w-9 h-9 rounded-md flex items-center justify-center text-xs font-semibold ${
+                        selected ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {(student.fullName || student.name || '?').charAt(0)}
                       </div>
-                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                        selectedIds.has(student.id) 
-                          ? 'bg-emerald-500 border-emerald-500 scale-110 shadow-lg shadow-emerald-100' 
-                          : 'border-slate-200 group-hover:border-indigo-300'
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                        selected ? 'bg-blue-800 border-blue-800' : 'border-gray-300'
                       }`}>
-                        {selectedIds.has(student.id) && <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />}
+                        {selected && <Check className="w-2.5 h-2.5 text-white stroke-[3px]" />}
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">
-                        {student.fullName || student.name}
-                      </h3>
-                      <p className="text-[10px] font-semibold text-slate-400 tracking-wider">
-                        ID: {student.enrollmentId || student.rollNumber || 'N/A'}
-                      </p>
-                    </div>
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                      {student.fullName || student.name}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {student.enrollmentId || student.rollNumber || '—'}
+                    </p>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100/50 flex flex-wrap gap-1.5">
-                      <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold uppercase tracking-tighter">{student.school}</span>
-                      <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold uppercase tracking-tighter">{student.batch}</span>
-                      <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold uppercase tracking-tighter">{student.center}</span>
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1">
+                      {student.school && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">{student.school}</span>
+                      )}
+                      {student.batch && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">{student.batch}</span>
+                      )}
+                      {student.center && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">{student.center}</span>
+                      )}
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-10 py-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-indigo-600 leading-none">{selectedIds.size}</span>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Students Selected</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-          </div>
-
-          <div className="flex items-center gap-4">
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            <span className="font-semibold text-gray-900">{selectedIds.size}</span> selected
+          </p>
+          <div className="flex items-center gap-3">
             {isReadOnly ? (
-              <button 
+              <button
+                type="button"
                 onClick={onClose}
-                className="px-10 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all uppercase tracking-widest"
+                className="px-5 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900 transition-colors"
               >
-                Close View
+                Close
               </button>
             ) : (
               <>
-                <button 
+                <button
+                  type="button"
                   onClick={onClose}
-                  className="px-6 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors uppercase tracking-widest"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
+                  type="button"
                   onClick={handleConfirm}
                   disabled={selectedIds.size === 0}
-                  className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-3 uppercase tracking-widest"
+                  className="px-5 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900 transition-colors disabled:opacity-50"
                 >
-                  Confirm Selection
-                  <ChevronRight className="w-5 h-5" />
+                  Confirm selection
                 </button>
               </>
             )}
           </div>
         </div>
-
-      </motion.div>
+      </div>
     </div>
   );
 

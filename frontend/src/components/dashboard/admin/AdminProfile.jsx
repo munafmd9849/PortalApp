@@ -123,8 +123,7 @@ export default function AdminProfile() {
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Profile</h2>
+        <div className="flex justify-end mb-4 sm:mb-6">
           <div className="text-sm text-gray-500">
             Fields marked with <span className="text-red-500">*</span> are required
           </div>

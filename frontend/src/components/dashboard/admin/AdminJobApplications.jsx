@@ -31,7 +31,7 @@ function SkeletonRow() {
       <td className="px-6 py-4"><div className="h-4 w-44 bg-slate-200 rounded" /></td>
       <td className="px-6 py-4"><div className="h-4 w-10 bg-slate-200 rounded" /></td>
       <td className="px-6 py-4"><div className="h-4 w-24 bg-slate-200 rounded" /></td>
-      <td className="px-6 py-4"><div className="h-9 w-24 bg-slate-200 rounded-xl" /></td>
+      <td className="px-6 py-4"><div className="h-9 w-24 bg-slate-200 rounded-md" /></td>
     </tr>
   );
 }
@@ -41,14 +41,14 @@ function StatusPill({ value }) {
   const config = {
     'SELECTED': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: 'CheckCircle' },
     'REJECTED': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: 'X' },
-    'ONGOING': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: 'Clock' },
+    'ONGOING': { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: 'Clock' },
     'REVOKED_BY_ADMIN': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300', icon: 'Lock' },
     'WITHDRAWN': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: 'X' },
   };
   const style = config[v] || config['ONGOING'];
   const label = v === 'REVOKED_BY_ADMIN' ? 'REVOKED' : v === 'WITHDRAWN' ? 'WITHDRAWN' : v;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${style.bg} ${style.text} ${style.border}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
       {label}
     </span>
   );
@@ -58,7 +58,7 @@ function StageBadge({ stage }) {
   const stages = {
     'Applied': { color: 'bg-slate-100 text-slate-700', label: 'Applied' },
     'Screening Qualified': { color: 'bg-blue-100 text-blue-700', label: 'Screening' },
-    'Qualified for Interview': { color: 'bg-indigo-100 text-indigo-700', label: 'Interview Ready' },
+    'Qualified for Interview': { color: 'bg-blue-100 text-blue-800', label: 'Interview ready' },
     'Interview Round 1': { color: 'bg-purple-100 text-purple-700', label: 'Round 1' },
     'Interview Round 2': { color: 'bg-violet-100 text-violet-700', label: 'Round 2' },
     'Selected': { color: 'bg-emerald-100 text-emerald-700', label: 'Selected' },
@@ -68,7 +68,7 @@ function StageBadge({ stage }) {
   };
   const stageConfig = stages[stage] || stages['Applied'];
   return (
-    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-tighter ${stageConfig.color}`}>
+    <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${stageConfig.color}`}>
       {stageConfig.label}
     </span>
   );
@@ -137,28 +137,28 @@ export default function AdminJobApplications() {
   const job = payload?.job || {};
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 md:p-8 bg-[#f8fafc] min-h-screen font-outfit">
-      {/* Header & Job Info */}
-      <div className="space-y-6">
+    <div className="space-y-5 p-4 sm:p-6 bg-gray-50 min-h-screen">
+      <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button 
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
               onClick={() => navigate(-1)}
-              className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+              className="p-2 bg-white border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">
-                Application <span className="text-indigo-600">Review</span>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Application review
               </h1>
-              <div className="flex items-center gap-3 mt-1.5">
-                <span className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5" />
                   {job.companyName}
                 </span>
-                <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                <span className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                <span className="flex items-center gap-1">
                   <Briefcase className="w-3.5 h-3.5" />
                   {job.title || job.jobTitle}
                 </span>
@@ -167,19 +167,18 @@ export default function AdminJobApplications() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col items-center min-w-[80px]">
-              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Total</span>
-              <span className="text-base font-bold text-indigo-700 leading-tight">{pagination.total}</span>
+            <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-center min-w-[72px]">
+              <span className="text-xs text-gray-500 block">Total</span>
+              <span className="text-base font-semibold text-gray-900">{pagination.total}</span>
             </div>
-            <div className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col items-center min-w-[80px]">
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Selected</span>
-              <span className="text-base font-bold text-emerald-700 leading-tight">{stats.selected ?? stats.Selected ?? 0}</span>
+            <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-center min-w-[72px]">
+              <span className="text-xs text-gray-500 block">Selected</span>
+              <span className="text-base font-semibold text-emerald-700">{stats.selected ?? stats.Selected ?? 0}</span>
             </div>
           </div>
         </div>
 
-        {/* Filters Bar */}
-        <div className="bg-white rounded-[24px] border border-slate-200 p-4 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col lg:flex-row items-center gap-3">
           <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -187,7 +186,7 @@ export default function AdminJobApplications() {
               value={filters.search}
               onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               placeholder="Search by student name, email, or USN..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-blue-800 focus:border-blue-800 transition-all"
             />
           </div>
           
@@ -198,7 +197,7 @@ export default function AdminJobApplications() {
                 value={filters.stage}
                 onChange={(val) => setFilters(prev => ({ ...prev, stage: val }))}
                 placeholder="Stage"
-                className="rounded-xl border-slate-200 shadow-none"
+                className="rounded-md border-gray-200 shadow-none"
               />
             </div>
             <div className="w-full lg:w-48">
@@ -207,7 +206,7 @@ export default function AdminJobApplications() {
                 value={filters.finalStatus}
                 onChange={(val) => setFilters(prev => ({ ...prev, finalStatus: val }))}
                 placeholder="Result"
-                className="rounded-xl border-slate-200 shadow-none"
+                className="rounded-md border-gray-200 shadow-none"
               />
             </div>
           </div>
@@ -215,16 +214,16 @@ export default function AdminJobApplications() {
       </div>
 
       {/* Main Table Content */}
-      <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Candidate Profile</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Academic Info</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Stage</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Result</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500">Candidate</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500">Academic details</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500">Stage</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500 text-center">Outcome</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -236,8 +235,8 @@ export default function AdminJobApplications() {
                     <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Users className="w-8 h-8" />
                     </div>
-                    <p className="text-slate-900 font-bold tracking-tight">No applicants matched your filters</p>
-                    <p className="text-slate-500 text-sm mt-1">Try resetting the stage or search term</p>
+                    <p className="text-gray-900 font-medium">No candidates match your filters</p>
+                    <p className="text-gray-500 text-sm mt-1">Try adjusting the stage or search term</p>
                   </td>
                 </tr>
               ) : (
@@ -249,23 +248,23 @@ export default function AdminJobApplications() {
                   <tr key={applicationId} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm border border-indigo-100">
+                        <div className="w-9 h-9 bg-gray-100 text-gray-700 rounded-md flex items-center justify-center font-semibold text-xs border border-gray-200">
                           {studentInitial}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 truncate tracking-tight">{studentName}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{app.student?.enrollmentId || app.student?.email}</p>
+                          <p className="font-medium text-gray-900 truncate">{studentName}</p>
+                          <p className="text-xs text-gray-500">{app.student?.enrollmentId || app.student?.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-5">
                       <div className="space-y-1">
-                        <p className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                          <GraduationCap className="w-3 h-3 text-indigo-500" />
+                        <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                          <GraduationCap className="w-3 h-3 text-gray-400" />
                           {app.student?.school} {app.student?.branch ? `| ${app.student.branch}` : ''}
                         </p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          Batch: {app.student?.batch}
+                        <p className="text-xs text-gray-500">
+                          Batch {app.student?.batch}
                         </p>
                       </div>
                     </td>
@@ -282,17 +281,18 @@ export default function AdminJobApplications() {
                           href={app.student.profileLink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          title="Student Profile"
+                          className="p-2 bg-gray-50 text-gray-400 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                          title="View profile"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
                         )}
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => navigate(`${basePath}/jobs/${jobId}/applications/${applicationId}`)}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all opacity-0 group-hover:opacity-100"
+                          className="px-3 py-1.5 bg-blue-800 text-white rounded-md text-xs font-medium hover:bg-blue-900 transition-colors"
                         >
-                          Details
+                          View details
                         </button>
                       </div>
                     </td>
@@ -305,25 +305,27 @@ export default function AdminJobApplications() {
 
         {/* Footer Pagination */}
         {!loading && pagination.total > LIMIT && (
-          <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Showing <span className="text-slate-900">{applications.length}</span> of <span className="text-slate-900">{pagination.total}</span> Candidates
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Showing {applications.length} of {pagination.total} candidates
             </p>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 disabled:opacity-30 shadow-sm"
+                className="p-2 bg-white border border-gray-200 rounded-md text-gray-600 disabled:opacity-30 hover:bg-gray-50"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-xs font-bold text-slate-600 uppercase">Page {page} of {pagination.totalPages}</span>
-              <button 
-                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+              <span className="text-sm text-gray-600">Page {page} of {pagination.totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
                 disabled={page === pagination.totalPages}
-                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 disabled:opacity-30 shadow-sm"
+                className="p-2 bg-white border border-gray-200 rounded-md text-gray-600 disabled:opacity-30 hover:bg-gray-50"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>

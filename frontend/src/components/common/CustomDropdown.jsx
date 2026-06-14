@@ -21,7 +21,8 @@ const CustomDropdown = ({
   onChange,
   placeholder = "Select option",
   icon: Icon,
-  iconColor = "text-blue-600"
+  iconColor = "text-blue-600",
+  compact = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
@@ -107,7 +108,7 @@ const CustomDropdown = ({
   return (
     <div>
       {label && (
-        <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+        <label className={`block text-sm font-medium text-gray-700 mb-1.5 ${compact ? '' : 'font-semibold mb-2'} flex items-center gap-2`}>
           {Icon && <Icon className={`w-4 h-4 ${iconColor}`} />}
           {label}
         </label>
@@ -115,7 +116,11 @@ const CustomDropdown = ({
       <div className="relative" ref={dropdownRef}>
         <button
           type="button"
-          className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-sm text-left flex items-center justify-between transition-all duration-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none outline-none cursor-pointer"
+          className={`w-full text-sm text-left flex items-center justify-between transition-colors bg-white outline-none cursor-pointer ${
+            compact
+              ? 'border border-gray-300 rounded-md px-3 py-2 hover:border-gray-400 focus:border-blue-800 focus:ring-1 focus:ring-blue-800'
+              : 'border-2 border-gray-300 rounded-lg px-4 py-3 hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500'
+          }`}
           onClick={() => {
             if (!isOpen && dropdownRef.current) {
               const rect = dropdownRef.current.getBoundingClientRect();

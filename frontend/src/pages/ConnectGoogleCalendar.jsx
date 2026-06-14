@@ -529,54 +529,33 @@ const ConnectGoogleCalendar = () => {
           </div>
         )}
 
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <FaCheckCircle className="text-green-500 text-2xl" />
-                <h1 className="text-3xl font-bold text-gray-800">My Calendar</h1>
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6">
+          {connected && hasFullScope === false && (
+            <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-yellow-900 mb-2">
+                    Limited Permissions Detected
+                  </p>
+                  <p className="text-sm text-yellow-800 mb-3">
+                    Your calendar connection has <strong>read-only access</strong>.
+                    You cannot create events with this permission level.
+                    Please disconnect and reconnect to grant full access.
+                  </p>
+                  <button
+                    onClick={handleDisconnect}
+                    className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+                  >
+                    🔄 Disconnect & Reconnect Now
+                  </button>
+                </div>
               </div>
-              <p className="text-gray-600">
-                {user?.role === 'STUDENT' 
-                  ? 'View your calendar events. Students have read-only access.'
-                  : 'View and manage your calendar events.'}
-              </p>
-              {connectedGoogleEmail && (
-                <div className="mt-2 text-sm text-gray-500">
-                  <span className="font-medium">Connected Google Account:</span> {connectedGoogleEmail}
-                  {registeredEmail && registeredEmail.toLowerCase() !== connectedGoogleEmail.toLowerCase() && (
-                    <span className="ml-2 text-yellow-600">⚠️</span>
-                  )}
-                </div>
-              )}
-              {connected && hasFullScope === false && (
-                <div className="mt-3 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <span className="text-2xl">⚠️</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-yellow-900 mb-2">
-                        Limited Permissions Detected
-                      </p>
-                      <p className="text-sm text-yellow-800 mb-3">
-                        Your calendar connection has <strong>read-only access</strong>. 
-                        You cannot create events with this permission level. 
-                        Please disconnect and reconnect to grant full access.
-                      </p>
-                      <button
-                        onClick={handleDisconnect}
-                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
-                      >
-                        🔄 Disconnect & Reconnect Now
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+          )}
+          <div className="flex items-center gap-3 flex-wrap justify-end">
               {/* Connection Status - Modern indicator style */}
               {connected ? (
                 <>
@@ -643,7 +622,6 @@ const ConnectGoogleCalendar = () => {
                 </>
               )}
             </div>
-          </div>
         </div>
 
         {loadingEvents && events.length === 0 ? (

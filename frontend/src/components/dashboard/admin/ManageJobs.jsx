@@ -1024,8 +1024,9 @@ export default function ManageJobs() {
                       {/* Candidates Modal Trigger */}
                       {(visibilityModes[job.id] === 'PRIORITY' || visibilityModes[job.id] === 'INVITE_ONLY') && (
                         <div className="flex-1">
-                          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Targeting</label>
+                          <label className="text-xs font-medium text-gray-500 block mb-1.5">Targeting</label>
                           <button
+                            type="button"
                             onClick={() => {
                               if (visibilityModes[job.id] === 'INVITE_ONLY') {
                                 setSelectorModal({ isOpen: true, jobId: job.id, jobTitle: job.jobTitle, isReadOnly: false });
@@ -1033,10 +1034,14 @@ export default function ManageJobs() {
                                 setAnalysisModal({ isOpen: true, jobId: job.id, jobTitle: job.jobTitle });
                               }
                             }}
-                            className="w-full h-10 px-3 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all text-xs font-bold flex items-center justify-center gap-2"
+                            className="w-full h-10 px-3 bg-blue-50 text-blue-800 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors text-xs font-medium flex items-center justify-center gap-2"
                           >
                             <Users className="w-3.5 h-3.5" />
-                            {targetStudents[job.id]?.length > 0 ? `${targetStudents[job.id].length} Selected` : 'Select Candidates'}
+                            {targetStudents[job.id]?.length > 0
+                              ? `${targetStudents[job.id].length} selected`
+                              : visibilityModes[job.id] === 'INVITE_ONLY'
+                                ? 'Invite candidates'
+                                : 'Rank candidates'}
                           </button>
                         </div>
                       )}

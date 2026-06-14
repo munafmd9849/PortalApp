@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { MdBlock } from 'react-icons/md';
 import { FaCheckCircle, FaBuilding, FaInfoCircle, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
@@ -154,55 +153,23 @@ const BlockModal = ({
   const isPermanent = (isStudent && blockType === 'Permanent') || (!isStudent && blockType === 'permanent');
   const isTemporary = (isStudent && blockType === 'Temporary') || (!isStudent && blockType === 'temporary');
 
-  const modal = (
-    <div
-      className={`fixed inset-0 flex items-center justify-center p-4 ${
-        isStudent ? 'z-[10000] bg-slate-900/60 backdrop-blur-md' : 'z-50 bg-black/50'
-      }`}
-    >
-      <div
-        className={`bg-white w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden ${
-          isStudent ? 'rounded-2xl border border-slate-200 shadow-2xl' : 'rounded-xl shadow-xl overflow-y-auto overflow-x-hidden scrollbar-hide'
-        }`}
-      >
-        {/* Header */}
-        <div
-          className={`relative shrink-0 ${
-            isStudent
-              ? `px-6 py-4 pr-14 border-b ${
-                  isUnblocking
-                    ? 'border-emerald-100 bg-gradient-to-r from-emerald-50 to-white'
-                    : 'border-rose-100 bg-gradient-to-r from-rose-50 to-white'
-                }`
-              : `px-6 py-4 pr-12 border-b border-gray-200 ${
-                  isUnblocking ? 'bg-gradient-to-r from-green-50 to-emerald-50' : 'bg-gradient-to-r from-red-50 to-rose-50'
-                }`
-          }`}
-        >
+  return (
+    <div className={`fixed inset-0 ${isStudent ? 'bg-slate-900/50' : 'bg-black/50'} flex items-center justify-center z-50 p-4`}>
+      <div className={`bg-white ${isStudent ? 'rounded-lg shadow-xl' : 'rounded-xl shadow-xl'} w-full ${isStudent ? 'max-w-2xl' : 'max-w-xl'} max-h-[90vh] overflow-y-auto overflow-x-hidden scrollbar-hide`}>
+        <div className={`relative ${isStudent ? 'px-6 py-4 bg-slate-800 text-white border-b border-slate-700 sticky top-0 z-10' : `px-6 py-4 pr-12 border-b border-gray-200 ${isUnblocking ? 'bg-gray-50' : 'bg-gray-50'}`}`}>
           <button
+            type="button"
             onClick={onClose}
-            className={`absolute top-4 right-4 p-2 rounded-xl transition-colors ${
-              isStudent ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'hover:bg-white/20'
-            }`}
+            className={`absolute top-4 right-4 p-1.5 rounded-md transition-colors ${isStudent ? 'hover:bg-slate-700 text-slate-300 hover:text-white' : 'hover:bg-gray-100'}`}
             aria-label="Close"
           >
-            <FaTimes className={`w-5 h-5 ${isStudent ? 'text-slate-500' : 'text-gray-600'}`} />
+            <FaTimes className={`w-5 h-5 ${isStudent ? '' : 'text-gray-600'}`} />
           </button>
-          <h2
-            className={`${
-              isStudent ? 'text-lg font-bold text-slate-900' : 'text-xl font-semibold text-gray-800'
-            } flex items-center gap-2`}
-          >
+          <h2 className={`${isStudent ? 'text-lg font-semibold pr-8' : 'text-xl font-semibold text-gray-800'} flex items-center gap-2`}>
             {isUnblocking ? (
-              <>
-                <FaCheckCircle className={isStudent ? 'text-emerald-600' : 'w-5 h-5 text-green-600'} />
-                {isStudent ? 'Unblock Student' : 'Unblock Recruiter'}
-              </>
+              isStudent ? 'Unblock student' : 'Unblock Recruiter'
             ) : (
-              <>
-                <MdBlock className={isStudent ? 'text-rose-600' : 'w-5 h-5 text-red-600'} />
-                {isStudent ? 'Block Student' : 'Block Recruiter'}
-              </>
+              isStudent ? 'Block student' : 'Block Recruiter'
             )}
           </h2>
           {!isStudent && !isUnblocking && (
@@ -214,7 +181,7 @@ const BlockModal = ({
         </div>
 
         {/* Content */}
-        <div className={`flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide ${isStudent ? 'p-6' : 'px-6 py-4'}`}>
+        <div className={`${isStudent ? 'p-6' : 'px-6 py-4'}`}>
           {isUnblocking && !isStudent ? (
             <div className="mb-4">
               <p className="text-gray-700">
@@ -236,19 +203,19 @@ const BlockModal = ({
                   </p>
                 </div>
               ) : (
-                <div className="p-4 rounded-xl border border-green-200 bg-green-50/70">
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="font-semibold text-gray-900">{entity?.fullName}</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                <div className="p-4 rounded-md border border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <p className="font-medium text-gray-900 text-sm">{entity?.fullName}</p>
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-600">
                       {entity?.enrollmentId}
                     </span>
                     {isPermanentlyBlocked && canUnblockPermanent && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
                         Permanent
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-gray-600">
                     Restore access to apply for jobs and use the placement portal?
                   </p>
                 </div>
@@ -261,18 +228,14 @@ const BlockModal = ({
                   <p className="text-sm sm:text-base text-gray-600 mb-4">
                     Are you sure you want to block this student?
                   </p>
-                  <div className="mb-5 p-4 rounded-xl border border-rose-100 bg-rose-50/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <p className="text-sm sm:text-base font-semibold text-gray-900">
-                        {entity?.fullName}
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-700 mt-1">
-                        Enrollment ID: <span className="font-medium">{entity?.enrollmentId}</span>
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-700">
-                        Program: <span className="font-medium">{entity?.school}</span>
-                      </p>
-                    </div>
+                  <div className="mb-4 p-4 rounded-md border border-gray-200 bg-gray-50">
+                    <p className="text-sm font-medium text-gray-900">{entity?.fullName}</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Enrollment ID: <span className="font-medium">{entity?.enrollmentId}</span>
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Program: <span className="font-medium">{entity?.school}</span>
+                    </p>
                   </div>
                 </>
               )}
@@ -287,13 +250,13 @@ const BlockModal = ({
                     <button
                       type="button"
                       onClick={() => setBlockType('Permanent')}
-                      className={`text-left p-4 rounded-xl border transition-all ${
+                      className={`text-left p-3 rounded-md border transition-colors ${
                         isPermanent
-                          ? 'border-red-500 bg-red-50 shadow-sm'
-                          : 'border-gray-200 bg-white hover:border-red-300'
+                          ? 'border-slate-700 bg-slate-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      <p className="text-sm font-semibold text-gray-900">Permanent Block</p>
+                      <p className="text-sm font-medium text-gray-900">Permanent block</p>
                       <p className="mt-1 text-xs text-gray-600">
                         Revokes all placement and application access permanently.
                       </p>
@@ -301,13 +264,13 @@ const BlockModal = ({
                     <button
                       type="button"
                       onClick={() => setBlockType('Temporary')}
-                      className={`text-left p-4 rounded-xl border transition-all ${
+                      className={`text-left p-3 rounded-md border transition-colors ${
                         isTemporary
-                          ? 'border-amber-500 bg-amber-50 shadow-sm'
-                          : 'border-gray-200 bg-white hover:border-amber-300'
+                          ? 'border-slate-700 bg-slate-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      <p className="text-sm font-semibold text-gray-900">Temporary Block</p>
+                      <p className="text-sm font-medium text-gray-900">Temporary block</p>
                       <p className="mt-1 text-xs text-gray-600">
                         Blocks the student only until the selected date and time.
                       </p>
@@ -426,9 +389,8 @@ const BlockModal = ({
                       Reason for Blocking <span className="text-red-500">*</span>
                     </label>
                     <CustomDropdown
-                      label="Reason for Blocking"
-                      icon={FaInfoCircle}
-                      iconColor="text-red-600"
+                      label="Reason for blocking"
+                      compact
                       options={studentReasons}
                       value={reason}
                       onChange={(value) => setReason(value)}
@@ -505,40 +467,34 @@ const BlockModal = ({
         </div>
 
         {/* Footer */}
-        <div className={`${isStudent ? 'p-6 sm:p-8' : 'px-6 py-4 border-t border-gray-200 bg-gray-50'} flex ${isStudent ? 'flex-col sm:flex-row' : ''} justify-end ${isStudent ? 'space-y-2 sm:space-y-0 sm:space-x-4' : 'space-x-3'}`}>
+        <div className={`${isStudent ? 'px-6 py-4 border-t border-gray-200 bg-gray-50' : 'px-6 py-4 border-t border-gray-200 bg-gray-50'} flex justify-end gap-3`}>
           <button
+            type="button"
             onClick={onClose}
-            className={`px-4 py-2 ${isStudent ? 'bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' : 'px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow'}`}
+            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={!isConfirmEnabled || (isStudentUnblock && isPermanentlyBlocked && !canUnblockPermanent)}
-            className={`${isStudent 
-              ? `px-4 py-2 rounded-lg text-white ${isConfirmEnabled && !(isStudentUnblock && isPermanentlyBlocked && !canUnblockPermanent) ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`
-              : `px-5 py-2.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm hover:shadow-md ${
-                isUnblocking 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white' 
-                  : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white'
-              }`
+            className={`px-5 py-2 rounded-md text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isStudent
+                ? isUnblocking
+                  ? 'bg-blue-800 hover:bg-blue-900'
+                  : 'bg-slate-800 hover:bg-slate-900'
+                : isUnblocking
+                  ? 'bg-blue-800 hover:bg-blue-900'
+                  : 'bg-slate-800 hover:bg-slate-900'
             }`}
           >
-            {isUnblocking ? (
-              <span>{isStudent ? 'Confirm Unblock' : 'Confirm Unblock'}</span>
-            ) : (
-              <>
-                {!isStudent && <MdBlock className="w-4 h-4" />}
-                <span>{isStudent ? 'Confirm Block' : 'Confirm Block'}</span>
-              </>
-            )}
+            {isUnblocking ? 'Confirm unblock' : 'Confirm block'}
           </button>
         </div>
       </div>
     </div>
   );
-
-  return isStudent ? createPortal(modal, document.body) : modal;
 };
 
 export default BlockModal;

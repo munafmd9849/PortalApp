@@ -221,62 +221,162 @@ const Notifications = () => {
     }
   };
 
-  // Get BIG notification icon based on type - MATCHING STUDENT QUERY ICONS
-  const getNotificationIcon = (type) => {
+  const NOTIFICATION_THEMES = {
+    question_request: {
+      iconBg: 'bg-blue-50', iconText: 'text-blue-600', accent: 'border-l-blue-400', chip: 'bg-blue-50 text-blue-700',
+    },
+    cgpa_request: {
+      iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', accent: 'border-l-emerald-400', chip: 'bg-emerald-50 text-emerald-700',
+    },
+    calendar_request: {
+      iconBg: 'bg-violet-50', iconText: 'text-violet-600', accent: 'border-l-violet-400', chip: 'bg-violet-50 text-violet-700',
+    },
+    [NOTIFICATION_TYPES.JD_APPROVAL]: {
+      iconBg: 'bg-amber-50', iconText: 'text-amber-600', accent: 'border-l-amber-400', chip: 'bg-amber-50 text-amber-700',
+    },
+    jd_approval: {
+      iconBg: 'bg-amber-50', iconText: 'text-amber-600', accent: 'border-l-amber-400', chip: 'bg-amber-50 text-amber-700',
+    },
+    [NOTIFICATION_TYPES.JOB_APPLICATION]: {
+      iconBg: 'bg-sky-50', iconText: 'text-sky-600', accent: 'border-l-sky-400', chip: 'bg-sky-50 text-sky-700',
+    },
+    applicationreview: {
+      iconBg: 'bg-sky-50', iconText: 'text-sky-600', accent: 'border-l-sky-400', chip: 'bg-sky-50 text-sky-700',
+    },
+    application: {
+      iconBg: 'bg-sky-50', iconText: 'text-sky-600', accent: 'border-l-sky-400', chip: 'bg-sky-50 text-sky-700',
+    },
+    admincollab: {
+      iconBg: 'bg-indigo-50', iconText: 'text-indigo-600', accent: 'border-l-indigo-400', chip: 'bg-indigo-50 text-indigo-700',
+    },
+    admin_coordination: {
+      iconBg: 'bg-indigo-50', iconText: 'text-indigo-600', accent: 'border-l-indigo-400', chip: 'bg-indigo-50 text-indigo-700',
+    },
+    admin_login: {
+      iconBg: 'bg-indigo-50', iconText: 'text-indigo-600', accent: 'border-l-indigo-400', chip: 'bg-indigo-50 text-indigo-700',
+    },
+    [NOTIFICATION_TYPES.RECRUITER_INQUIRY]: {
+      iconBg: 'bg-teal-50', iconText: 'text-teal-600', accent: 'border-l-teal-400', chip: 'bg-teal-50 text-teal-700',
+    },
+    recruiter_inquiry: {
+      iconBg: 'bg-teal-50', iconText: 'text-teal-600', accent: 'border-l-teal-400', chip: 'bg-teal-50 text-teal-700',
+    },
+    default: {
+      iconBg: 'bg-gray-50', iconText: 'text-gray-500', accent: 'border-l-gray-300', chip: 'bg-gray-50 text-gray-600',
+    },
+  };
+
+  const FILTER_THEMES = {
+    all: {
+      active: 'bg-slate-100 text-slate-800',
+      inactive: 'text-gray-500 hover:bg-slate-50 hover:text-slate-700',
+      header: 'bg-slate-50 border-slate-100',
+      headerText: 'text-slate-700',
+      count: 'text-slate-500',
+      empty: 'text-slate-300',
+    },
+    unread: {
+      active: 'bg-blue-50 text-blue-800',
+      inactive: 'text-gray-500 hover:bg-blue-50/50 hover:text-blue-700',
+      header: 'bg-blue-50/60 border-blue-100',
+      headerText: 'text-blue-800',
+      count: 'text-blue-600',
+      empty: 'text-blue-200',
+    },
+    jd_approvals: {
+      active: 'bg-amber-50 text-amber-800',
+      inactive: 'text-gray-500 hover:bg-amber-50/50 hover:text-amber-700',
+      header: 'bg-amber-50/60 border-amber-100',
+      headerText: 'text-amber-800',
+      count: 'text-amber-600',
+      empty: 'text-amber-200',
+    },
+    student_queries: {
+      active: 'bg-emerald-50 text-emerald-800',
+      inactive: 'text-gray-500 hover:bg-emerald-50/50 hover:text-emerald-700',
+      header: 'bg-emerald-50/60 border-emerald-100',
+      headerText: 'text-emerald-800',
+      count: 'text-emerald-600',
+      empty: 'text-emerald-200',
+    },
+    job_applications: {
+      active: 'bg-sky-50 text-sky-800',
+      inactive: 'text-gray-500 hover:bg-sky-50/50 hover:text-sky-700',
+      header: 'bg-sky-50/60 border-sky-100',
+      headerText: 'text-sky-800',
+      count: 'text-sky-600',
+      empty: 'text-sky-200',
+    },
+    admin_coordination: {
+      active: 'bg-indigo-50 text-indigo-800',
+      inactive: 'text-gray-500 hover:bg-indigo-50/50 hover:text-indigo-700',
+      header: 'bg-indigo-50/60 border-indigo-100',
+      headerText: 'text-indigo-800',
+      count: 'text-indigo-600',
+      empty: 'text-indigo-200',
+    },
+    recruiter_inquiries: {
+      active: 'bg-teal-50 text-teal-800',
+      inactive: 'text-gray-500 hover:bg-teal-50/50 hover:text-teal-700',
+      header: 'bg-teal-50/60 border-teal-100',
+      headerText: 'text-teal-800',
+      count: 'text-teal-600',
+      empty: 'text-teal-200',
+    },
+  };
+
+  const getNotificationTheme = (type) => NOTIFICATION_THEMES[type] || NOTIFICATION_THEMES.default;
+
+  const getFilterTheme = (filterId) => FILTER_THEMES[filterId] || FILTER_THEMES.all;
+
+  const getNotificationTypeLabel = (type) => {
     switch (type) {
-      case 'question_request':
-        return (
-          <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 rounded-xl border border-blue-200 shadow-sm">
-            <FaQuestionCircle className="text-2xl" />
-          </div>
-        );
-      case 'cgpa_request':
-        return (
-          <div className="p-3 bg-gradient-to-br from-green-100 to-green-200 text-green-700 rounded-xl border border-green-200 shadow-sm">
-            <FaChartLine className="text-2xl" />
-          </div>
-        );
-      case 'calendar_request':
-        return (
-          <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 text-purple-700 rounded-xl border border-purple-200 shadow-sm">
-            <FaCalendarAlt className="text-2xl" />
-          </div>
-        );
+      case 'question_request': return 'Question';
+      case 'cgpa_request': return 'CGPA';
+      case 'calendar_request': return 'Calendar';
       case NOTIFICATION_TYPES.JD_APPROVAL:
-      case 'jd_approval':
-        return (
-          <div className="p-3 bg-gradient-to-br from-amber-100 to-amber-200 text-amber-700 rounded-xl border border-amber-200 shadow-sm">
-            <FaBriefcase className="text-2xl" />
-          </div>
-        );
+      case 'jd_approval': return 'JD approval';
       case NOTIFICATION_TYPES.JOB_APPLICATION:
       case 'applicationreview':
-        return (
-          <div className="p-3 bg-gradient-to-br from-indigo-100 to-indigo-200 text-indigo-700 rounded-xl border border-indigo-200 shadow-sm">
-            <FaClipboardCheck className="text-2xl" />
-          </div>
-        );
+      case 'application': return 'Application';
+      case 'admincollab':
+      case 'admin_coordination':
+      case 'admin_login': return 'Admin';
+      case NOTIFICATION_TYPES.RECRUITER_INQUIRY:
+      case 'recruiter_inquiry': return 'Recruiter';
+      default: return 'Notice';
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    const theme = getNotificationTheme(type);
+    const iconBox = (Icon) => (
+      <div className={`w-7 h-7 flex items-center justify-center rounded-sm ${theme.iconBg} ${theme.iconText}`}>
+        <Icon className="text-xs" />
+      </div>
+    );
+    switch (type) {
+      case 'question_request':
+        return iconBox(FaQuestionCircle);
+      case 'cgpa_request':
+        return iconBox(FaChartLine);
+      case 'calendar_request':
+        return iconBox(FaCalendarAlt);
+      case NOTIFICATION_TYPES.JD_APPROVAL:
+      case 'jd_approval':
+        return iconBox(FaBriefcase);
+      case NOTIFICATION_TYPES.JOB_APPLICATION:
+      case 'applicationreview':
+        return iconBox(FaClipboardCheck);
       case 'admincollab':
       case 'admin_coordination':
       case 'admin_login':
-        return (
-          <div className="p-3 bg-gradient-to-br from-violet-100 to-violet-200 text-violet-700 rounded-xl border border-violet-200 shadow-sm">
-            <FaUsers className="text-2xl" />
-          </div>
-        );
+        return iconBox(FaUsers);
       case NOTIFICATION_TYPES.RECRUITER_INQUIRY:
       case 'recruiter_inquiry':
-        return (
-          <div className="p-3 bg-gradient-to-br from-teal-100 to-teal-200 text-teal-700 rounded-xl border border-teal-200 shadow-sm">
-            <FaEnvelopeOpen className="text-2xl" />
-          </div>
-        );
+        return iconBox(FaEnvelopeOpen);
       default:
-        return (
-          <div className="p-3 bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 rounded-xl border border-gray-200 shadow-sm">
-            <FaBell className="text-2xl" />
-          </div>
-        );
+        return iconBox(FaBell);
     }
   };
 
@@ -492,58 +592,14 @@ const Notifications = () => {
 
   const filterCounts = getFilterCounts();
 
-  // Filter buttons configuration with COUNTS - MATCHING STUDENT QUERY ICONS
-  // Admin Coordination (Admit/Reject admin) only for Super Admin
   const allFilters = [
-    { 
-      id: 'all', 
-      name: 'All', 
-      icon: FaBell,
-      color: 'from-blue-50 to-blue-100',
-      count: filterCounts.all
-    },
-    { 
-      id: 'unread', 
-      name: 'Unread', 
-      icon: FaEnvelopeOpen,
-      color: 'from-purple-50 to-purple-100',
-      count: filterCounts.unread
-    },
-    { 
-      id: 'jd_approvals', 
-      name: 'JD Approvals', 
-      icon: FaBriefcase,
-      color: 'from-amber-50 to-amber-100',
-      count: filterCounts.jd_approvals
-    },
-    { 
-      id: 'student_queries', 
-      name: 'Student Queries', 
-      icon:   FaUserGraduate,
-      color: 'from-teal-50 to-teal-100',
-      count: filterCounts.student_queries
-    },
-    { 
-      id: 'job_applications', 
-      name: 'Applications', 
-      icon: FaClipboardCheck,
-      color: 'from-indigo-50 to-indigo-100',
-      count: filterCounts.job_applications
-    },
-    { 
-      id: 'admin_coordination', 
-      name: 'Admin Coordination', 
-      icon: FaUsers,
-      color: 'from-violet-50 to-violet-100',
-      count: filterCounts.admin_coordination
-    },
-    { 
-      id: 'recruiter_inquiries', 
-      name: 'Recruiter Inquiries', 
-      icon: FaEnvelopeOpen,
-      color: 'from-teal-50 to-teal-100',
-      count: filterCounts.recruiter_inquiries
-    }
+    { id: 'all', name: 'All', icon: FaBell, count: filterCounts.all },
+    { id: 'unread', name: 'Unread', icon: FaEnvelopeOpen, count: filterCounts.unread },
+    { id: 'jd_approvals', name: 'JD approvals', icon: FaBriefcase, count: filterCounts.jd_approvals },
+    { id: 'student_queries', name: 'Student queries', icon: FaUserGraduate, count: filterCounts.student_queries },
+    { id: 'job_applications', name: 'Applications', icon: FaClipboardCheck, count: filterCounts.job_applications },
+    { id: 'admin_coordination', name: 'Admin coordination', icon: FaUsers, count: filterCounts.admin_coordination },
+    { id: 'recruiter_inquiries', name: 'Recruiter inquiries', icon: FaEnvelopeOpen, count: filterCounts.recruiter_inquiries },
   ];
   const filters = isSuperAdmin
     ? allFilters
@@ -556,39 +612,39 @@ const Notifications = () => {
     counts: filterCounts
   });
 
+  const activeTheme = getFilterTheme(activeFilter);
+  const selectedModalTheme = selectedNotification
+    ? getNotificationTheme(selectedNotification.type)
+    : null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 overflow-x-hidden">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* RESTRUCTURED HEADER - Title, Search & Mark All Read in One Row */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-          <div className="flex items-center">
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center">
-              <FaBell className="mr-3 text-blue-600" />
-              Notifications
-              {filterCounts.unread > 0 && (
-                <span className="ml-3 px-3 py-1 bg-rose-500 text-white text-lg font-semibold rounded-full">
-                  {filterCounts.unread}
-                </span>
-              )}
-            </h1>
+    <div className="min-h-screen bg-white p-4 sm:p-6 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span>{filterCounts.all} total</span>
+            {filterCounts.unread > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-blue-600">{filterCounts.unread} unread</span>
+              </>
+            )}
           </div>
-          
-          <div className="flex items-center mt-4 md:mt-0 gap-3 flex-wrap md:flex-nowrap">
+
+          <div className="flex items-center gap-2">
             <form onSubmit={handleSearchSubmit} className="flex items-center">
               <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FaSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search notifications..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                  <FaSearch className="text-gray-300 text-[10px]" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search"
+                  className="pl-7 pr-7 py-1 text-sm border-0 border-b border-gray-200 rounded-none bg-transparent focus:outline-none focus:border-gray-400 w-40 sm:w-48"
                   value={searchInput}
                   onChange={(e) => {
                     const value = e.target.value;
                     setSearchInput(value);
-                    // Update search query immediately for real-time search
                     setSearchQuery(value.trim());
                   }}
                 />
@@ -596,223 +652,178 @@ const Notifications = () => {
                   <button
                     type="button"
                     onClick={handleClearSearch}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    className="absolute inset-y-0 right-0 pr-1 flex items-center text-gray-300 hover:text-gray-500"
                     title="Clear search"
                   >
-                    <FaTimes />
+                    <FaTimes className="text-[10px]" />
                   </button>
                 )}
               </div>
-              <button
-                type="submit"
-                className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                Search
-              </button>
             </form>
-            
-            {/* Mark All Read Button - NO ICON */}
-            <button 
+
+            <button
+              type="button"
               onClick={handleMarkAllAsRead}
               disabled={markingAllAsRead || loadingNotifications}
-              className="ml-3 px-4 py-2.5 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border border-blue-200 text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50"
             >
-              {markingAllAsRead ? (
-                <span className="flex items-center gap-2">
-                  <FaSpinner className="animate-spin w-3 h-3" />
-                  Marking as read...
-                </span>
-              ) : (
-                'Mark all as read'
-              )}
+              {markingAllAsRead ? 'Marking…' : 'Mark all read'}
             </button>
           </div>
         </div>
+
         {searchQuery && (
-          <div className="mb-4 text-sm text-gray-500">
-            Showing results for <span className="font-semibold text-gray-700">"{searchQuery}"</span>
-          </div>
+          <p className="text-[11px] text-gray-400">
+            Results for &quot;{searchQuery}&quot;
+          </p>
         )}
 
-        {/* SUBTITLE - Separate Line */}
-        <div className="mb-8">
-          <p className="text-gray-600">
-            Manage your placement-related notifications and requests 
-            <span className="text-sm text-gray-500 ml-2">
-              ({filterCounts.all} total, {filterCounts.unread} unread)
-            </span>
-          </p>
-        </div>
-
-        {/* Filter Buttons with COUNTS */}
-        <div className="flex flex-wrap md:flex-nowrap gap-2 mb-6">
-          {filters.map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setActiveFilter(filter.id)}
-              className={`flex-1 min-w-[140px] px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all duration-200 ${
-                activeFilter === filter.id
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md border-blue-600'
-                  : `bg-gradient-to-r ${filter.color} text-gray-700 border-gray-200 shadow-sm hover:shadow-md`
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <filter.icon className="text-base" />
+        <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-2">
+          {filters.map((filter) => {
+            const theme = getFilterTheme(filter.id);
+            const isActive = activeFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveFilter(filter.id)}
+                className={`px-2.5 py-1 rounded-sm text-xs font-medium flex items-center gap-1 transition-colors ${
+                  isActive ? theme.active : theme.inactive
+                }`}
+              >
+                <filter.icon className={`text-[10px] ${isActive ? '' : 'opacity-60'}`} />
                 <span>{filter.name}</span>
-              </span>
-              {/* Show count badge for all filters */}
-              {filter.count > 0 && (
-                <span className={`px-2 py-0.5 text-[10px] rounded-full font-semibold ${
-                  activeFilter === filter.id
-                    ? 'bg-white/30 text-white'
-                    : filter.id === 'unread' || filter.id === 'high_priority'
-                    ? 'bg-rose-500 text-white'
-                    : 'bg-blue-100 text-blue-600'
-                }`}>
-                  {filter.count}
-                </span>
-              )}
-            </button>
-          ))}
+                {filter.count > 0 && (
+                  <span className={`text-[10px] tabular-nums ${isActive ? theme.count : 'text-gray-400'}`}>
+                    {filter.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Notifications List */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">
-              {activeFilter === 'all' ? 'All' : 
-               activeFilter === 'unread' ? 'Unread Notifications' : 
+        <div className="border border-gray-100 rounded overflow-hidden">
+          <div className={`px-3 py-2 border-b flex items-center justify-between ${activeTheme.header}`}>
+            <p className={`text-xs font-medium ${activeTheme.headerText}`}>
+              {activeFilter === 'all' ? 'All' :
+               activeFilter === 'unread' ? 'Unread' :
                filters.find(f => f.id === activeFilter)?.name}
-              <span className="text-sm font-normal text-gray-500 ml-2">
-                ({filteredNotifications.length})
-              </span>
-              {activeFilter === 'all' && filterCounts.unread > 0 && (
-                <span className="ml-2 text-sm text-rose-600">({filterCounts.unread} unread)</span>
-              )}
-            </h2>
+              <span className="opacity-60 font-normal ml-1">({filteredNotifications.length})</span>
+            </p>
+          </div>
 
+          <div>
             {loadingNotifications ? (
-              <div className="text-center py-12">
-                <FaSpinner className="animate-spin text-4xl text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">Loading notifications...</p>
-                <p className="text-gray-400 text-sm">Please wait while we fetch your data</p>
+              <div className="text-center py-16">
+                <FaSpinner className="animate-spin text-2xl text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">Loading notifications…</p>
               </div>
             ) : filteredNotifications.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-gray-400 text-6xl mb-4">
-                  {/* Use MATCHING notification-specific icon instead of mail */}
+              <div className="text-center py-16">
+                <div className={`text-4xl mb-3 ${activeTheme.empty}`}>
                   {activeFilter === 'student_queries' ? <FaUserGraduate /> :
                    activeFilter === 'jd_approvals' ? <FaBriefcase /> :
                    activeFilter === 'job_applications' ? <FaClipboardCheck /> :
                    activeFilter === 'admin_coordination' ? <FaUsers /> :
                    <FaBell />}
                 </div>
-                <h3 className="text-lg font-medium text-gray-600 mb-2">
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   {searchQuery ? 'No matching notifications' : 'No notifications found'}
-                </h3>
-                <p className="text-gray-500">
-                  {searchQuery 
-                    ? 'Try adjusting your search criteria'
-                    : activeFilter === 'all' 
-                      ? 'New notifications will appear here when students submit queries'
-                      : `No ${filters.find(f => f.id === activeFilter)?.name.toLowerCase()} at this time`
-                  }
+                </p>
+                <p className="text-xs text-gray-400">
+                  {searchQuery
+                    ? 'Try adjusting your search'
+                    : activeFilter === 'all'
+                      ? 'New notifications will appear here'
+                      : `No ${filters.find(f => f.id === activeFilter)?.name.toLowerCase()} at this time`}
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredNotifications.map((notification) => (
+              <div className="divide-y divide-gray-50">
+                {filteredNotifications.map((notification) => {
+                  const theme = getNotificationTheme(notification.type);
+                  return (
                   <div
                     key={notification.id}
-                    className={`p-5 rounded-xl border transition-all duration-200 ${
-                      notification.isRead
-                        ? 'bg-white border-gray-200'
-                        : 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 shadow-sm'
+                    className={`px-3 py-3 transition-colors hover:bg-gray-50/60 border-l-2 ${theme.accent} ${
+                      !notification.isRead ? 'bg-white' : 'bg-white/80'
                     }`}
                   >
-                    <div className="flex items-start">
-                      {/* BIG notification icon - MATCHING STUDENT QUERY COLORS */}
-                      <div className="flex-shrink-0 mr-4">
+                    <div className="flex items-start gap-2.5">
+                      <div className="shrink-0 mt-0.5">
                         {getNotificationIcon(notification.type)}
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className={`font-semibold ${
-                              notification.isRead ? 'text-gray-800' : 'text-gray-900'
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className={`px-1.5 py-0.5 rounded-sm text-[10px] font-medium ${theme.chip}`}>
+                                {getNotificationTypeLabel(notification.type)}
+                              </span>
+                              {!notification.isRead && (
+                                <span className="w-1 h-1 bg-blue-400 rounded-full shrink-0" />
+                              )}
+                            </div>
+                            <p className={`text-sm truncate ${
+                              notification.isRead ? 'font-normal text-gray-700' : 'font-medium text-gray-900'
                             }`}>
                               {notification.title}
-                            </h3>
-                            <p className="text-gray-600 mt-1 text-sm">
+                            </p>
+                            <p className="text-gray-400 mt-0.5 text-xs line-clamp-1">
                               {notification.message}
                             </p>
                           </div>
-                          
-                          <div className="flex items-center space-x-2 ml-4">
-                            {/* Priority Badge */}
+
+                          <div className="flex items-center gap-1 shrink-0">
                             {(notification.priority === 'high' || notification.priority === PRIORITY_LEVELS.HIGH) && (
-                              <span className="px-2.5 py-1 bg-gradient-to-r from-rose-100 to-rose-200 text-rose-800 text-xs font-medium rounded-full border border-rose-200 flex items-center w-fit">
-                                <FaClock className="mr-1" />
-                                High Priority
-                              </span>
-                            )}
-                            
-                            {/* Unread indicator */}
-                            {!notification.isRead && (
-                              <span className="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
+                              <span className="px-1.5 py-0.5 rounded-sm text-[10px] text-rose-600 bg-rose-50 font-medium">High</span>
                             )}
                           </div>
                         </div>
-                        
-                        {/* Notification meta info */}
-                        <div className="flex flex-wrap items-center justify-between mt-4">
-                          <div className="text-sm text-gray-500">
-                            <span className="font-medium">From: {notification.from}</span>
-                            {notification.enrollmentId && (
-                              <span className="ml-3">ID: {notification.enrollmentId}</span>
-                            )}
-                            <span className="ml-3">{notification.date} at {notification.time}</span>
-                          </div>
-                          
-                          {/* Action buttons */}
-                          <div className="flex items-center space-x-2 mt-2 sm:mt-0">
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                          <p className="text-[11px] text-gray-400">
+                            {notification.from}
+                            {notification.enrollmentId && ` · ${notification.enrollmentId}`}
+                            {` · ${notification.date} ${notification.time}`}
+                          </p>
+
+                          <div className="flex items-center gap-0.5">
                             <button
+                              type="button"
                               onClick={() => markAsRead(notification.id)}
                               disabled={actionLoading[notification.id]}
-                              className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                              className="p-1 text-gray-300 hover:text-gray-500"
                               title={notification.isRead ? 'Mark as unread' : 'Mark as read'}
                             >
                               {actionLoading[notification.id] ? (
-                                <FaSpinner className="animate-spin" />
+                                <FaSpinner className="animate-spin text-[10px]" />
                               ) : (
-                                notification.isRead ? <FaBell /> : <FaBell className="text-blue-500" />
+                                <FaBell className={`text-[10px] ${notification.isRead ? '' : 'text-blue-400'}`} />
                               )}
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleDeleteNotification(notification.id)}
                               disabled={actionLoading[notification.id]}
-                              className="p-2 text-gray-400 hover:text-rose-600 rounded-full hover:bg-rose-50"
-                              title="Delete notification"
+                              className="p-1 text-gray-300 hover:text-rose-400"
+                              title="Delete"
                             >
                               {actionLoading[notification.id] ? (
-                                <FaSpinner className="animate-spin" />
+                                <FaSpinner className="animate-spin text-[10px]" />
                               ) : (
-                                <FaTrash />
+                                <FaTrash className="text-[10px]" />
                               )}
                             </button>
-                          </div>
-                        </div>
-                        
-                        {/* Quick action buttons */}
-                        <div className="flex flex-wrap gap-3 mt-4">
-                          <button
-                            onClick={() => openDetailModal(notification)}
-                            className="px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border border-blue-200 text-sm font-medium rounded-lg flex items-center shadow-sm hover:shadow-md transition-all duration-200 hover:from-blue-200 hover:to-blue-300"
-                          >
-                            <FaEye className="mr-2" />
-                            View Details
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => openDetailModal(notification)}
+                              className={`ml-1 px-2 py-0.5 text-[11px] rounded-sm border transition-colors ${theme.chip} border-current/20 hover:opacity-80`}
+                            >
+                              View
+                            </button>
                           {/* Admit/Reject for admin_login (PENDING admin tried to enter) — Super Admin only */}
                           {isSuperAdmin &&
                             notification.type === 'admin_login' &&
@@ -827,14 +838,13 @@ const Notifications = () => {
                                     )
                                   }
                                   disabled={actionLoading[`admin_login_admit_${notification.id}`]}
-                                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                  className="px-2 py-0.5 text-[11px] text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-sm hover:bg-indigo-100 disabled:opacity-50"
                                 >
                                   {actionLoading[`admin_login_admit_${notification.id}`] ? (
-                                    <FaSync className="animate-spin" />
+                                    <FaSync className="animate-spin text-[10px] inline" />
                                   ) : (
-                                    <FaCheck />
+                                    'Admit'
                                   )}
-                                  Admit
                                 </button>
                                 <button
                                   onClick={() =>
@@ -845,93 +855,82 @@ const Notifications = () => {
                                     )
                                   }
                                   disabled={actionLoading[`admin_login_reject_${notification.id}`]}
-                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                                  className="px-2 py-0.5 text-[11px] text-gray-500 hover:text-gray-700 disabled:opacity-50"
                                 >
                                   {actionLoading[`admin_login_reject_${notification.id}`] ? (
-                                    <FaSync className="animate-spin" />
+                                    <FaSync className="animate-spin text-[10px] inline" />
                                   ) : (
-                                    <FaTimes />
+                                    'Reject'
                                   )}
-                                  Reject
                                 </button>
                               </>
                             )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 
                 {/* Admin Requests Section - Super Admin only, when admin_coordination filter is active */}
                 {activeFilter === 'admin_coordination' && isSuperAdmin && (
                   <>
                     {filteredAdminRequests.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                          <FaUsers className="mr-2 text-violet-600" />
-                          Pending Admin Requests ({filteredAdminRequests.length})
-                        </h3>
-                        
+                      <div className="border-t border-indigo-100 bg-indigo-50/30">
+                        <p className="px-3 py-2 text-xs font-medium text-indigo-700">
+                          Pending admin requests ({filteredAdminRequests.length})
+                        </p>
+
                         {loadingAdminRequests ? (
-                          <div className="text-center py-8">
-                            <FaSync className="animate-spin text-2xl text-gray-400 mx-auto mb-2" />
-                            <p className="text-gray-500">Loading admin requests...</p>
+                          <div className="text-center py-6">
+                            <FaSync className="animate-spin text-lg text-gray-200 mx-auto mb-2" />
+                            <p className="text-[11px] text-gray-400">Loading…</p>
                           </div>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="divide-y divide-gray-50">
                             {filteredAdminRequests.map((request) => (
                               <div
                                 key={request.id}
-                                className="p-4 bg-gradient-to-r from-violet-50 to-violet-100 border border-violet-200 rounded-xl"
+                                className="px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-indigo-50/40 border-l-2 border-l-indigo-300"
                               >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 bg-violet-200 rounded-full flex items-center justify-center">
-                                      <span className="text-violet-700 font-semibold text-sm">
-                                        {request.email.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <h4 className="font-semibold text-gray-900">{request.email}</h4>
-                                      <p className="text-sm text-gray-600">
-                                        Requested: {new Date(request.requestedAt || request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        User ID: <code className="bg-gray-200 px-1 rounded">{request.userId || request.user?.id || request.uid}</code>
-                                      </p>
-                                    </div>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="w-6 h-6 bg-indigo-50 text-indigo-600 rounded-sm flex items-center justify-center shrink-0">
+                                    <span className="text-indigo-600 font-medium text-[10px]">
+                                      {request.email.charAt(0).toUpperCase()}
+                                    </span>
                                   </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-gray-700 truncate">{request.email}</p>
+                                    <p className="text-[11px] text-gray-400">
+                                      {new Date(request.requestedAt || request.createdAt?.toDate?.() || request.createdAt).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                </div>
 
-                                  <div className="flex space-x-2 items-center">
-                                    {isSuperAdmin ? (
-                                      <>
-                                        <button
-                                          onClick={() => handleApproveAdmin(request.id, request.uid || request.user?.id, request.email)}
-                                          disabled={actionLoading[`admin_${request.id}`]}
-                                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                        >
-                                          {actionLoading[`admin_${request.id}`] === 'approving' ? (
-                                            <><FaSync className="animate-spin text-xs" /> Approving...</>
-                                          ) : (
-                                            <><FaCheck className="text-xs" /> Approve</>
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={() => handleRejectAdmin(request.id, request.uid || request.user?.id, request.email)}
-                                          disabled={actionLoading[`admin_${request.id}`]}
-                                          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                        >
-                                          {actionLoading[`admin_${request.id}`] === 'rejecting' ? (
-                                            <><FaSync className="animate-spin text-xs" /> Rejecting...</>
-                                          ) : (
-                                            <><FaTimes className="text-xs" /> Reject</>
-                                          )}
-                                        </button>
-                                      </>
-                                    ) : (
-                                      <span className="text-sm text-gray-500">Only Super Admin can approve/reject</span>
-                                    )}
-                                  </div>
+                                <div className="flex gap-1 shrink-0">
+                                  {isSuperAdmin ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                        disabled={actionLoading[`admin_${request.id}`]}
+                                        className="px-2 py-0.5 text-[11px] text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-sm hover:bg-indigo-100 disabled:opacity-50"
+                                      >
+                                        {actionLoading[`admin_${request.id}`] === 'approving' ? '…' : 'Approve'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRejectAdmin(request.id, request.uid || request.user?.id, request.email)}
+                                        disabled={actionLoading[`admin_${request.id}`]}
+                                        className="px-2 py-0.5 text-[11px] text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                                      >
+                                        {actionLoading[`admin_${request.id}`] === 'rejecting' ? '…' : 'Reject'}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[11px] text-gray-400">Super Admin only</span>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -939,12 +938,10 @@ const Notifications = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {filteredAdminRequests.length === 0 && !loadingAdminRequests && (
-                      <div className="mt-6 pt-6 border-t border-gray-200 text-center py-8">
-                        <FaUsers className="text-4xl text-gray-300 mx-auto mb-3" />
-                        <h3 className="text-lg font-medium text-gray-600 mb-2">No Pending Admin Requests</h3>
-                        <p className="text-gray-500">All admin requests have been processed.</p>
+                      <div className="border-t border-gray-50 text-center py-6">
+                        <p className="text-xs text-gray-400">No pending admin requests</p>
                       </div>
                     )}
                   </>
@@ -955,43 +952,43 @@ const Notifications = () => {
         </div>
 
         {/* Detail Modal - SIMPLIFIED VERSION */}
-        {showDetailModal && selectedNotification && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-1">
-                      {getNotificationIcon(selectedNotification.type)}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                        {selectedNotification.title}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        From: {selectedNotification.from} • {selectedNotification.date} at {selectedNotification.time}
-                      </p>
-                    </div>
+        {showDetailModal && selectedNotification && selectedModalTheme && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded border border-gray-100 shadow-lg max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className={`px-4 py-3 border-b flex items-start justify-between gap-3 ${selectedModalTheme.iconBg}`}>
+                <div className="min-w-0 flex items-start gap-2.5">
+                  <div className="shrink-0 mt-0.5">
+                    {getNotificationIcon(selectedNotification.type)}
                   </div>
-                  <button
-                    onClick={() => setShowDetailModal(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <FaTimes />
-                  </button>
+                  <div className="min-w-0">
+                    <span className={`inline-block px-1.5 py-0.5 rounded-sm text-[10px] font-medium mb-1 ${selectedModalTheme.chip}`}>
+                      {getNotificationTypeLabel(selectedNotification.type)}
+                    </span>
+                    <p className="text-sm font-medium text-gray-800 truncate">{selectedNotification.title}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {selectedNotification.from} · {selectedNotification.date} {selectedNotification.time}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 shrink-0"
+                >
+                  <FaTimes className="text-xs" />
+                </button>
               </div>
-              
-              <div className="p-6">
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Message</h3>
-                  <p className="text-gray-800">{selectedNotification.message}</p>
+
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="mb-4">
+                  <p className="text-[11px] text-gray-400 mb-1">Message</p>
+                  <p className="text-sm text-gray-700">{selectedNotification.message}</p>
                 </div>
                 
                 {/* Meta Information */}
                 {selectedNotification.meta && (
-                  <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Additional Information</h3>
+                  <div className="bg-gray-50/80 rounded-sm border border-gray-100 p-3 mb-4">
+                    <p className="text-[11px] text-gray-400 mb-2">Additional information</p>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       {(selectedNotification.meta.studentName || selectedNotification.meta.recruiterName || selectedNotification.meta.userName) && (
                         <div>
@@ -1056,44 +1053,41 @@ const Notifications = () => {
                 
                 {/* Recruiter Inquiry Message */}
                 {selectedNotification.meta?.message && selectedNotification.type === NOTIFICATION_TYPES.RECRUITER_INQUIRY && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Recruitment Needs</h3>
-                    <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
-                      <p className="text-gray-800 whitespace-pre-wrap">{selectedNotification.meta.message}</p>
+                  <div className="mb-5">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Recruitment needs</p>
+                    <div className="bg-gray-50 rounded-sm p-3 border border-gray-200">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedNotification.meta.message}</p>
                     </div>
                   </div>
                 )}
-                
-                {/* Job Posting Display for Question Queries */}
+
                 {selectedNotification.meta?.queryType === 'question' && selectedNotification.meta?.jobId && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Job Posting</h3>
-                    <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                      <p className="text-green-800 font-medium">
+                  <div className="mb-5">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Job posting</p>
+                    <div className="bg-gray-50 rounded-sm p-3 border border-gray-200">
+                      <p className="text-sm text-gray-800 font-medium">
                         {selectedNotification.meta.subject || 'Question about a job posting'}
                       </p>
-                      <p className="text-sm text-green-700 mt-1">
+                      <p className="text-xs text-gray-500 mt-1">
                         Job ID: {selectedNotification.meta.jobId}
                       </p>
                     </div>
                   </div>
                 )}
 
-                {/* Query Message Display */}
                 {selectedNotification.meta?.message && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Query Message</h3>
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <p className="text-gray-800 whitespace-pre-wrap">{selectedNotification.meta.message}</p>
+                  <div className="mb-5">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Query message</p>
+                    <div className="bg-gray-50 rounded-sm p-3 border border-gray-200">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedNotification.meta.message}</p>
                     </div>
                   </div>
                 )}
 
-                {/* CGPA/Backlog Update Details */}
                 {(selectedNotification.meta?.queryType === 'cgpa' || selectedNotification.meta?.queryType === 'backlog') && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Update Details</h3>
-                    <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <div className="mb-5">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Update details</p>
+                    <div className="bg-gray-50 rounded-sm p-3 border border-gray-200">
                       {selectedNotification.meta?.queryType === 'cgpa' && selectedNotification.meta?.cgpa && (
                         <div className="mb-3">
                           <span className="text-sm font-medium text-gray-600">Updated CGPA:</span>
@@ -1108,23 +1102,23 @@ const Notifications = () => {
                       )}
                       {/* Proof Document Display */}
                       {selectedNotification.meta?.proofDocumentUrl && (
-                        <div className="mt-4 pt-4 border-t border-green-300">
-                          <span className="text-sm font-medium text-gray-600 block mb-2">Proof Document:</span>
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <span className="text-xs font-medium text-gray-500 block mb-2">Proof document</span>
                           <a
                             href={selectedNotification.meta.proofDocumentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium text-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-sm hover:bg-gray-50 text-xs font-medium"
                           >
-                            <FaEye className="text-sm" />
-                            View Proof Document
+                            <FaEye className="text-xs" />
+                            View document
                           </a>
                         </div>
                       )}
                       {!selectedNotification.meta?.proofDocumentUrl && (
-                        <div className="mt-4 pt-4 border-t border-green-300">
-                          <p className="text-sm text-amber-600 italic">
-                            ⚠️ Proof document not available. The student may not have uploaded it properly.
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-xs text-amber-600">
+                            Proof document not available.
                           </p>
                         </div>
                       )}
@@ -1134,8 +1128,8 @@ const Notifications = () => {
 
                 {/* Additional Query Details */}
                 {selectedNotification.meta?.queryType && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Query Details</h3>
+                  <div className="mb-5">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Query details</p>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       {selectedNotification.meta.center && (
                         <div>
@@ -1165,25 +1159,25 @@ const Notifications = () => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-50">
                   <button
+                    type="button"
                     onClick={() => setShowDetailModal(false)}
-                    className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
                   >
                     Close
                   </button>
-                  
+
                   {selectedNotification.meta?.queryId && (
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => {
                         setShowResponseModal(true);
                         setShowDetailModal(false);
                       }}
-                      className="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors flex items-center gap-2"
+                      className={`px-2 py-1 text-xs rounded-sm border border-current/20 hover:opacity-80 ${selectedModalTheme.chip}`}
                     >
-                      <FaReply className="text-sm" />
-                      Respond to Query
+                      Respond
                     </button>
                   )}
                 </div>
@@ -1192,88 +1186,72 @@ const Notifications = () => {
           </div>
         )}
 
-        {/* Query Response Modal */}
         {showResponseModal && selectedNotification && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                      Respond to {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {selectedNotification.meta?.studentName || selectedNotification.meta?.recruiterName || selectedNotification.meta?.userName || 'User'} - {selectedNotification.meta?.subject}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowResponseModal(false);
-                      setResponseText('');
-                    }}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <FaTimes />
-                  </button>
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded border border-gray-100 shadow-lg max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Respond to query</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {selectedNotification.meta?.studentName || selectedNotification.meta?.recruiterName || selectedNotification.meta?.userName || 'User'}
+                    {selectedNotification.meta?.subject ? ` · ${selectedNotification.meta.subject}` : ''}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResponseModal(false);
+                    setResponseText('');
+                  }}
+                  className="p-1 text-gray-400 hover:text-gray-600"
+                >
+                  <FaTimes className="text-xs" />
+                </button>
               </div>
-              
-              <div className="p-6">
-                {/* Query Details */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">
-                    {selectedNotification.meta?.recruiterName ? 'Recruiter' : 'Student'} Query
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-gray-800 whitespace-pre-wrap">
+
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="mb-3">
+                  <p className="text-[11px] text-gray-400 mb-1">Query</p>
+                  <div className="bg-gray-50/80 rounded-sm p-3 border border-gray-100">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
                       {selectedNotification.meta?.message || selectedNotification.message}
                     </p>
                   </div>
                 </div>
 
-                {/* Response Input */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Response <span className="text-red-500">*</span>
+                <div className="mb-3">
+                  <label className="block text-[11px] text-gray-400 mb-1">
+                    Your response <span className="text-rose-400">*</span>
                   </label>
                   <textarea
                     value={responseText}
                     onChange={(e) => setResponseText(e.target.value)}
-                    placeholder="Enter your response to the student..."
-                    rows={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                    placeholder="Enter your response…"
+                    rows={4}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 resize-y"
                     required
                   />
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-50">
                   <button
+                    type="button"
                     onClick={() => {
                       setShowResponseModal(false);
                       setResponseText('');
                     }}
-                    className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
                     disabled={respondingToQuery}
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleRespondToQuery}
                     disabled={respondingToQuery || !responseText.trim()}
-                    className="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-2 py-1 text-xs text-gray-700 border border-gray-200 rounded-sm hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {respondingToQuery ? (
-                      <>
-                        <FaSpinner className="animate-spin text-sm" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <FaReply className="text-sm" />
-                        Send Response
-                      </>
-                    )}
+                    {respondingToQuery ? 'Sending…' : 'Send response'}
                   </button>
                 </div>
               </div>

@@ -136,7 +136,7 @@ function RowActions({
       <button
         type="button"
         onClick={() => onView?.(row)}
-        className={`${ACTION_BTN} bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100`}
+        className={`${ACTION_BTN} bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100`}
         title="View Full Profile in Sidebar"
       >
         <Eye className="w-4 h-4" strokeWidth={2} />
@@ -145,7 +145,7 @@ function RowActions({
         type="button"
         onClick={() => onEdit?.(row)}
         disabled={!canModifyStudents?.() || operationLoading}
-        className={`${ACTION_BTN} bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100`}
+        className={`${ACTION_BTN} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`}
         title="Edit Student"
       >
         {operationLoading ? (
@@ -160,8 +160,8 @@ function RowActions({
         disabled={blockDisabled}
         className={`${ACTION_BTN} ${
           row.status === 'Blocked'
-            ? 'bg-slate-500 hover:bg-slate-600 text-white border-slate-600'
-            : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-100'
+            ? 'bg-slate-700 hover:bg-slate-800 text-white border-slate-700'
+            : 'bg-gray-50 hover:bg-gray-100 text-slate-700 border-gray-200'
         }`}
         title={blockTitle}
       >

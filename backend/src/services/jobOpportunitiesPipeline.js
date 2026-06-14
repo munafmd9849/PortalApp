@@ -86,7 +86,7 @@ export function deriveSegment(job, student) {
   return 'General';
 }
 
-function deriveJobDriveStatus(job) {
+export function deriveJobDriveStatus(job) {
   const st = upper(job.status);
   if (job.archivedAt || st === 'ARCHIVED') return PIPELINE_STATUS.CLOSED;
   if (st === 'REJECTED') return PIPELINE_STATUS.NOT_DELIVERABLE;
@@ -495,7 +495,7 @@ export async function getCrManagerOverview(query = {}) {
 
     if (m.userId && adminByUserId[m.userId]) {
       const a = adminByUserId[m.userId];
-      name = a.name || a.user?.displayName || a.user?.email || 'Unknown';
+      name = a.user?.displayName?.trim() || a.name?.trim() || a.user?.email || 'Unknown';
       adminStatus = a.user?.status || null;
     } else if (m.recruiterId && recruiterById[m.recruiterId]) {
       const r = recruiterById[m.recruiterId];
@@ -531,12 +531,49 @@ export async function getCrManagerOverview(query = {}) {
     managers = managers.filter((m) => m.name.toLowerCase().includes(q));
   }
 
-  managers.sort((a, b) => b.count - a.count);
+  const existingUserIds = new Set(managers.map((m) => m.id));
+  const allAdminUsers = await prisma.user.findMany({
+    where: { role: 'ADMIN' },
+    select: {
+      id: true,
+      status: true,
+      displayName: true,
+      email: true,
+      admin: { select: { name: true } },
+    },
+    orderBy: { displayName: 'asc' },
+  });
+
+  allAdminUsers.forEach((u) => {
+    if (existingUserIds.has(u.id)) return;
+    const name = u.displayName?.trim() || u.admin?.name?.trim() || u.email || 'Unknown';
+    managers.push({
+      id: u.id,
+      name,
+      adminStatus: u.status,
+      adminStatusLabel: statusLabel(u.status),
+      count: 0,
+      breakdown: [
+        { label: 'Admin Status', value: statusLabel(u.status), color: statusColor(u.status) },
+        { label: 'Companies Onboarded', count: 0, color: 'green' },
+        { label: 'Applications Shared', count: 0, color: 'blue' },
+        { label: 'Students Placed', count: 0, color: 'green' },
+        { label: 'Interviews Scheduled', count: 0, color: 'blue' },
+        { label: 'Transitions', count: 0, color: 'green' },
+        { label: 'In Process', count: 0, color: 'blue' },
+        { label: 'Closed Drives', count: 0, color: 'gray' },
+        { label: 'Hold', count: 0, color: 'amber' },
+        { label: 'Yet to Start', count: 0, color: 'amber' },
+      ],
+    });
+  });
+
+  managers.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   const totalJds = managers.reduce((s, m) => s + m.count, 0);
 
   return {
     jdsPunched: totalJds,
-    managers: managers.slice(0, 20),
+    managers,
   };
 }
 
