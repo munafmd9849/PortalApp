@@ -198,8 +198,6 @@ function AiMockInterviewReviewComponent() {
                     >
                       Regenerate insights
                     </button>
-                      </>
-                    )}
                   </div>
                 </div>
               )}

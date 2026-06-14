@@ -27,24 +27,32 @@ const __dirname = dirname(__filename);
 // Load .env file from the backend root directory (parent of src/)
 dotenv.config({ path: join(__dirname, '../../.env') });
 
-// Validate email credentials
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.warn('⚠️ Email credentials not configured. Email features will not work.');
-  console.warn('Please set EMAIL_USER and EMAIL_PASS in your .env file');
-}
+const useWorker = Boolean(process.env.EMAIL_WORKER_URL);
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
-  secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false // Allow self-signed certificates (for development)
+let transporter = null;
+
+if (!useWorker) {
+  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
+  if (!user || !pass) {
+    console.warn('⚠️ Email credentials not configured. Email features will not work.');
+    console.warn('Please set EMAIL_USER and EMAIL_PASS in your .env file');
   }
-});
+
+  transporter = nodemailer.createTransport({
+    host: host || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true' || process.env.EMAIL_SECURE === 'true',
+    auth: {
+      user,
+      pass,
+    },
+    tls: {
+      rejectUnauthorized: false // Allow self-signed certificates (for development)
+    }
+  });
 
   // Verify transporter on startup (async, don't block server)
   if (host && user && pass) {

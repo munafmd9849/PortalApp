@@ -1740,6 +1740,8 @@ export default function CreateJob({ onCreated }) {
             </div>
           )}
         </div>
+      </div>,
+      document.body
       )}
 
       {/* THREE CREATION METHOD OPTIONS - ALWAYS VISIBLE */}
