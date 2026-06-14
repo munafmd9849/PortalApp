@@ -12,7 +12,7 @@ const PWIOIFooter = ({ onLoginOpen, onContactTeam, onMeetDevTeam }) => {
   };
 
   return (
-    <footer className="text-white py-5 relative overflow-hidden mt-0" style={{ background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #2a2a5a 100%)' }}>
+    <footer id="footer" className="text-white py-5 relative overflow-hidden mt-0" style={{ background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #2a2a5a 100%)' }}>
       <div className="px-[10%] grid grid-cols-1 lg:grid-cols-3 gap-10">
 
         {/* Brand Section */}

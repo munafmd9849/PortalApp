@@ -52,7 +52,6 @@ function logEmailMismatchWarning(userId, registeredEmail, connectedEmail) {
  */
 export async function validateCalendarConnection(userId) {
   try {
-    // Get user with calendar connection status
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -60,6 +59,12 @@ export async function validateCalendarConnection(userId) {
         email: true,
         googleCalendarConnected: true,
         connectedGoogleEmail: true,
+        googleCalendarToken: {
+          select: {
+            accessToken: true,
+            connectedGoogleEmail: true,
+          },
+        },
       },
     });
 
@@ -70,8 +75,9 @@ export async function validateCalendarConnection(userId) {
       };
     }
 
-    // Check if calendar is connected
-    if (!user.googleCalendarConnected) {
+    const token = user.googleCalendarToken;
+
+    if (!user.googleCalendarConnected || !token?.accessToken) {
       return {
         valid: false,
         user,
@@ -79,25 +85,19 @@ export async function validateCalendarConnection(userId) {
       };
     }
 
-    // Get calendar token
-    const token = await prisma.googleCalendarToken.findUnique({
-      where: { userId },
-      select: {
-        connectedGoogleEmail: true,
-      },
-    });
-
-    if (!token) {
-      return {
-        valid: false,
-        user,
-        error: 'Google Calendar not connected with registered email.',
-      };
-    }
-
-    // CRITICAL: Verify email match
     const registeredEmail = user.email?.toLowerCase().trim();
-    const connectedEmail = token.connectedGoogleEmail?.toLowerCase().trim();
+    const connectedEmail = (token.connectedGoogleEmail || user.connectedGoogleEmail)
+      ?.toLowerCase()
+      .trim();
+
+    if (!connectedEmail) {
+      return {
+        valid: false,
+        user,
+        token,
+        error: 'Google Calendar not connected with registered email.',
+      };
+    }
 
     if (registeredEmail !== connectedEmail) {
       // Use deduplicated logging to prevent spam

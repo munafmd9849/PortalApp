@@ -37,6 +37,15 @@ router.post('/jobs/:jobId', requireRole(['STUDENT']), applicationController.appl
 // Update application status (admin/recruiter)
 router.patch('/:applicationId/status', requireRole(['ADMIN', 'RECRUITER']), applicationController.updateApplicationStatus);
 
+// Withdraw application (student only)
+router.post('/:applicationId/withdraw', requireRole(['STUDENT']), applicationController.withdrawApplication);
+
+// Revoke application (admin only)
+router.post('/:applicationId/revoke', requireRole(['ADMIN']), applicationController.revokeApplication);
+
+// Restore application (admin only)
+router.post('/:applicationId/restore', requireRole(['ADMIN']), applicationController.restoreApplication);
+
 // Get short-lived URL to view resume inline (for new tab; no Bearer in tab)
 router.get('/:applicationId/resume-view-url', requireRole(['ADMIN', 'RECRUITER']), applicationController.getResumeViewUrl);
 

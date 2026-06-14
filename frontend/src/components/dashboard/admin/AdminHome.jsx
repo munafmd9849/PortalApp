@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+
+import { JobOpportunitiesSection } from './JobOpportunitiesDashboard';
 // import useRef removed - unused
 import { PieChart } from 'react-minimal-pie-chart';
 import { ChevronDown, Filter, TrendingUp, Users, Briefcase, MessageSquare, Bell, BarChart3, Target, DollarSign, X, Loader2 } from 'lucide-react';
 import { FaChevronDown, FaTimes, FaMapMarkerAlt, FaGraduationCap, FaUsers, FaUserShield } from 'react-icons/fa';
 import CustomDropdown from '../../common/CustomDropdown';
 import { Chart as ChartJS, CategoryScale, LinearScale, RadialLinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend } from 'chart.js';
-import { Radar, PolarArea, Bar, Doughnut, Line } from 'react-chartjs-2';
+import { Radar } from 'react-chartjs-2';
 import { adminDashboardService } from '../../../services/adminDashboard';
 import { useAuth } from '../../../hooks/useAuth';
 // import api from '../../../services/api'; // Unused import removed
@@ -17,9 +19,10 @@ export default function AdminHome() {
   const { user, role } = useAuth();
   const userRole = (role || user?.role || '').toUpperCase();
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isAdminUser = userRole === 'ADMIN' || isSuperAdmin;
   
   const [filters, setFilters] = useState({ campus: '', school: '', batch: '', admin: '' });
-  const [selectedSchool, setSelectedSchool] = useState('SOT');
+  const [selectedSchool, setSelectedSchool] = useState('');
 
 
   // Chart.js color palette
@@ -45,70 +48,24 @@ export default function AdminHome() {
   });
   const [loadingFilters, setLoadingFilters] = useState(true);
 
-  // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
-        
-        // TODO: Replace with API call: admin API to get admin users
-        // For now, use placeholder
-        const admins = [];
-        // Placeholder - will be replaced with actual API call
-        // const admins = await api.getAdmins();
-        
-        // Use only predefined options for schools, batches, centers
+        const { fetchAcademicOptions, buildStandardFilterOptions } = await import(
+          '../../../utils/academicOptions'
+        );
+        const raw = await fetchAcademicOptions();
+        const academic = buildStandardFilterOptions(raw);
         setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' },
-            ...admins
-          ]
+          campuses: academic.centers,
+          schools: academic.schools,
+          batches: academic.batches,
+          admins: [{ id: 'all', name: 'All Admins' }],
         });
-        
-        console.log('✅ AdminHome filter options loaded (predefined only)');
       } catch (error) {
-        console.error('❌ Error loading AdminHome filter options:', error);
-        
-        // Fallback to hardcoded options
-        setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' }
-          ]
-        });
+        console.error('Error loading AdminHome filter options:', error);
+        setFilterOptions({ campuses: [], schools: [], batches: [], admins: [{ id: 'all', name: 'All Admins' }] });
       } finally {
         setLoadingFilters(false);
       }
@@ -117,20 +74,19 @@ export default function AdminHome() {
     loadFilterOptions();
   }, []);
 
-  // Map AdminHome filters to service expectations
+  useEffect(() => {
+    const ids = filterOptions.schools.map((s) => s.id).filter(Boolean);
+    if (!ids.length) return;
+    if (!selectedSchool || !ids.includes(selectedSchool)) {
+      setSelectedSchool(ids[0]);
+    }
+  }, [filterOptions.schools, selectedSchool]);
+
   const mapFiltersForService = (uiFilters) => {
     return {
-      center: uiFilters.campus ? [uiFilters.campus] : [], // campus -> center (convert single value to array)
+      center: uiFilters.campus ? [uiFilters.campus] : [],
       school: uiFilters.school ? [uiFilters.school] : [],
-      quarter: uiFilters.batch ? [(() => {
-        // Map batch years to quarters
-        switch(uiFilters.batch) {
-          case '25-29': return 'Q1 (Pre-Placement)';
-          case '24-28': return 'Q2 (Placement Drive)';
-          case '23-27': return 'Q3 (Internship)';
-          default: return 'Q4 (Final Placements)';
-        }
-      })()] : []
+      batch: uiFilters.batch ? [uiFilters.batch] : [],
     };
   };
 
@@ -183,8 +139,30 @@ export default function AdminHome() {
 
   const queryVolumeData = dashboardData?.chartData?.queryVolume || [];
 
+  const insightTone = (kind, value) => {
+    const n = Number(value) || 0;
+    if (kind === 'recruiters') return n > 0 ? 'good' : 'bad';
+    if (kind === 'placementRate') return n >= 40 ? 'good' : n >= 15 ? 'warn' : 'bad';
+    if (kind === 'pendingQueries') return n === 0 ? 'good' : 'bad';
+    if (kind === 'avgApplications') return n >= 2 ? 'good' : n >= 1 ? 'warn' : 'bad';
+    return 'neutral';
+  };
+
+  const INSIGHT_TONES = {
+    good: { card: 'bg-emerald-50 border border-emerald-100', iconBg: 'bg-emerald-100', icon: 'text-emerald-700', value: 'text-emerald-800', sub: 'text-emerald-600' },
+    bad: { card: 'bg-red-50 border border-red-100', iconBg: 'bg-red-100', icon: 'text-red-700', value: 'text-red-800', sub: 'text-red-600' },
+    warn: { card: 'bg-amber-50 border border-amber-100', iconBg: 'bg-amber-100', icon: 'text-amber-700', value: 'text-amber-800', sub: 'text-amber-600' },
+    neutral: { card: 'bg-sky-50 border border-sky-100', iconBg: 'bg-sky-100', icon: 'text-sky-700', value: 'text-slate-800', sub: 'text-slate-600' },
+  };
+
   // Stats with real-time data and consistent Chart.js colors
   const s = dashboardData?.stats;
+  const placementRatePct = (s?.totalApplications ?? 0) > 0
+    ? Math.round(((s?.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
+    : 0;
+  const avgApplicationsPerStudent = (s?.activeStudents ?? 0) > 0
+    ? Math.round(((s?.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
+    : 0;
   const stats = dashboardData && s ? [
     { 
       title: 'Job Postings', 
@@ -230,26 +208,31 @@ export default function AdminHome() {
 
   // School data with real-time performance and application metrics
   // Ensure we always have a valid structure with all schools
-  const defaultSchoolData = {
-    SOT: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    },
-    SOM: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    },
-    SOH: {
-      performance: { labels: [], values: [] },
-      applications: { labels: [], values: [] }
-    }
+  const emptySchoolChart = {
+    performance: { labels: [], values: [] },
+    applications: { labels: [], values: [] },
   };
-  
+
   const incomingSchoolData = dashboardData?.chartData?.schoolPerformance || {};
-  const schoolData = {
-    SOT: incomingSchoolData.SOT || defaultSchoolData.SOT,
-    SOM: incomingSchoolData.SOM || defaultSchoolData.SOM,
-    SOH: incomingSchoolData.SOH || defaultSchoolData.SOH,
+  const schoolTabIds = filterOptions.schools.map((s) => s.id).filter(Boolean);
+  const schoolData = {};
+  schoolTabIds.forEach((id) => {
+    schoolData[id] = incomingSchoolData[id] || emptySchoolChart;
+  });
+  Object.keys(incomingSchoolData).forEach((key) => {
+    if (!schoolData[key]) schoolData[key] = incomingSchoolData[key];
+  });
+
+  const schoolChartColors = [
+    { main: chartColors.blue, light: chartColors.blueLight },
+    { main: chartColors.purple, light: chartColors.purpleLight },
+    { main: chartColors.green, light: chartColors.greenLight },
+    { main: chartColors.red, light: chartColors.redLight },
+  ];
+  const getSchoolColor = (schoolId, type = 'main') => {
+    const idx = Math.max(0, schoolTabIds.indexOf(schoolId));
+    const palette = schoolChartColors[idx % schoolChartColors.length];
+    return palette[type];
   };
 
   // Build unified radar chart data with consistent colors
@@ -507,300 +490,59 @@ export default function AdminHome() {
           </div>
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.blueLight }}>
-                  <Users className="w-6 h-6" style={{ color: chartColors.blue }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">{s.activeRecruiters ?? 0}</h3>
-                <p className="text-sm text-gray-600">Active Recruiters</p>
-                <p className="text-xs text-gray-500 mt-1">Verified companies</p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.greenLight }}>
-                  <Target className="w-6 h-6" style={{ color: chartColors.green }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.totalApplications ?? 0) > 0 
-                    ? Math.round(((s.placedStudents ?? 0) / (s.totalApplications ?? 1)) * 100)
-                    : 0}%
-                </h3>
-                <p className="text-sm text-gray-600">Placement Rate</p>
-                <p className="text-xs text-gray-500 mt-1">Success ratio</p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.purpleLight }}>
-                  <MessageSquare className="w-6 h-6" style={{ color: chartColors.purple }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.pendingQueries ?? 0) === 0 ? '✅' : (s.pendingQueries ?? 0)}
-                </h3>
-                <p className="text-sm text-gray-600">Support Queue</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {(s.pendingQueries ?? 0) === 0 ? 'All caught up!' : 'Queries pending'}
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ backgroundColor: chartColors.redLight }}>
-                  <TrendingUp className="w-6 h-6" style={{ color: chartColors.red }} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">
-                  {(s.activeStudents ?? 0) > 0 
-                    ? Math.round(((s.totalApplications ?? 0) / (s.activeStudents ?? 1)) * 10) / 10
-                    : 0}
-                </h3>
-                <p className="text-sm text-gray-600">Avg Applications</p>
-                <p className="text-xs text-gray-500 mt-1">Per student</p>
-              </div>
-            </div>
-            
-            {/* Student Statistics Breakdown */}
-            {s.totalStudents !== undefined && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <Users className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-                  Student Statistics
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-700">{s.totalStudents ?? 0}</div>
-                    <div className="text-sm text-blue-600 mt-1">Total Students</div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-700">{s.activeStudents ?? 0}</div>
-                    <div className="text-sm text-green-600 mt-1">Active</div>
-                  </div>
-                  {(s.blockedStudents ?? 0) > 0 && (
-                    <div className="bg-red-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-red-700">{s.blockedStudents ?? 0}</div>
-                      <div className="text-sm text-red-600 mt-1">Blocked</div>
+              {[
+                {
+                  key: 'recruiters',
+                  icon: Users,
+                  value: s.activeRecruiters ?? 0,
+                  label: 'Companies Onboarded',
+                  sub: 'With active job postings',
+                  tone: insightTone('recruiters', s.activeRecruiters),
+                },
+                {
+                  key: 'placement',
+                  icon: Target,
+                  value: `${placementRatePct}%`,
+                  label: 'Placement Rate',
+                  sub: `${s.placedStudents ?? 0} placed of ${s.totalApplications ?? 0} applications`,
+                  tone: insightTone('placementRate', placementRatePct),
+                },
+                {
+                  key: 'support',
+                  icon: MessageSquare,
+                  value: s.pendingQueries ?? 0,
+                  label: 'Support Queue',
+                  sub: (s.pendingQueries ?? 0) === 0 ? 'No pending queries' : 'Queries awaiting response',
+                  tone: insightTone('pendingQueries', s.pendingQueries),
+                },
+                {
+                  key: 'applications',
+                  icon: TrendingUp,
+                  value: avgApplicationsPerStudent,
+                  label: 'Avg Applications',
+                  sub: `Per active student (${s.activeStudents ?? 0} active)`,
+                  tone: insightTone('avgApplications', avgApplicationsPerStudent),
+                },
+              ].map(({ key, icon: Icon, value, label, sub, tone }) => {
+                const t = INSIGHT_TONES[tone] || INSIGHT_TONES.neutral;
+                return (
+                  <div key={key} className={`rounded-xl p-4 text-center ${t.card}`}>
+                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-3 ${t.iconBg}`}>
+                      <Icon className={`w-6 h-6 ${t.icon}`} />
                     </div>
-                  )}
-                  {(s.pendingStudents ?? 0) > 0 && (
-                    <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-yellow-700">{s.pendingStudents ?? 0}</div>
-                      <div className="text-sm text-yellow-600 mt-1">Pending</div>
-                    </div>
-                  )}
-                  {(s.rejectedStudents ?? 0) > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-gray-700">{s.rejectedStudents ?? 0}</div>
-                      <div className="text-sm text-gray-600 mt-1">Rejected</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Additional Summary Info */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-center text-blue-700 mb-2">
-                    <Briefcase className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Job Market</span>
+                    <h3 className={`text-2xl font-bold mb-1 tabular-nums ${t.value}`}>{value}</h3>
+                    <p className="text-sm text-gray-700 font-medium">{label}</p>
+                    <p className={`text-xs mt-1 ${t.sub}`}>{sub}</p>
                   </div>
-                  <p className="text-blue-600">
-                    {s.totalJobsPosted ?? 0} active positions from {s.activeRecruiters ?? 0} companies
-                  </p>
-                </div>
-                
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="flex items-center text-green-700 mb-2">
-                    <Users className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Student Activity</span>
-                  </div>
-                  <p className="text-green-600">
-                    {s.activeStudents ?? 0} active out of {s.totalStudents ?? 0} total students
-                  </p>
-                  {(s.blockedStudents ?? 0) > 0 && (
-                    <p className="text-xs text-red-600 mt-1">
-                      {s.blockedStudents ?? 0} blocked, {s.pendingStudents ?? 0} pending
-                    </p>
-                  )}
-                </div>
-                
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="flex items-center text-purple-700 mb-2">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    <span className="font-semibold">Support Status</span>
-                  </div>
-                  <p className="text-purple-600">
-                    {(s.pendingQueries ?? 0) === 0 
-                      ? 'All queries resolved ✨' 
-                      : `${s.pendingQueries ?? 0} queries need attention`}
-                  </p>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
-      {/* Placement Trends and Analytics Charts */}
-      {!isLoading && dashboardData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Placement Trend Chart */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2" style={{ color: chartColors.blue }} />
-                Placement Trends (Last 6 Months)
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="h-80">
-                {dashboardData?.chartData?.placementTrend?.labels ? (
-                  <Line 
-                    data={dashboardData.chartData.placementTrend}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'top',
-                          labels: {
-                            usePointStyle: true,
-                            padding: 15
-                          }
-                        },
-                        tooltip: {
-                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                          titleColor: '#1f2937',
-                          bodyColor: '#374151',
-                          borderColor: '#e5e7eb',
-                          borderWidth: 1
-                        }
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            color: '#6b7280'
-                          },
-                          grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                          }
-                        },
-                        x: {
-                          ticks: {
-                            color: '#6b7280'
-                          },
-                          grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                          }
-                        }
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <BarChart3 className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                      <p>No placement data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Query Volume and Recruiter Activity */}
-          <div className="space-y-6">
-            {/* Query Volume Pie Chart */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                  <MessageSquare className="w-4 h-4 mr-2" style={{ color: chartColors.purple }} />
-                  Query Volume by Type
-                </h2>
-              </div>
-              <div className="p-4">
-                <div className="h-48">
-                  {dashboardData?.chartData?.queryVolume?.length > 0 ? (
-                    <PieChart 
-                      data={dashboardData.chartData.queryVolume}
-                      lineWidth={60}
-                      radius={40}
-                      label={({ dataEntry }) => dataEntry.title}
-                      labelStyle={{
-                        fontSize: '8px',
-                        fill: '#fff',
-                        fontWeight: 'bold'
-                      }}
-                      labelPosition={70}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <div className="text-center">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">No query data</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Top Recruiters Bar Chart */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                  <Users className="w-4 h-4 mr-2" style={{ color: chartColors.green }} />
-                  Top Active Recruiters
-                </h2>
-              </div>
-              <div className="p-4">
-                <div className="h-48">
-                  {dashboardData?.chartData?.recruiterActivity?.labels ? (
-                    <Bar 
-                      data={dashboardData.chartData.recruiterActivity}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            display: false
-                          }
-                        },
-                        scales: {
-                          y: {
-                            beginAtZero: true,
-                            ticks: {
-                              color: '#6b7280',
-                              stepSize: 1
-                            },
-                            grid: {
-                              color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                          },
-                          x: {
-                            ticks: {
-                              color: '#6b7280'
-                            },
-                            grid: {
-                              display: false
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <div className="text-center">
-                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">No recruiter data</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Job Opportunities — below Key Insights */}
+      {isAdminUser && <JobOpportunitiesSection embedded />}
 
       {/* School Performance Radar Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -813,59 +555,39 @@ export default function AdminHome() {
               </h2>
             </div>
             {/* School selector with consistent Chart.js colors */}
-            <div className="flex gap-2">
-              {['SOT', 'SOM', 'SOH'].map((school) => (
+            <div className="flex gap-2 flex-wrap">
+              {filterOptions.schools.map((school) => (
                 <button
-                  key={school}
-                  onClick={() => setSelectedSchool(school)}
+                  key={school.id}
+                  onClick={() => setSelectedSchool(school.id)}
                   className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${
-                    selectedSchool === school
+                    selectedSchool === school.id
                       ? 'text-white shadow-sm'
                       : 'text-gray-700 bg-white border border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {/* Animated gradient border using Chart.js colors */}
-                  {selectedSchool === school && (
-                    <div 
+                  {selectedSchool === school.id && (
+                    <div
                       className="absolute inset-0 rounded-xl p-[1.5px] animate-pulse"
                       style={{
-                        background: school === 'SOT' 
-                          ? `linear-gradient(to right, ${chartColors.blue}, ${chartColors.purple})`
-                          : school === 'SOM'
-                          ? `linear-gradient(to right, ${chartColors.purple}, ${chartColors.green})`
-                          : `linear-gradient(to right, ${chartColors.green}, ${chartColors.blue})`
+                        background: `linear-gradient(to right, ${getSchoolColor(school.id)}, ${getSchoolColor(school.id, 'light')})`,
                       }}
                     >
-                      <div 
+                      <div
                         className="w-full h-full rounded-lg"
-                        style={{
-                          background: school === 'SOT' 
-                            ? chartColors.blue
-                            : school === 'SOM'
-                            ? chartColors.purple
-                            : chartColors.green
-                        }}
+                        style={{ background: getSchoolColor(school.id) }}
                       />
                     </div>
                   )}
-                  
-                  <span className="relative z-10">{school}</span>
-                  
-                  {/* Hover effect with Chart.js background colors */}
-                  {selectedSchool !== school && (
-                    <div 
+
+                  <span className="relative z-10">{school.code || school.name}</span>
+
+                  {selectedSchool !== school.id && (
+                    <div
                       className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 border"
                       style={{
-                        background: school === 'SOT' 
-                          ? chartColors.blueLight
-                          : school === 'SOM'
-                          ? chartColors.purpleLight
-                          : chartColors.greenLight,
-                        borderColor: school === 'SOT' 
-                          ? chartColors.blue
-                          : school === 'SOM'
-                          ? chartColors.purple
-                          : chartColors.green
+                        background: getSchoolColor(school.id, 'light'),
+                        borderColor: getSchoolColor(school.id),
                       }}
                     />
                   )}

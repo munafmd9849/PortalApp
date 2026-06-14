@@ -48,8 +48,10 @@ const CustomCalendar = ({
   // Get events for a specific date
   const getEventsForDate = (date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return events.filter(event => {
+    return events.filter((event) => {
+      if (!event?.start) return false;
       const eventStart = new Date(event.start);
+      if (Number.isNaN(eventStart.getTime())) return false;
       const eventDateStr = eventStart.toISOString().split('T')[0];
       return eventDateStr === dateStr;
     });
@@ -62,8 +64,10 @@ const CustomCalendar = ({
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
 
-    return events.filter(event => {
+    return events.filter((event) => {
+      if (!event?.start) return false;
       const eventDate = new Date(event.start);
+      if (Number.isNaN(eventDate.getTime())) return false;
       return eventDate >= weekStart && eventDate <= weekEnd;
     });
   };
@@ -78,7 +82,9 @@ const CustomCalendar = ({
   };
 
   const formatTime = (dateString) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -224,12 +230,14 @@ const CustomCalendar = ({
 
   // List view
   const renderListView = () => {
-    const sortedEvents = [...events].sort((a, b) => new Date(a.start) - new Date(b.start));
+    const sortedEvents = [...events]
+      .filter((e) => e?.start && !Number.isNaN(new Date(e.start).getTime()))
+      .sort((a, b) => new Date(a.start) - new Date(b.start));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const upcomingEvents = sortedEvents.filter(event => new Date(event.start) >= today);
-    const pastEvents = sortedEvents.filter(event => new Date(event.start) < today);
+    const upcomingEvents = sortedEvents.filter((event) => new Date(event.start) >= today);
+    const pastEvents = sortedEvents.filter((event) => new Date(event.start) < today);
 
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">

@@ -199,70 +199,24 @@ const AdminPanel = () => {
   // Debounce timer for filter changes
   const debounceTimer = useRef(null);
 
-  // Load predefined filter options (no database fetching to avoid duplicates)
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
         setLoadingFilters(true);
-
-        // TODO: Replace with API call: admin API to get admin users
-        // For now, use placeholder
-        const admins = [];
-        // Placeholder - will be replaced with actual API call
-        // const admins = await api.getAdmins();
-
-        // Use only predefined options for schools, batches, centers
+        const { fetchAcademicOptions, buildStandardFilterOptions } = await import(
+          '../../../utils/academicOptions'
+        );
+        const raw = await fetchAcademicOptions();
+        const academic = buildStandardFilterOptions(raw);
         setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' },
-            ...admins
-          ]
+          campuses: academic.centers,
+          schools: academic.schools,
+          batches: academic.batches,
+          admins: [{ id: 'all', name: 'All Admins' }],
         });
-
-        console.log('✅ AdminPanel filter options loaded (predefined only)');
       } catch (error) {
-        console.error('❌ Error loading AdminPanel filter options:', error);
-
-        // Fallback to hardcoded options
-        setFilterOptions({
-          campuses: [
-            { id: 'BANGALORE', name: 'Bangalore' },
-            { id: 'NOIDA', name: 'Noida' },
-            { id: 'LUCKNOW', name: 'Lucknow' },
-            { id: 'PUNE', name: 'Pune' },
-          ],
-          schools: [
-            { id: 'SOT', name: 'School of Technology' },
-            { id: 'SOM', name: 'School of Management' },
-            { id: 'SOH', name: 'School of Healthcare' }
-          ],
-          batches: [
-            { id: '23-27', name: '2023-2027' },
-            { id: '24-28', name: '2024-2028' },
-            { id: '25-29', name: '2025-2029' },
-            { id: '26-30', name: '2026-2030' }
-          ],
-          admins: [
-            { id: 'all', name: 'All Admins' }
-          ]
-        });
+        console.error('Error loading AdminPanel filter options:', error);
+        setFilterOptions({ campuses: [], schools: [], batches: [], admins: [{ id: 'all', name: 'All Admins' }] });
       } finally {
         setLoadingFilters(false);
       }

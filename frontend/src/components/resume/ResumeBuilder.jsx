@@ -22,6 +22,7 @@ import { API_BASE_URL } from '../../config/api';
 import ResumeTemplate1 from './ResumeTemplate1';
 import ResumeTemplate2 from './ResumeTemplate2';
 import ResumeTemplate3 from './ResumeTemplate3';
+import JobPickerDropdown from './JobPickerDropdown';
 import { 
   FileText, 
   Download, 
@@ -42,7 +43,6 @@ import {
   FolderKanban,
   Trophy,
   Save,
-  RefreshCw,
   Upload,
   BarChart3,
   X,
@@ -59,9 +59,13 @@ import {
   Hash,
   Calendar,
   Globe,
-  Type
+  Type,
+  Zap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { validateResumeFile, formatFileSize, checkATSScore } from '../../utils/resumeUtils';
+import { sanitizeScoreInput } from '../../utils/scoreInput';
 import ResumeAnalyzer from './ResumeAnalyzer';
 import CustomDropdown from '../common/CustomDropdown';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -125,7 +129,12 @@ const ResumeBuilder = () => {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('1');
-  const [activeMode, setActiveMode] = useState('buildResume'); // 'buildResume', 'uploadResume', 'atsFriendly'
+  const [activeMode, setActiveMode] = useState('buildResume'); // 'buildResume', 'uploadResume', 'atsFriendly', 'optimize'
+  // AI Optimize state
+  const [optimizeJob, setOptimizeJob] = useState(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeResult, setOptimizeResult] = useState(null);
+  const [optimizeError, setOptimizeError] = useState('');
   const [activeSection, setActiveSection] = useState('personal'); // Only for buildResume mode
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -177,10 +186,13 @@ const ResumeBuilder = () => {
   }, []);
 
   // Load resumes
-  const loadResumes = async () => {
+  const loadResumes = async (forceRefresh = false) => {
     if (!user?.id) return;
     try {
-      const data = await api.getResumes();
+      if (forceRefresh) {
+        api.clearApiCache('/students/resumes');
+      }
+      const data = await api.getResumes({ noCache: forceRefresh });
       setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
@@ -568,32 +580,6 @@ const ResumeBuilder = () => {
     }
   };
 
-  // Refresh profile
-  const handleRefresh = async () => {
-    try {
-      setLoading(true);
-      const profile = await getStudentProfile(user.id);
-      setStudent(profile);
-      
-      // Reload resumes (don't fail refresh if this fails)
-      try {
-        await loadResumes();
-      } catch (resumeErr) {
-        console.error('Error loading resumes:', resumeErr);
-        // Don't show error - just log it
-      }
-      
-      setSuccess('Profile refreshed!');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      console.error('Refresh error:', err);
-      setError('Failed to refresh.');
-      setTimeout(() => setError(''), 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Handle file upload
   const handleFileSelect = (file) => {
     if (!file) return;
@@ -634,8 +620,18 @@ const ResumeBuilder = () => {
         setUploadProgress(progress);
       });
 
-      // Reload resumes list
-      await loadResumes();
+      api.clearApiCache('/students/resumes');
+      if (result?.id) {
+        setResumes((prev) => {
+          const next = prev.filter((r) => r.id !== result.id);
+          return [...next, result];
+        });
+      }
+      await loadResumes(true);
+
+      if (user?.id) {
+        window.dispatchEvent(new CustomEvent('resumesUpdated', { detail: { userId: user.id } }));
+      }
 
       setSuccess('Resume uploaded successfully!');
       setResumeFile(null);
@@ -669,9 +665,11 @@ const ResumeBuilder = () => {
     try {
       setSaving(true);
       await api.deleteResume(resumeId);
-      
-      // Reload resumes list
-      await loadResumes();
+      api.clearApiCache('/students/resumes');
+      await loadResumes(true);
+      if (user?.id) {
+        window.dispatchEvent(new CustomEvent('resumesUpdated', { detail: { userId: user.id } }));
+      }
       
       setSuccess('Resume deleted!');
       setTimeout(() => setSuccess(''), 3000);
@@ -716,6 +714,61 @@ const ResumeBuilder = () => {
     if (files.length > 0) {
       handleFileSelect(files[0]);
     }
+  };
+
+  // Apply AI Optimized results directly to the resume state
+  const handleApplyOptimizedAI = () => {
+    if (!optimizeResult?.optimized || !student) return;
+
+    // Create a deep copy of student to avoid mutating state directly
+    const updatedStudent = JSON.parse(JSON.stringify(student));
+
+    // Update Summary
+    if (optimizeResult.optimized.summary) {
+      updatedStudent.summary = optimizeResult.optimized.summary;
+      setPersonalInfo(prev => ({ ...prev, summary: optimizeResult.optimized.summary }));
+    }
+
+    // Update Skills
+    if (optimizeResult.optimized.skills) {
+       const newSkills = [
+         ...(optimizeResult.optimized.skills.technical || []),
+         ...(optimizeResult.optimized.skills.tools || []),
+         ...(optimizeResult.optimized.skills.soft || [])
+       ].map(s => ({ skillName: s, rating: 3 }));
+       updatedStudent.skills = newSkills;
+    }
+
+    // Update Experience Bullets
+    if (optimizeResult.optimized.experience) {
+       optimizeResult.optimized.experience.forEach(optExp => {
+         const match = updatedStudent.experiences?.find(
+           e => e.title === optExp.originalTitle && e.company === optExp.originalCompany
+         );
+         if (match) {
+           match.description = optExp.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    // Update Project Bullets
+    if (optimizeResult.optimized.projects) {
+       optimizeResult.optimized.projects.forEach(optProj => {
+         const match = updatedStudent.projects?.find(
+           p => p.title === optProj.originalTitle
+         );
+         if (match) {
+           match.description = optProj.optimizedBullets.map(b => `• ${b}`).join('\n');
+         }
+       });
+    }
+
+    setStudent(updatedStudent);
+    
+    setSuccess('AI Optimization applied successfully! Review your tailored resume below.');
+    setTimeout(() => setSuccess(''), 4000);
+    setActiveMode('buildResume');
+    setActiveSection('preview');
   };
 
   // Save all resume data
@@ -1031,37 +1084,34 @@ const ResumeBuilder = () => {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
-      {/* Header - compact on mobile */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 sm:p-6 text-white shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-base sm:text-xl font-bold flex items-center gap-2 mb-0.5 sm:mb-1 flex-wrap">
-              <div className="bg-white/20 p-1.5 rounded-lg flex-shrink-0">
-                <FileText size={isMobile ? 18 : 20} />
-              </div>
-              Resume Builder
-            </h2>
-            <p className={`text-blue-100 ml-0 sm:ml-9 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              Build, upload, or analyze your resume
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleRefresh}
-              className="bg-white/20 hover:bg-white/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-medium shadow-md hover:shadow-lg text-xs sm:text-sm"
-            >
-              <RefreshCw size={isMobile ? 14 : 16} />
-              Refresh
-            </button>
-            {!isMobile && (
-            <div className="flex items-center gap-2 bg-white/20 rounded-lg px-4 py-2 shadow-md text-sm">
-              <Sparkles size={16} className="animate-pulse" />
-              <span className="font-semibold">AI-Powered</span>
-            </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <style>{`
+        .resume-ai-glare {
+          position: relative;
+          overflow: hidden;
+        }
+        .resume-ai-glare::after {
+          content: '';
+          position: absolute;
+          top: -40%;
+          left: -80%;
+          width: 45%;
+          height: 180%;
+          background: linear-gradient(
+            105deg,
+            transparent 42%,
+            rgba(255, 255, 255, 0.4) 50%,
+            transparent 58%
+          );
+          animation: resumeAiGlare 2.8s ease-in-out infinite;
+          pointer-events: none;
+        }
+        @keyframes resumeAiGlare {
+          0%, 100% { left: -80%; opacity: 0; }
+          15% { opacity: 1; }
+          50% { left: 120%; opacity: 1; }
+          85% { opacity: 0; }
+        }
+      `}</style>
 
       {/* Success/Error Messages */}
       {success && (
@@ -1107,14 +1157,27 @@ const ResumeBuilder = () => {
           </button>
           <button
             onClick={() => setActiveMode('atsFriendly')}
-            className={`flex-1 min-w-0 sm:min-w-[180px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
+            className={`flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
               activeMode === 'atsFriendly'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
             }`}
           >
             <BarChart3 size={isMobile ? 18 : 22} />
-            <span>{isMobile ? 'ATS' : 'ATS Friendly'}</span>
+            <span>{isMobile ? 'ATS' : 'ATS Check'}</span>
+          </button>
+          <button
+            onClick={() => { setActiveMode('optimize'); setOptimizeResult(null); setOptimizeError(''); }}
+            className={`resume-ai-glare flex-1 min-w-0 sm:min-w-[160px] flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-6 py-2.5 sm:py-4 rounded-lg sm:rounded-xl transition-all font-semibold cursor-pointer text-xs sm:text-base ${
+              activeMode === 'optimize'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-gray-200'
+            }`}
+          >
+            <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-3">
+              <Zap size={isMobile ? 18 : 22} />
+              <span>{isMobile ? 'AI Opt' : 'AI Optimize'}</span>
+            </span>
           </button>
         </div>
       </div>
@@ -1383,11 +1446,11 @@ const ResumeBuilder = () => {
                 <div className="space-y-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">CGPA</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g., 8.5"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g., 8.45"
                     value={newEducation.cgpa}
-                    onChange={(e) => setNewEducation({...newEducation, cgpa: e.target.value})}
+                    onChange={(e) => setNewEducation({ ...newEducation, cgpa: sanitizeScoreInput(e.target.value, 'CGPA') })}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all cursor-text"
                   />
                 </div>
@@ -2168,14 +2231,11 @@ const ResumeBuilder = () => {
               </h3>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">💡 Quick Tip:</p>
-                  <p>Upload multiple resumes in PDF format. You can upload different versions of your resume (e.g., technical, non-technical, different industries) and manage them all in one place.</p>
-                </div>
-              </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+              <ul className="space-y-1.5">
+                <li>Upload your resume as a PDF (max 10 MB) for the best compatibility.</li>
+                <li>You can store multiple versions and analyze them in ATS Check.</li>
+              </ul>
             </div>
             
             {/* List of uploaded resumes */}
@@ -2325,20 +2385,6 @@ const ResumeBuilder = () => {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">💡 Tips for Resume Upload:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Upload a PDF format resume for best compatibility</li>
-                    <li>Ensure your resume is ATS-friendly (simple formatting, standard fonts)</li>
-                    <li>Keep file size under 10MB</li>
-                    <li>After uploading, use the ATS Friendly section to analyze your resume</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -2356,26 +2402,14 @@ const ResumeBuilder = () => {
               </h3>
             </div>
 
-            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-5">
-              <div className="flex items-start gap-3">
-                <Info size={22} className="text-orange-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-orange-800">
-                  <p className="font-bold text-base mb-2">💡 What is ATS?</p>
-                  <p className="mb-2">ATS (Applicant Tracking System) is software used by recruiters to filter resumes. Our analyzer checks your resume for:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Keyword optimization and relevance</li>
-                    <li>Format compatibility and structure</li>
-                    <li>Overall ATS-friendliness score</li>
-                    <li>Suggestions for improvement</li>
-                  </ul>
-                </div>
-              </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+              <ul className="space-y-1.5">
+                <li>Run an ATS check on an uploaded resume or your built resume to review compatibility and keyword coverage.</li>
+                <li>Use the suggested improvements before applying to jobs.</li>
+              </ul>
             </div>
 
-            <p className="text-gray-600">
-              Get detailed analysis of your uploaded resume including ATS compatibility, keyword matching, and improvement suggestions.
-            </p>
-            <ResumeAnalyzer 
+            <ResumeAnalyzer
               resumeInfo={resumes.length > 0 ? {
                 hasResume: true,
                 resumeUrl: resumes[0].fileUrl,
@@ -2393,6 +2427,195 @@ const ResumeBuilder = () => {
               builderResumeText={buildResumeTextForAnalysis(student)}
             />
           </div>
+        </div>
+      )}
+
+      {/* AI Optimize Mode */}
+      {activeMode === 'optimize' && (
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-5 shadow-sm space-y-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 border-b border-gray-200 pb-4">
+            <div className="bg-blue-100 p-1.5 rounded-lg">
+              <Zap size={20} className="text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800">AI Resume Optimizer</h3>
+          </div>
+
+          {/* Guidance */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+            <ul className="space-y-1.5">
+              <li>Select a posted job, then run Optimize to tailor your summary, skills, and experience to that role.</li>
+              <li>Review the suggestions and apply them in Build Resume before downloading.</li>
+            </ul>
+          </div>
+
+          {/* Job Picker */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Select Target Job</label>
+            <JobPickerDropdown selectedJob={optimizeJob} onSelect={setOptimizeJob} placeholder="Pick a job to optimize your resume for" />
+          </div>
+
+          {/* Optimize Button */}
+          <button
+            onClick={async () => {
+              if (!optimizeJob) return;
+              setOptimizing(true);
+              setOptimizeResult(null);
+              setOptimizeError('');
+              try {
+                const result = await api.optimizeResume({ jobId: optimizeJob.id });
+                setOptimizeResult(result);
+              } catch (err) {
+                setOptimizeError(err.message || 'Failed to optimize resume. Please try again.');
+              } finally {
+                setOptimizing(false);
+              }
+            }}
+            disabled={!optimizeJob || optimizing}
+            className="resume-ai-glare w-full flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
+          >
+            <span className="relative z-10 flex items-center justify-center gap-2">
+            {optimizing ? (
+              <><Loader size={18} className="animate-spin" /> Optimizing...</>
+            ) : (
+              <><Zap size={18} /> {optimizeJob ? `Optimize for ${optimizeJob.jobTitle}` : 'Select a job first'}</>
+            )}
+            </span>
+          </button>
+
+          {/* Error */}
+          {optimizeError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-2 text-red-700">
+              <AlertTriangle size={18} />
+              <span className="text-sm">{optimizeError}</span>
+            </div>
+          )}
+
+          {/* Results */}
+          {optimizeResult && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">
+                <CheckCircle2 size={18} />
+                <span className="text-sm font-medium">Optimized for <strong>{optimizeResult.jobTitle}</strong>{optimizeResult.companyName ? ` at ${optimizeResult.companyName}` : ''}</span>
+              </div>
+
+              {/* Optimized Summary */}
+              {optimizeResult.optimized?.summary && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <User size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">AI-Optimized Summary</span>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-700 leading-relaxed bg-green-50 border border-green-200 rounded-lg p-3">{optimizeResult.optimized.summary}</p>
+                    <p className="text-xs text-gray-500 mt-2">Copy this into your Summary section in Build Resume.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Skills */}
+              {optimizeResult.optimized?.skills && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <Code size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Prioritized Skills</span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {optimizeResult.optimized.skills.technical?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Technical</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {optimizeResult.optimized.skills.technical.map((s, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {optimizeResult.optimized.skills.tools?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Tools & Platforms</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {optimizeResult.optimized.skills.tools.map((s, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full border border-indigo-200">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Experience Bullets */}
+              {optimizeResult.optimized?.experience?.length > 0 && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <Briefcase size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Optimized Experience Bullets</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {optimizeResult.optimized.experience.map((exp, i) => (
+                      <div key={i}>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">{exp.originalTitle} @ {exp.originalCompany}</p>
+                        <ul className="space-y-1.5">
+                          {exp.optimizedBullets.map((bullet, j) => (
+                            <li key={j} className="flex items-start gap-2 text-sm text-gray-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                              <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimized Project Bullets */}
+              {optimizeResult.optimized?.projects?.length > 0 && (
+                <div className="border border-purple-200 rounded-xl overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-2 flex items-center gap-2">
+                    <FolderKanban size={14} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-700">Optimized Project Bullets</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {optimizeResult.optimized.projects.map((proj, i) => (
+                      <div key={i}>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">{proj.originalTitle}</p>
+                        <ul className="space-y-1.5">
+                          {proj.optimizedBullets.map((bullet, j) => (
+                            <li key={j} className="flex items-start gap-2 text-sm text-gray-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                              <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords */}
+              {optimizeResult.optimized?.keywords?.length > 0 && (
+                <div className="border border-amber-200 rounded-xl p-4 bg-amber-50">
+                  <p className="text-xs font-semibold text-amber-700 mb-2">Keywords to include in your resume</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {optimizeResult.optimized.keywords.map((kw, i) => (
+                      <span key={i} className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-300">{kw}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleApplyOptimizedAI}
+                className="w-full mt-4 flex items-center justify-center gap-2 py-4 px-6 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+              >
+                <CheckCircle2 size={20} />
+                Apply to Resume & Preview PDF
+              </button>
+            </div>
+          )}
         </div>
       )}
 

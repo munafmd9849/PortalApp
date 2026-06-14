@@ -112,8 +112,16 @@ const getSkillIcon = (skillName) => {
   return matchedKey ? iconsMap[matchedKey] : faCode;
 };
 
-const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
+const normalizeSchool = (school) => {
+  const v = String(school || '').trim().toUpperCase();
+  if (v === 'SOM' || v === 'SCHOOL OF MANAGEMENT') return 'SOM';
+  if (v === 'SOH' || v === 'SCHOOL OF HEALTHCARE' || v === 'SCHOOL OF HEALTH CARE') return 'SOH';
+  return v;
+};
+
+const SkillsSection = ({ isAdminView = false, initialSkills = null, school = '' }) => {
   const { user } = useAuth();
+  const isNonTechSchool = ['SOM', 'SOH'].includes(normalizeSchool(school));
   const [skills, setSkills] = useState(initialSkills || []);
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -130,9 +138,9 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
 
   // OPTIMIZED: Only load skills if not provided as props (avoids redundant API call)
   useEffect(() => {
-    // If initialSkills are provided, use them and skip API call
-    if (initialSkills !== null) {
-      setSkills(Array.isArray(initialSkills) ? initialSkills : []);
+    // Use parent-provided skills when non-empty; otherwise fetch from API
+    if (initialSkills !== null && Array.isArray(initialSkills) && initialSkills.length > 0) {
+      setSkills(initialSkills);
       return;
     }
 
@@ -391,16 +399,18 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
     }
 
     // Check if it matches any suggested skill (case-insensitive, ignoring extra spaces)
-    const matchingSuggestedSkill = suggestedSkills.find(skill => {
-      const normalizedSkill = normalizeSkillName(skill);
-      return normalizedSkill === normalizedInput;
-    });
+    if (!isNonTechSchool) {
+      const matchingSuggestedSkill = suggestedSkills.find(skill => {
+        const normalizedSkill = normalizeSkillName(skill);
+        return normalizedSkill === normalizedInput;
+      });
 
-    if (matchingSuggestedSkill) {
-      setError(`Please select "${matchingSuggestedSkill}" from the suggested skills list below.`);
-      setNewSkillName(''); // Clear input field
-      setTimeout(() => setError(''), 4000);
-      return;
+      if (matchingSuggestedSkill) {
+        setError(`Please select "${matchingSuggestedSkill}" from the suggested skills list below.`);
+        setNewSkillName('');
+        setTimeout(() => setError(''), 4000);
+        return;
+      }
     }
 
     // Check if already exists in saved skills
@@ -672,7 +682,11 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
               <div className="mb-3 min-h-[120px] p-3 bg-white rounded border border-gray-300">
                 {skillsInForm.length === 0 ? (
                   <p className="text-gray-400 text-sm py-8 text-center">
-                    {editMode ? 'No skills to edit. Click suggested skills below to add.' : 'Select skills from below or add custom skill'}
+                    {isNonTechSchool
+                      ? 'Add your skills using the field below.'
+                      : editMode
+                        ? 'No skills to edit. Click suggested skills below to add.'
+                        : 'Select skills from below or add custom skill'}
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-3">
@@ -687,10 +701,12 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                           <span className="text-xl font-bold">×</span>
                         </button>
                         <div className="flex flex-col items-center gap-2 w-full pt-2 max-w-full">
-                          <FontAwesomeIcon 
-                            icon={getSkillIcon(skillForm.skillName)} 
-                            className="text-blue-600 text-2xl"
-                          />
+                          {!isNonTechSchool && (
+                            <FontAwesomeIcon
+                              icon={getSkillIcon(skillForm.skillName)}
+                              className="text-blue-600 text-2xl"
+                            />
+                          )}
                           <span className="font-medium text-gray-800 text-sm text-center break-words max-w-full px-1 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }} title={skillForm.skillName}>
                             {skillForm.skillName}
                           </span>
@@ -717,7 +733,7 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                 <div className="flex gap-2 mb-3">
                   <input
                     type="text"
-                    placeholder="Add custom skill (not in list)"
+                    placeholder={isNonTechSchool ? 'Add a skill' : 'Add custom skill (not in list)'}
                     value={newSkillName}
                     onChange={(e) => setNewSkillName(e.target.value)}
                     onKeyPress={(e) => {
@@ -740,13 +756,13 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                 </div>
               )}
               
-              {/* Suggested Skills - Show when form is open */}
-              {(
+              {/* Suggested Skills - tech schools only */}
+              {!isNonTechSchool && (
                 <div className="mb-3">
                   <p className="text-sm font-medium text-gray-700 mb-2">Suggested Skills:</p>
                   <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-white rounded border border-gray-200">
                     {suggestedSkills
-                      .filter(skill => 
+                      .filter(skill =>
                         !skills.some(s => s.skillName.toLowerCase() === skill.toLowerCase()) &&
                         !skillsInForm.some(s => s.skillName.toLowerCase() === skill.toLowerCase())
                       )
@@ -761,14 +777,14 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                               toggleSkillSelection(skill);
                             }}
                             className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                              isInForm 
-                                ? 'border-blue-500 bg-blue-100 hover:bg-blue-200' 
+                              isInForm
+                                ? 'border-blue-500 bg-blue-100 hover:bg-blue-200'
                                 : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50 bg-white'
                             }`}
                             title={isInForm ? `Click to remove ${skill}` : `Click to add ${skill}`}
                           >
-                            <FontAwesomeIcon 
-                              icon={getSkillIcon(skill)} 
+                            <FontAwesomeIcon
+                              icon={getSkillIcon(skill)}
                               className="text-blue-600 text-base"
                             />
                             <span className="text-gray-700">{skill}</span>
@@ -898,11 +914,13 @@ const SkillsSection = ({ isAdminView = false, initialSkills = null }) => {
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center gap-0.5 sm:gap-1 justify-start z-10 top-[8%]">
-                  <FontAwesomeIcon
-                    icon={getSkillIcon(skill.skillName)}
-                    className="text-xl sm:text-3xl mb-0.5 sm:mb-1 text-yellow-300 drop-shadow"
-                  />
-                  <div className="absolute left-1/2 transform -translate-x-1/2 text-center z-20 top-[30%] w-[85%] max-w-[85%] flex items-center justify-center">
+                  {!isNonTechSchool && (
+                    <FontAwesomeIcon
+                      icon={getSkillIcon(skill.skillName)}
+                      className="text-xl sm:text-3xl mb-0.5 sm:mb-1 text-yellow-300 drop-shadow"
+                    />
+                  )}
+                  <div className={`absolute left-1/2 transform -translate-x-1/2 text-center z-20 w-[85%] max-w-[85%] flex items-center justify-center ${isNonTechSchool ? 'top-[38%]' : 'top-[30%]'}`}>
                     <span 
                       className="skill-badge-name font-bold text-white tracking-wide drop-shadow block" 
                       title={skill.skillName}

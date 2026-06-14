@@ -11,6 +11,27 @@ import { SOCKET_URL } from '../config/api.js';
 let socket = null;
 
 /**
+ * Resolves when the shared socket is connected (or after timeout).
+ */
+export function whenSocketReady(timeoutMs = 12000) {
+  const s = initSocket();
+  if (!s) return Promise.resolve(null);
+  if (s.connected) return Promise.resolve(s);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      s.off('connect', onConnect);
+      resolve(s.connected ? s : s);
+    }, timeoutMs);
+    const onConnect = () => {
+      clearTimeout(timer);
+      s.off('connect', onConnect);
+      resolve(s);
+    };
+    s.on('connect', onConnect);
+  });
+}
+
+/**
  * Initialize Socket.IO connection
  */
 export function initSocket() {
@@ -124,9 +145,48 @@ export function useSocket() {
   return socket;
 }
 
+/**
+ * Real-time proctoring updates for admin live monitor (screenshots + violations).
+ */
+export function subscribeProctoringMonitor(assessmentId, callbacks = {}) {
+  const s = initSocket();
+  if (!s || !assessmentId) return () => {};
+
+  s.emit('subscribe:proctoring', assessmentId);
+
+  const handler = (payload) => {
+    if (!payload || payload.assessmentId === assessmentId || !payload.assessmentId) {
+      callbacks.onUpdate?.(payload);
+    }
+    if (payload?.kind === 'screenshot') callbacks.onScreenshot?.(payload);
+    if (payload?.kind === 'violation') callbacks.onViolation?.(payload);
+  };
+
+  s.on('proctoring:update', handler);
+
+  const liveHandler = (payload) => {
+    callbacks.onLiveFrame?.(payload);
+  };
+  s.on('proctoring:live-frame', liveHandler);
+
+  return () => {
+    s.off('proctoring:update', handler);
+    s.off('proctoring:live-frame', liveHandler);
+    s.emit('unsubscribe:proctoring', assessmentId);
+  };
+}
+
+export function emitProctoringLiveFrame(assessmentId, sessionId, frame) {
+  const s = initSocket();
+  if (!s?.connected || !assessmentId || !sessionId || !frame) return;
+  s.emit('proctoring:frame', { assessmentId, sessionId, frame });
+}
+
 export default {
   initSocket,
   disconnectSocket,
   subscribeToUpdates,
+  subscribeProctoringMonitor,
+  emitProctoringLiveFrame,
   useSocket,
 };

@@ -88,7 +88,8 @@ export async function sendEmail({ to, subject, html, text, cc, bcc, attachments 
       process.env.SMTP_FROM ||
       (process.env.SMTP_USER ? `PWIOI Portal <${process.env.SMTP_USER}>` : 'PWIOI Portal <noreply@pwioi.com>');
 
-    console.log(`Sending email to: ${to} via ${process.env.SMTP_HOST}`);
+    const currentHost = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+    console.log(`Sending email to: ${to} via ${currentHost}`);
 
     const mailOptions = {
       from,
@@ -139,8 +140,12 @@ export async function sendEmail({ to, subject, html, text, cc, bcc, attachments 
         messageId: 'worker-delegated',
       };
     } else {
-      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        throw new Error('Email configuration missing: SMTP_HOST, SMTP_USER and SMTP_PASS must be set');
+      const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+      const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+      const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
+      if (!host || !user || !pass) {
+        throw new Error('Email configuration missing: SMTP_HOST/EMAIL_HOST, SMTP_USER/EMAIL_USER and SMTP_PASS/EMAIL_PASS must be set');
       }
 
       const result = await transporter.sendMail(mailOptions);

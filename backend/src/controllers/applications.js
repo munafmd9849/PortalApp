@@ -12,6 +12,12 @@ import { sendApplicationNotification, sendApplicationStatusUpdateNotification } 
 import logger from '../config/logger.js';
 import { sendSuccess } from '../utils/response.js';
 import { logAction } from '../utils/auditLogger.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
+import { validateApplicationStateTransition } from '../utils/applicationIntegrity.js';
+import { isAdminViewer } from '../utils/adminAccess.js';
+import { buildApplicationTrackerState } from '../utils/applicationTrackerState.js';
+import { canStudentWithdrawApplication } from '../utils/applicationWithdraw.js';
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -153,8 +159,128 @@ function computeApplicationTrackingFields({
   };
 }
 
+function buildTrackerForApplication(app, session, evaluations) {
+  return buildApplicationTrackerState({
+    status: app.status,
+    screeningStatus: app.screeningStatus,
+    interviewStatus: app.interviewStatus,
+    lastRoundReached: app.lastRoundReached || 0,
+    appliedDate: app.appliedDate,
+    updatedAt: app.updatedAt,
+    interviewDate: app.interviewDate,
+    screeningRemarks: app.screeningRemarks,
+    screeningCompletedAt: app.screeningCompletedAt,
+    requiresScreening: app.job?.requiresScreening !== false,
+    requiresTest: Boolean(app.job?.requiresTest),
+    session,
+    evaluations: evaluations || [],
+  });
+}
+
 /**
- * Get all applications (admin only)
+ * Format a single application record for student-facing APIs and socket events.
+ */
+export async function formatStudentApplicationRecord(applicationId) {
+  const app = await prisma.application.findUnique({
+    where: { id: applicationId },
+    include: {
+      job: { include: { company: true } },
+      student: { include: { user: { select: { id: true } } } },
+    },
+  });
+  if (!app) return null;
+
+  const [session, evaluations] = await Promise.all([
+    prisma.interviewSession.findFirst({
+      where: { jobId: app.jobId },
+      include: { rounds: { orderBy: { roundNumber: 'asc' } } },
+    }),
+    prisma.roundEvaluation.findMany({
+      where: { applicationId: app.id },
+      include: { round: { select: { roundNumber: true, name: true } } },
+      orderBy: { round: { roundNumber: 'asc' } },
+    }),
+  ]);
+
+  const screeningStatus = app.screeningStatus || 'APPLIED';
+  const hasInterviewSession = !!session;
+  const hasInterviewStarted = (app.lastRoundReached || 0) > 0 ||
+    evaluations.length > 0 ||
+    (session && (session.status === 'COMPLETED' || session.status === 'ONGOING') && session.rounds?.length > 0);
+
+  const tracking = computeApplicationTrackingFields({
+    status: app.status,
+    screeningStatus,
+    interviewStatus: app.interviewStatus,
+    lastRoundReached: app.lastRoundReached || 0,
+    hasInterviewSession,
+    hasInterviewStarted,
+    sessionStatus: session?.status || null,
+    sessionRounds: session?.rounds || null,
+  });
+
+  const tracker = buildTrackerForApplication(app, session, evaluations);
+
+  const screeningStatusText = tracker.primaryStatus.label;
+
+  const interviewStatusText = tracker.primaryStatus.final
+    ? null
+    : (tracker.details.interviewEligible ? tracker.primaryStatus.label : null);
+
+  return {
+    userId: app.student?.user?.id || null,
+    formatted: {
+      id: app.id,
+      studentId: app.studentId,
+      jobId: app.jobId,
+      companyId: app.companyId,
+      status: app.status,
+      appliedDate: app.appliedDate,
+      updatedAt: app.updatedAt,
+      interviewDate: app.interviewDate,
+      company: app.job?.company || { name: 'Unknown Company' },
+      job: {
+        jobTitle: app.job?.jobTitle || 'Unknown Position',
+        requiresScreening: app.job?.requiresScreening,
+        requiresTest: app.job?.requiresTest,
+        ...app.job,
+      },
+      screeningStatus,
+      screeningRemarks: app.screeningRemarks || null,
+      screeningStatusText,
+      currentStage: tracker.currentStage,
+      primaryStatus: tracker.primaryStatus,
+      tracker,
+      finalStatus: tracking.finalStatus,
+      rejectedIn: tracking.rejectedIn,
+      interviewStatus: {
+        hasSession: !!session,
+        statusText: interviewStatusText,
+        lastRoundStatus: null,
+        lastRoundReached: tracking.lastRoundReached,
+      },
+    },
+  };
+}
+
+/**
+ * Push formatted application state to the student's socket room.
+ */
+export async function notifyStudentApplicationUpdate(applicationId) {
+  try {
+    const payload = await formatStudentApplicationRecord(applicationId);
+    if (!payload?.userId) return;
+
+    const io = getIO();
+    if (io) {
+      io.to(`student:${payload.userId}`).emit('application:updated', payload.formatted);
+    }
+  } catch (error) {
+    logger.error(`Failed to notify student for application ${applicationId}:`, error);
+  }
+}
+
+/**
  * Returns all applications in the system
  */
 export async function getAllApplications(req, res) {
@@ -166,17 +292,40 @@ export async function getAllApplications(req, res) {
     } = req.query;
 
     const where = {};
+    
+    // BUILD BASE SCOPE FILTER
+    const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+
     if (status) where.status = status;
     if (jobId) where.jobId = jobId;
     if (studentId) where.studentId = studentId;
     if (companyId) where.companyId = companyId;
 
     // Student attribute filters (nested)
-    if (center || school || batch) {
-      where.student = {};
-      if (center) where.student.center = { in: center.split(',').map(c => c.trim()) };
-      if (school) where.student.school = { in: school.split(',').map(s => s.trim()) };
-      if (batch) where.student.batch = { in: batch.split(',').map(b => b.trim()) };
+    where.student = {};
+    if (center) where.student.center = { in: center.split(',').map(c => c.trim()) };
+    if (school) where.student.school = { in: school.split(',').map(s => s.trim()) };
+    if (batch) where.student.batch = { in: batch.split(',').map(b => b.trim()) };
+
+    // Apply scoping constraints (AND)
+    if (adminScope.school) {
+      if (where.student.school) {
+        where.student.school.in = where.student.school.in.filter(s => adminScope.school.in.includes(s));
+      } else {
+        where.student.school = adminScope.school;
+      }
+    }
+    if (adminScope.center) {
+      if (where.student.center) {
+        where.student.center.in = where.student.center.in.filter(c => adminScope.center.in.includes(c));
+      } else {
+        where.student.center = adminScope.center;
+      }
+    }
+    
+    // If student object is empty after scoping, remove it to avoid empty where
+    if (Object.keys(where.student).length === 0) {
+      delete where.student;
     }
 
     const [applications, total] = await Promise.all([
@@ -380,7 +529,7 @@ export async function getJobScreeningSummary(req, res) {
 export async function getStudentApplications(req, res) {
   try {
     let studentId;
-    if (req.query.studentId && ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role)) {
+    if (req.query.studentId && isAdminViewer(req.user)) {
       studentId = req.query.studentId;
     } else {
       const student = await prisma.student.findUnique({
@@ -479,22 +628,9 @@ export async function getStudentApplications(req, res) {
         sessionRounds: session?.rounds || null,
       });
 
-      // Keep existing fields for UI compatibility, but align wording + add canonical fields
-      const screeningStatusText = (() => {
-        const s = normalizeScreeningStatus(screeningStatus);
-        if (s === 'RESUME_REJECTED' || s === 'SCREENING_REJECTED') return 'Rejected in Screening';
-        if (s === 'TEST_REJECTED') return 'Rejected in Test';
-        if (s === 'RESUME_SELECTED' || s === 'SCREENING_SELECTED') return 'Screening Qualified';
-        if (s === 'TEST_SELECTED' || s === 'INTERVIEW_ELIGIBLE') return 'Qualified for Interview';
-        return 'Applied';
-      })();
+      const tracker = buildTrackerForApplication(app, session, evaluations);
 
-      const interviewStatusText = (() => {
-        // Only meaningful after test qualification or interview eligibility
-        const s = normalizeScreeningStatus(screeningStatus);
-        if (s !== 'TEST_SELECTED' && s !== 'INTERVIEW_ELIGIBLE') return null;
-        return tracking.currentStage;
-      })();
+      const screeningStatusText = tracker.primaryStatus.label;
 
       return {
         id: app.id,
@@ -503,21 +639,27 @@ export async function getStudentApplications(req, res) {
         companyId: app.companyId,
         status: app.status,
         appliedDate: app.appliedDate,
+        updatedAt: app.updatedAt,
         interviewDate: app.interviewDate,
         company: app.job?.company || { name: 'Unknown Company' },
         job: {
           jobTitle: app.job?.jobTitle || 'Unknown Position',
+          requiresScreening: app.job?.requiresScreening,
+          requiresTest: app.job?.requiresTest,
           ...app.job,
         },
-        screeningStatus: screeningStatus, // Include raw screening status
-        screeningStatusText: screeningStatusText, // Human-readable screening status
-        currentStage: tracking.currentStage,
+        screeningStatus,
+        screeningRemarks: app.screeningRemarks || null,
+        screeningStatusText,
+        currentStage: tracker.currentStage,
+        primaryStatus: tracker.primaryStatus,
+        tracker,
         finalStatus: tracking.finalStatus,
         rejectedIn: tracking.rejectedIn,
         interviewStatus: {
           hasSession: !!session,
-          statusText: interviewStatusText,
-          lastRoundStatus: null, // Deprecated: use currentStage/finalStatus/rejectedIn
+          statusText: tracker.primaryStatus.final ? null : (tracker.details.interviewEligible ? tracker.primaryStatus.label : null),
+          lastRoundStatus: null,
           lastRoundReached: tracking.lastRoundReached,
         },
       };
@@ -821,10 +963,28 @@ export async function getAdminJobApplications(req, res) {
 
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
-    // Permission check: Recruiters can only see applications for their own jobs
+    // Permission check: 
+    // 1. Recruiters can only see applications for their own jobs
     if (userRole === 'RECRUITER' || userRole === 'recruiter') {
       if (!job.recruiter || job.recruiter.user.id !== userId) {
         return res.status(403).json({ error: 'Not authorized to view applications for this job' });
+      }
+    }
+    
+    // 2. Admins can only see applications for jobs within their scope
+    if (userRole === 'ADMIN') {
+      const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+      const targetSchools = job.targetSchools ? JSON.parse(job.targetSchools) : [];
+      const targetCenters = job.targetCenters ? JSON.parse(job.targetCenters) : [];
+      
+      const hasSchoolAccess = !adminScope.school || targetSchools.some(s => adminScope.school.in.includes(s)) || targetSchools.includes('ALL');
+      const hasCenterAccess = !adminScope.center || targetCenters.some(c => adminScope.center.in.includes(c)) || targetCenters.includes('ALL');
+      
+      // Also allow if admin created it
+      const isOwner = job.createdBy === userId;
+
+      if (!isOwner && (!hasSchoolAccess || !hasCenterAccess)) {
+        return res.status(403).json({ error: 'Not authorized to view applications for this job (out of scope)' });
       }
     }
 
@@ -868,14 +1028,14 @@ export async function getAdminJobApplications(req, res) {
     if (q) {
       filterConditions.push({
         OR: [
-          { id: { contains: q, mode: 'insensitive' } }, // Application ID
+          { id: { contains: q } }, // Application ID
           {
             student: {
               OR: [
-                { fullName: { contains: q, mode: 'insensitive' } },
-                { email: { contains: q, mode: 'insensitive' } },
-                { phone: { contains: q, mode: 'insensitive' } },
-                { enrollmentId: { contains: q, mode: 'insensitive' } },
+                { fullName: { contains: q } },
+                { email: { contains: q } },
+                { phone: { contains: q } },
+                { enrollmentId: { contains: q } },
               ],
             },
           },
@@ -1031,12 +1191,12 @@ export async function getAdminJobApplications(req, res) {
     if (degree || branch || graduationYear) {
       const educationConditions = {};
       if (degree) {
-        educationConditions.degree = { contains: degree, mode: 'insensitive' };
+        educationConditions.degree = { contains: degree };
       }
       if (branch) {
         // Branch/specialization is stored in Education.description field
         // We search in the description field which typically contains specialization/branch info
-        educationConditions.description = { contains: branch, mode: 'insensitive' };
+        educationConditions.description = { contains: branch };
       }
       if (graduationYear) {
         educationConditions.endYear = graduationYear;
@@ -1051,11 +1211,11 @@ export async function getAdminJobApplications(req, res) {
     // Location filter
     if (city || state) {
       if (city) {
-        studentWhere.city = { contains: city, mode: 'insensitive' };
+        studentWhere.city = { contains: city };
         hasStudentFilters = true;
       }
       if (state) {
-        studentWhere.stateRegion = { contains: state, mode: 'insensitive' };
+        studentWhere.stateRegion = { contains: state };
         hasStudentFilters = true;
       }
     }
@@ -1238,7 +1398,9 @@ export async function getAdminJobApplications(req, res) {
       const profileLink = publicProfileId && frontendUrl ? `${frontendUrl}/profile/${publicProfileId}` : (publicProfileId ? `/profile/${publicProfileId}` : null);
 
       return {
+        id: app.id,
         applicationId: app.id,
+        studentId: app.studentId,
         student: {
           id: app.student?.id,
           name: app.student?.fullName || 'Unknown',
@@ -1351,6 +1513,253 @@ export async function getAdminJobApplications(req, res) {
 }
 
 /**
+ * Admin: Full application + interview history for one candidate on a job
+ * GET /api/admin/jobs/:jobId/applications/:applicationId
+ */
+export async function getAdminJobApplicationDetail(req, res) {
+  try {
+    const { jobId, applicationId } = req.params;
+    if (!jobId || !applicationId) {
+      return res.status(400).json({ error: 'Job ID and application ID are required' });
+    }
+
+    const userId = req.userId;
+    const userRole = req.user?.role || req.userRole;
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        company: true,
+        recruiter: { include: { user: { select: { id: true } } } },
+        screeningSession: { select: { finalizedAt: true, createdAt: true } },
+      },
+    });
+
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    if (userRole !== 'SUPER_ADMIN') {
+    if (userRole === 'RECRUITER' || userRole === 'recruiter') {
+      if (!job.recruiter || job.recruiter.user.id !== userId) {
+        return res.status(403).json({ error: 'Not authorized to view applications for this job' });
+      }
+    }
+
+    if (userRole === 'ADMIN') {
+      const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+      const targetSchools = job.targetSchools ? JSON.parse(job.targetSchools) : [];
+      const targetCenters = job.targetCenters ? JSON.parse(job.targetCenters) : [];
+      const hasSchoolAccess = !adminScope.school || targetSchools.some(s => adminScope.school.in.includes(s)) || targetSchools.includes('ALL');
+      const hasCenterAccess = !adminScope.center || targetCenters.some(c => adminScope.center.in.includes(c)) || targetCenters.includes('ALL');
+      const isOwner = job.createdBy === userId;
+      if (!isOwner && (!hasSchoolAccess || !hasCenterAccess)) {
+        return res.status(403).json({ error: 'Not authorized to view applications for this job (out of scope)' });
+      }
+    }
+    }
+
+    const application = await prisma.application.findFirst({
+      where: { id: applicationId, jobId },
+      include: {
+        student: {
+          include: {
+            education: { orderBy: { endYear: 'desc' }, take: 3 },
+            user: { select: { id: true, displayName: true, email: true } },
+          },
+        },
+        roundEvaluations: {
+          include: {
+            round: {
+              select: {
+                id: true,
+                roundNumber: true,
+                name: true,
+                status: true,
+                startedAt: true,
+                endedAt: true,
+              },
+            },
+          },
+          orderBy: { round: { roundNumber: 'asc' } },
+        },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found for this job' });
+    }
+
+    const interviewSession = await prisma.interviewSession.findUnique({
+      where: { jobId },
+      include: {
+        rounds: { orderBy: { roundNumber: 'asc' } },
+      },
+    });
+
+    const hasInterviewSession = !!interviewSession;
+    const hasInterviewStarted = (application.lastRoundReached || 0) > 0 ||
+      (application.roundEvaluations && application.roundEvaluations.length > 0);
+
+    const tracking = computeApplicationTrackingFields({
+      status: application.status,
+      screeningStatus: application.screeningStatus,
+      interviewStatus: application.interviewStatus,
+      lastRoundReached: application.lastRoundReached || 0,
+      hasInterviewSession,
+      hasInterviewStarted,
+      sessionStatus: interviewSession?.status || null,
+      sessionRounds: interviewSession?.rounds || null,
+    });
+
+    const screeningStatus = normalizeScreeningStatus(application.screeningStatus);
+    const screeningStatusText = (() => {
+      if (screeningStatus === 'RESUME_REJECTED') return 'Rejected in Resume Screening';
+      if (screeningStatus === 'SCREENING_REJECTED') return 'Rejected in Recruiter Screening';
+      if (screeningStatus === 'TEST_REJECTED') return 'Rejected in QA Test';
+      if (screeningStatus === 'RESUME_SELECTED') return 'Resume Selected';
+      if (screeningStatus === 'SCREENING_SELECTED') return 'Recruiter Screening Passed';
+      if (screeningStatus === 'TEST_SELECTED') return 'QA Test Passed';
+      if (screeningStatus === 'INTERVIEW_ELIGIBLE') return 'Interview Eligible';
+      return 'Applied';
+    })();
+
+    const screeningPipeline = (() => {
+      const passedStatuses = new Set([
+        'RESUME_SELECTED', 'SCREENING_SELECTED', 'SCREENING_REJECTED',
+        'TEST_SELECTED', 'TEST_REJECTED', 'INTERVIEW_ELIGIBLE',
+      ]);
+      const recruiterPassed = new Set([
+        'SCREENING_SELECTED', 'TEST_SELECTED', 'TEST_REJECTED', 'INTERVIEW_ELIGIBLE',
+      ]);
+      const testPassed = new Set(['TEST_SELECTED', 'INTERVIEW_ELIGIBLE']);
+
+      const stage = (enabled, passed, rejected, pendingLabel) => {
+        if (!enabled) return { enabled: false, status: 'NOT_REQUIRED', label: 'Not required' };
+        if (rejected) return { enabled: true, status: 'REJECTED', label: 'Rejected' };
+        if (passed) return { enabled: true, status: 'PASSED', label: 'Passed' };
+        return { enabled: true, status: 'PENDING', label: pendingLabel };
+      };
+
+      return {
+        resume: stage(
+          true,
+          passedStatuses.has(screeningStatus),
+          screeningStatus === 'RESUME_REJECTED',
+          'Awaiting review'
+        ),
+        recruiter: stage(
+          job.requiresScreening,
+          recruiterPassed.has(screeningStatus),
+          screeningStatus === 'SCREENING_REJECTED',
+          'Awaiting recruiter decision'
+        ),
+        qaTest: stage(
+          job.requiresTest,
+          testPassed.has(screeningStatus),
+          screeningStatus === 'TEST_REJECTED',
+          'Awaiting QA test'
+        ),
+        finalizedAt: job.screeningSession?.finalizedAt || null,
+      };
+    })();
+
+    const evaluationByRoundId = new Map(
+      (application.roundEvaluations || []).map((e) => [e.roundId, e])
+    );
+
+    const interviewRounds = (interviewSession?.rounds || []).map((round) => {
+      const evaluation = evaluationByRoundId.get(round.id);
+      return {
+        roundId: round.id,
+        roundNumber: round.roundNumber,
+        name: round.name,
+        roundStatus: round.status,
+        startedAt: round.startedAt,
+        endedAt: round.endedAt,
+        evaluation: evaluation
+          ? {
+              status: evaluation.status,
+              remarks: evaluation.remarks,
+              interviewerEmail: evaluation.interviewerEmail,
+              evaluatedAt: evaluation.createdAt,
+              updatedAt: evaluation.updatedAt,
+            }
+          : null,
+      };
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const publicProfileId = application.student?.publicProfileId || null;
+    const profileLink = publicProfileId && frontendUrl
+      ? `${frontendUrl}/profile/${publicProfileId}`
+      : (publicProfileId ? `/profile/${publicProfileId}` : null);
+
+    res.json({
+      success: true,
+      job: {
+        id: job.id,
+        title: job.jobTitle,
+        companyName: job.company?.name || job.companyName || 'Unknown Company',
+        requiresScreening: job.requiresScreening,
+        requiresTest: job.requiresTest,
+        driveDate: job.driveDate,
+      },
+      session: interviewSession
+        ? {
+            id: interviewSession.id,
+            status: interviewSession.status,
+            startedAt: interviewSession.startedAt,
+            completedAt: interviewSession.completedAt,
+          }
+        : null,
+      application: {
+        id: application.id,
+        applicationId: application.id,
+        studentId: application.studentId,
+        status: application.status,
+        appliedAt: application.appliedDate,
+        interviewDate: application.interviewDate,
+        screeningStatus: application.screeningStatus,
+        screeningStatusText,
+        screeningRemarks: application.screeningRemarks,
+        screeningCompletedAt: application.screeningCompletedAt,
+        screeningPipeline,
+        interviewStatus: application.interviewStatus,
+        interviewEligible: screeningStatus === 'INTERVIEW_ELIGIBLE' || screeningStatus === 'TEST_SELECTED',
+        currentStage: tracking.currentStage,
+        finalStatus: tracking.finalStatus,
+        rejectedIn: tracking.rejectedIn,
+        lastRoundReached: tracking.lastRoundReached,
+        notes: application.notes,
+      },
+      student: {
+        id: application.student?.id,
+        name: application.student?.fullName || application.student?.user?.displayName || 'Unknown',
+        email: application.student?.email || application.student?.user?.email || '',
+        enrollmentId: application.student?.enrollmentId || null,
+        phone: application.student?.phone || null,
+        school: application.student?.school || null,
+        batch: application.student?.batch || null,
+        center: application.student?.center || null,
+        profileLink,
+        education: application.student?.education || [],
+      },
+      interviewRounds,
+      evaluations: (application.roundEvaluations || []).map((e) => ({
+        roundNumber: e.round?.roundNumber,
+        roundName: e.round?.name,
+        status: e.status,
+        remarks: e.remarks,
+        interviewerEmail: e.interviewerEmail,
+        evaluatedAt: e.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error('❌ [getAdminJobApplicationDetail] Error:', error);
+    res.status(500).json({ error: 'Failed to get application details' });
+  }
+}
+
+/**
  * Apply to job
  * Replaces: applyToJob()
  */
@@ -1386,7 +1795,7 @@ export async function applyToJob(req, res) {
       },
     });
 
-    if (existing) {
+    if (existing && existing.status !== 'WITHDRAWN') {
       return res.status(400).json({ error: 'Already applied to this job' });
     }
 
@@ -1431,6 +1840,13 @@ export async function applyToJob(req, res) {
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'POSTED' || !job.isPosted) {
+      return res.status(403).json({
+        error: 'Job not available',
+        message: 'This job is not open for applications.',
+      });
     }
 
     // CRITICAL: Hard block after application deadline (backend enforcement)
@@ -1614,18 +2030,40 @@ export async function applyToJob(req, res) {
       hasResumeId: !!resumeId,
     });
 
-    const application = await prisma.application.create({
-      data: applicationData,
-      include: {
-        job: {
-          include: {
-            company: true,
+    const isReapply = Boolean(existing?.status === 'WITHDRAWN');
+    const application = isReapply
+      ? await prisma.application.update({
+        where: { id: existing.id },
+        data: {
+          ...applicationData,
+          interviewStatus: null,
+          interviewDate: null,
+          lastRoundReached: 0,
+          screeningRemarks: null,
+          screeningCompletedAt: null,
+          pipelineStatus: null,
+          pipelineSubStatus: null,
+        },
+        include: {
+          job: {
+            include: {
+              company: true,
+            },
           },
         },
-      },
-    });
+      })
+      : await prisma.application.create({
+        data: applicationData,
+        include: {
+          job: {
+            include: {
+              company: true,
+            },
+          },
+        },
+      });
 
-    console.log('✅ [applyToJob] Application created:', {
+    console.log(`✅ [applyToJob] Application ${isReapply ? 're-opened' : 'created'}:`, {
       applicationId: application.id,
       resumeId,
     });
@@ -1755,8 +2193,15 @@ export async function applyToJob(req, res) {
       io.to(`student:${userId}`).emit('application:created', formattedApplication);
     }
 
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(application.id);
+    } catch (pipelineError) {
+      logger.warn(`Failed to sync pipeline after apply for application ${application.id}:`, pipelineError);
+    }
+
     // Return formatted application (matching getStudentApplications format)
-    res.status(201).json(formattedApplication);
+    res.status(isReapply ? 200 : 201).json(formattedApplication);
   } catch (error) {
     console.error('❌ [applyToJob] Error:', error);
     console.error('❌ [applyToJob] Error message:', error.message);
@@ -1828,6 +2273,13 @@ export async function updateApplicationStatus(req, res) {
 
     const oldStatus = application.status;
 
+    // HARDENING: Prevent updating revoked applications
+    try {
+      validateApplicationStateTransition(oldStatus, status);
+    } catch (err) {
+      return res.status(400).json({ error: 'Integrity Violation', message: err.message });
+    }
+
     // Update application
     const updated = await prisma.application.update({
       where: { id: applicationId },
@@ -1837,8 +2289,16 @@ export async function updateApplicationStatus(req, res) {
       },
       include: {
         job: true,
+        student: { select: { school: true } },
       },
     });
+
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(applicationId);
+    } catch (syncErr) {
+      console.warn('Pipeline sync skipped:', syncErr.message);
+    }
 
     // Update student stats
     if (oldStatus !== status) {
@@ -1886,11 +2346,8 @@ export async function updateApplicationStatus(req, res) {
       logger.error(`Failed to send application status update email for application ${updated.id}:`, emailError);
     }
 
-    // Emit real-time update
-    const io = getIO();
-    if (io) {
-      io.to(`student:${application.student.user.id}`).emit('application:updated', updated);
-    }
+    // Emit real-time update with unified tracker payload
+    await notifyStudentApplicationUpdate(applicationId);
 
     res.json(updated);
 
@@ -1904,6 +2361,245 @@ export async function updateApplicationStatus(req, res) {
   } catch (error) {
     console.error('Update application status error:', error);
     res.status(500).json({ error: 'Failed to update application status' });
+  }
+}
+
+/**
+ * Withdraw an application (Student action)
+ */
+export async function withdrawApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const userId = req.userId;
+
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true, statsApplied: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student profile not found' });
+    }
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: { include: { company: true } },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.studentId !== student.id) {
+      return res.status(403).json({ error: 'Not authorized to withdraw this application' });
+    }
+
+    const check = canStudentWithdrawApplication(application);
+    if (!check.allowed) {
+      return res.status(400).json({ error: check.reason });
+    }
+
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: 'WITHDRAWN',
+        interviewStatus: null,
+        interviewDate: null,
+        lastRoundReached: 0,
+        pipelineStatus: null,
+        pipelineSubStatus: null,
+      },
+      include: {
+        job: { include: { company: true } },
+      },
+    });
+
+    if ((student.statsApplied || 0) > 0) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { statsApplied: { decrement: 1 } },
+      });
+    }
+
+    try {
+      await prisma.jobTracking.updateMany({
+        where: {
+          studentId: student.id,
+          jobId: application.jobId,
+        },
+        data: {
+          applied: false,
+          appliedAt: null,
+        },
+      });
+    } catch (trackingError) {
+      logger.warn(`Failed to update job tracking after withdraw for application ${applicationId}:`, trackingError);
+    }
+
+    try {
+      const { syncApplicationPipeline } = await import('../services/jobOpportunitiesPipeline.js');
+      await syncApplicationPipeline(applicationId);
+    } catch (pipelineError) {
+      logger.warn(`Failed to sync pipeline after withdraw for application ${applicationId}:`, pipelineError);
+    }
+
+    await logAction(req, {
+      actionType: 'APPLICATION_WITHDRAWN',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Student withdrew application for ${application.job?.jobTitle || 'job'}`,
+    });
+
+    const io = getIO();
+    if (io) {
+      io.to(`student:${userId}`).emit('application:withdrawn', {
+        applicationId,
+        jobId: application.jobId,
+      });
+    }
+
+    res.json({
+      message: 'Application withdrawn successfully',
+      application: updated,
+    });
+  } catch (error) {
+    logger.error('Withdraw application error:', error);
+    res.status(500).json({ error: 'Failed to withdraw application' });
+  }
+}
+
+/**
+ * Revoke an application (Admin action)
+ */
+export async function revokeApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    // Get application
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        student: { include: { user: true } },
+        job: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.status === 'REVOKED_BY_ADMIN') {
+      return res.status(400).json({ error: 'Application is already revoked' });
+    }
+
+    const previousStatus = application.status;
+
+    // Update application
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: 'REVOKED_BY_ADMIN',
+        previousStatus: previousStatus,
+        revokedBy: adminId,
+        revokedAt: new Date(),
+        revokedReason: reason || 'No reason provided',
+      },
+    });
+
+    // Notify student
+    await createNotification({
+      userId: application.student.user.id,
+      title: 'Application Revoked by Admin',
+      body: `Your application for ${application.job.jobTitle} has been revoked by an administrator.`,
+      data: {
+        type: 'application_revoked',
+        applicationId: application.id,
+        jobId: application.jobId,
+        reason: reason,
+      },
+    });
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'APPLICATION_REVOKED',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Revoked by Admin. Reason: ${reason || 'N/A'}. Previous status: ${previousStatus}`,
+    });
+
+    res.json({ message: 'Application revoked successfully', application: updated });
+  } catch (error) {
+    logger.error('Revoke application error:', error);
+    res.status(500).json({ error: 'Failed to revoke application' });
+  }
+}
+
+/**
+ * Restore a revoked application (Admin action)
+ */
+export async function restoreApplication(req, res) {
+  try {
+    const { applicationId } = req.params;
+    const adminId = req.user.id;
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        student: { include: { user: true } },
+        job: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.status !== 'REVOKED_BY_ADMIN') {
+      return res.status(400).json({ error: 'Application is not in revoked state' });
+    }
+
+    const statusToRestore = application.previousStatus || 'APPLIED';
+
+    // Update application
+    const updated = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: statusToRestore,
+        revokedBy: null,
+        revokedAt: null,
+        revokedReason: null,
+        previousStatus: null,
+      },
+    });
+
+    // Notify student
+    await createNotification({
+      userId: application.student.user.id,
+      title: 'Application Restored',
+      body: `Your application for ${application.job.jobTitle} has been restored by an administrator.`,
+      data: {
+        type: 'application_restored',
+        applicationId: application.id,
+        jobId: application.jobId,
+      },
+    });
+
+    // Audit log
+    await logAction(req, {
+      actionType: 'APPLICATION_RESTORED',
+      targetType: 'Application',
+      targetId: applicationId,
+      details: `Restored from REVOKED_BY_ADMIN to ${statusToRestore}`,
+    });
+
+    res.json({ message: 'Application restored successfully', application: updated });
+  } catch (error) {
+    logger.error('Restore application error:', error);
+    res.status(500).json({ error: 'Failed to restore application' });
   }
 }
 

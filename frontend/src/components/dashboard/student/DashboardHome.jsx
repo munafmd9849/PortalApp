@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import AboutMe from './AboutMe';
 import DashboardStatsSection from './DashboardStatsSection';
@@ -19,6 +19,7 @@ import {
   XCircle,
   Loader
 } from 'lucide-react';
+import { getApplicationPrimaryLabel } from '../../../utils/applicationTrackerState';
 
 const DashboardHome = ({ 
   studentData, 
@@ -35,7 +36,12 @@ const DashboardHome = ({
   hideJobPostings = false,
   hideFooter = false,
   isAdminView = false,
-  profileData: propProfileData = null // Allow passing profile data from parent
+  profileData: propProfileData = null,
+  viewStudentId = null,
+  initialEducation = null,
+  initialProjects = null,
+  initialAchievements = null,
+  initialCertifications = null,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,7 +82,20 @@ const DashboardHome = ({
   // IMPORTANT: Production behavior — no fallback datasets.
   // UI renders from real API data only (or empty arrays while loading).
   const displayApplications = Array.isArray(applications) ? applications : [];
-  const displayJobs = Array.isArray(jobs) ? jobs : [];
+  const displayJobs = useMemo(() => {
+    const rawJobs = Array.isArray(jobs) ? jobs : [];
+    // Sort jobs: isInvited first, then isRecommended, then by date (desc)
+    return [...rawJobs].sort((a, b) => {
+      if (a.isInvited && !b.isInvited) return -1;
+      if (!a.isInvited && b.isInvited) return 1;
+      if (a.isRecommended && !b.isRecommended) return -1;
+      if (!a.isRecommended && b.isRecommended) return 1;
+      // Secondary sort by date if available
+      const dateA = new Date(a.postedAt || a.createdAt || 0);
+      const dateB = new Date(b.postedAt || b.createdAt || 0);
+      return dateB - dateA;
+    });
+  }, [jobs]);
 
   // Use parent's stats (StudentDashboard sends displayStats with funnel enforced: offers <= interviewed <= shortlisted <= applied)
   const stats =
@@ -84,8 +103,8 @@ const DashboardHome = ({
       ? studentData.stats
       : { applied: 0, shortlisted: 0, interviewed: 0, offers: 0 };
   const formattedStudentData = studentData ? {
-    id: user?.id,
     ...studentData,
+    id: isAdminView ? (viewStudentId || studentData.id) : user?.id,
     stats,
   } : null;
 
@@ -207,28 +226,24 @@ const DashboardHome = ({
   // Only show non-terminal applications and map labels to Applied / Shortlisted
   // ----------------------------
   const isLiveApplication = (app) => {
-    // Exclude final terminal states
+    if (app.primaryStatus?.final || app.tracker?.primaryStatus?.final) return false;
+
     const finalStatus = (app.finalStatus || app.status || '').toString().toUpperCase();
     if (finalStatus === 'SELECTED' || finalStatus === 'REJECTED') return false;
 
-    const interviewStatus = (app.interviewStatus || '').toString();
-    if (interviewStatus.startsWith('REJECTED_IN_ROUND_')) return false;
+    const stage = (app.currentStage || app.primaryStatus?.label || '').toString().toLowerCase();
+    if (stage === 'selected' || stage === 'selected (final)' || stage.includes('rejected')) return false;
 
-    // Treat interview-in-progress as past (exclude). If you want to keep them, remove this check.
-    if (interviewStatus && interviewStatus.toUpperCase().includes('IN_PROGRESS')) return false;
+    const interviewRaw = app.interviewStatus;
+    const interviewStr = typeof interviewRaw === 'string'
+      ? interviewRaw
+      : (interviewRaw?.statusText || interviewRaw?.lastRoundStatus || '');
+    if (String(interviewStr).startsWith('REJECTED_IN_ROUND_')) return false;
 
     return true;
   };
 
-  const getTrackerLabel = (app) => {
-    const screening = (app.screeningStatus || '').toString().toUpperCase();
-    const requiresScreening = app.job?.requiresScreening !== false; // default true
-
-    const shortlistedStatuses = ['RESUME_SELECTED', 'SCREENING_SELECTED', 'TEST_SELECTED', 'INTERVIEW_ELIGIBLE'];
-    if (shortlistedStatuses.includes(screening)) return 'Shortlisted';
-    if (!requiresScreening && screening === 'APPLIED') return 'Shortlisted'; // auto-shortlist when no screening
-    return 'Applied';
-  };
+  const getTrackerLabel = (app) => getApplicationPrimaryLabel(app);
 
   const liveApplications = (displayApplications || [])
     .filter(isLiveApplication)
@@ -299,13 +314,30 @@ const DashboardHome = ({
       )}
 
       {/* Profile sections render with real data only; they handle their own empty states */}
-      <EducationSection isAdminView={isAdminView} />
-      <SkillsSection isAdminView={isAdminView} />
-      <ProjectsSection studentId={user?.id} isAdminView={isAdminView} />
-      <Achievements isAdminView={isAdminView} />
+      <EducationSection
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialEducation={initialEducation}
+      />
+      <SkillsSection
+        isAdminView={isAdminView}
+        initialSkills={skillsEntries}
+        school={formattedStudentData?.school || profileData?.school || ''}
+      />
+      <ProjectsSection
+        studentId={isAdminView ? viewStudentId : user?.id}
+        isAdminView={isAdminView}
+        initialProjects={initialProjects}
+      />
+      <Achievements
+        isAdminView={isAdminView}
+        viewStudentId={viewStudentId}
+        initialAchievements={initialAchievements}
+        initialCertifications={initialCertifications}
+      />
       <Endorsements 
         isAdminView={isAdminView} 
-        studentId={isAdminView && formattedStudentData?.id ? formattedStudentData.id : undefined}
+        studentId={isAdminView && viewStudentId ? viewStudentId : undefined}
         profileData={profileData}
       />
 

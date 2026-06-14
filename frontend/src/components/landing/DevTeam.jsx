@@ -30,9 +30,9 @@ const mentors = [
 
 // Row 1: Niraj, Pratik, Roshan, Esha  |  Row 2: Munaf, Irfan, Sai Charan
 const devs = [
-  { name: "Niraj",      linkedin: "https://www.linkedin.com/in/nirajroy01/",                   img: dev1Img   },
+  { name: "Niraj",      linkedin: "https://www.linkedin.com/in/nirajroy01/",                      img: dev1Img   },
   { name: "Pratik",     linkedin: "https://linkedin.com/in/pratik",                               img: dev3Img   },
-  { name: "Roshan",     linkedin: "https://www.linkedin.com/in/roshankumar101/",               img: dev2Img   },
+  { name: "Roshan",     linkedin: "https://www.linkedin.com/in/roshankumar101/",                  img: dev2Img   },
   { name: "Esha",       linkedin: "https://www.linkedin.com/in/esha-bajaj/",                      img: dev4Img   },
   { name: "Munaf",      linkedin: "https://www.linkedin.com/in/munafmohammad/",                   img: munaf1Img },
   { name: "Irfan",      linkedin: "https://www.linkedin.com/in/mohammad-irfan-638a2b308/",        img: IrfanImg  },

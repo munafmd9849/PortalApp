@@ -14,7 +14,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Load .env file from the backend root directory (parent of src/)
-dotenv.config({ path: join(__dirname, '../.env') });
+// Override any already-set env vars so switching DB providers works reliably.
+dotenv.config({ path: join(__dirname, '../.env'), override: true });
 
 // Now import modules that depend on environment variables
 import express from 'express';
@@ -48,11 +49,21 @@ import recruiterScreeningRoutes from './routes/recruiterScreening.js';
 import adminScreeningRoutes from './routes/adminScreening.js';
 import adminJobsRoutes from './routes/adminJobs.js';
 import adminDashboardRoutes from './routes/adminDashboard.js'; // NEW: Serve-side aggregation
+import adminReadinessRoutes from './routes/adminReadiness.js';
+import jobOpportunitiesRoutes from './routes/jobOpportunities.js';
+import adminStudentDirectoryRoutes from './routes/adminStudentDirectory.js';
 import announcementsRoutes from './routes/announcements.js';
 import superAdminRoutes from './routes/superAdmin.js';
+import assessmentRoutes from './routes/assessment.js';
+import codeRoutes from './routes/code.js';
+import academicRoutes from './routes/academic.js';
 import publicRoutes from './routes/public.js';
 import resumeViewRoutes from './routes/resumeView.js';
 import auditLogRoutes from './routes/auditLogs.js';
+import mockInterviewRoutes from './routes/mockInterview.js';
+import aiMockInterviewRoutes from './routes/aiMockInterview.js';
+import aiConversationalInterviewRoutes from './routes/aiConversationalInterview.js';
+import webrtcRoutes from './routes/webrtc.js';
 
 // ============================================
 // STARTUP VALIDATION: Required Environment Variables
@@ -71,11 +82,11 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Validate DATABASE_URL format for PostgreSQL
+// Validate DATABASE_URL format (Allow PostgreSQL or local SQLite)
 const dbUrl = process.env.DATABASE_URL || '';
 const dbUrlLower = dbUrl.toLowerCase();
-if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://')) {
-  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://).');
+if (!dbUrlLower.startsWith('postgresql://') && !dbUrlLower.startsWith('postgres://') && !dbUrlLower.startsWith('file:')) {
+  console.error('❌ CRITICAL: DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://) or a local SQLite file (file:).');
   console.error(`   Current value: ${dbUrl.substring(0, 20)}...`);
   process.exit(1);
 }
@@ -92,17 +103,20 @@ if (frontendUrl && !frontendUrl.startsWith('http://') && !frontendUrl.startsWith
 function logDatabaseTarget() {
   try {
     const dbUrl = process.env.DATABASE_URL || '';
-    // Extract host from PostgreSQL connection string
+    if (dbUrl.startsWith('file:')) {
+      console.log('🗄️  Database: SQLite (Local)');
+      return;
+    }
+
     const match = dbUrl.match(/@([^:]+):(\d+)\//);
     if (match) {
-      const host = match[1];
-      const port = match[2];
-      console.log(`🗄️  Database: PostgreSQL (${host}:${port})`);
-    } else {
-      console.log('🗄️  Database: PostgreSQL');
+      console.log(`🗄️  Database: PostgreSQL (${match[1]}:${match[2]})`);
+      return;
     }
-  } catch {
+
     console.log('🗄️  Database: PostgreSQL');
+  } catch {
+    console.log('🗄️  Database: configured');
   }
 }
 
@@ -243,6 +257,7 @@ app.get('/health', (req, res) => {
 // API Routes
 // Public routes (NO AUTH) - must come before authenticated routes
 app.use('/api/public', publicRoutes);
+app.use('/api/academic', academicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/jobs', jobRoutes);
@@ -266,9 +281,18 @@ app.use('/api/resume', resumeViewRoutes); // Resume view by token (inline, for n
 app.use('/api/admin', adminScreeningRoutes); // Admin screening management routes
 app.use('/api/admin', adminJobsRoutes); // Admin job applicants tracking routes
 app.use('/api/admin/dashboard', adminDashboardRoutes); // NEW: Server-side dashboard stats
+app.use('/api/admin/readiness', adminReadinessRoutes); // Placement readiness & probability (activity-derived)
+app.use('/api/admin/job-opportunities', jobOpportunitiesRoutes); // Job Opportunities dashboard (pipeline SSoT)
+app.use('/api/admin/student-directory', adminStudentDirectoryRoutes); // Student Directory (computed metrics)
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/super-admin', superAdminRoutes); // Super Admin: create/disable admins, stats
+app.use('/api/assessments', assessmentRoutes); // Assessment Engine: Tests, Interviews, Proctoring
+app.use('/api/code', codeRoutes); // Coding engine: run & evaluate
 app.use('/api/admin/audit-logs', auditLogRoutes); // Audit Logs: SUPER_ADMIN only
+app.use('/api/mock-interviews', mockInterviewRoutes); // Dedicated Mock Interview System
+app.use('/api/ai-mock-interviews', aiMockInterviewRoutes); // Guided AI video mock interviews
+app.use('/api/ai-conversational-interviews', aiConversationalInterviewRoutes);
+app.use('/api/webrtc', webrtcRoutes);
 
 // Google Calendar OAuth callback for popup flow
 // This route is called by Google with the authorization code
@@ -408,7 +432,7 @@ async function start() {
       console.log(`📡 Socket.IO enabled`);
       console.log(`🌐 CORS origin: ${process.env.CORS_ORIGIN || 'NOT SET (CRITICAL)'}`);
       console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
-      console.log(`📧 Email configured: ${process.env.SMTP_USER ? 'Yes' : 'No'}`);
+      console.log(`📧 Email configured: ${(process.env.SMTP_USER || process.env.EMAIL_USER) ? 'Yes' : 'No'}`);
     }).on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use. Please stop the existing process or use a different port.`);

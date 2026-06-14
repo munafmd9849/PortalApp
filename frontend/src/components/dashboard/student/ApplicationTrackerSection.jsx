@@ -1,5 +1,11 @@
 import React from 'react';
 import { Clock, AlertCircle, CheckCircle, XCircle, IndianRupee } from 'lucide-react';
+import {
+  getApplicationPrimaryLabel,
+  getApplicationPrimaryStatus,
+  getPrimaryStatusBadgeClass,
+  getPrimaryStatusRowGradient,
+} from '../../../utils/applicationTrackerState';
 
 const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => {
   const formatSalary = (salary) => {
@@ -25,7 +31,9 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
 
   const getStatusIcon = (status) => {
     const statusLower = status?.toLowerCase() || '';
-    // Handle both old status values and new currentStage values
+    if (statusLower === 'selected') return <CheckCircle className="h-3 w-3 mr-1" />;
+    if (statusLower.includes('qualified') || statusLower === 'screening completed' || statusLower === 'interview scheduled') return <CheckCircle className="h-3 w-3 mr-1" />;
+    if (statusLower === 'under review') return <AlertCircle className="h-3 w-3 mr-1" />;
     if (statusLower === 'applied') return <Clock className="h-3 w-3 mr-1" />;
     if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return <AlertCircle className="h-3 w-3 mr-1" />;
     if (statusLower === 'interviewed' || statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return <CheckCircle className="h-3 w-3 mr-1" />;
@@ -105,7 +113,8 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                 const job = application.job || application;
                 const jobId = application.jobId || job?.id;
                 const salaryStr = formatSalary(job?.salary ?? job?.ctc ?? job?.salaryRange);
-                const displayLabel = application.trackerLabel || application.currentStage || application.status;
+                const primary = getApplicationPrimaryStatus(application);
+                const displayLabel = getApplicationPrimaryLabel(application);
                 return (
                 <div
                   key={application.id}
@@ -113,7 +122,7 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                   tabIndex={0}
                   onClick={() => onRowClick?.(jobId)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(jobId); } }}
-                  className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getRowBgColor(displayLabel)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
+                  className={`flex flex-col md:grid gap-2 p-3 md:py-4 md:px-4 rounded-lg md:rounded-xl bg-gradient-to-r ${getPrimaryStatusRowGradient(primary.variant)} hover:shadow-lg border border-gray-200 hover:border-[#3c80a7] transition-all duration-300 group min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3c80a7] focus:ring-offset-1 md:items-center overflow-hidden`}
                   style={{ gridTemplateColumns: gridCols, columnGap, rowGap }}
                 >
                   {/* Mobile Layout */}
@@ -141,9 +150,9 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                       <span>{formatDate(application.appliedDate)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-1.5 md:pt-2 border-t border-gray-300 gap-2">
-                      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-[10px] md:text-xs font-semibold shadow-sm ${getStatusColor(displayLabel)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-[10px] md:text-xs font-semibold shadow-sm ${getPrimaryStatusBadgeClass(primary.variant)}`}>
                         {getStatusIcon(displayLabel)}
-                        {displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
+                        {displayLabel || 'Unknown'}
                       </span>
                     </div>
                   </div>
@@ -173,12 +182,12 @@ const ApplicationTrackerSection = ({ applications, onTrackAll, onRowClick }) => 
                     </div>
                     <div className="hidden md:flex items-center min-w-0 overflow-hidden">
                       <span
-                        className={`inline-flex items-center gap-1 min-w-0 max-w-full px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm overflow-hidden ${getStatusColor(displayLabel)}`}
-                        title={displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
+                        className={`inline-flex items-center gap-1 min-w-0 max-w-full px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm overflow-hidden ${getPrimaryStatusBadgeClass(primary.variant)}`}
+                        title={displayLabel || 'Unknown'}
                       >
                         {getStatusIcon(displayLabel)}
                         <span className="truncate min-w-0">
-                          {displayLabel ? displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) : 'Unknown'}
+                          {displayLabel || 'Unknown'}
                         </span>
                       </span>
                     </div>

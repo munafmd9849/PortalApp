@@ -862,3 +862,53 @@ export async function sendStudentQueryResponse({ to, studentName, querySubject, 
     throw error;
   }
 }
+
+/**
+ * Send assessment notification to student
+ * @param {Object} student - Student object with email
+ * @param {Object} assessment - Assessment object
+ * @returns {Promise<Object>} Result
+ */
+export async function sendAssessmentNotification(student, assessment) {
+  try {
+    const studentEmail = student.email || student.user?.email || student.userEmail;
+    if (!studentEmail) throw new Error('Student email not found');
+
+    const subject = `New Assessment: ${assessment.title}`;
+    const typeLabel = assessment.type === 'MOCK_TEST' ? 'Mock Test' : 
+                     assessment.type === 'MOCK_INTERVIEW_AUTO' ? 'Asynch Interview' : 'Live 1:1 Interview';
+    
+    return await sendGenericNotification(studentEmail, subject, {
+      userName: student.fullName || 'Student',
+      notificationType: 'Assessment Engine',
+      message: `A new ${typeLabel.toLowerCase()} has been assigned to you by the Office of Career Services. Please complete it within the allotted time.`,
+      panelMessage: `• Title: ${assessment.title}\n• Type: ${typeLabel}\n• Duration: ${assessment.duration} Minutes`,
+      actionText: 'Launch Assessment',
+      actionUrl: `${process.env.FRONTEND_URL}/dashboard/student?tab=assessments`,
+      iconText: 'A'
+    });
+  } catch (error) {
+    logger.error('Failed to send assessment email:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send assessment notifications to multiple students in bulk
+ */
+export async function sendBulkAssessmentNotifications(students, assessment) {
+  try {
+    const results = await Promise.allSettled(
+      students.map(student => sendAssessmentNotification(student, assessment))
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    logger.info(`Bulk assessment emails sent: ${successful} successful, ${failed} failed for ${assessment.id}`);
+    return { success: true, total: students.length, successful, failed };
+  } catch (error) {
+    logger.error('Failed to send bulk assessment emails:', error);
+    throw error;
+  }
+}

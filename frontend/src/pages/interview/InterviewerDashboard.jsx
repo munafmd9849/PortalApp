@@ -71,30 +71,48 @@ const InterviewerDashboard = () => {
     loadSession();
   }, [sessionId, token]);
 
-  const loadSession = async () => {
+  const loadSession = async ({ forceRefresh = false, silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
 
-      // Fetch session details using API client
-      const sessionData = await api.getInterviewSessionByToken(sessionId, token);
-      setSession(sessionData);
-
-      // Fetch active round if session is ongoing
-      if (sessionData.status === 'ONGOING') {
-        try {
-          const roundData = await api.getActiveRound(sessionId, token);
-          setActiveRound(roundData);
-        } catch (err) {
-          console.error('Error fetching active round:', err);
-        }
+      if (forceRefresh) {
+        api.clearApiCache('/interview/');
       }
 
-      setLoading(false);
+      // Fetch session details using API client (never cached — see api.js)
+      const sessionData = await api.getInterviewSessionByToken(sessionId, token, { noCache: true });
+      setSession(sessionData);
+
+      // Load active round whenever session is ongoing or any round is ACTIVE
+      const hasActiveRound = sessionData.rounds?.some((r) => r.status === 'ACTIVE');
+      if (sessionData.status === 'ONGOING' || hasActiveRound) {
+        try {
+          const roundData = await api.getActiveRound(sessionId, token, { noCache: true });
+          setActiveRound(roundData);
+        } catch (err) {
+          if (err?.status !== 404) {
+            console.error('Error fetching active round:', err);
+          }
+          // Fall back to round marked ACTIVE in session payload
+          const activeFromSession = sessionData.rounds?.find((r) => r.status === 'ACTIVE');
+          setActiveRound(activeFromSession || null);
+        }
+      } else {
+        setActiveRound(null);
+      }
+
+      if (!silent) {
+        setLoading(false);
+      }
     } catch (err) {
       console.error('Error loading session:', err);
       setError('Failed to load interview session. Please try again.');
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -110,13 +128,36 @@ const InterviewerDashboard = () => {
     }
 
     try {
-      await api.startRound(roundId, token);
-      alert('Round started successfully!');
-      loadSession(); // Reload to show updated status
+      const result = await api.startRound(roundId, token);
+
+      // Immediate UI sync from API response (before network refresh)
+      if (result?.round) {
+        setSession((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: prev.status === 'NOT_STARTED' ? 'ONGOING' : prev.status,
+            rounds: prev.rounds.map((r) =>
+              r.id === roundId
+                ? {
+                    ...r,
+                    status: 'ACTIVE',
+                    startedAt: result.round.startedAt || new Date().toISOString(),
+                  }
+                : r
+            ),
+          };
+        });
+        setActiveRound(result.round);
+      }
+
+      api.clearApiCache('/interview/');
+      await loadSession({ forceRefresh: true, silent: true });
+
+      navigate(`/interview/round/${roundId}?token=${encodeURIComponent(token)}`);
     } catch (error) {
       console.error('Error starting round:', error);
       const msg = error?.response?.data?.error || error?.message || 'Failed to start round';
-      // Show backend-provided reason (e.g., "No candidates assigned for this round")
       alert(msg);
     }
   };

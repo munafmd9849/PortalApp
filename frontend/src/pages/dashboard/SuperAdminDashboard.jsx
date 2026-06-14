@@ -72,9 +72,13 @@ export default function SuperAdminDashboard() {
       if (activeTab !== 'manageJobs') setActiveTab('manageJobs');
       return;
     }
-    const tab = searchParams.get('tab') || 'dashboard';
+    let tab = searchParams.get('tab') || 'dashboard';
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      tab = 'dashboard';
+      navigate(`${BASE}?tab=dashboard`, { replace: true });
+    }
     if (tab !== activeTab) setActiveTab(tab);
-  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage]);
+  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage, navigate]);
 
   useEffect(() => {
     const handleEditProfileClick = () => {

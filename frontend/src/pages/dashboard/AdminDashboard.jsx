@@ -14,10 +14,20 @@ import Notifications from '../../components/dashboard/admin/Notifications';
 import AdminProfile from '../../components/dashboard/admin/AdminProfile';
 import AdminJobDetail from '../../components/dashboard/admin/AdminJobDetail';
 import AdminJobApplications from '../../components/dashboard/admin/AdminJobApplications';
+import AdminJobApplicationDetail from '../../components/dashboard/admin/AdminJobApplicationDetail';
 import AdminApplicantsHub from '../../components/dashboard/admin/AdminApplicantsHub';
 import AdminAnnouncements from '../../components/dashboard/admin/AdminAnnouncements';
+import CreateDisableAdmins from '../../components/dashboard/admin/CreateDisableAdmins';
+import SuperAdminStats from '../../components/dashboard/admin/SuperAdminStats';
+import AuditLogs from '../../components/dashboard/admin/AuditLogs';
+import AcademicStructureManager from '../../components/dashboard/admin/AcademicStructureManager';
+import AdminAssessments from '../admin/AdminAssessments';
+import AdminAssessmentResults from '../admin/AdminAssessmentResults';
+import MockInterviewManagement from '../admin/MockInterviewManagement';
+import MockInterviewSlots from '../admin/MockInterviewSlots';
+import ConversationalInterviewManagement from '../admin/ConversationalInterviewManagement';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
-import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2 } from 'lucide-react';
+import { Home, FilePlus2, Briefcase, GripVertical, LogOut, Users, Bell, Settings, User, Calendar, Megaphone, X, Loader2, UserPlus, History, BarChart3, LayoutDashboard, ShieldCheck, Sparkles, Video, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import showLogoutConfirm from '../../utils/logoutConfirm';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
@@ -58,8 +68,60 @@ export default function AdminDashboard() {
   }, []);
 
   const location = useLocation();
-  const isJobDetailPage = location.pathname.includes('/admin/job/');
-  const isJobApplicationsPage = location.pathname.includes('/admin/jobs/') && location.pathname.endsWith('/applications');
+  const basePath = useMemo(
+    () => (location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin'),
+    [location.pathname]
+  );
+  const isJobApplicationDetailPage = useMemo(
+    () => /\/jobs\/[^/]+\/applications\/[^/]+\/?$/.test(location.pathname),
+    [location.pathname]
+  );
+  const isJobApplicationsPage = useMemo(
+    () => /\/jobs\/[^/]+\/applications\/?$/.test(location.pathname),
+    [location.pathname]
+  );
+  const isJobDetailPage = useMemo(
+    () => /\/job\/[^/]+\/?$/.test(location.pathname) && !isJobApplicationsPage,
+    [location.pathname, isJobApplicationsPage]
+  );
+
+  const contentRoute = useMemo(() => {
+    if (isJobApplicationDetailPage) return { kind: 'jobApplicationDetail', tab: 'jobApplications' };
+    if (isJobApplicationsPage) return { kind: 'jobApplications', tab: 'jobApplications' };
+    if (isJobDetailPage) return { kind: 'jobDetail', tab: 'manageJobs' };
+    let tab = searchParams.get('tab') || 'dashboard';
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      tab = 'dashboard';
+    }
+    return { kind: 'tab', tab };
+  }, [isJobApplicationDetailPage, isJobApplicationsPage, isJobDetailPage, searchParams]);
+
+  // Keep sidebar highlight in sync with URL (pathname + ?tab=)
+  useEffect(() => {
+    if (contentRoute.tab !== activeTab) {
+      setActiveTab(contentRoute.tab);
+    }
+  }, [contentRoute.tab, activeTab]);
+
+  // Legacy tab aliases → dashboard / AI interviews
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'placementAnalytics' || tab === 'placementIntel' || tab === 'jobOpportunities') {
+      navigate(`${basePath}?tab=dashboard`, { replace: true });
+      return;
+    }
+    if (tab === 'mockInterviews' && searchParams.get('mode') === 'ai') {
+      navigate(`${basePath}?tab=aiInterviews`, { replace: true });
+    }
+  }, [searchParams, basePath, navigate]);
+
+  useEffect(() => {
+    const handleEditProfileClick = () => {
+      navigate(`${basePath}?tab=profile`);
+    };
+    window.addEventListener('editProfileClicked', handleEditProfileClick);
+    return () => window.removeEventListener('editProfileClicked', handleEditProfileClick);
+  }, [navigate, basePath]);
 
   // MANDATORY: Hard block unauthorized access on mount
   useEffect(() => {
@@ -115,38 +177,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // Sync activeTab with URL params
-  useEffect(() => {
-    // Special pages are driven by pathname, not ?tab=...
-    if (isJobApplicationsPage) {
-      if (activeTab !== 'jobApplications') setActiveTab('jobApplications');
-      return;
-    }
-    if (isJobDetailPage) {
-      if (activeTab !== 'manageJobs') setActiveTab('manageJobs');
-      return;
-    }
-
-    const tab = searchParams.get('tab') || 'dashboard';
-    if (tab !== activeTab) {
-      setActiveTab(tab);
-    }
-  }, [searchParams, activeTab, isJobApplicationsPage, isJobDetailPage]);
-
-  // Listen for editProfileClicked event
-  useEffect(() => {
-    const handleEditProfileClick = () => {
-      setActiveTab('profile');
-      // Ensure we leave special sub-routes like /admin/job/:id or /admin/jobs/:id/applications
-      navigate('/admin?tab=profile');
-    };
-
-    window.addEventListener('editProfileClicked', handleEditProfileClick);
-    return () => {
-      window.removeEventListener('editProfileClicked', handleEditProfileClick);
-    };
-  }, [navigate]);
-
   // Role-based tab filtering - STUDENT users cannot see Create Job or other admin-only tabs
   const userRoleUpper = userRole.toUpperCase();
   const isAdmin = userRoleUpper === 'ADMIN' || userRoleUpper === 'SUPER_ADMIN';
@@ -155,6 +185,7 @@ export default function AdminDashboard() {
   const isStudent = userRoleUpper === 'STUDENT';
   const canCreateJobs = isAdmin || isRecruiter;
   const isAdminOnly = isAdmin;
+  const assessmentId = searchParams.get('assessmentId');
   const isSuperAdminOnly = isSuperAdmin;
 
   // Base tabs available to all authorized users
@@ -170,8 +201,16 @@ export default function AdminDashboard() {
     { id: 'studentDirectory', label: 'Student Directory', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'recruiterDirectory', label: 'Recruiter Directory', icon: Briefcase, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
     { id: 'announcements', label: 'Announcements', icon: Megaphone, roles: ['ADMIN', 'SUPER_ADMIN'] }, // ADMIN only
-    { id: 'adminPanel', label: 'Admin Panel', icon: Settings, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
+    { id: 'mockInterviews', label: 'Live Mock Interviews', icon: Video, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'aiInterviews', label: 'AI Interviews', icon: Sparkles, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'conversationalInterviews', label: 'Conversational AI', icon: MessageCircle, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { id: 'assessments', label: 'Assessments', icon: ShieldCheck, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
+    { id: 'createDisableAdmins', label: 'Manage Admins', icon: UserPlus, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
+    { id: 'auditLogs', label: 'Audit Logs', icon: History, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
+    { id: 'adminPanel', label: 'System Settings', icon: Settings, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
+    { id: 'academicStructure', label: 'Academic Structure', icon: GripVertical, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
+    { id: 'superAdminStats', label: 'Global Stats', icon: BarChart3, roles: ['SUPER_ADMIN'] }, // SUPER_ADMIN only
     { id: 'profile', label: 'Profile', icon: User, roles: ['ADMIN', 'RECRUITER', 'STUDENT', 'SUPER_ADMIN'] },
   ];
 
@@ -238,32 +277,33 @@ export default function AdminDashboard() {
 
   // Sidebar highlight should reflect where we are, even on special pages
   const sidebarActiveTab = useMemo(() => {
-    if (isJobApplicationsPage) return 'jobApplications';
+    if (isJobApplicationDetailPage || isJobApplicationsPage) return 'jobApplications';
     if (isJobDetailPage) return 'manageJobs';
     return activeTab;
-  }, [activeTab, isJobApplicationsPage, isJobDetailPage]);
+  }, [activeTab, isJobApplicationDetailPage, isJobApplicationsPage, isJobDetailPage]);
 
   const renderContent = () => {
+    const currentTab = contentRoute.kind === 'tab' ? contentRoute.tab : contentRoute.tab;
+
     // ROLE CHECK: Block unauthorized access to job creation tabs
     const unauthorizedJobTabs = ['createJob', 'manageJobs', 'jobApplications', 'interviewScheduling', 'calendar'];
-    if (isStudent && unauthorizedJobTabs.includes(activeTab)) {
-      console.error('🚫 STUDENT user attempted to access restricted tab:', activeTab);
-      // Redirect to dashboard and show error
-      setActiveTab('dashboard');
-      navigate('/admin?tab=dashboard');
+    if (isStudent && unauthorizedJobTabs.includes(currentTab)) {
+      console.error('🚫 STUDENT user attempted to access restricted tab:', currentTab);
+      navigate(`${basePath}?tab=dashboard`, { replace: true });
       return <div className="text-red-600 font-semibold">Access denied: You don't have permission to access this section.</div>;
     }
 
-    // Check if we're on a job detail page
-    if (isJobDetailPage) {
+    if (contentRoute.kind === 'jobDetail') {
       return <AdminJobDetail />;
     }
-    // New: Admin Job -> Applicants -> Interview Progress (read-only)
-    if (isJobApplicationsPage) {
+    if (contentRoute.kind === 'jobApplicationDetail') {
+      return <AdminJobApplicationDetail />;
+    }
+    if (contentRoute.kind === 'jobApplications') {
       return <AdminJobApplications />;
     }
 
-    switch (activeTab) {
+    switch (currentTab) {
       case 'dashboard':
         return <AdminHome />;
       case 'createJob':
@@ -316,15 +356,68 @@ export default function AdminDashboard() {
           return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can send announcements.</div>;
         }
         return <AdminAnnouncements />;
+      case 'assessments':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can manage assessments.</div>;
+        }
+        return <AdminAssessments />;
+      case 'assessmentResults':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold">Access denied: Only ADMIN users can view assessment results.</div>;
+        }
+        return <AdminAssessmentResults />;
+      case 'notifications': return <Notifications />;
+      case 'createDisableAdmins':
+        if (!isSuperAdmin) {
+          return <div className="text-red-600 font-semibold p-6 bg-red-50 rounded-xl">Access denied: Only SUPER_ADMIN can manage other admins.</div>;
+        }
+        return <CreateDisableAdmins />;
+      case 'auditLogs':
+        if (!isSuperAdmin) {
+          return <div className="text-red-600 font-semibold p-6 bg-red-50 rounded-xl">Access denied: Only SUPER_ADMIN can view audit logs.</div>;
+        }
+        return <AuditLogs />;
+      case 'academicStructure':
+        if (!isSuperAdmin) {
+          return <div className="text-red-600 font-semibold p-6 bg-red-50 rounded-xl">Access denied: Only SUPER_ADMIN can manage academic structure.</div>;
+        }
+        return <AcademicStructureManager />;
+      case 'superAdminStats':
+        if (!isSuperAdmin) {
+          return <div className="text-red-600 font-semibold p-6 bg-red-50 rounded-xl">Access denied: Only SUPER_ADMIN can view global statistics.</div>;
+        }
+        return <SuperAdminStats />;
       case 'adminPanel':
-        if (!isSuperAdminOnly) {
-          return <div className="text-red-600 font-semibold">Access denied: Only SUPER_ADMIN users can access admin panel.</div>;
+        if (!isSuperAdmin) {
+          return <div className="text-red-600 font-semibold p-6 bg-red-50 rounded-xl">Access denied: Only SUPER_ADMIN can access system settings.</div>;
         }
         return <AdminPanel />;
-      case 'notifications':
-        return <Notifications />;
-      case 'profile':
-        return <AdminProfile />;
+      case 'profile': return <AdminProfile />;
+      case 'mockInterviews':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage mock interviews.</div>;
+        }
+        return <MockInterviewManagement forcedMode="live" dashboardTab="mockInterviews" />;
+      case 'aiInterviews':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage AI interviews.</div>;
+        }
+        return <MockInterviewManagement forcedMode="ai" dashboardTab="aiInterviews" />;
+      case 'conversationalInterviews':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage conversational interviews.</div>;
+        }
+        return <ConversationalInterviewManagement />;
+      case 'mockInterviews-create':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can create mock interviews.</div>;
+        }
+        return <MockInterviewManagement autoOpenCreate />;
+      case 'mockInterviews-slots':
+        if (!isAdminOnly) {
+          return <div className="text-red-600 font-semibold p-6">Access denied: Only ADMIN users can manage mock interview slots.</div>;
+        }
+        return <MockInterviewSlots />;
       default:
         return <AdminHome />;
 
@@ -333,9 +426,8 @@ export default function AdminDashboard() {
 
 
   const handleTabClick = (tabId) => {
-    setActiveTab(tabId);
     setMobileMenuOpen(false);
-    navigate(`/admin?tab=${encodeURIComponent(tabId)}`);
+    navigate(`${basePath}?tab=${encodeURIComponent(tabId)}`);
   };
 
   return (
@@ -359,8 +451,7 @@ export default function AdminDashboard() {
                       <div key={tab.id} className="mb-1">
                         <button
                           onClick={() => {
-                            setActiveTab(tab.id);
-                            navigate(`/admin?tab=${encodeURIComponent(tab.id)}`);
+                            handleTabClick(tab.id);
                           }}
                           className={`w-full flex items-center rounded-lg text-xs font-medium transition-all duration-200 ${sidebarActiveTab === tab.id
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
@@ -484,7 +575,9 @@ export default function AdminDashboard() {
                   </div>
                 }
               >
-                {renderContent()}
+                <div key={`${location.pathname}${location.search}`}>
+                  {renderContent()}
+                </div>
               </ErrorBoundary>
             </div>
           </main>

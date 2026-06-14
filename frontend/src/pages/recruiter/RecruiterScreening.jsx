@@ -4,21 +4,86 @@
  * Pre-interview screening: RESUME_SHORTLIST and QA_TEST stages
  */
 
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
-  FileText, Download, CheckCircle, XCircle, Clock, 
-  Users, Filter, Search, AlertCircle, Lock, Mail, Building2,
-  Eye, ExternalLink, Calendar, Sparkles, Shield, Award, TrendingUp
+  Download, CheckCircle, XCircle, 
+  Users, Search, AlertCircle, Lock, Mail, Building2,
+  Eye, Calendar, Sparkles, Shield, Award, TrendingUp
 } from 'lucide-react';
 import api from '../../services/api';
 import { API_BASE_URL } from '../../config/api';
-import { showSuccess, showError, showWarning, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
+import { showSuccess, showError, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
 import CustomDropdown from '../../components/common/CustomDropdown';
+
+function computeAllDecided(apps, jobConfig) {
+  const requiresScreening = jobConfig?.requiresScreening || false;
+  const requiresTest = jobConfig?.requiresTest || false;
+
+  return (apps || []).every((app) => {
+    const status = app.screeningStatus || 'APPLIED';
+    if (requiresScreening && requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED' || status === 'TEST_REJECTED';
+    }
+    if (requiresScreening && !requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED';
+    }
+    if (!requiresScreening && requiresTest) {
+      return status === 'INTERVIEW_ELIGIBLE' || status === 'TEST_REJECTED';
+    }
+    return true;
+  });
+}
+
+function computeSummary(apps, jobConfig) {
+  const requiresScreening = jobConfig?.requiresScreening || false;
+  const requiresTest = jobConfig?.requiresTest || false;
+
+  return {
+    total: apps.length,
+    applied: apps.filter((a) => !a.screeningStatus || a.screeningStatus === 'APPLIED').length,
+    screeningSelected: requiresScreening
+      ? apps.filter((a) => {
+          const s = a.screeningStatus || 'APPLIED';
+          if (requiresTest) return s === 'SCREENING_SELECTED';
+          return s === 'INTERVIEW_ELIGIBLE' || s === 'SCREENING_SELECTED';
+        }).length
+      : 0,
+    screeningRejected: apps.filter((a) => a.screeningStatus === 'SCREENING_REJECTED').length,
+    testSelected: requiresTest
+      ? apps.filter((a) => {
+          const s = a.screeningStatus || 'APPLIED';
+          return s === 'INTERVIEW_ELIGIBLE' || s === 'TEST_SELECTED';
+        }).length
+      : 0,
+    testRejected: apps.filter((a) => a.screeningStatus === 'TEST_REJECTED').length,
+    interviewEligible: apps.filter((a) => a.screeningStatus === 'INTERVIEW_ELIGIBLE').length,
+    resumeSelected: requiresScreening
+      ? apps.filter((a) => {
+          const s = a.screeningStatus || 'APPLIED';
+          if (requiresTest) return s === 'SCREENING_SELECTED';
+          return s === 'INTERVIEW_ELIGIBLE' || s === 'SCREENING_SELECTED';
+        }).length
+      : 0,
+    resumeRejected: apps.filter((a) => a.screeningStatus === 'SCREENING_REJECTED').length,
+  };
+}
+
+function matchesStatusFilter(app, filterStatus, jobConfig) {
+  if (!filterStatus) return true;
+  const status = app.screeningStatus || 'APPLIED';
+  if (status === filterStatus) return true;
+  if (filterStatus === 'TEST_SELECTED' && status === 'INTERVIEW_ELIGIBLE' && jobConfig?.requiresTest) {
+    return true;
+  }
+  if (filterStatus === 'SCREENING_SELECTED' && status === 'INTERVIEW_ELIGIBLE' && jobConfig?.requiresScreening && !jobConfig?.requiresTest) {
+    return true;
+  }
+  return false;
+}
 
 const RecruiterScreening = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const token = searchParams.get('token');
   const jobId = searchParams.get('jobId');
 
@@ -32,7 +97,33 @@ const RecruiterScreening = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch screening session data
+  const fetchScreeningData = useCallback(async (silent = false) => {
+    try {
+      if (!silent) {
+        setLoading(true);
+      }
+      setError(null);
+
+      const { data } = await api.get(
+        `/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`,
+        { noCache: true }
+      );
+
+      setSession(data?.session || null);
+      setJob(data?.job || null);
+      setApplications(data?.applications || []);
+      setSummary(data?.summary || computeSummary(data?.applications || [], data?.job || {}));
+      setFinalized(!!data?.session?.finalizedAt);
+    } catch (err) {
+      console.error('Error fetching screening data:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to load screening data');
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, [token, jobId]);
+
   useEffect(() => {
     if (!token || !jobId) {
       setError('Invalid access. Token and Job ID are required.');
@@ -41,63 +132,54 @@ const RecruiterScreening = () => {
     }
 
     fetchScreeningData();
-  }, [token, jobId]);
-
-  const fetchScreeningData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data } = await api.get(`/recruiter/screening/session?token=${encodeURIComponent(token)}&jobId=${jobId}`);
-      
-      setSession(data?.session || null);
-      setJob(data?.job || null);
-      setApplications(data?.applications || []);
-      setSummary(data?.summary || {});
-
-      const job = data?.job || {};
-      const requiresScreening = job.requiresScreening || false;
-      const requiresTest = job.requiresTest || false;
-      
-      const allDecided = (data?.applications || []).every(app => {
-        const status = app.screeningStatus || 'APPLIED';
-        
-        if (requiresScreening && requiresTest) {
-          return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED' || status === 'TEST_REJECTED';
-        }
-        if (requiresScreening && !requiresTest) {
-          return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED';
-        }
-        if (!requiresScreening && requiresTest) {
-          return status === 'INTERVIEW_ELIGIBLE' || status === 'TEST_REJECTED';
-        }
-        return true;
-      });
-      setFinalized(allDecided && (data?.applications || []).length > 0);
-    } catch (err) {
-      console.error('Error fetching screening data:', err);
-      setError(err.response?.data?.error || err.message || 'Failed to load screening data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [token, jobId, fetchScreeningData]);
 
   const updateScreeningStatus = async (applicationId, newStatus, remarks = '') => {
+    if (finalized) {
+      showError('Screening has been finalized. Decisions can no longer be changed.');
+      return;
+    }
+
+    if ((newStatus === 'SCREENING_REJECTED' || newStatus === 'TEST_REJECTED') && !remarks?.trim()) {
+      showError('Please provide a rejection reason.');
+      return;
+    }
+
     try {
-      await api.patch(`/recruiter/screening/application/${applicationId}?token=${encodeURIComponent(token)}`, {
-        screeningStatus: newStatus,
-        screeningRemarks: remarks || null
-      }, { silent: true });
+      const body = { screeningStatus: newStatus };
+      if (newStatus === 'SCREENING_REJECTED' || newStatus === 'TEST_REJECTED') {
+        body.screeningRemarks = remarks.trim();
+      }
+
+      const { data: response } = await api.patch(
+        `/recruiter/screening/application/${applicationId}?token=${encodeURIComponent(token)}`,
+        body,
+        { silent: true }
+      );
+
+      const updated = response?.application;
+      setApplications((prev) => {
+        const next = prev.map((app) => {
+          if (app.id !== applicationId) return app;
+          return {
+            ...app,
+            screeningStatus: updated?.screeningStatus || app.screeningStatus,
+            screeningRemarks: updated?.screeningRemarks ?? app.screeningRemarks,
+            screeningCompletedAt: updated?.screeningCompletedAt ?? app.screeningCompletedAt,
+          };
+        });
+        setSummary(computeSummary(next, job));
+        return next;
+      });
 
       const statusMessages = {
-        'SCREENING_SELECTED': 'Resume selected successfully',
-        'SCREENING_REJECTED': 'Resume rejected',
-        'TEST_SELECTED': 'Candidate passed the test',
-        'TEST_REJECTED': 'Candidate failed the test',
-        'INTERVIEW_ELIGIBLE': 'Candidate qualified for interview'
+        SCREENING_SELECTED: 'Resume selected successfully',
+        SCREENING_REJECTED: 'Resume rejected',
+        TEST_SELECTED: 'Candidate passed the test',
+        TEST_REJECTED: 'Candidate failed the test',
+        INTERVIEW_ELIGIBLE: 'Candidate qualified for interview',
       };
-      showSuccess(statusMessages[newStatus] || 'Screening decision saved');
-      await fetchScreeningData();
+      showSuccess(statusMessages[updated?.screeningStatus] || statusMessages[newStatus] || 'Screening decision saved');
     } catch (err) {
       console.error('Error updating screening status:', err);
       showError(err.response?.data?.error || err.response?.data?.message || 'Failed to save screening decision. Please try again.');
@@ -112,14 +194,16 @@ const RecruiterScreening = () => {
     let loadingToastId = null;
     try {
       loadingToastId = showLoading('Finalizing screening...');
-      
-      await api.post(`/recruiter/screening/finalize?token=${encodeURIComponent(token)}`, {
-        jobId
-      }, { silent: true });
+
+      await api.post(
+        `/recruiter/screening/finalize?token=${encodeURIComponent(token)}`,
+        { jobId },
+        { silent: true }
+      );
 
       setFinalized(true);
       replaceLoadingToast(loadingToastId, 'success', 'Screening finalized successfully! All decisions are now locked.');
-      await fetchScreeningData();
+      await fetchScreeningData(true);
     } catch (err) {
       console.error('Error finalizing screening:', err);
       if (loadingToastId) {
@@ -131,7 +215,7 @@ const RecruiterScreening = () => {
 
   // Filter applications
   const filteredApplications = applications.filter(app => {
-    if (filterStatus && app.screeningStatus !== filterStatus) return false;
+    if (!matchesStatusFilter(app, filterStatus, job)) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const student = app.student || {};
@@ -147,20 +231,7 @@ const RecruiterScreening = () => {
   const requiresScreening = job?.requiresScreening || false;
   const requiresTest = job?.requiresTest || false;
 
-  const allDecided = applications.every(app => {
-    const status = app.screeningStatus || 'APPLIED';
-    
-    if (requiresScreening && requiresTest) {
-      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED' || status === 'TEST_REJECTED';
-    }
-    if (requiresScreening && !requiresTest) {
-      return status === 'INTERVIEW_ELIGIBLE' || status === 'SCREENING_REJECTED';
-    }
-    if (!requiresScreening && requiresTest) {
-      return status === 'INTERVIEW_ELIGIBLE' || status === 'TEST_REJECTED';
-    }
-    return true;
-  });
+  const allDecided = computeAllDecided(applications, job);
 
   // Status badge component
   const StatusBadge = ({ status, text }) => {
@@ -409,9 +480,12 @@ const RecruiterScreening = () => {
                   const screeningStatus = app.screeningStatus || 'APPLIED';
                   const isScreeningSelected = screeningStatus === 'SCREENING_SELECTED';
                   const isScreeningRejected = screeningStatus === 'SCREENING_REJECTED';
-                  const isTestSelected = screeningStatus === 'TEST_SELECTED';
                   const isTestRejected = screeningStatus === 'TEST_REJECTED';
                   const isInterviewEligible = screeningStatus === 'INTERVIEW_ELIGIBLE';
+                  const isResumeScreeningPassed = isScreeningSelected || (isInterviewEligible && requiresScreening && !requiresTest)
+                    || (isInterviewEligible && requiresScreening && requiresTest && isScreeningSelected);
+                  const screeningAwaitingTest = requiresScreening && requiresTest && isScreeningSelected;
+                  const showTestActions = !requiresScreening || isScreeningSelected || isInterviewEligible || isTestRejected;
 
                   return (
                     <tr key={app.id} className="hover:bg-indigo-50/50 transition-colors group">
@@ -485,24 +559,29 @@ const RecruiterScreening = () => {
                         <td className="px-6 py-4">
                           {finalized ? (
                             <StatusBadge 
-                              status={screeningStatus === 'SCREENING_SELECTED' ? 'SCREENING_SELECTED' : screeningStatus === 'SCREENING_REJECTED' ? 'SCREENING_REJECTED' : 'APPLIED'}
-                              text={screeningStatus === 'SCREENING_SELECTED' ? 'Selected' : screeningStatus === 'SCREENING_REJECTED' ? 'Rejected' : 'Applied'}
+                              status={
+                                isScreeningRejected ? 'SCREENING_REJECTED'
+                                  : (isResumeScreeningPassed || isInterviewEligible) ? 'SCREENING_SELECTED'
+                                  : 'APPLIED'
+                              }
+                              text={
+                                isScreeningRejected ? 'Rejected'
+                                  : (isResumeScreeningPassed || isInterviewEligible) ? 'Selected'
+                                  : 'Applied'
+                              }
                             />
                           ) : (
                             <div className="flex gap-2">
                               <button
                                 onClick={() => updateScreeningStatus(app.id, 'SCREENING_SELECTED')}
-                                disabled={isScreeningSelected || isScreeningRejected || isInterviewEligible}
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                  isScreeningSelected
-                                    ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed border border-emerald-200'
-                                    : isScreeningRejected || isInterviewEligible
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  isScreeningSelected || (isInterviewEligible && !isScreeningRejected)
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                     : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg transform hover:scale-105'
                                 }`}
                               >
                                 <CheckCircle className="w-4 h-4 inline mr-1" />
-                                {isScreeningSelected ? 'Selected' : 'Select'}
+                                {(isScreeningSelected || screeningAwaitingTest || (isInterviewEligible && requiresScreening)) ? 'Selected' : 'Select'}
                               </button>
                               <button
                                 onClick={() => {
@@ -511,12 +590,9 @@ const RecruiterScreening = () => {
                                     updateScreeningStatus(app.id, 'SCREENING_REJECTED', reason.trim());
                                   }
                                 }}
-                                disabled={isScreeningSelected || isScreeningRejected || isInterviewEligible}
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                                   isScreeningRejected
-                                    ? 'bg-rose-100 text-rose-700 cursor-not-allowed border border-rose-200'
-                                    : isScreeningSelected || isInterviewEligible
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    ? 'bg-rose-100 text-rose-700 border border-rose-200'
                                     : 'bg-rose-600 text-white hover:bg-rose-700 shadow-md hover:shadow-lg transform hover:scale-105'
                                 }`}
                               >
@@ -529,26 +605,27 @@ const RecruiterScreening = () => {
                       )}
                       {requiresTest && (
                         <td className="px-6 py-4">
-                          {finalized ? (
+                          {!finalized && requiresScreening && !showTestActions ? (
+                            <span className="text-gray-400 text-sm font-medium">Complete screening first</span>
+                          ) : finalized ? (
                             <StatusBadge 
                               status={isInterviewEligible ? 'TEST_SELECTED' : isTestRejected ? 'TEST_REJECTED' : 'APPLIED'}
-                              text={isInterviewEligible ? 'Passed' : isTestRejected ? 'Failed' : requiresScreening && isScreeningSelected ? 'Pending' : 'Not Started'}
+                              text={
+                                isInterviewEligible ? 'Passed'
+                                  : isTestRejected ? 'Failed'
+                                  : screeningAwaitingTest ? 'Pending'
+                                  : 'Not Started'
+                              }
                             />
-                          ) : (requiresScreening ? isScreeningSelected : true) ? (
+                          ) : (
                             <div className="flex gap-2">
                               <button
                                 onClick={() => updateScreeningStatus(app.id, 'TEST_SELECTED')}
-                                disabled={isInterviewEligible || isTestRejected || (requiresScreening && !isScreeningSelected)}
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                                   isInterviewEligible
-                                    ? 'bg-blue-100 text-blue-700 cursor-not-allowed border border-blue-200'
-                                    : isTestRejected
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : (requiresScreening && !isScreeningSelected)
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
                                     : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg transform hover:scale-105'
                                 }`}
-                                title={requiresScreening && !isScreeningSelected ? 'Complete resume screening first' : 'Mark test as passed'}
                               >
                                 <Award className="w-4 h-4 inline mr-1" />
                                 {isInterviewEligible ? 'Passed' : 'Pass'}
@@ -560,24 +637,16 @@ const RecruiterScreening = () => {
                                     updateScreeningStatus(app.id, 'TEST_REJECTED', reason.trim());
                                   }
                                 }}
-                                disabled={isInterviewEligible || isTestRejected || (requiresScreening && !isScreeningSelected)}
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                                   isTestRejected
-                                    ? 'bg-orange-100 text-orange-700 cursor-not-allowed border border-orange-200'
-                                    : isInterviewEligible
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : (requiresScreening && !isScreeningSelected)
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    ? 'bg-orange-100 text-orange-700 border border-orange-200'
                                     : 'bg-orange-600 text-white hover:bg-orange-700 shadow-md hover:shadow-lg transform hover:scale-105'
                                 }`}
-                                title={requiresScreening && !isScreeningSelected ? 'Complete resume screening first' : 'Mark test as failed'}
                               >
                                 <XCircle className="w-4 h-4 inline mr-1" />
                                 {isTestRejected ? 'Failed' : 'Fail'}
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-gray-400 text-sm font-medium">Complete screening first</span>
                           )}
                         </td>
                       )}

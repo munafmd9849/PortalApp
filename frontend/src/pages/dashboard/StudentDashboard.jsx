@@ -11,11 +11,14 @@ import {
   getStudentSkills,
   getEducationalBackground,
 } from '../../services/students';
-import { getStudentApplications, applyToJob, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
+import { getStudentApplications, applyToJob, withdrawApplication, subscribeStudentApplications, getStudentInterviewHistory } from '../../services/applications';
 import { getTargetedJobsForStudent, subscribeJobs, subscribePostedJobs } from '../../services/jobs';
+import { subscribeToUpdates } from '../../services/socket';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { showSuccess, showError, showWarning, showInfo, showLoading, replaceLoadingToast, dismissToast } from '../../utils/toast';
+import { formatApplicationSuccessMessage } from '../../utils/applicationMessages';
+import { sanitizeScoreInput, formatCgpaForDisplay } from '../../utils/scoreInput';
 import { SiCodeforces, SiGeeksforgeeks } from 'react-icons/si';
 import { FaHackerrank, FaInstagram, FaYoutube, FaUsers, FaGraduationCap, FaMapMarkerAlt } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropup } from 'react-icons/io';
@@ -44,6 +47,7 @@ import {
   CheckCircle,
   XCircle,
   Loader,
+  Star,
   Info,
   AlertTriangle,
   X,
@@ -58,6 +62,9 @@ import {
   Linkedin,
   Image as ImageIcon,
   Camera,
+  Video,
+  Sparkles,
+  MessageCircle,
   Globe,
   Plus,
   Link as LinkIcon,
@@ -66,7 +73,8 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Shield
 } from 'lucide-react';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import ResumeBuilder from '../../components/resume/ResumeBuilder';
@@ -74,7 +82,19 @@ import Query from '../../components/dashboard/student/Query';
 import Resources from '../../components/dashboard/student/Resources';
 import ConnectGoogleCalendar from '../ConnectGoogleCalendar';
 import EndorsementManagement from '../../components/dashboard/student/EndorsementManagement';
+import StudentAssessments from '../../components/dashboard/student/StudentAssessments';
+import LiveMockInterviewsStudent from '../student/LiveMockInterviewsStudent';
+import GuidedAiInterviewsStudent from '../student/GuidedAiInterviewsStudent';
+import ConversationalAiInterviewsStudent from '../student/ConversationalAiInterviewsStudent';
 import { StudentMobileMenuContext } from '../../contexts/StudentMobileMenuContext';
+import StudentApplicationTracker from '../../components/dashboard/student/StudentApplicationTracker';
+import {
+  getApplicationPrimaryLabel,
+  getApplicationPrimaryStatus,
+  getPrimaryStatusBadgeClass,
+  getPrimaryStatusGradient,
+} from '../../utils/applicationTrackerState';
+import { canStudentWithdrawApplication } from '../../utils/applicationWithdraw';
 
 /** Validate profile URL - must start with http:// or https:// */
 function isValidProfileUrl(url) {
@@ -87,15 +107,6 @@ function isValidProfileUrl(url) {
   } catch {
     return false;
   }
-}
-
-/** Format CGPA for display (avoids floating-point e.g. 8.699999999999999 → "8.70") */
-function formatCgpaForDisplay(val) {
-  if (val === undefined || val === null || val === '') return '';
-  const n = parseFloat(val);
-  if (Number.isNaN(n)) return String(val).trim();
-  const clamped = Math.max(0, Math.min(10, n));
-  return clamped.toFixed(2);
 }
 
 const normalizeProfileSnapshot = (profile = {}) => ({
@@ -194,6 +205,8 @@ export default function StudentDashboard() {
     cacheKeys.forEach(key => {
       localStorage.removeItem(key);
     });
+    api.clearApiCache('/jobs/targeted');
+    api.clearApiCache('/applications/student');
   }, [user?.id]);
 
   // Get cache key for current user
@@ -250,6 +263,12 @@ export default function StudentDashboard() {
   const addProfileFormRef = useRef(null);
   const initialProfileRef = useRef(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [academicOptions, setAcademicOptions] = useState({
+    schools: [],
+    centers: [],
+    batches: []
+  });
+  const [loadingAcademicOptions, setLoadingAcademicOptions] = useState(false);
   const prevActiveTabRef = useRef('dashboard');
   const [profileSectionsOpen, setProfileSectionsOpen] = useState({
     photo: true,
@@ -388,14 +407,14 @@ export default function StudentDashboard() {
   const [loadingInterviewHistory, setLoadingInterviewHistory] = useState(false);
   const [applicationsView, setApplicationsView] = useState('current'); // 'current' or 'past'
   const [expandedApplications, setExpandedApplications] = useState(new Set()); // Track expanded application details
+  const [withdrawingApplicationId, setWithdrawingApplicationId] = useState(null);
   const [pendingApplicationJobId, setPendingApplicationJobId] = useState(null);
   const [currentApplicationsPage, setCurrentApplicationsPage] = useState(1);
   const [pastApplicationsPage, setPastApplicationsPage] = useState(1);
   const APPLICATIONS_LIST_PER_PAGE = 10;
   const [focusedJobId, setFocusedJobId] = useState(null); // when navigating from dashboard tracker
-  // Shared button sizing for consistent appearance across statuses
-  // Mobile: full width; Desktop: fixed min-width so all statuses align
-  const BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
+  // Explore Jobs tab — spacious action buttons (dashboard home preview uses compact JobListingStatus)
+  const EXPLORE_JOBS_BUTTON_SIZE = 'w-full sm:min-w-[12rem] min-h-[36px] sm:min-h-[40px] px-3 sm:px-4 py-2 sm:py-2.5';
 
   // Reset pagination to page 1 when switching between Current and Past applications
   useEffect(() => {
@@ -496,6 +515,26 @@ export default function StudentDashboard() {
     prevActiveTabRef.current = activeTab;
   }, [activeTab, isFormDirty, resetProfileForm]);
 
+  useEffect(() => {
+    if (activeTab === 'editProfile' && academicOptions.schools.length === 0 && !loadingAcademicOptions) {
+      const loadOptions = async () => {
+        try {
+          setLoadingAcademicOptions(true);
+          const { fetchAcademicOptions, buildDropdownAcademicOptions } = await import(
+            '../../utils/academicOptions'
+          );
+          const raw = await fetchAcademicOptions();
+          setAcademicOptions(buildDropdownAcademicOptions(raw));
+        } catch (err) {
+          console.error('Failed to load academic options:', err);
+        } finally {
+          setLoadingAcademicOptions(false);
+        }
+      };
+      loadOptions();
+    }
+  }, [activeTab, academicOptions.schools.length, loadingAcademicOptions]);
+
   // Career Insights: real counts from pipeline (screening → shortlisted, test → interviewed, offer).
   // No artificial funnel normalization — we show what the backend actually tracked.
   const displayStats = useMemo(() => {
@@ -572,8 +611,11 @@ export default function StudentDashboard() {
   const loadJobsData = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
-    // OPTIMIZED: Check cache first
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      const cacheKey = getCacheKey('jobs');
+      if (cacheKey) localStorage.removeItem(cacheKey);
+      api.clearApiCache('/jobs/targeted');
+    } else {
       const cacheKey = getCacheKey('jobs');
       if (cacheKey) {
         const cachedJobs = getCachedData(cacheKey);
@@ -582,7 +624,7 @@ export default function StudentDashboard() {
           setJobs(cachedJobs);
           setJobsPage(1);
           setLoadingJobs(false);
-          return; // Use cached data, skip API call
+          return;
         }
       }
     }
@@ -590,81 +632,26 @@ export default function StudentDashboard() {
     setLoadingJobs(true);
 
     try {
-      // Get targeted jobs from backend API
-      const jobs = await getTargetedJobsForStudent(user.id);
+      const jobs = await getTargetedJobsForStudent(user.id, { noCache: forceRefresh });
 
-      // Apply job targeting logic with proper "ALL" handling
-      if (profileComplete && school && center && batch) {
-        const targetedJobs = jobs.filter(job => {
-          const targetCenters = job.targetCenters || [];
-          const targetSchools = job.targetSchools || [];
-          const targetBatches = job.targetBatches || [];
+      // Backend already applies targeting; only sort for display
+      const sortedJobs = [...(jobs || [])].sort((a, b) => {
+        if (a.isInvited && !b.isInvited) return -1;
+        if (!a.isInvited && b.isInvited) return 1;
+        if (a.isRecommended && !b.isRecommended) return -1;
+        if (!a.isRecommended && b.isRecommended) return 1;
+        const dateA = new Date(a.postedAt || a.createdAt || 0);
+        const dateB = new Date(b.postedAt || b.createdAt || 0);
+        return dateB - dateA;
+      });
 
-          // If no targeting specified, show to all students
-          if (targetCenters.length === 0 && targetSchools.length === 0 && targetBatches.length === 0) {
-            return true;
-          }
+      setJobs(sortedJobs);
+      setJobsPage(1);
 
-          // CENTER MATCH LOGIC:
-          let centerMatch = false;
-          if (targetCenters.length === 0) {
-            centerMatch = true; // No center targeting
-          } else if (targetCenters.includes('ALL')) {
-            centerMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            centerMatch = targetCenters.some(targetCenter =>
-              targetCenter.toLowerCase().trim() === center.toLowerCase().trim()
-            );
-          }
-
-          // SCHOOL MATCH LOGIC:
-          let schoolMatch = false;
-          if (targetSchools.length === 0) {
-            schoolMatch = true; // No school targeting
-          } else if (targetSchools.includes('ALL')) {
-            schoolMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            schoolMatch = targetSchools.some(targetSchool =>
-              targetSchool.toLowerCase().trim() === school.toLowerCase().trim()
-            );
-          }
-
-          // BATCH MATCH LOGIC:
-          let batchMatch = false;
-          if (targetBatches.length === 0) {
-            batchMatch = true; // No batch targeting
-          } else if (targetBatches.includes('ALL')) {
-            batchMatch = true; // "ALL" means every student
-          } else {
-            // Exact match required (case-insensitive)
-            batchMatch = targetBatches.some(targetBatch =>
-              targetBatch.toLowerCase().trim() === batch.toLowerCase().trim()
-            );
-          }
-
-          // Job is eligible only if ALL three criteria match
-          return centerMatch && schoolMatch && batchMatch;
-        });
-
-        setJobs(targetedJobs);
-        setJobsPage(1);
-        // CACHE: Store filtered jobs in localStorage
-        const jobsCacheKey = getCacheKey('jobs');
-        if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, targetedJobs);
-        }
-      } else {
-        setJobs(jobs);
-        setJobsPage(1);
-        // CACHE: Store all jobs in localStorage
-        const jobsCacheKey = getCacheKey('jobs');
-        if (jobsCacheKey) {
-          setCachedData(jobsCacheKey, jobs);
-        }
+      const jobsCacheKey = getCacheKey('jobs');
+      if (jobsCacheKey) {
+        setCachedData(jobsCacheKey, sortedJobs);
       }
-
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
@@ -672,7 +659,7 @@ export default function StudentDashboard() {
     } finally {
       setLoadingJobs(false);
     }
-  }, [school, center, batch, profileComplete, user?.id]); // Cache functions are stable, no need in deps
+  }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // UPDATED: Load profile data function without defaults
   // Use ref to track loading state to prevent infinite loops
@@ -804,7 +791,9 @@ export default function StudentDashboard() {
           email: profileData.email || '',
           phone: profileData.phone || '',
           enrollmentId: profileData.enrollmentId || '',
-          cgpa: profileData.cgpa?.toString?.() || '',
+          cgpa: profileData.cgpa != null && profileData.cgpa !== ''
+            ? formatCgpaForDisplay(profileData.cgpa)
+            : '',
           batch: profileData.batch || '',
           center: profileData.center || '',
           school: profileData.school || '',
@@ -873,21 +862,19 @@ export default function StudentDashboard() {
       return;
     }
 
-    // OPTIMIZED: Check cache first (but verify it's not empty)
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      const cacheKey = getCacheKey('applications');
+      if (cacheKey) localStorage.removeItem(cacheKey);
+      api.clearApiCache('/applications/student');
+    } else {
       const cacheKey = getCacheKey('applications');
       if (cacheKey) {
         const cachedApplications = getCachedData(cacheKey);
-        // Only use cache if it has data (not empty array)
-        if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length > 0) {
+        if (cachedApplications && Array.isArray(cachedApplications)) {
           console.log('✅ Using cached applications data:', cachedApplications.length, 'applications');
           setApplications(cachedApplications);
           setLoadingApplications(false);
-          return; // Use cached data, skip API call
-        } else if (cachedApplications && Array.isArray(cachedApplications) && cachedApplications.length === 0) {
-          // Cache exists but is empty array - clear it and fetch fresh data
-          console.log('⚠️ Cached data is empty array, clearing cache and fetching fresh data');
-          localStorage.removeItem(cacheKey);
+          return;
         }
       }
     }
@@ -895,7 +882,7 @@ export default function StudentDashboard() {
     console.log('📋 [loadApplicationsData] Loading applications for user:', user.id);
     setLoadingApplications(true);
     try {
-      const applicationsData = await getStudentApplications(user.id);
+      const applicationsData = await getStudentApplications(user.id, { noCache: forceRefresh });
       console.log('📋 [loadApplicationsData] API response:', {
         isArray: Array.isArray(applicationsData),
         length: applicationsData?.length || 0,
@@ -914,27 +901,7 @@ export default function StudentDashboard() {
         console.warn('⚠️ [loadApplicationsData] No applications returned from API');
       }
 
-      console.log('📋 [loadApplicationsData] About to set applications state:', {
-        applicationsDataLength: applicationsData?.length || 0,
-        isArray: Array.isArray(applicationsData),
-        firstApp: applicationsData?.[0] ? {
-          id: applicationsData[0].id,
-          jobId: applicationsData[0].jobId,
-          jobTitle: applicationsData[0].job?.jobTitle
-        } : null
-      });
-
       setApplications(applicationsData || []);
-
-      // Verify state was set correctly
-      setTimeout(() => {
-        console.log('📋 [loadApplicationsData] State verification after setApplications:', {
-          // Note: We can't directly read state here, but we can log what we set
-          setValue: applicationsData?.length || 0
-        });
-      }, 100);
-
-      console.log('✅ [loadApplicationsData] Applications state updated:', (applicationsData || []).length);
 
       // CACHE: Store applications data in localStorage
       const appsCacheKey = getCacheKey('applications');
@@ -953,6 +920,33 @@ export default function StudentDashboard() {
       setLoadingApplications(false);
     }
   }, [user?.id, getCacheKey, getCachedData, setCachedData]);
+
+  const handleWithdrawApplication = useCallback(async (application) => {
+    if (!application?.id) return;
+
+    const check = canStudentWithdrawApplication(application);
+    if (!check.allowed) {
+      showError(check.reason || 'This application cannot be withdrawn');
+      return;
+    }
+
+    const jobTitle = application.job?.jobTitle || 'this job';
+    if (!window.confirm(`Withdraw your application for ${jobTitle}? You can apply again later if the job is still open.`)) {
+      return;
+    }
+
+    setWithdrawingApplicationId(application.id);
+    try {
+      await withdrawApplication(application.id);
+      showSuccess('Application withdrawn successfully');
+      await loadApplicationsData(true);
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.message || 'Failed to withdraw application';
+      showError(errMsg);
+    } finally {
+      setWithdrawingApplicationId(null);
+    }
+  }, [loadApplicationsData]);
 
   // Load interview history
   const loadInterviewHistory = useCallback(async (forceRefresh = false) => {
@@ -974,7 +968,7 @@ export default function StudentDashboard() {
 
     setLoadingInterviewHistory(true);
     try {
-      const historyData = await getStudentInterviewHistory(user.id);
+      const historyData = await getStudentInterviewHistory(user.id, { noCache: forceRefresh });
       setInterviewHistory(historyData || []);
 
       // CACHE: Store interview history in localStorage
@@ -982,9 +976,6 @@ export default function StudentDashboard() {
       if (historyCacheKey) {
         setCachedData(historyCacheKey, historyData || []);
       }
-
-      // CACHE: Store interview history in localStorage
-      setCachedData(CACHE_KEYS.interviewHistory, historyData || []);
     } catch (err) {
       console.error('Failed to load interview history:', err);
       setInterviewHistory([]);
@@ -994,12 +985,15 @@ export default function StudentDashboard() {
   }, [user?.id, getCacheKey, getCachedData, setCachedData]);
 
   // Load resumes from API
-  const loadResumes = useCallback(async () => {
+  const loadResumes = useCallback(async (forceRefresh = false) => {
     if (!user?.id) return;
 
     try {
+      if (forceRefresh) {
+        api.clearApiCache('/students/resumes');
+      }
       setLoadingResumes(true);
-      const data = await api.getResumes();
+      const data = await api.getResumes({ noCache: forceRefresh });
       setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading resumes:', err);
@@ -1028,7 +1022,7 @@ export default function StudentDashboard() {
 
     // Store the job and show resume selection modal
     setPendingJob(job);
-    await loadResumes();
+    await loadResumes(true);
     setIsResumeModalOpen(true);
   };
 
@@ -1086,7 +1080,7 @@ export default function StudentDashboard() {
       }
 
       // Show success toast
-      showSuccess(`Successfully applied to ${pendingJob.jobTitle} at ${pendingJob.company?.name || 'the company'}!`);
+      showSuccess(formatApplicationSuccessMessage(pendingJob));
 
       // Clear applying state immediately
       setApplying(prev => ({ ...prev, [pendingJob.id]: false }));
@@ -1097,6 +1091,7 @@ export default function StudentDashboard() {
       if (appsCacheKey) {
         localStorage.removeItem(appsCacheKey);
       }
+      api.clearApiCache('/applications/student');
       // Reset the loading flag to force a fresh load
       dataLoadingRef.current.applications = false;
       // Reload immediately (forceRefresh=true bypasses cache)
@@ -1310,7 +1305,9 @@ export default function StudentDashboard() {
     window.addEventListener('navigateToQuery', handleNavigateToQuery);
 
     // Set active tab based on URL parameter
-    if (tab && ['dashboard', 'jobs', 'calendar', 'applications', 'resources', 'endorsements', 'resume', 'editProfile', 'raiseQuery'].includes(tab)) {
+    if (tab === 'mockInterviews') {
+      setActiveTab('liveMockInterviews');
+    } else if (tab && ['dashboard', 'jobs', 'resume', 'calendar', 'applications', 'liveMockInterviews', 'guidedAiInterviews', 'conversationalAiInterviews', 'assessments', 'resources', 'endorsements', 'editProfile', 'raiseQuery'].includes(tab)) {
       setActiveTab(tab);
     } else if (tab === null || tab === '') {
       // Only reset to dashboard if there's no tab parameter at all
@@ -1399,31 +1396,75 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const loadDashboardData = async () => {
-      // Load applications and interview history in parallel (both are independent)
+    // Real-time updates via Socket.IO
+    const unsubscribe = subscribeToUpdates({
+      onJobPosted: (data) => {
+        console.log('🔔 New job posted! Refreshing dashboard...', data);
+        // Skip cache for real-time updates
+        loadJobsData(true);
+        // Show a subtle notification if they are on the jobs tab
+        if (activeTab === 'jobs') {
+          showInfo(`New job posted: ${data.jobTitle}`, `By ${data.companyName || 'Recruiter'}`);
+        }
+      },
+      onApplicationUpdated: (updatedApp) => {
+        if (!updatedApp?.id) return;
+        console.log('🔔 Application updated via socket:', updatedApp.id, updatedApp.currentStage);
+        setApplications((prev) => {
+          const exists = prev.some((a) => a.id === updatedApp.id);
+          const next = exists
+            ? prev.map((a) => (a.id === updatedApp.id ? { ...a, ...updatedApp } : a))
+            : [updatedApp, ...prev];
+          const appsCacheKey = getCacheKey('applications');
+          if (appsCacheKey) setCachedData(appsCacheKey, next);
+          return next;
+        });
+        api.clearApiCache('/applications/student');
+        loadInterviewHistory(true);
+      },
+    });
+
+    const loadDashboardData = async (force = false) => {
       const promises = [];
 
-      if (!dataLoadingRef.current.applications) {
-        dataLoadingRef.current.applications = true;
-        promises.push(loadApplicationsData());
-      }
-
-      // Load interview history in parallel with applications (same data source)
-      promises.push(loadInterviewHistory());
+      // Always load applications and interview history
+      promises.push(loadApplicationsData(force));
+      promises.push(loadInterviewHistory(force));
 
       // Wait for both to complete
       await Promise.all(promises);
 
-      // Load jobs when profile is complete (requires profile data for filtering)
-      if (profileComplete && !dataLoadingRef.current.jobs) {
-        dataLoadingRef.current.jobs = true;
-        loadJobsData();
+      // Load jobs when profile is complete
+      if (profileComplete) {
+        loadJobsData(force);
       }
     };
 
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profileComplete]); // Load jobs when profile complete, applications immediately
+    // Force refresh on dashboard, jobs, and applications tabs
+    if (activeTab === 'dashboard' || activeTab === 'jobs' || activeTab === 'applications') {
+      loadDashboardData(true);
+    } else {
+      loadDashboardData(false);
+    }
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.id, activeTab, profileComplete, loadJobsData, loadApplicationsData, loadInterviewHistory, getCacheKey, setCachedData]);
+
+  // Refresh resume list when uploads happen in Resume tab (or elsewhere)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleResumesUpdated = (event) => {
+      const updatedUserId = event?.detail?.userId;
+      if (updatedUserId && updatedUserId !== user.id) return;
+      loadResumes(true);
+    };
+
+    window.addEventListener('resumesUpdated', handleResumesUpdated);
+    return () => window.removeEventListener('resumesUpdated', handleResumesUpdated);
+  }, [user?.id, loadResumes]);
 
   // Keep "Explore Job Opportunities" section in sync after first-time profile completion modal
   useEffect(() => {
@@ -1822,6 +1863,10 @@ export default function StudentDashboard() {
         }
       }
 
+      const selectedSchool = academicOptions.schools.find(s => s.value === school);
+      const selectedCenter = academicOptions.centers.find(c => c.value === center);
+      const selectedBatch = academicOptions.batches.find(b => b.value === batch);
+
       const profileData = {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
@@ -1845,6 +1890,9 @@ export default function StudentDashboard() {
         gfg: gfg.trim(),
         hackerrank: hackerrank.trim(),
         school: school.trim(),
+        schoolId: selectedSchool?.id,
+        centerId: selectedCenter?.id,
+        batchId: selectedBatch?.id,
         profilePhoto: profilePhoto.trim(),
         jobFlexibility: jobFlexibility.trim(),
         otherProfiles: otherProfiles.filter(p => p.platformName?.trim() && isValidProfileUrl(p.profileId)).map(p => ({
@@ -1915,7 +1963,9 @@ export default function StudentDashboard() {
           email: updatedProfile.email || '',
           phone: updatedProfile.phone || '',
           enrollmentId: updatedProfile.enrollmentId || '',
-          cgpa: updatedProfile.cgpa?.toString?.() || '',
+          cgpa: updatedProfile.cgpa != null && updatedProfile.cgpa !== ''
+            ? formatCgpaForDisplay(updatedProfile.cgpa)
+            : '',
           backlogs: updatedProfile.backlogs || '',
           batch: updatedProfile.batch || '',
           center: updatedProfile.center || '',
@@ -2010,6 +2060,10 @@ export default function StudentDashboard() {
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'applications', label: 'Track Applications', icon: ClipboardList },
+    { id: 'liveMockInterviews', label: 'Live Mocks', icon: Video },
+    { id: 'guidedAiInterviews', label: 'Guided AI', icon: Sparkles },
+    { id: 'conversationalAiInterviews', label: 'Conversational AI', icon: MessageCircle },
+    { id: 'assessments', label: 'Assessments', icon: Shield },
     { id: 'resources', label: 'Placement Resources', icon: BookOpen },
     { id: 'endorsements', label: 'Endorsements', icon: Mail },
     { id: 'editProfile', label: 'Edit Profile', icon: SquarePen },
@@ -2143,11 +2197,14 @@ export default function StudentDashboard() {
 
   const getStatusIcon = (status) => {
     const statusLower = status?.toLowerCase() || '';
+    if (statusLower === 'selected') return <CheckCircle size={16} />;
+    if (statusLower.includes('qualified') || statusLower === 'screening completed' || statusLower === 'interview scheduled') return <CheckCircle size={16} />;
+    if (statusLower === 'under review') return <AlertCircle size={16} />;
     // Handle both old status values and new currentStage values
     if (statusLower === 'applied') return <Clock size={16} />;
     if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return <AlertCircle size={16} />;
     if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return <CheckCircle size={16} />;
-    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return <CheckCircle size={16} />;
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return <CheckCircle size={16} />;
     if (statusLower.includes('rejected')) return <XCircle size={16} />;
     switch (status) {
       case 'applied': return <Clock size={16} />;
@@ -2163,11 +2220,14 @@ export default function StudentDashboard() {
 
   const getStatusColor = (status) => {
     const statusLower = status?.toLowerCase() || '';
+    if (statusLower === 'selected') return 'bg-green-100 text-green-800';
+    if (statusLower.includes('qualified') || statusLower === 'screening completed' || statusLower === 'interview scheduled') return 'bg-purple-100 text-purple-800';
+    if (statusLower === 'under review') return 'bg-yellow-100 text-yellow-800';
     // Handle both old status values and new currentStage values
     if (statusLower === 'applied') return 'bg-[#3c80a7]/20 text-[#3c80a7]';
     if (statusLower === 'shortlisted' || statusLower === 'screening qualified') return 'bg-yellow-100 text-yellow-800';
     if (statusLower.includes('interview round') || statusLower === 'qualified for interview' || statusLower === 'interview completed') return 'bg-purple-100 text-purple-800';
-    if (statusLower === 'offered' || statusLower === 'selected' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
+    if (statusLower === 'offered' || statusLower === 'selected (final)') return 'bg-green-100 text-green-800';
     if (statusLower.includes('rejected')) return 'bg-red-100 text-red-800';
     switch (status?.toLowerCase()) {
       case 'applied': return 'bg-[#3c80a7]/20 text-[#3c80a7]';
@@ -2403,17 +2463,11 @@ export default function StudentDashboard() {
               ) : (
                 <div className="space-y-4">
                   {/* Column Headers - Desktop Only; equal spacing between Company, Job Title, Drive Date, Salary (CTC), Status */}
-                  <div className="hidden md:grid mb-2 py-4 px-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 min-w-0 items-center justify-items-stretch w-full" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', columnGap: '1.5rem' }}>
-                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
-                      <Briefcase className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-                      Company
-                    </div>
+                  <div className="hidden md:grid mb-2 py-2 px-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 min-w-0 items-center justify-items-stretch w-full" style={{ gridTemplateColumns: JOB_LISTING_GRID_COLS, columnGap: '0.75rem' }}>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Company</div>
                     <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Job Title</div>
                     <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Salary (CTC)</div>
-                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide flex items-center min-w-0">
-                      <Calendar className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-                      Drive Date
-                    </div>
+                    <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Drive Date</div>
                     <div className="text-gray-700 font-bold text-sm uppercase tracking-wide min-w-0">Status</div>
                   </div>
 
@@ -2449,7 +2503,7 @@ export default function StudentDashboard() {
                               const dl = job.applicationDeadline || job.deadline;
                               failedReasons.push(`Applications closed on ${dl ? new Date(dl).toLocaleDateString() : 'N/A'}`);
                             }
-                            if (job.backlogs && batch !== undefined && batch !== null) {
+                            if (job.backlogs) {
                               const requirementStr = String(job.backlogs).trim().toLowerCase();
                               const studentBacklogsNum = parseInt(String(backlogs || 0)) || 0;
                               let allowed = true;
@@ -2480,7 +2534,13 @@ export default function StudentDashboard() {
                                     navigate(`/job/${job.id}`);
                                   }
                                 }}
-                                className="group bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+                                className={`group rounded-lg sm:rounded-xl border-2 transition-all duration-300 overflow-hidden cursor-pointer ${
+                                  job.isInvited 
+                                    ? 'bg-amber-50/50 border-amber-200 hover:border-amber-400 hover:shadow-amber-100 shadow-sm' 
+                                    : job.isRecommended 
+                                      ? 'bg-indigo-50/50 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100 shadow-sm' 
+                                      : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg sm:hover:shadow-xl'
+                                }`}
                               >
                                 {/* Mobile Layout */}
                                 <div className="md:hidden p-3 sm:p-5 space-y-2.5 sm:space-y-4">
@@ -2490,7 +2550,21 @@ export default function StudentDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1 truncate">{companyName}</h3>
-                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1.5 sm:mb-2 truncate">{job.jobTitle}</p>
+                                      <p className="text-sm sm:text-base font-semibold text-blue-600 mb-1 truncate">{job.jobTitle}</p>
+                                      <div className="flex flex-wrap gap-1 mb-2">
+                                        {job.isRecommended && (
+                                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm">
+                                            <Star className="w-2.5 h-2.5 fill-current" />
+                                            REC
+                                          </span>
+                                        )}
+                                        {job.isInvited && (
+                                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm">
+                                            <Mail className="w-2.5 h-2.5" />
+                                            INV
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                                         <div className="flex items-center gap-1">
                                           <span className="font-semibold text-green-600">{formatSalary(job.salary || job.ctc)}</span>
@@ -2503,14 +2577,14 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
                                   <div className="flex gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-gray-200">
-                                      <button
+                                    <button
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         handleApplyToJob(job);
                                       }}
                                       disabled={isApplied || isApplying || deadlinePassed || notEligible}
-                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
-                                      className={`flex-1 min-w-0 ${BUTTON_SIZE} rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
+                                      title={isApplied ? 'Already applied' : (notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : ''))}
+                                      className={`flex-1 min-w-0 ${EXPLORE_JOBS_BUTTON_SIZE} rounded-md sm:rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 border-2 shadow-sm hover:shadow-md touch-manipulation ${isApplied
                                         ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                         : isApplying
                                           ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
@@ -2560,8 +2634,22 @@ export default function StudentDashboard() {
                                     </div>
                                   </div>
 
-                                  <div className="min-w-0 overflow-hidden flex items-center">
+                                  <div className="min-w-0 overflow-hidden flex flex-col justify-center">
                                     <p className="text-sm font-semibold text-blue-600 truncate">{job.jobTitle}</p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {job.isRecommended && (
+                                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded flex items-center gap-1 border border-indigo-200 shadow-sm shrink-0">
+                                          <Star className="w-2.5 h-2.5 fill-current" />
+                                          Recommended
+                                        </span>
+                                      )}
+                                      {job.isInvited && (
+                                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded flex items-center gap-1 border border-amber-200 shadow-sm shrink-0">
+                                          <Mail className="w-2.5 h-2.5" />
+                                          Invited
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center min-w-0 overflow-hidden">
@@ -2582,8 +2670,8 @@ export default function StudentDashboard() {
                                         handleApplyToJob(job);
                                       }}
                                       disabled={isApplied || isApplying || deadlinePassed || notEligible}
-                                      title={ isApplied ? 'Already applied' : ( notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : '') ) }
-                          className={`${BUTTON_SIZE} px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
+                                      title={isApplied ? 'Already applied' : (notEligible ? failedReasons.join(' • ') : (deadlinePassed ? 'Application deadline has passed. Applications are no longer being accepted.' : ''))}
+                                      className={`${EXPLORE_JOBS_BUTTON_SIZE} px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 shadow-sm hover:shadow-md ${isApplied
                                         ? 'bg-green-100 text-green-700 cursor-not-allowed border-green-300'
                                         : isApplying
                                           ? 'bg-blue-100 text-blue-700 cursor-not-allowed border-blue-300'
@@ -2704,6 +2792,43 @@ export default function StudentDashboard() {
         });
 
         return (
+          <>
+          <style>{`
+            .track-app-glare::after {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: -100%;
+              width: 55%;
+              height: 100%;
+              background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+              animation: trackAppGlare 2.5s ease-in-out infinite;
+              pointer-events: none;
+            }
+            @keyframes trackAppGlare {
+              0%, 100% { left: -100%; }
+              50% { left: 150%; }
+            }
+            .app-expand {
+              transition: grid-template-rows 500ms cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .app-expand-inner {
+              opacity: 0;
+              transform: translateY(-4px);
+              transition: opacity 450ms ease 60ms, transform 500ms cubic-bezier(0.22, 1, 0.36, 1) 60ms;
+            }
+            .app-track-card {
+              transition: border-color 300ms ease, box-shadow 300ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .app-track-card:hover {
+              transform: translateY(-1px);
+            }
+            .app-track-card.is-expanded .app-expand-inner,
+            .app-track-card:focus-within .app-expand-inner {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          `}</style>
           <div className="space-y-5 sm:space-y-8 overflow-x-hidden">
             {/* Application Dashboard – same style as Career Insights (compact, responsive) */}
             <div className="py-2 px-3 sm:px-4 bg-gradient-to-r from-slate-50 via-white to-blue-50 rounded-xl border border-gray-200 shadow-sm">
@@ -2755,53 +2880,52 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            {/* Enhanced View Toggle - responsive: stack on mobile, row on desktop */}
-            <div className="flex justify-center px-1">
-              <div className="bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-2 shadow-xl border border-gray-200/50 w-full max-w-md sm:max-w-none sm:w-auto inline-flex flex-col sm:flex-row gap-2">
+            {/* View toggle */}
+            <div className="flex justify-center items-center w-full py-1">
+              <div className="inline-flex mx-auto rounded-xl border border-gray-200 bg-white p-1.5 gap-1.5 shadow-sm">
                 <button
+                  type="button"
                   onClick={() => setApplicationsView('current')}
-                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${applicationsView === 'current'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg sm:scale-105'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                    }`}
+                  className={`px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2 min-w-[130px] sm:min-w-[150px] ${
+                    applicationsView === 'current'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
                 >
-                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  Current Applications
+                  <Briefcase className="w-5 h-5 flex-shrink-0" />
+                  Current
                 </button>
                 <button
+                  type="button"
                   onClick={() => setApplicationsView('past')}
-                  className={`w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base ${applicationsView === 'past'
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                    }`}
+                  className={`px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2 min-w-[130px] sm:min-w-[150px] relative overflow-hidden ${
+                    applicationsView === 'past'
+                      ? 'track-app-glare bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
                 >
-                  <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  Past Applications
+                  <span className="relative z-10 flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 flex-shrink-0" />
+                    Past
+                  </span>
                 </button>
               </div>
             </div>
 
             {applicationsView === 'past' ? (
-              /* Enhanced Past Applications View - responsive */
-              <div className="space-y-4 sm:space-y-6">
-                <div className="bg-gradient-to-r from-slate-100 via-gray-50 to-purple-50 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
-                  <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 truncate">Past Applications</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Your interview history and results</p>
-                </div>
-
+              <div className="space-y-3 sm:space-y-4">
                 {loadingInterviewHistory ? (
-                  <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
-                    <Loader className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-purple-600 mb-4" />
-                    <span className="text-gray-600 text-sm sm:text-lg font-medium text-center">Loading interview history...</span>
+                  <div className="flex flex-col items-center justify-center py-16 bg-white rounded-lg border border-gray-200 px-4">
+                    <Loader className="animate-spin h-8 w-8 text-blue-600 mb-3" />
+                    <span className="text-gray-500 text-sm">Loading history…</span>
                   </div>
                 ) : pastRecords.length === 0 ? (
-                  <div className="text-center py-12 sm:py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 px-4">
-                    <div className="inline-flex items-center justify-center w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full mb-4 sm:mb-6">
-                      <ClipboardList className="w-8 h-8 sm:w-12 sm:h-12 text-purple-500" />
+                  <div className="text-center py-16 bg-white rounded-lg border border-gray-200 px-4">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-50 border border-gray-200 rounded-lg mb-4">
+                      <ClipboardList className="w-6 h-6 text-gray-400" />
                     </div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Past Records</h3>
-                    <p className="text-gray-500 text-sm sm:text-lg mb-1">Your completed interview records will appear here.</p>
-                    <p className="text-gray-400 text-xs sm:text-sm">Keep applying and attending interviews to build your history!</p>
+                    <h3 className="text-base font-semibold text-gray-900 mb-1">No past records</h3>
+                    <p className="text-gray-500 text-sm">Completed applications will appear here.</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -2821,35 +2945,43 @@ export default function StudentDashboard() {
                             return (
                               <div
                                 key={record.id}
-                                className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
-                                style={{ animationDelay: `${index * 100}ms` }}
+                                className={`app-track-card border border-gray-200 rounded-lg bg-white transition-all duration-300 hover:border-gray-300 hover:shadow-sm ${
+                                  expandedApplications.has(record.id) ? 'is-expanded shadow-sm' : ''
+                                } border-l-[3px] ${
+                                  isCracked ? 'border-l-emerald-500' : isRejected ? 'border-l-red-400' : 'border-l-gray-300'
+                                }`}
                               >
-                                <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${isCracked ? 'from-green-500 to-emerald-500' :
-                                  isRejected ? 'from-red-500 to-rose-500' :
-                                    'from-gray-400 to-gray-500'
-                                  }`}></div>
-
-                                <div className="p-4 sm:p-6 lg:p-8">
-                                  {/* Header: stack on mobile, row on desktop */}
-                                  <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                      <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                                        <div className={`${getCompanyColor(record.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                          <span className="text-white font-bold text-lg sm:text-2xl">
-                                            {getCompanyInitial(record.company?.name)}
-                                          </span>
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                          <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-purple-600 transition-colors">
-                                            {record.job?.jobTitle || 'Unknown Position'}
-                                          </h3>
-                                          <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
-                                            <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                                            {record.company?.name || 'Unknown Company'}
-                                          </p>
-                                        </div>
+                                <div className="p-4 sm:p-5">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-11 h-11 rounded-md bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-gray-700 font-semibold text-sm">
+                                          {getCompanyInitial(record.company?.name)}
+                                        </span>
                                       </div>
+                                      <div className="min-w-0 flex-1">
+                                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                                          {record.job?.jobTitle || 'Unknown Position'}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 flex items-center gap-1.5 truncate">
+                                          <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                          {record.company?.name || 'Unknown Company'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                                      {isCracked && (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                          <CheckCircle className="w-3.5 h-3.5" /> Selected
+                                        </span>
+                                      )}
+                                      {isRejected && (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-100">
+                                          <XCircle className="w-3.5 h-3.5" /> Rejected
+                                        </span>
+                                      )}
                                       <button
+                                        type="button"
                                         onClick={() => {
                                           setExpandedApplications(prev => {
                                             const newSet = new Set(prev);
@@ -2858,39 +2990,40 @@ export default function StudentDashboard() {
                                             return newSet;
                                           });
                                         }}
-                                        className="self-start sm:self-center flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
                                       >
-                                        <span>View Details</span>
+                                        <span>Details</span>
                                         {expandedApplications.has(record.id) ? (
-                                          <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                          <IoIosArrowDropup className="w-4 h-4 text-gray-500" />
                                         ) : (
-                                          <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                          <IoIosArrowDropdown className="w-4 h-4 text-gray-500" />
                                         )}
                                       </button>
                                     </div>
                                   </div>
 
-                                  {expandedApplications.has(record.id) && (
-                                    <div className="mb-4 sm:mb-6 space-y-4 sm:space-y-6 border-t border-gray-200 pt-4 sm:pt-6">
+                                  <div className={`app-expand grid ${expandedApplications.has(record.id) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                    <div className="overflow-hidden min-h-0">
+                                      <div className="app-expand-inner pt-4 mt-4 border-t border-gray-100 space-y-4">
                                       {record.screeningStatusText && (
-                                        <div className={`p-3 sm:p-4 border rounded-lg ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                        <div className={`p-3 sm:p-4 border rounded-lg ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                           ? 'bg-red-50 border-red-200'
-                                          : record.screeningStatus === 'TEST_SELECTED'
+                                          : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                             ? 'bg-green-50 border-green-200'
                                             : 'bg-yellow-50 border-yellow-200'
                                           }`}>
                                           <div className="flex items-center gap-2 mb-1">
-                                            <Info className={`w-5 h-5 ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                            <Info className={`w-5 h-5 ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                               ? 'text-red-600'
-                                              : record.screeningStatus === 'TEST_SELECTED'
+                                              : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                                 ? 'text-green-600'
                                                 : 'text-yellow-600'
                                               }`} />
                                             <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Screening Status</span>
                                           </div>
-                                          <p className={`text-base font-bold ${record.screeningStatus === 'RESUME_REJECTED' || record.screeningStatus === 'TEST_REJECTED'
+                                          <p className={`text-base font-bold ${['RESUME_REJECTED', 'SCREENING_REJECTED', 'TEST_REJECTED'].includes(record.screeningStatus)
                                             ? 'text-red-800'
-                                            : record.screeningStatus === 'TEST_SELECTED'
+                                            : ['TEST_SELECTED', 'INTERVIEW_ELIGIBLE', 'RESUME_SELECTED', 'SCREENING_SELECTED'].includes(record.screeningStatus)
                                               ? 'text-green-800'
                                               : 'text-yellow-800'
                                             }`}>
@@ -2899,56 +3032,25 @@ export default function StudentDashboard() {
                                         </div>
                                       )}
 
-                                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                        {isCracked && (
-                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 shadow-md">
-                                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                            Cracked
-                                          </span>
-                                        )}
-                                        {isRejected && (
-                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200 shadow-md">
-                                            <XCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                            Rejected
-                                          </span>
-                                        )}
-                                        {!isCracked && !isRejected && (
-                                          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-300 shadow-md">
-                                            <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                                            Pending
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <Trophy className="w-5 h-5 text-blue-600" />
-                                            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Round Reached</p>
-                                          </div>
-                                          <p className="text-sm sm:text-lg font-bold text-gray-800 break-words">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                          <p className="text-xs font-medium text-gray-500 mb-1">Round reached</p>
+                                          <p className="text-sm font-semibold text-gray-900 break-words">
                                             {history.lastRoundReached || 'Not evaluated'}
                                           </p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <ClipboardList className="w-5 h-5 text-purple-600" />
-                                            <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Total Rounds</p>
-                                          </div>
-                                          <p className="text-lg font-bold text-gray-800">
-                                            {history.rounds?.length || 0} rounds
+                                        <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                          <p className="text-xs font-medium text-gray-500 mb-1">Total rounds</p>
+                                          <p className="text-sm font-semibold text-gray-900">
+                                            {history.rounds?.length || 0}
                                           </p>
                                         </div>
                                       </div>
 
-                                      {/* Enhanced Rounds Progress */}
                                       {history.rounds && history.rounds.length > 0 && (
-                                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 rounded-lg sm:rounded-xl border border-gray-200 overflow-x-hidden">
-                                          <div className="flex items-center gap-2 mb-4">
-                                            <ClipboardList className="w-5 h-5 text-indigo-600" />
-                                            <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Interview Rounds</p>
-                                          </div>
-                                          <div className="space-y-3">
+                                        <div className="rounded-md border border-gray-200 bg-white p-3 sm:p-4 overflow-x-hidden">
+                                          <p className="text-xs font-medium text-gray-500 mb-3">Interview rounds</p>
+                                          <div className="space-y-2">
                                             {history.rounds.map((round, index) => {
                                               const wasReached = history.roundsReached?.includes(round.name);
                                               const evaluation = history.evaluations?.find(e => e.roundName === round.name);
@@ -2956,90 +3058,59 @@ export default function StudentDashboard() {
                                               return (
                                                 <div
                                                   key={index}
-                                                  className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${wasReached
-                                                    ? evaluation?.status === 'SELECTED'
-                                                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-sm'
-                                                      : evaluation?.status === 'REJECTED'
-                                                        ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-sm'
-                                                        : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm'
-                                                    : 'bg-white border-gray-200'
-                                                    }`}
+                                                  className={`p-3 rounded-md border transition-colors duration-200 ${
+                                                    wasReached
+                                                      ? evaluation?.status === 'SELECTED'
+                                                        ? 'bg-emerald-50/50 border-emerald-200'
+                                                        : evaluation?.status === 'REJECTED'
+                                                          ? 'bg-red-50/50 border-red-200'
+                                                          : 'bg-gray-50 border-gray-200'
+                                                      : 'bg-white border-gray-100'
+                                                  }`}
                                                 >
-                                                  <div className="flex items-center gap-3 mb-3">
-                                                    {(() => {
-                                                      // Different colors for each round number - always show colors
-                                                      const roundColors = [
-                                                        'bg-gradient-to-br from-blue-500 to-indigo-600',      // Round 1 - Blue
-                                                        'bg-gradient-to-br from-purple-500 to-pink-600',      // Round 2 - Purple
-                                                        'bg-gradient-to-br from-amber-500 to-orange-600',     // Round 3 - Amber
-                                                        'bg-gradient-to-br from-teal-500 to-cyan-600',        // Round 4 - Teal
-                                                        'bg-gradient-to-br from-rose-500 to-red-600',         // Round 5 - Rose
-                                                        'bg-gradient-to-br from-emerald-500 to-green-600',    // Round 6 - Emerald
-                                                        'bg-gradient-to-br from-violet-500 to-purple-600',    // Round 7 - Violet
-                                                        'bg-gradient-to-br from-sky-500 to-blue-600',         // Round 8 - Sky
-                                                      ];
-                                                      const roundNotReachedColors = [
-                                                        'bg-gradient-to-br from-blue-300 to-indigo-400',      // Round 1 - Light Blue
-                                                        'bg-gradient-to-br from-purple-300 to-pink-400',      // Round 2 - Light Purple
-                                                        'bg-gradient-to-br from-amber-300 to-orange-400',     // Round 3 - Light Amber
-                                                        'bg-gradient-to-br from-teal-300 to-cyan-400',        // Round 4 - Light Teal
-                                                        'bg-gradient-to-br from-rose-300 to-red-400',         // Round 5 - Light Rose
-                                                        'bg-gradient-to-br from-emerald-300 to-green-400',    // Round 6 - Light Emerald
-                                                        'bg-gradient-to-br from-violet-300 to-purple-400',    // Round 7 - Light Violet
-                                                        'bg-gradient-to-br from-sky-300 to-blue-400',         // Round 8 - Light Sky
-                                                      ];
-                                                      const roundNumber = index + 1;
-                                                      const colorIndex = (roundNumber - 1) % roundColors.length;
-                                                      const baseColor = roundColors[colorIndex];
-                                                      const mutedColor = roundNotReachedColors[colorIndex];
-
-                                                      return (
-                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-md transition-all duration-200 ${wasReached ? baseColor : mutedColor + ' opacity-75'
-                                                          }`}>
-                                                          <span className="text-lg">{roundNumber}</span>
-                                                        </div>
-                                                      );
-                                                    })()}
-                                                    <div>
-                                                      <span className="font-semibold text-base text-gray-800 block">
-                                                        {round.name || `Round ${index + 1}`}
-                                                      </span>
+                                                  <div className="flex items-center gap-3 mb-2">
+                                                    <div className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-semibold ${
+                                                      wasReached ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
+                                                    }`}>
+                                                      {index + 1}
                                                     </div>
+                                                    <span className="font-medium text-sm text-gray-800">
+                                                      {round.name || `Round ${index + 1}`}
+                                                    </span>
                                                   </div>
 
-                                                  <div className="space-y-2 pl-0 sm:pl-16">
+                                                  <div className="space-y-1.5 pl-11">
                                                     {wasReached ? (
                                                       <>
                                                         {evaluation?.marks !== null && (
-                                                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
-                                                            <span className="text-sm font-semibold text-gray-700">Score:</span>
-                                                            <span className="text-base font-bold text-indigo-700">{evaluation.marks}/100</span>
+                                                          <div className="flex items-center justify-between text-sm py-1">
+                                                            <span className="text-gray-500">Score</span>
+                                                            <span className="font-medium text-gray-900">{evaluation.marks}/100</span>
                                                           </div>
                                                         )}
                                                         {evaluation?.status && (
-                                                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-                                                            <span className="text-sm font-semibold text-gray-700">Status:</span>
-                                                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${evaluation.status === 'SELECTED'
-                                                              ? 'bg-green-200 text-green-800'
-                                                              : evaluation.status === 'REJECTED'
-                                                                ? 'bg-red-200 text-red-800'
-                                                                : 'bg-blue-200 text-blue-800'
-                                                              }`}>
+                                                          <div className="flex items-center justify-between text-sm py-1">
+                                                            <span className="text-gray-500">Status</span>
+                                                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                                              evaluation.status === 'SELECTED'
+                                                                ? 'bg-emerald-100 text-emerald-800'
+                                                                : evaluation.status === 'REJECTED'
+                                                                  ? 'bg-red-100 text-red-800'
+                                                                  : 'bg-gray-100 text-gray-700'
+                                                            }`}>
                                                               {evaluation.status}
                                                             </span>
                                                           </div>
                                                         )}
                                                         {evaluation?.remarks && (
-                                                          <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                                                            <span className="text-sm font-semibold text-gray-700 block mb-1">Remarks:</span>
-                                                            <p className="text-sm text-gray-600">{evaluation.remarks}</p>
+                                                          <div className="text-sm text-gray-600 pt-1">
+                                                            <span className="text-gray-500">Remarks: </span>
+                                                            {evaluation.remarks}
                                                           </div>
                                                         )}
                                                       </>
                                                     ) : (
-                                                      <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg text-center">
-                                                        <span className="text-sm font-medium text-gray-500">Not reached</span>
-                                                      </div>
+                                                      <div className="text-sm text-gray-400 py-1">Not reached</div>
                                                     )}
                                                   </div>
                                                 </div>
@@ -3048,20 +3119,15 @@ export default function StudentDashboard() {
                                           </div>
                                         </div>
                                       )}
-                                    </div>
-                                  )}
-
-                                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-gray-200 flex items-center gap-3">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                      <Calendar className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-gray-500 font-medium">Applied Date</p>
-                                      <p className="font-semibold text-gray-800">{formatDate(record.appliedDate)}</p>
+                                      <div className="flex items-center gap-2 text-sm text-gray-600 pt-1">
+                                        <Calendar className="w-4 h-4 text-gray-400" />
+                                        <span>Applied {formatDate(record.appliedDate)}</span>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
+                            </div>
                             );
                           })}
                           {totalPast > 0 && (
@@ -3087,34 +3153,27 @@ export default function StudentDashboard() {
                 )}
               </div>
             ) : (
-            /* Current Applications View - responsive */
-              <div className="space-y-4 sm:space-y-6">
-                {/* Header for Current Applications */}
-                <div className="bg-gradient-to-r from-slate-100 via-white to-blue-50 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
-                  <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 truncate">Current Applications</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Track ongoing applications, statuses, and upcoming interviews</p>
-                  
-                </div>
+              <div className="space-y-3 sm:space-y-4">
                 {loadingApplications ? (
-                  <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl shadow-lg px-4">
-                    <Loader className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-indigo-600 mb-4" />
-                    <span className="text-gray-600 text-sm sm:text-lg font-medium text-center">Loading your applications...</span>
+                  <div className="flex flex-col items-center justify-center py-16 bg-white rounded-lg border border-gray-200 px-4">
+                    <Loader className="animate-spin h-8 w-8 text-blue-600 mb-3" />
+                    <span className="text-gray-500 text-sm">Loading applications…</span>
                   </div>
                 ) : !applications || applications.length === 0 ? (
-                  <div className="text-center py-12 sm:py-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 px-4">
-                    <div className="inline-flex items-center justify-center w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full mb-4 sm:mb-6">
-                      <ClipboardList className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500" />
+                  <div className="text-center py-16 bg-white rounded-lg border border-gray-200 px-4">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-50 border border-gray-200 rounded-lg mb-4">
+                      <ClipboardList className="w-6 h-6 text-gray-400" />
                     </div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Applications Yet</h3>
-                    <p className="text-gray-500 text-sm sm:text-lg mb-1">Start your job search journey today!</p>
-                    <p className="text-gray-400 text-xs sm:text-sm">Browse available jobs and apply to track your progress here.</p>
+                    <h3 className="text-base font-semibold text-gray-900 mb-1">No applications yet</h3>
+                    <p className="text-gray-500 text-sm">Apply to jobs to track your progress here.</p>
                   </div>
                 ) : (
                   <div className="space-y-4 sm:space-y-6">
                     {(() => {
                       const isFinalOutcome = (app) => {
-                        const finalStatus = String(app?.finalStatus || '').toUpperCase();
+                        const finalStatus = String(app?.finalStatus || app?.tracker?.details?.finalStatus || '').toUpperCase();
                         if (finalStatus === 'SELECTED' || finalStatus === 'REJECTED') return true;
+                        if (finalStatus === 'WITHDRAWN' || finalStatus === 'REVOKED' || finalStatus === 'REVOKED_BY_ADMIN') return true;
 
                         const interviewStatus = app?.interviewStatus;
                         if (typeof interviewStatus === 'string') {
@@ -3123,7 +3182,7 @@ export default function StudentDashboard() {
                         }
 
                         const status = String(app?.status || '').toUpperCase();
-                        return status === 'SELECTED' || status === 'REJECTED';
+                        return status === 'SELECTED' || status === 'REJECTED' || status === 'WITHDRAWN' || status === 'REVOKED_BY_ADMIN';
                       };
 
                       const currentApplications = applications.filter(app => !isFinalOutcome(app));
@@ -3137,214 +3196,144 @@ export default function StudentDashboard() {
                           {paginatedApplications.map((application, index) => (
                             <div
                               key={application.id}
-                              className="group relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
-                              style={{ animationDelay: `${index * 100}ms` }}
+                              className={`app-track-card border border-gray-200 rounded-lg bg-white transition-all duration-300 hover:border-gray-300 hover:shadow-sm ${
+                                expandedApplications.has(application.id) ? 'is-expanded shadow-sm' : ''
+                              } border-l-[3px] border-l-blue-500`}
                               data-application-id={application.id}
                             >
-                              <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${(() => {
-                                const status = (application.currentStage || application.status)?.toLowerCase() || '';
-                                if (status === 'applied') return 'from-blue-500 to-cyan-500';
-                                if (status === 'shortlisted' || status === 'screening qualified') return 'from-yellow-500 to-amber-500';
-                                if (status.includes('interview round') || status === 'qualified for interview' || status === 'interview completed') return 'from-purple-500 to-pink-500';
-                                if (status === 'offered' || status === 'selected' || status === 'selected (final)') return 'from-green-500 to-emerald-500';
-                                if (status.includes('rejected')) return 'from-red-500 to-rose-500';
-                                return 'from-gray-400 to-gray-500';
-                              })()
-                        }`}></div>
-
-                              <div id={`application-${application.id}`} className="p-4 sm:p-6 lg:p-8">
-                                <div className="flex flex-col gap-3 sm:gap-4">
-                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                                      <div className={`${getCompanyColor(application.company?.name)} w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                        <span className="text-white font-bold text-lg sm:text-2xl">
-                                          {getCompanyInitial(application.company?.name)}
-                                        </span>
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1 truncate group-hover:text-indigo-600 transition-colors">
-                                          {application.job?.jobTitle || 'Unknown Position'}
-                                        </h3>
-                                        <p className="text-sm sm:text-lg font-semibold text-gray-600 flex items-center gap-2 truncate">
-                                          <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                                          {application.company?.name || 'Unknown Company'}
-                                        </p>
-                                        {application.screeningStatusText && (
-                                          <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{application.screeningStatusText}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
-                                      <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-md ${getStatusColor(application.currentStage || application.status)}`}>
-                                        {getStatusIcon(application.currentStage || application.status)}
-                                        <span className="truncate max-w-[120px] sm:max-w-none">
-                                          {(() => {
-                                            const status = application.currentStage || application.status;
-                                            if (status === 'job_removed') return 'Job Removed';
-                                            if (status) return status.charAt(0).toUpperCase() + status.slice(1);
-                                            return 'Unknown';
-                                          })()}
-                                        </span>
+                              <div id={`application-${application.id}`} className="p-4 sm:p-5">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-11 h-11 rounded-md bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-gray-700 font-semibold text-sm">
+                                        {getCompanyInitial(application.company?.name)}
                                       </span>
-                                      {(application.jobId || application.job?.id) && (
-                                        <button
-                                          onClick={() => navigate(`/job/${application.jobId || application.job?.id}`)}
-                                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 transition-colors duration-200 text-sm font-medium"
-                                          title="View Job Description"
-                                        >
-                                          <FileText className="w-4 h-4 flex-shrink-0" />
-                                          <span>View JD</span>
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={() => {
-                                          setExpandedApplications(prev => {
-                                            const newSet = new Set(prev);
-                                            if (newSet.has(application.id)) newSet.delete(application.id);
-                                            else newSet.add(application.id);
-                                            return newSet;
-                                          });
-                                        }}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700"
-                                      >
-                                        <span>View Details</span>
-                                        {expandedApplications.has(application.id) ? (
-                                          <IoIosArrowDropup className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                        ) : (
-                                          <IoIosArrowDropdown className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                        )}
-                                      </button>
                                     </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                                        {application.job?.jobTitle || 'Unknown Position'}
+                                      </h3>
+                                      <p className="text-sm text-gray-500 flex items-center gap-1.5 truncate">
+                                        <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                        {application.company?.name || 'Unknown Company'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                                    {(() => {
+                                      const primary = getApplicationPrimaryStatus(application);
+                                      const primaryLabel = application.status === 'job_removed'
+                                        ? 'Job Removed'
+                                        : getApplicationPrimaryLabel(application);
+                                      return (
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
+                                          application.status === 'job_removed'
+                                            ? getStatusColor('job_removed')
+                                            : getPrimaryStatusBadgeClass(primary.variant)
+                                        }`}>
+                                          {application.status === 'job_removed' ? getStatusIcon('job_removed') : getStatusIcon(primaryLabel)}
+                                          <span className="truncate max-w-[140px] sm:max-w-none">{primaryLabel}</span>
+                                        </span>
+                                      );
+                                    })()}
+                                    {(application.jobId || application.job?.id) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => navigate(`/job/${application.jobId || application.job?.id}`)}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors"
+                                        title="View Job Description"
+                                      >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        View JD
+                                      </button>
+                                    )}
+                                    {canStudentWithdrawApplication(application).allowed && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleWithdrawApplication(application)}
+                                        disabled={withdrawingApplicationId === application.id}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                        title="Withdraw application"
+                                      >
+                                        {withdrawingApplicationId === application.id ? (
+                                          <Loader className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <XCircle className="w-3.5 h-3.5" />
+                                        )}
+                                        Withdraw
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedApplications(prev => {
+                                          const newSet = new Set(prev);
+                                          if (newSet.has(application.id)) newSet.delete(application.id);
+                                          else newSet.add(application.id);
+                                          return newSet;
+                                        });
+                                      }}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
+                                    >
+                                      <span>Details</span>
+                                      {expandedApplications.has(application.id) ? (
+                                        <IoIosArrowDropup className="w-4 h-4 text-gray-500" />
+                                      ) : (
+                                        <IoIosArrowDropdown className="w-4 h-4 text-gray-500" />
+                                      )}
+                                    </button>
                                   </div>
                                 </div>
 
-                                {expandedApplications.has(application.id) && (
-                                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200 space-y-4 sm:space-y-6">
-                                    {(() => {
-                                      // Don't show screening status badge if already selected or completed
-                                      const currentStage = (application.currentStage || application.status)?.toLowerCase() || '';
-                                      const isFinal = currentStage === 'selected (final)' || currentStage === 'interview completed';
+                                <div className={`app-expand grid ${expandedApplications.has(application.id) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                  <div className="overflow-hidden min-h-0">
+                                    <div className="app-expand-inner pt-4 mt-4 border-t border-gray-100 space-y-4">
+                                    <StudentApplicationTracker application={application} />
 
-                                      // Only show screening status if not in final state
-                                      if (isFinal || !application.screeningStatusText) return null;
-
-                                      return (
-                                        <div className={`p-3 sm:p-3 border rounded-lg ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                          ? 'bg-red-50 border-red-200'
-                                          : application.screeningStatus === 'TEST_SELECTED'
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-yellow-50 border-yellow-200'
-                                          }`}>
-                                          <div className="flex items-center gap-2">
-                                            <Info className={`w-4 h-4 ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                              ? 'text-red-600'
-                                              : application.screeningStatus === 'TEST_SELECTED'
-                                                ? 'text-green-600'
-                                                : 'text-yellow-600'
-                                              }`} />
-                                            <span className={`text-sm font-medium ${application.screeningStatus === 'RESUME_REJECTED' || application.screeningStatus === 'TEST_REJECTED'
-                                              ? 'text-red-800'
-                                              : application.screeningStatus === 'TEST_SELECTED'
-                                                ? 'text-green-800'
-                                                : 'text-yellow-800'
-                                              }`}>
-                                              {application.screeningStatusText}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-
-                                    {/* Interview Status Badge (only if passed screening) */}
-                                    {application.interviewStatus?.hasSession && application.screeningStatus === 'TEST_SELECTED' && (
-                                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                          <Info className="w-4 h-4 text-blue-600" />
-                                          <span className="text-sm font-medium text-blue-800">
-                                            {application.interviewStatus.statusText || 'Interview Status'}
-                                          </span>
-                                        </div>
-                                        {application.interviewStatus.lastRoundReached > 0 && (
-                                          <p className="text-xs text-blue-600 mt-1 ml-6">
-                                            Last Round Reached: Round {application.interviewStatus.lastRoundReached}
-                                          </p>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-                                      <div className="group/item bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-100 hover:shadow-md transition-all duration-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <MapPin className="w-4 h-4 text-blue-600" />
-                                          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Location</p>
-                                        </div>
-                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                          {application.job?.location || 'Not specified'}
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                      <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                        <p className="text-xs text-gray-500 mb-1">Location</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                          {application.job?.location || '—'}
                                         </p>
                                       </div>
-                                      <div className="group/item bg-gradient-to-br from-purple-50 to-pink-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-purple-100 hover:shadow-md transition-all duration-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <Briefcase className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                                          <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Experience</p>
-                                        </div>
-                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                          {application.job?.experienceLevel || 'Not specified'}
+                                      <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                        <p className="text-xs text-gray-500 mb-1">Experience</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                          {application.job?.experienceLevel || '—'}
                                         </p>
                                       </div>
-                                      <div className="group/item bg-gradient-to-br from-green-50 to-emerald-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 hover:shadow-md transition-all duration-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Job Type</p>
-                                        </div>
-                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                          {application.job?.jobType || 'Not specified'}
+                                      <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                        <p className="text-xs text-gray-500 mb-1">Job type</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                          {application.job?.jobType || '—'}
                                         </p>
                                       </div>
-                                      <div className="group/item bg-gradient-to-br from-amber-50 to-yellow-50 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-amber-100 hover:shadow-md transition-all duration-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <Award className="w-4 h-4 text-amber-600" />
-                                          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Salary</p>
-                                        </div>
-                                        <p className="text-sm sm:text-base font-bold text-gray-800 break-words">
-                                          {application.job?.salaryRange || 'Not disclosed'}
+                                      <div className="p-3 rounded-md border border-gray-200 bg-gray-50">
+                                        <p className="text-xs text-gray-500 mb-1">Salary</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                          {application.job?.salaryRange || '—'}
                                         </p>
                                       </div>
                                     </div>
 
-                                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 mb-4 sm:mb-6">
-                                      <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
-                                        <div className="flex items-center gap-2 text-gray-700">
-                                          <div className="p-2 bg-blue-100 rounded-lg">
-                                            <Calendar className="w-4 h-4 text-blue-600" />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs text-gray-500 font-medium">Applied</p>
-                                            <p className="font-semibold text-gray-800">{formatDate(application.appliedDate)}</p>
-                                          </div>
-                                        </div>
-                                        {application.interviewDate && (
-                                          <div className="flex items-center gap-2 text-gray-700">
-                                            <div className="p-2 bg-purple-100 rounded-lg">
-                                              <Clock className="w-4 h-4 text-purple-600" />
-                                            </div>
-                                            <div>
-                                              <p className="text-xs text-gray-500 font-medium">Interview</p>
-                                              <p className="font-semibold text-gray-800">{formatDate(application.interviewDate)}</p>
-                                            </div>
-                                          </div>
-                                        )}
-                                        {application.job?.deadline && (
-                                          <div className="flex items-center gap-2 text-gray-700">
-                                            <div className="p-2 bg-red-100 rounded-lg">
-                                              <AlertCircle className="w-4 h-4 text-red-600" />
-                                            </div>
-                                            <div>
-                                              <p className="text-xs text-gray-500 font-medium">Deadline</p>
-                                              <p className="font-semibold text-gray-800">{formatDate(application.job.deadline)}</p>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
+                                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 py-1">
+                                      <span className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                        Applied {formatDate(application.appliedDate)}
+                                      </span>
+                                      {application.interviewDate && (
+                                        <span className="flex items-center gap-1.5">
+                                          <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                          Interview {formatDate(application.interviewDate)}
+                                        </span>
+                                      )}
+                                      {application.job?.deadline && (
+                                        <span className="flex items-center gap-1.5">
+                                          <AlertCircle className="w-3.5 h-3.5 text-gray-400" />
+                                          Deadline {formatDate(application.job.deadline)}
+                                        </span>
+                                      )}
                                     </div>
 
                                     {(() => {
@@ -3353,23 +3342,20 @@ export default function StudentDashboard() {
                                       if (!jdText || typeof jdText !== 'string' || !jdText.trim()) return null;
                                       const jobId = application.jobId || application.job?.id;
                                       return (
-                                        <div className="mb-4 sm:mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-indigo-100">
-                                          <div className="flex items-center justify-between gap-3 mb-3">
-                                            <div className="flex items-center gap-2">
-                                              <FileText className="w-5 h-5 text-indigo-600" />
-                                              <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Job Description</p>
-                                            </div>
+                                        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                                          <div className="flex items-center justify-between gap-3 mb-2">
+                                            <p className="text-xs font-medium text-gray-500">Job description</p>
                                             {jobId && (
                                               <button
+                                                type="button"
                                                 onClick={() => navigate(`/job/${jobId}`)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors"
+                                                className="text-xs font-medium text-blue-600 hover:text-blue-700"
                                               >
-                                                <ExternalLink className="w-3.5 h-3.5" />
-                                                View Full JD
+                                                View full JD
                                               </button>
                                             )}
                                           </div>
-                                          <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
+                                          <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
                                             {jdText.length > 200 ? `${jdText.substring(0, 200)}...` : jdText}
                                           </p>
                                         </div>
@@ -3396,22 +3382,19 @@ export default function StudentDashboard() {
                                       }
 
                                       return skills.length > 0 ? (
-                                        <div className="mb-4">
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <Code2 className="w-5 h-5 text-indigo-600" />
-                                            <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">Required Skills</p>
-                                          </div>
-                                          <div className="flex flex-wrap gap-2">
-                                            {skills.slice(0, 8).map((skill, index) => (
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-500 mb-2">Required skills</p>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {skills.slice(0, 8).map((skill, skillIndex) => (
                                               <span
-                                                key={index}
-                                                className="px-4 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-sm font-semibold rounded-full border border-indigo-200 hover:from-indigo-200 hover:to-purple-200 transition-all duration-200 shadow-sm"
+                                                key={skillIndex}
+                                                className="px-2.5 py-1 bg-white text-gray-700 text-xs font-medium rounded-md border border-gray-200"
                                               >
                                                 {skill}
                                               </span>
                                             ))}
                                             {skills.length > 8 && (
-                                              <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-semibold rounded-full border border-gray-200">
+                                              <span className="px-2.5 py-1 bg-gray-50 text-gray-500 text-xs font-medium rounded-md border border-gray-200">
                                                 +{skills.length - 8} more
                                               </span>
                                             )}
@@ -3419,8 +3402,9 @@ export default function StudentDashboard() {
                                         </div>
                                       ) : null;
                                     })()}
+                                    </div>
                                   </div>
-                                )}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -3448,6 +3432,7 @@ export default function StudentDashboard() {
               </div>
             )}
           </div>
+          </>
         );
 
       case 'resources':
@@ -3727,15 +3712,7 @@ export default function StudentDashboard() {
                             placeholder="Enter your CGPA (e.g., 9.00, 8.75)"
                             value={cgpa}
                             onChange={(e) => {
-                              let value = e.target.value;
-                              // Allow only numbers and one decimal point
-                              value = value.replace(/[^0-9.]/g, '');
-                              // Ensure only one decimal point
-                              const parts = value.split('.');
-                              if (parts.length > 2) {
-                                value = parts[0] + '.' + parts.slice(1).join('');
-                              }
-                              // Limit to 5 characters (e.g., 10.00)
+                              let value = sanitizeScoreInput(e.target.value, 'CGPA');
                               if (value.length > 5) {
                                 value = value.substring(0, 5);
                               }
@@ -3828,9 +3805,7 @@ export default function StudentDashboard() {
                             iconColor="text-indigo-600"
                             options={[
                               { value: '', label: 'Select Batch' },
-                              { value: '25-29', label: '25-29' },
-                              { value: '24-28', label: '24-28' },
-                              { value: '23-27', label: '23-27' }
+                              ...academicOptions.batches
                             ]}
                             value={batch}
                             onChange={(value) => {
@@ -3847,23 +3822,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                School <span className="text-red-500">*</span>
+                                Branch <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaGraduationCap}
                             iconColor="text-purple-600"
                             options={[
-                              { value: '', label: 'Select School' },
-                              { value: 'SOT', label: 'School of Technology' },
-                              { value: 'SOM', label: 'School of Management' },
-                              { value: 'SOH', label: 'School of HealthCare' }
+                              { value: '', label: 'Select Branch' },
+                              ...academicOptions.schools
                             ]}
                             value={school}
                             onChange={(value) => {
                               setSchool(value);
                               validateField('school', value);
                             }}
-                            placeholder="Select School"
+                            placeholder="Select Branch"
                           />
                           {validationErrors.school && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.school}</p>
@@ -3873,24 +3846,21 @@ export default function StudentDashboard() {
                           <CustomDropdown
                             label={
                               <>
-                                Center <span className="text-red-500">*</span>
+                                Campus <span className="text-red-500">*</span>
                               </>
                             }
                             icon={FaMapMarkerAlt}
                             iconColor="text-blue-600"
                             options={[
-                              { value: '', label: 'Select Center' },
-                              { value: 'BANGALORE', label: 'Bangalore' },
-                              { value: 'NOIDA', label: 'Noida' },
-                              { value: 'LUCKNOW', label: 'Lucknow' },
-                              { value: 'PUNE', label: 'Pune' },
+                              { value: '', label: 'Select Campus' },
+                              ...academicOptions.centers
                             ]}
                             value={center}
                             onChange={(value) => {
                               setCenter(value);
                               validateField('center', value);
                             }}
-                            placeholder="Select Center"
+                            placeholder="Select Campus"
                           />
                           {validationErrors.center && (
                             <p className="text-red-500 text-sm mt-1">{validationErrors.center}</p>
@@ -4673,6 +4643,18 @@ export default function StudentDashboard() {
             </div>
           </div>
         );
+
+      case 'assessments':
+        return <StudentAssessments />;
+
+      case 'liveMockInterviews':
+        return <LiveMockInterviewsStudent />;
+      case 'guidedAiInterviews':
+        return <GuidedAiInterviewsStudent />;
+      case 'conversationalAiInterviews':
+        return <ConversationalAiInterviewsStudent />;
+      case 'mockInterviews':
+        return <LiveMockInterviewsStudent />;
 
       case 'raiseQuery':
         return <Query />;

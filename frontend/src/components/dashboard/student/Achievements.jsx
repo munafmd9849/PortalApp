@@ -3,7 +3,24 @@ import { Award, Eye, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { addAchievementArray, updateAchievementArray, deleteAchievementArray, getStudentProfile } from '../../../services/students';
 
-const Achievements = ({ isAdminView = false }) => {
+function mergeAchievementsAndCertifications(achievements = [], certifications = []) {
+  const awards = Array.isArray(achievements) ? achievements : [];
+  const certs = (Array.isArray(certifications) ? certifications : []).map((cert) => ({
+    ...cert,
+    hasCertificate: true,
+    description: cert.description || cert.issuer || '',
+    date: cert.date || cert.issuedDate || null,
+    certificateUrl: cert.certificateUrl || '',
+  }));
+  return [...awards, ...certs];
+}
+
+const Achievements = ({
+  isAdminView = false,
+  viewStudentId = null,
+  initialAchievements = null,
+  initialCertifications = null,
+}) => {
   const { user } = useAuth();
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,11 +38,21 @@ const Achievements = ({ isAdminView = false }) => {
   const [isCertAddButtonActive, setIsCertAddButtonActive] = useState(false);
   const achievementsLoadedRef = useRef(false);
 
+  useEffect(() => {
+    achievementsLoadedRef.current = false;
+  }, [viewStudentId, initialAchievements, initialCertifications]);
+
   // Load achievements data once on mount
   useEffect(() => {
-    if (!user?.id) return;
-    
-    // Prevent repeated calls
+    if (initialAchievements !== null || initialCertifications !== null) {
+      setAchievements(mergeAchievementsAndCertifications(initialAchievements, initialCertifications));
+      achievementsLoadedRef.current = true;
+      return;
+    }
+
+    const profileKey = isAdminView && viewStudentId ? viewStudentId : user?.id;
+    if (!profileKey && !user?.id) return;
+
     if (achievementsLoadedRef.current) return;
 
     let isMounted = true;
@@ -35,7 +62,7 @@ const Achievements = ({ isAdminView = false }) => {
       try {
         setLoading(true);
         console.log('🚀 [Achievements] Starting loadAchievements, isMounted:', isMounted);
-        const profile = await getStudentProfile(user.id);
+        const profile = await getStudentProfile(isAdminView && viewStudentId ? viewStudentId : user.id);
         
         // CRITICAL: Log raw API response
         console.log('📥 [Achievements] PROFILE API RESPONSE:', profile);
@@ -49,13 +76,13 @@ const Achievements = ({ isAdminView = false }) => {
         
         // CRITICAL: Always process data, but check isMounted before setState
         // SAFE: Normalize to arrays, never null/undefined
-        const achievementsArray = Array.isArray(profile?.achievements) 
-          ? profile.achievements 
+        const achievementsArray = Array.isArray(profile?.achievements)
+          ? profile.achievements
           : (profile?.achievements ? [profile.achievements] : []);
-        const certificationsArray = Array.isArray(profile?.certifications) 
-          ? profile.certifications 
+        const certificationsArray = Array.isArray(profile?.certifications)
+          ? profile.certifications
           : (profile?.certifications ? [profile.certifications] : []);
-        const allItems = [...achievementsArray, ...certificationsArray];
+        const allItems = mergeAchievementsAndCertifications(achievementsArray, certificationsArray);
         const hasRealData = allItems.length > 0;
         
         console.log('🔍 [Achievements] Processed data:', {
@@ -92,7 +119,7 @@ const Achievements = ({ isAdminView = false }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isAdminView, viewStudentId, initialAchievements, initialCertifications]);
 
   // URL normalization helper
   const normalizeUrl = (url) => {
@@ -191,9 +218,7 @@ const Achievements = ({ isAdminView = false }) => {
       
       // Refresh achievements list after save
       const profile = await getStudentProfile(user.id);
-      const achievementsArray = profile?.achievements || [];
-      const certificationsArray = profile?.certifications || [];
-      setAchievements([...achievementsArray, ...certificationsArray]);
+      setAchievements(mergeAchievementsAndCertifications(profile?.achievements, profile?.certifications));
       
       setEditingId(null);
       setIsAwardAddButtonActive(false);
@@ -230,9 +255,7 @@ const Achievements = ({ isAdminView = false }) => {
       
       // Refresh achievements list after delete
       const profile = await getStudentProfile(user.id);
-      const achievementsArray = profile?.achievements || [];
-      const certificationsArray = profile?.certifications || [];
-      setAchievements([...achievementsArray, ...certificationsArray]);
+      setAchievements(mergeAchievementsAndCertifications(profile?.achievements, profile?.certifications));
       
       setSuccess('Achievement deleted successfully!');
       

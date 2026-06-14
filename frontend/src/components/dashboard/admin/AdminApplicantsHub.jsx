@@ -1,15 +1,111 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
-import { Search, ExternalLink, Users, Filter, X, Building2, FileText, Calendar, StickyNote, Pencil, Check } from 'lucide-react';
-import CustomDropdown from '../../common/CustomDropdown';
+import { Search, ExternalLink, Users, Filter, X, Building2, FileText, Calendar, StickyNote, Pencil, Check, ChevronRight, Briefcase, User, Info, Loader } from 'lucide-react';
+import { useToast } from '../../ui/Toast';
+
+function CompanyFilterDropdown({ companies, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = React.useRef(null);
+
+  const options = useMemo(() => {
+    const names = companies.map((c) => c.companyName).sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [companies]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((name) => name.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const selectedLabel = value || 'All Companies';
+
+  useEffect(() => {
+    const onOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full sm:w-72" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-indigo-300 transition-all"
+      >
+        <span className="flex items-center gap-2 min-w-0 truncate">
+          <Building2 className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span className="truncate">{selectedLabel}</span>
+        </span>
+        <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-slate-100">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search companies..."
+                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                autoFocus
+              />
+            </div>
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); setQuery(''); }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 ${!value ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+              >
+                All Companies
+              </button>
+            </li>
+            {filtered.length === 0 ? (
+              <li className="px-4 py-3 text-sm text-slate-400">No companies match</li>
+            ) : (
+              filtered.map((name) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    onClick={() => { onChange(name); setOpen(false); setQuery(''); }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 truncate ${value === name ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CompanyCardSkeleton() {
   return (
-    <div className="animate-pulse bg-white rounded-xl border border-slate-200 p-4">
-      <div className="h-5 w-48 bg-slate-200 rounded mb-2" />
-      <div className="h-3 w-32 bg-slate-200 rounded mb-3" />
-      <div className="mt-3 h-9 w-36 bg-slate-200 rounded" />
+    <div className="animate-pulse bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-12 h-12 bg-slate-200 rounded-xl" />
+        <div className="space-y-2">
+          <div className="h-5 w-48 bg-slate-200 rounded" />
+          <div className="h-3 w-32 bg-slate-200 rounded" />
+        </div>
+      </div>
+      <div className="h-px bg-slate-100 w-full mb-4" />
+      <div className="flex justify-between items-center">
+        <div className="h-4 w-24 bg-slate-100 rounded" />
+        <div className="h-8 w-24 bg-slate-200 rounded-lg" />
+      </div>
     </div>
   );
 }
@@ -40,6 +136,19 @@ function formatDriveDate(job) {
   }
 }
 
+// Helper for company initials/color
+const getCompanyTheme = (name) => {
+  const colors = [
+    { bg: 'bg-indigo-100', text: 'text-indigo-600', border: 'border-indigo-200' },
+    { bg: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200' },
+    { bg: 'bg-sky-100', text: 'text-sky-600', border: 'border-sky-200' },
+    { bg: 'bg-violet-100', text: 'text-violet-600', border: 'border-violet-200' }
+  ];
+  const index = name.length % colors.length;
+  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  return { ...colors[index], initials };
+};
+
 export default function AdminApplicantsHub() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -53,17 +162,22 @@ export default function AdminApplicantsHub() {
   const [savingNote, setSavingNote] = useState(false);
 
   const [filters, setFilters] = useState({
-    search: '',
-    status: '',
+    company: '',
   });
   const [companiesPage, setCompaniesPage] = useState(1);
-  const COMPANIES_PER_PAGE = 10;
+  const COMPANIES_PER_PAGE = 12;
 
-  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  const toast = useToast();
+
+  // Body Scroll Lock when modal is open
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
-    return () => clearTimeout(timer);
-  }, [filters.search]);
+    if (selectedCompany) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [selectedCompany]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,14 +191,7 @@ export default function AdminApplicantsHub() {
           limit: 200,
           isPosted: true,
           status: 'POSTED',
-          search: debouncedSearch || undefined,
         };
-
-        Object.keys(params).forEach(key => {
-          if (params[key] === undefined || params[key] === '') {
-            delete params[key];
-          }
-        });
 
         const res = await api.getJobs(params);
         const list = Array.isArray(res) ? res : (res?.jobs || []);
@@ -99,20 +206,25 @@ export default function AdminApplicantsHub() {
 
     loadJobs();
     return () => { cancelled = true; };
-  }, [debouncedSearch, filters.status]);
+  }, []);
 
-  const hasActiveFilters = useMemo(() => !!(filters.search || filters.status), [filters]);
+  const allCompanies = useMemo(() => groupJobsByCompany(jobs), [jobs]);
+
+  const companies = useMemo(() => {
+    if (!filters.company) return allCompanies;
+    return allCompanies.filter((c) => c.companyName === filters.company);
+  }, [allCompanies, filters.company]);
+
+  const hasActiveFilters = useMemo(() => !!filters.company, [filters.company]);
 
   const resetFilters = () => {
-    setFilters({ search: '', status: '' });
+    setFilters({ company: '' });
   };
-
-  const companies = useMemo(() => groupJobsByCompany(jobs), [jobs]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCompaniesPage(1);
-  }, [debouncedSearch, filters.status]);
+  }, [filters.company]);
 
   // When landing with addNote=jobId (from thank-you email), open company modal and start editing note
   useEffect(() => {
@@ -137,106 +249,59 @@ export default function AdminApplicantsHub() {
   }, [addNoteJobId, loading, jobs, setSearchParams]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 sm:p-6 md:p-8 overflow-x-hidden">
-      {/* Header */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 relative z-10">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-3">
-              <Users className="w-6 h-6 text-indigo-600" />
-              Applicants Tracking
-            </h1>
-            <p className="text-slate-600 mt-1 text-sm sm:text-base">
-              Select a company to see all jobs posted by that company. Open a job to view JD, notes, drive date, and applicants.
-            </p>
-          </div>
+    <div className="space-y-6 min-h-screen bg-[#f8fafc] p-4 sm:p-6 md:p-8 font-outfit">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Applicants <span className="text-indigo-600">Hub</span>
+          </h1>
         </div>
+      </div>
 
-        <div className="border-t border-slate-200 pt-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2 text-slate-700 font-semibold">
-              <Filter className="w-4 h-4" />
-              Filters
-            </div>
-            {hasActiveFilters && (
-              <button
-                onClick={resetFilters}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
-              >
-                <X className="w-4 h-4" />
-                Reset Filters
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Search</label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  placeholder="Company name or job title"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-              <CustomDropdown
-                options={[
-                  { value: '', label: 'All Status' },
-                  { value: 'POSTED', label: 'Posted' },
-                  { value: 'APPROVED', label: 'Approved' },
-                  { value: 'IN_REVIEW', label: 'In Review' },
-                  { value: 'REJECTED', label: 'Rejected' },
-                ]}
-                value={filters.status}
-                onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-                placeholder="All Status"
-              />
-            </div>
-          </div>
-
+      {/* Control Bar (Filters) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 w-full">
+          <CompanyFilterDropdown
+            companies={allCompanies}
+            value={filters.company}
+            onChange={(company) => setFilters({ company })}
+          />
           {hasActiveFilters && (
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs font-medium text-slate-600">Active Filters:</span>
-                {filters.status && (
-                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                    Status: {filters.status}
-                  </span>
-                )}
-                {filters.search && (
-                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                    Search: {filters.search}
-                  </span>
-                )}
-              </div>
-            </div>
+            <button
+              onClick={resetFilters}
+              className="p-2.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shrink-0 self-end sm:self-auto"
+              title="Clear filter"
+            >
+              <X className="w-5 h-5" />
+            </button>
           )}
         </div>
       </div>
 
+      {/* Main Grid */}
       {error ? (
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-rose-200 shadow-sm p-6 text-center">
-          <div className="text-rose-700 font-semibold">{error}</div>
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-12 text-center">
+          <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Info className="w-8 h-8" />
+          </div>
+          <h3 className="text-rose-900 font-bold text-lg">Failed to Load Data</h3>
+          <p className="text-rose-600 mt-1 max-w-md mx-auto">{error}</p>
         </div>
       ) : loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {Array.from({ length: 6 }).map((_, idx) => <CompanyCardSkeleton key={idx} />)}
         </div>
       ) : companies.length === 0 ? (
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm p-12 text-center relative z-0">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-            <Building2 className="w-8 h-8 text-slate-400" />
+        <div className="bg-white rounded-3xl border border-slate-200 p-20 text-center shadow-sm">
+          <div className="w-20 h-20 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Search className="w-10 h-10" />
           </div>
-          <div className="text-slate-900 font-semibold text-lg mb-1">No companies found</div>
-          <div className="text-slate-500 text-sm">
-            {hasActiveFilters ? 'Try adjusting your search or filters.' : 'No companies with posted jobs at the moment.'}
-          </div>
+          <h3 className="text-slate-900 font-bold text-xl">No Companies Found</h3>
+          <p className="text-slate-500 mt-2">Adjust your filters or try a different search term</p>
+          <button onClick={resetFilters} className="mt-6 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200">
+            Reset All Filters
+          </button>
         </div>
       ) : (() => {
         const totalCompanies = companies.length;
@@ -246,105 +311,131 @@ export default function AdminApplicantsHub() {
         const paginatedCompanies = companies.slice(start, start + COMPANIES_PER_PAGE);
         
         return (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-0">
-              {paginatedCompanies.map(({ companyName, jobs: companyJobs, totalApplicants }) => (
-            <div
-              key={companyName}
-              onClick={() => setSelectedCompany({ companyName, jobs: companyJobs, totalApplicants })}
-              className="bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-200 p-6 group cursor-pointer"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-slate-900 text-lg truncate group-hover:text-indigo-600 transition-colors flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                    {companyName}
-                  </div>
-                  <div className="text-sm text-slate-600 mt-1">
-                    {companyJobs.length} job{companyJobs.length !== 1 ? 's' : ''} posted
-                  </div>
-                </div>
-              </div>
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {paginatedCompanies.map(({ companyName, jobs: companyJobs, totalApplicants }) => {
+                const theme = getCompanyTheme(companyName);
+                return (
+                  <div
+                    key={companyName}
+                    onClick={() => setSelectedCompany({ companyName, jobs: companyJobs, totalApplicants })}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-xl hover:border-indigo-300 transition-all duration-300 group cursor-pointer relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ChevronRight className="w-5 h-5 text-indigo-400" />
+                    </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-semibold text-slate-700">{totalApplicants}</span>
-                  <span className="text-xs text-slate-500">applicant{totalApplicants !== 1 ? 's' : ''}</span>
-                </div>
-                <span className="inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">
-                  View jobs
-                  <ExternalLink className="w-4 h-4" />
-                </span>
-              </div>
-            </div>
-          ))}
+                    <div className="flex items-center gap-4 mb-5">
+                      <div className={`w-14 h-14 ${theme.bg} ${theme.text} ${theme.border} border-2 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner`}>
+                        {theme.initials}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-slate-900 text-base truncate leading-tight group-hover:text-indigo-600 transition-colors">
+                          {companyName}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-slate-500 font-semibold text-[10px] uppercase tracking-widest mt-1">
+                          <Briefcase className="w-3 h-3" />
+                          {companyJobs.length} Positions
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Total Applicants</span>
+                        <div className="flex items-baseline gap-1.5 mt-0.5">
+                          <span className="text-base font-bold text-slate-900">{totalApplicants}</span>
+                          <Users className="w-3.5 h-3.5 text-indigo-500" />
+                        </div>
+                      </div>
+                      <button className="px-3.5 py-1.5 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-sm group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all">
+                        Review
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Pagination */}
+            {/* Premium Pagination */}
             {totalCompanies > COMPANIES_PER_PAGE && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Showing {start + 1}–{Math.min(start + COMPANIES_PER_PAGE, totalCompanies)} of {totalCompanies} companies
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-6 py-6 border-t border-slate-200">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                  Showing <span className="text-slate-900">{start + 1}–{Math.min(start + COMPANIES_PER_PAGE, totalCompanies)}</span> of <span className="text-slate-900">{totalCompanies}</span> Companies
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <button
-                    type="button"
-                    onClick={() => setCompaniesPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setCompaniesPage(p => Math.max(1, p - 1))}
                     disabled={currentPage <= 1}
-                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
                   >
-                    Previous
+                    <ChevronRight className="w-5 h-5 rotate-180" />
                   </button>
-                  <span className="px-3 py-2 text-sm text-gray-700">
-                    Page {currentPage} of {totalPages}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCompaniesPage(i + 1)}
+                        className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
+                          currentPage === i + 1 
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => setCompaniesPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setCompaniesPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage >= totalPages}
-                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
                   >
-                    Next
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
               </div>
             )}
-          </>
+          </div>
         );
       })()}
 
-      {/* Company jobs modal */}
-      {selectedCompany && (
+      {/* Company Jobs Modal (Side Drawer Style or Center) */}
+      {selectedCompany && createPortal(
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[9999]"
           onClick={() => setSelectedCompany(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+            className="bg-white rounded-[32px] shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-sky-50 rounded-t-2xl">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2 min-w-0 truncate">
-                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0" />
-                  <span className="truncate">{selectedCompany.companyName}</span>
-                </h2>
-                <button
-                  onClick={() => setSelectedCompany(null)}
-                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+            {/* Modal Header */}
+            <div className="px-8 py-6 bg-gradient-to-r from-slate-200 to-indigo-200 text-slate-900 relative border-b border-indigo-300 shadow-md">
+              <button
+                onClick={() => setSelectedCompany(null)}
+                className="absolute top-6 right-8 w-10 h-10 bg-white hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center transition-all shadow-sm"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+              
+              <div className="flex items-center gap-5">
+                <div className="w-16 h-16 bg-white border border-indigo-200 rounded-[22px] flex items-center justify-center font-semibold text-2xl text-indigo-600 shadow-sm">
+                  {getCompanyTheme(selectedCompany.companyName).initials}
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">{selectedCompany.companyName}</h2>
+                  <div className="flex items-center gap-4 mt-1 text-slate-500 font-semibold tracking-wide uppercase text-[10px]">
+                    <span className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5 text-indigo-500" /> {selectedCompany.jobs.length} Active Openings</span>
+                    <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-indigo-500" /> {selectedCompany.totalApplicants} Total Candidates</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-sm text-slate-600 mt-1">
-                {selectedCompany.jobs.length} job(s) • {selectedCompany.totalApplicants} total applicant(s)
-              </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="space-y-4">
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
+              <div className="grid grid-cols-1 gap-6">
                 {selectedCompany.jobs.map((job) => {
                   const jobId = job?.id || job?.jobId;
                   const title = job?.jobTitle || job?.title || 'Job';
@@ -367,9 +458,9 @@ export default function AdminApplicantsHub() {
                       }));
                       setEditingNoteJobId(null);
                       setEditingNoteValue('');
+                      toast.success('Note updated');
                     } catch (e) {
-                      console.error('Failed to save admin note:', e);
-                      alert(e?.response?.data?.message || e?.message || 'Failed to save note');
+                      toast.error('Failed to update note');
                     } finally {
                       setSavingNote(false);
                     }
@@ -378,92 +469,103 @@ export default function AdminApplicantsHub() {
                   return (
                     <div
                       key={jobId}
-                      className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                      className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:border-indigo-200 transition-all"
                     >
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                        <h3 className="font-semibold text-slate-900 text-lg">{title}</h3>
-                        <span className="text-xs text-slate-500 whitespace-nowrap">
-                          <Users className="w-3.5 h-3.5 inline mr-1" />
-                          {applicationCount} applicant{applicationCount !== 1 ? 's' : ''}
-                        </span>
-                      </div>
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-semibold uppercase tracking-widest rounded-full border border-indigo-100">
+                              Active Job
+                            </span>
+                            <span className="text-slate-400 text-[10px] font-semibold">#{jobId.slice(-6).toUpperCase()}</span>
+                          </div>
+                          <h3 className="text-lg font-semibold text-slate-900 tracking-tight mb-2">{title}</h3>
+                          
+                          <div className="flex flex-wrap gap-4 items-center">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                              <span className="text-[11px] font-semibold text-slate-600">Drive: <span className="text-slate-900">{driveDateStr}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-xl border border-indigo-100">
+                              <Users className="w-3.5 h-3.5 text-indigo-500" />
+                              <span className="text-[11px] font-semibold text-indigo-700">{applicationCount} Applicants</span>
+                            </div>
+                          </div>
+                        </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                        <div className="flex items-start gap-2 sm:col-span-1">
-                          <StickyNote className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                          <div className="min-w-0 flex-1">
-                            <span className="text-xs font-medium text-slate-500 block">Notes</span>
-                            {isEditingThis ? (
-                              <div className="mt-1 space-y-2">
-                                <textarea
-                                  value={editingNoteValue}
-                                  onChange={(e) => setEditingNoteValue(e.target.value)}
-                                  placeholder="Add a note about this drive..."
-                                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm min-h-[60px]"
-                                  rows={2}
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={handleSaveNote}
-                                    disabled={savingNote}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-indigo-600 text-white text-xs font-medium disabled:opacity-50"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingNoteJobId(null); setEditingNoteValue(''); }}
-                                    disabled={savingNote}
-                                    className="px-2 py-1 rounded border border-slate-300 text-slate-700 text-xs font-medium"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-start gap-1 mt-0.5">
-                                <span className="text-slate-700 line-clamp-2 flex-1">{notesDisplay || '—'}</span>
-                                <button
-                                  onClick={() => {
-                                    setEditingNoteJobId(jobId);
-                                    setEditingNoteValue(adminNote || '');
-                                  }}
-                                  className="flex-shrink-0 p-1 rounded text-slate-500 hover:bg-slate-200 hover:text-slate-700"
-                                  title="Add or edit note"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                          <div>
-                            <span className="text-xs font-medium text-slate-500 block">Drive date</span>
-                            <span className="text-slate-700">{driveDateStr}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 items-center sm:justify-end">
+                        <div className="flex items-center gap-3">
                           <a
                             href={`/admin/job/${jobId}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium text-sm"
+                            className="p-3.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-2xl transition-all shadow-sm"
+                            title="JD View"
                           >
-                            <FileText className="w-4 h-4" />
-                            JD View
+                            <FileText className="w-5 h-5" />
                           </a>
                           <button
                             onClick={() => {
                               setSelectedCompany(null);
                               navigate(`/admin/jobs/${jobId}/applications`);
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium text-sm"
+                            className="flex-1 lg:flex-none px-6 py-3.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-2xl font-semibold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-3"
                           >
                             <Users className="w-4 h-4" />
-                            View Applicants
+                            View Candidates
                           </button>
+                        </div>
+                      </div>
+
+                      {/* Admin Notes Section */}
+                      <div className="mt-6 pt-6 border-t border-dashed border-slate-200">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <StickyNote className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administrative Notes</h4>
+                              {!isEditingThis && (
+                                <button
+                                  onClick={() => { setEditingNoteJobId(jobId); setEditingNoteValue(adminNote || ''); }}
+                                  className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5"
+                                >
+                                  <Pencil className="w-3 h-3" /> {adminNote ? 'Edit' : 'Add Note'}
+                                </button>
+                              )}
+                            </div>
+                            
+                            {isEditingThis ? (
+                              <div className="mt-2 space-y-3">
+                                <textarea
+                                  value={editingNoteValue}
+                                  onChange={(e) => setEditingNoteValue(e.target.value)}
+                                  placeholder="Type notes for the admin team..."
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all min-h-[100px]"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                      onClick={handleSaveNote}
+                                      disabled={savingNote}
+                                      className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold uppercase tracking-widest rounded-xl disabled:opacity-50 flex items-center gap-2 hover:bg-indigo-100"
+                                    >
+                                      {savingNote ? <Loader className="w-3 h-3 animate-spin text-indigo-400" /> : <Check className="w-3 h-3 text-indigo-500" />}
+                                      Save Note
+                                    </button>
+                                  <button
+                                    onClick={() => { setEditingNoteJobId(null); setEditingNoteValue(''); }}
+                                    className="px-4 py-2 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest rounded-xl"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm font-medium text-slate-600 leading-relaxed italic">
+                                {notesDisplay || 'No administrative notes added yet.'}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -471,10 +573,20 @@ export default function AdminApplicantsHub() {
                 })}
               </div>
             </div>
+            
+            {/* Modal Footer */}
+            <div className="px-8 py-5 border-t border-slate-100 bg-white text-center">
+              <button 
+                onClick={() => setSelectedCompany(null)}
+                className="text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase tracking-widest transition-colors"
+              >
+                Click outside to close
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
-

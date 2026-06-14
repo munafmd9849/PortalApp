@@ -14,7 +14,8 @@ import {
   AlertCircle,
   User,
   Eye,
-  Users
+  Users,
+  Video
 } from 'lucide-react';
 import DashboardHome from '../components/dashboard/student/DashboardHome';
 import { getStudentProfile, getEducationalBackground, getStudentSkills } from '../services/students';
@@ -38,6 +39,7 @@ const Assessment = () => {
   const location = useLocation();
   const base = location.pathname.startsWith('/super-admin') ? '/super-admin' : '/admin';
   const { user, role } = useAuth();
+  const isEngine = new URLSearchParams(location.search).get('engine') === 'true';
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -78,11 +80,11 @@ const Assessment = () => {
   useEffect(() => {
     if (interviewId && roundName) {
       loadCandidates();
-      loadActivities();
+      if (!isEngine) loadActivities();
       
       // Set up polling for real-time updates (every 5 seconds as per requirements)
       activitiesIntervalRef.current = setInterval(() => {
-        loadActivities();
+        if (!isEngine) loadActivities();
         loadCandidates();
       }, 5000); // Poll every 5 seconds
     }
@@ -96,14 +98,18 @@ const Assessment = () => {
 
   const loadCandidates = async () => {
     try {
-      console.log('🔍 [Assessment] Loading candidates:', { interviewId, roundName });
-      const data = await api.getInterviewCandidates(interviewId, roundName);
+      console.log('🔍 [Assessment] Loading candidates:', { interviewId, roundName, isEngine });
+      const data = isEngine 
+        ? await api.getAssessmentCandidates(interviewId)
+        : await api.getInterviewCandidates(interviewId, roundName);
+        
       console.log('✅ [Assessment] Candidates loaded:', {
         count: data.candidates?.length || 0,
         candidates: data.candidates,
       });
       setCandidates(data.candidates || []);
-      setRoundInfo(data.round);
+      if (!isEngine) setRoundInfo(data.round);
+      else setRoundInfo({ name: roundName });
       setLoading(false);
     } catch (error) {
       console.error('❌ [Assessment] Error loading candidates:', error);
@@ -191,12 +197,21 @@ const Assessment = () => {
 
     try {
       setSavingEvaluation(true);
-      await api.evaluateCandidate(interviewId, candidate.student.id, {
-        roundName: roundName,
-        marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
-        remarks: editingRemarks.trim() || null,
-        status: editingStatus
-      });
+      
+      if (isEngine) {
+        await api.evaluateAssessmentCandidate(interviewId, candidate.student.id, {
+          marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
+          remarks: editingRemarks.trim() || null,
+          status: editingStatus
+        });
+      } else {
+        await api.evaluateCandidate(interviewId, candidate.student.id, {
+          roundName: roundName,
+          marks: editingMarks && editingMarks.trim() !== '' ? parseFloat(editingMarks) : null,
+          remarks: editingRemarks.trim() || null,
+          status: editingStatus
+        });
+      }
 
       // Reload candidates to reflect changes
       await loadCandidates();
@@ -524,6 +539,13 @@ const Assessment = () => {
                               title="Edit Evaluation"
                             >
                               <SquarePen className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => navigate(`/assessment/${interviewId}?studentId=${candidate.student.id}&role=interviewer`)}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="Join Live Interview"
+                            >
+                              <Video className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleViewProfile(candidate)}

@@ -1,4 +1,6 @@
 import prisma from '../config/database.js';
+import { getAdminScopeFilter } from '../utils/adminScope.js';
+
 
 /**
  * Build student WHERE clause from query filters
@@ -7,11 +9,11 @@ function buildStudentWhere(center, school, quarter, batch) {
     const studentWhere = {};
     if (center) {
         const centers = center.split(',').map((c) => c.trim()).filter(Boolean);
-        if (centers.length) studentWhere.center = { in: centers, mode: 'insensitive' };
+        if (centers.length) studentWhere.center = { in: centers };
     }
     if (school) {
         const schools = school.split(',').map((s) => s.trim()).filter(Boolean);
-        if (schools.length) studentWhere.school = { in: schools, mode: 'insensitive' };
+        if (schools.length) studentWhere.school = { in: schools };
     }
     const batches = [];
     if (batch) batches.push(...batch.split(',').map((b) => b.trim()).filter(Boolean));
@@ -28,7 +30,7 @@ function buildStudentWhere(center, school, quarter, batch) {
         });
     }
     if (batches.length) {
-        studentWhere.batch = { in: batches, mode: 'insensitive' };
+        studentWhere.batch = { in: batches };
     }
     return studentWhere;
 }
@@ -40,46 +42,69 @@ function buildStudentWhere(center, school, quarter, batch) {
 export const getDashboardStats = async (req, res) => {
     try {
         const { center, school, quarter, batch } = req.query;
-        const studentWhere = buildStudentWhere(center, school, quarter, batch);
+        
+        // BUILD BASE SCOPE FILTER
+        const adminScope = getAdminScopeFilter(req.user.admin, req.user.role);
+        
+        // MERGE WITH REQUEST FILTERS
+        const requestFilters = buildStudentWhere(center, school, quarter, batch);
+        const studentWhere = { ...adminScope, ...requestFilters };
+        
         const hasStudentFilter = Object.keys(studentWhere).length > 0;
 
         const placementStatusFilter = {
             OR: [
-                { status: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
-                { interviewStatus: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'], mode: 'insensitive' } },
+                { status: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'] } },
+                { interviewStatus: { in: ['SELECTED', 'ACCEPTED', 'OFFERED'] } },
             ],
         };
 
         // --- PHASE 1: Run all independent stats in parallel ---
+        const postedJobWhere = {
+            OR: [{ isPosted: true }, { status: { equals: 'POSTED' } }],
+        };
+
         const [
             totalJobsPosted,
             activeRecruiters,
             activeStudents,
+            totalStudents,
+            blockedStudents,
+            pendingStudents,
+            rejectedStudents,
             pendingQueries,
             totalApplications,
             placedStudentsResult,
             queryVolumeGroup,
             topRecruitersWithJobs,
         ] = await Promise.all([
-            prisma.job.count({
-                where: {
-                    OR: [{ isPosted: true }, { status: { equals: 'POSTED', mode: 'insensitive' } }],
-                },
-            }),
-            prisma.recruiter.count({
-                where: {
-                    user: { status: { in: ['ACTIVE', 'PENDING'], mode: 'insensitive' } },
-                },
-            }),
+            prisma.job.count({ where: postedJobWhere }),
+            prisma.company.count({
+                where: { jobs: { some: postedJobWhere } },
+            }).catch(() =>
+                prisma.recruiter.count({
+                    where: { jobs: { some: postedJobWhere } },
+                }),
+            ),
             prisma.student.count({
                 where: {
                     ...studentWhere,
-                    user: { status: { equals: 'ACTIVE', mode: 'insensitive' } },
+                    user: { status: { equals: 'ACTIVE' } },
                 },
+            }),
+            prisma.student.count({ where: studentWhere }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'BLOCKED' } } },
+            }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'PENDING' } } },
+            }),
+            prisma.student.count({
+                where: { ...studentWhere, user: { status: { equals: 'REJECTED' } } },
             }),
             prisma.studentQuery.count({
                 where: {
-                    status: { in: ['OPEN', 'PENDING', 'UNRESOLVED'], mode: 'insensitive' },
+                    status: { in: ['OPEN', 'PENDING', 'UNRESOLVED'] },
                     ...(hasStudentFilter && { user: { student: studentWhere } }),
                 },
             }),
@@ -190,17 +215,64 @@ export const getDashboardStats = async (req, res) => {
             ? `AND ${studentFilterConditions.join(' AND ')}`
             : '';
 
-        const placementTrendRaw = await prisma.$queryRawUnsafe(`
-            SELECT to_char(a."appliedDate", 'Mon YYYY') AS month, COUNT(*)::int AS cnt
-            FROM applications a
-            JOIN students s ON a."studentId" = s.id
-            WHERE a."appliedDate" >= $1
-              AND (UPPER(a.status) IN ('SELECTED','ACCEPTED','OFFERED')
-                   OR UPPER(a."interviewStatus") IN ('SELECTED','ACCEPTED','OFFERED'))
-              ${studentFilterSql}
-            GROUP BY to_char(a."appliedDate", 'Mon YYYY'), date_trunc('month', a."appliedDate")
-            ORDER BY date_trunc('month', a."appliedDate")
-        `, ...params);
+        let placementTrendRaw = [];
+        try {
+          if (process.env.DATABASE_URL?.startsWith('file:')) {
+            // SQLite version
+            const sqliteFilters = [];
+            const sqliteParams = [sixMonthsAgo.toISOString()];
+            if (studentWhere.center) {
+              sqliteFilters.push(`s.center IN (${studentWhere.center.in.map(c => `'${c}'`).join(',')})`);
+            }
+            if (studentWhere.school) {
+              sqliteFilters.push(`s.school IN (${studentWhere.school.in.map(s => `'${s}'`).join(',')})`);
+            }
+            if (studentWhere.batch) {
+              sqliteFilters.push(`s.batch IN (${studentWhere.batch.in.map(b => `'${b}'`).join(',')})`);
+            }
+            const filterClause = sqliteFilters.length ? `AND ${sqliteFilters.join(' AND ')}` : '';
+
+            placementTrendRaw = await prisma.$queryRawUnsafe(`
+                SELECT strftime('%m %Y', appliedDate) AS month_key, 
+                       COUNT(*) AS cnt,
+                       date(appliedDate, 'start of month') as month_start
+                FROM applications a
+                JOIN students s ON a.studentId = s.id
+                WHERE a.appliedDate >= $1
+                  AND (UPPER(a.status) IN ('SELECTED','ACCEPTED','OFFERED')
+                       OR UPPER(a.interviewStatus) IN ('SELECTED','ACCEPTED','OFFERED'))
+                  ${filterClause}
+                GROUP BY month_start
+                ORDER BY month_start
+            `, ...sqliteParams);
+            
+            // SQLite strftime doesn't do "Mon YYYY" easily, so we map it in JS
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            placementTrendRaw = placementTrendRaw.map(row => {
+              const [m, y] = row.month_key.split(' ');
+              return {
+                month: `${monthNames[parseInt(m) - 1]} ${y}`,
+                cnt: row.cnt
+              };
+            });
+          } else {
+            // PostgreSQL version
+            placementTrendRaw = await prisma.$queryRawUnsafe(`
+                SELECT to_char(a."appliedDate", 'Mon YYYY') AS month, COUNT(*)::int AS cnt
+                FROM applications a
+                JOIN students s ON a."studentId" = s.id
+                WHERE a."appliedDate" >= $1
+                  AND (UPPER(a.status) IN ('SELECTED','ACCEPTED','OFFERED')
+                       OR UPPER(a."interviewStatus") IN ('SELECTED','ACCEPTED','OFFERED'))
+                  ${studentFilterSql}
+                GROUP BY to_char(a."appliedDate", 'Mon YYYY'), date_trunc('month', a."appliedDate")
+                ORDER BY date_trunc('month', a."appliedDate")
+            `, ...params);
+          }
+        } catch (trendError) {
+          console.error('Trend query error:', trendError);
+          placementTrendRaw = [];
+        }
 
         const placementTrendMap = {};
         for (let i = 5; i >= 0; i--) {
@@ -230,11 +302,21 @@ export const getDashboardStats = async (req, res) => {
         };
 
         // --- PHASE 4: School performance - parallel count queries ---
-        const schools = ['SOT', 'SOM', 'SOH'];
+        const schoolsResult = await prisma.student.groupBy({
+            by: ['school'],
+            where: {
+                ...adminScope,
+                school: {
+                    ...(adminScope.school || {}),
+                    not: "", // Skip empty strings
+                }
+            }
+        });
+        const schools = schoolsResult.map(s => s.school);
         const schoolPromises = schools.flatMap((schoolCode) => {
             const localStudentWhere = {
                 ...studentWhere,
-                school: { equals: schoolCode, mode: 'insensitive' },
+                school: { equals: schoolCode },
             };
             const placedWhere = {
                 student: localStudentWhere,
@@ -249,7 +331,7 @@ export const getDashboardStats = async (req, res) => {
                 prisma.application.count({
                     where: {
                         student: localStudentWhere,
-                        screeningStatus: { equals: 'TEST_SELECTED', mode: 'insensitive' },
+                        screeningStatus: { equals: 'TEST_SELECTED' },
                     },
                 }),
             ];
@@ -287,6 +369,10 @@ export const getDashboardStats = async (req, res) => {
                 totalJobsPosted,
                 activeRecruiters,
                 activeStudents,
+                totalStudents,
+                blockedStudents,
+                pendingStudents,
+                rejectedStudents,
                 pendingQueries,
                 totalApplications,
                 placedStudents,

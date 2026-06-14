@@ -13,6 +13,7 @@ import {
   getEndorsementByToken,
   submitEndorsement,
   getStudentEndorsements,
+  getEndorsementTeachers,
   deleteEndorsementRequest,
 } from '../controllers/endorsements.js';
 
@@ -55,6 +56,13 @@ router.get(
   authenticate,
   requireRole(['STUDENT']),
   getStudentEndorsements
+);
+
+router.get(
+  '/teachers',
+  authenticate,
+  requireRole(['STUDENT']),
+  getEndorsementTeachers
 );
 
 // ============================================================================

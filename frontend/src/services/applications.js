@@ -8,7 +8,7 @@ import api from './api.js';
 /**
  * Get student applications
  */
-export const getStudentApplications = async (studentId) => {
+export const getStudentApplications = async (studentId, options = {}) => {
   try {
     console.log('📋 [getStudentApplications] Calling API for studentId:', studentId);
     console.log('📋 [getStudentApplications] API endpoint:', '/applications/student');
@@ -16,7 +16,7 @@ export const getStudentApplications = async (studentId) => {
     // Use real API to fetch applications
     let applications;
     try {
-      applications = await api.getStudentApplications();
+      applications = await api.getStudentApplications(studentId, options);
       console.log('📋 [getStudentApplications] ✅ API call successful');
     } catch (apiError) {
       console.error('❌ [getStudentApplications] API call failed:', apiError);
@@ -145,6 +145,19 @@ export const applyToJob = async (studentId, jobId, applicationData = {}) => {
 };
 
 /**
+ * Withdraw application (student only)
+ */
+export const withdrawApplication = async (applicationId) => {
+  try {
+    const response = await api.withdrawApplication(applicationId);
+    return response;
+  } catch (error) {
+    console.error('withdrawApplication error:', error);
+    throw error;
+  }
+};
+
+/**
  * Update application status (admin/recruiter only)
  */
 export const updateApplicationStatus = async (applicationId, status, interviewDate) => {
@@ -200,9 +213,9 @@ export const subscribeToApplications = subscribeStudentApplications;
 /**
  * Get student interview history with rounds and evaluation details
  */
-export const getStudentInterviewHistory = async (studentId) => {
+export const getStudentInterviewHistory = async (studentId, opts = {}) => {
   try {
-    const history = await api.getStudentInterviewHistory();
+    const history = await api.getStudentInterviewHistory({ noCache: opts.noCache === true });
     return history || [];
   } catch (error) {
     console.error('getStudentInterviewHistory error:', error);

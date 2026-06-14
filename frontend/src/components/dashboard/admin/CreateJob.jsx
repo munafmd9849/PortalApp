@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
-import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User, Archive, Trash2 } from 'lucide-react';
+import { Calendar, Info, Plus, X, Loader, ChevronsUp, ChevronsDown, ChevronDown, Upload, FileText, CheckCircle, AlertCircle, Building2, Globe, Linkedin, Briefcase, MapPin, Users, GraduationCap, Code2, Award, Mail, Phone, Hash, Clock, User, Archive, Trash2, Search } from 'lucide-react';
 import CustomDropdown from '../../common/CustomDropdown';
 import { FaBriefcase, FaLaptop, FaMapMarkerAlt, FaClock, FaExclamationTriangle, FaCalendarAlt, FaDollarSign } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
@@ -156,7 +157,18 @@ export default function CreateJob({ onCreated }) {
   const [gapInputMode, setGapInputMode] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState({ serviceAgreement: false, blockingPeriod: false });
   const [savedDrafts, setSavedDrafts] = useState([]);
-  const [showDraftsPanel, setShowDraftsPanel] = useState(false);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [draftSearchQuery, setDraftSearchQuery] = useState('');
+
+  const filteredDrafts = useMemo(() => {
+    const q = draftSearchQuery.trim().toLowerCase();
+    if (!q) return savedDrafts;
+    return savedDrafts.filter((draft) => {
+      const title = (draft.jobTitle || '').toLowerCase();
+      const company = (draft.company || '').toLowerCase();
+      return title.includes(q) || company.includes(q);
+    });
+  }, [savedDrafts, draftSearchQuery]);
 
   // Load drafts on mount (component only renders if authorized)
   useEffect(() => {
@@ -361,8 +373,8 @@ export default function CreateJob({ onCreated }) {
       // Switch to manual entry method
       setCreationMethod('manual');
 
-      // Close drafts panel
-      setShowDraftsPanel(false);
+      setShowDraftsModal(false);
+      setDraftSearchQuery('');
 
       showSuccess('Draft loaded successfully!');
     } catch (error) {
@@ -736,9 +748,10 @@ export default function CreateJob({ onCreated }) {
     const websiteOk = !form.website?.trim() || isValidUrl(form.website.trim());
     const linkedinOk = !form.linkedin?.trim() || isValidLinkedInUrl(form.linkedin.trim());
     const recruiterEmailOk = hasValidRecruiterEmail && !recruiterEmailError;
-    const stipendOk = !form.stipend?.trim() || !stipendError;
-    const durationOk = !form.duration?.trim() || !durationError;
-    const salaryOk = !form.salary?.trim() || !salaryError;
+    // Only enforce field-specific validation for the active job type
+    const stipendOk = form.jobType !== 'Internship' ? true : (!form.stipend?.trim() || !stipendError);
+    const durationOk = form.jobType !== 'Internship' ? true : (!form.duration?.trim() || !durationError);
+    const salaryOk = form.jobType !== 'Full-Time' ? true : (!form.salary?.trim() || !salaryError);
     const locationOk = !form.companyLocation?.trim() || !companyLocationError;
 
     return !!(base && comp && websiteOk && linkedinOk && recruiterEmailOk && stipendOk && durationOk && salaryOk && locationOk);
@@ -754,8 +767,18 @@ export default function CreateJob({ onCreated }) {
   }, [form.driveDateISO, form.driveDateText, form.driveDateNotDecided, form.applicationDeadlineISO, form.applicationDeadlineText, form.driveVenues, driveDraft.driveDateISO, driveDraft.driveDateText, driveDraft.applicationDeadlineISO, driveDraft.applicationDeadlineText, driveDraft.driveVenues]);
 
   const isSkillsEligibilityComplete = useMemo(() => {
-    return form.qualification?.trim() && form.yop?.trim() && form.minCgpa?.trim() && form.skills.length > 0 && form.gapAllowed?.trim() && form.gapAllowed !== '' && form.backlogs?.trim() && form.backlogs !== '' && !minCgpaError;
-  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.gapAllowed, form.backlogs, minCgpaError]);
+    const hasAtLeastOneSkill =
+      (Array.isArray(form.skills) ? form.skills.length : 0) > 0 || !!form.skillsInput?.trim();
+    return form.qualification?.trim()
+      && form.yop?.trim()
+      && form.minCgpa?.trim()
+      && hasAtLeastOneSkill
+      && form.gapAllowed?.trim()
+      && form.gapAllowed !== ''
+      && form.backlogs?.trim()
+      && form.backlogs !== ''
+      && !minCgpaError;
+  }, [form.qualification, form.yop, form.minCgpa, form.skills, form.skillsInput, form.gapAllowed, form.backlogs, minCgpaError]);
 
   const isInterviewProcessComplete = useMemo(() => {
     // Round 1 and Round 2 are mandatory; Round 3 is optional
@@ -772,11 +795,11 @@ export default function CreateJob({ onCreated }) {
   // All validation functions
   function isValidUrl(value) {
     if (!value) return true;
-    if (value.startsWith('www.') && value.includes('.')) {
-      return true;
-    }
     try {
-      const u = new URL(value);
+      const trimmed = String(value).trim();
+      // Accept common "domain.com" style input by normalizing to https://domain.com
+      const normalized = trimmed.includes('://') ? trimmed : `https://${trimmed.replace(/^www\./i, '')}`;
+      const u = new URL(normalized);
       return u.protocol === 'http:' || u.protocol === 'https:';
     } catch {
       return false;
@@ -804,7 +827,7 @@ export default function CreateJob({ onCreated }) {
       setWebsiteError('');
       return;
     }
-    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (www.example.com or https://example.com)');
+    setWebsiteError(isValidUrl(value) ? '' : 'Enter a valid URL (example.com, www.example.com, or https://example.com)');
   };
 
   const onLinkedInChange = (value) => {
@@ -928,6 +951,15 @@ export default function CreateJob({ onCreated }) {
 
   const onJobTypeChange = (val) => {
     update({ jobType: val });
+    // Prevent inactive fields from blocking submission when switching types
+    if (val === 'Internship') {
+      update({ salary: '' });
+      setSalaryError('');
+    } else if (val === 'Full-Time') {
+      update({ stipend: '', duration: '' });
+      setStipendError('');
+      setDurationError('');
+    }
   };
 
   const onSkillsKeyDown = (e) => {
@@ -1097,7 +1129,12 @@ export default function CreateJob({ onCreated }) {
     const companyName = (form.company || '').trim();
     const description = (form.responsibilities || '').trim();
     const jobTitle = capitalizeJobTitle((form.jobTitle || '').trim());
-    const requiredSkills = Array.isArray(form.skills) ? form.skills : [];
+    const existingSkills = Array.isArray(form.skills) ? form.skills : [];
+    const pendingSkills = (form.skillsInput || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const requiredSkills = Array.from(new Set([...existingSkills, ...pendingSkills]));
 
     // Validate required fields before building payload
     if (!companyName) {
@@ -1108,6 +1145,9 @@ export default function CreateJob({ onCreated }) {
     }
     if (!jobTitle) {
       throw new Error('Job title is required');
+    }
+    if (requiredSkills.length === 0) {
+      throw new Error('At least one required skill is needed');
     }
 
     return {
@@ -1148,6 +1188,9 @@ export default function CreateJob({ onCreated }) {
       // Pre-Interview Requirements
       requiresScreening: form.requiresScreening || false,
       requiresTest: form.requiresTest || false,
+      targetSchoolIds: [],
+      targetCenterIds: [],
+      targetBatchIds: [],
       // Interview process
       interviewRounds: [
         { title: `${toRoman(1)} Round`, detail: form.baseRoundDetails[0] || '' },
@@ -1384,7 +1427,7 @@ export default function CreateJob({ onCreated }) {
         if (!form.qualification?.trim()) details.push('• Qualification');
         if (!form.yop?.trim()) details.push('• Year of Passing');
         if (!form.minCgpa?.trim()) details.push('• Minimum CGPA/Percentage');
-        if ((form.skills?.length || 0) === 0) details.push('• Skills (type and press Enter/comma to add)');
+        if ((form.skills?.length || 0) === 0 && !form.skillsInput?.trim()) details.push('• Skills');
         if (!form.gapAllowed?.trim() || form.gapAllowed === '') details.push('• Year Gaps');
         if (!form.backlogs?.trim() || form.backlogs === '') details.push('• Active Backlogs');
         if (minCgpaError) details.push(`• ${minCgpaError}`);
@@ -1595,144 +1638,9 @@ export default function CreateJob({ onCreated }) {
         }
       `}</style>
 
-      {/* Header - ALWAYS VISIBLE */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg shadow-sm border border-blue-200 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <div className="flex-shrink-0">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-              <Briefcase className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                {isEditing ? 'Edit Job Posting' : 'Create Job Posting'}
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    loadDrafts();
-                    setShowDraftsPanel(!showDraftsPanel);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg border border-blue-300 transition-colors"
-                >
-                  <Archive className="w-4 h-4" />
-                  Saved Drafts ({savedDrafts.length})
-                </button>
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border border-gray-200">
-                  <Info className="w-4 h-4 text-blue-600" />
-                  <span>Fields marked with <span className="text-red-500 font-semibold">*</span> are required</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">
-              {isEditing
-                ? 'Update the job details below. Changes will be saved to the job posting.'
-                : 'Fill in the job details below to create a new job posting. You can save your progress as a draft and continue later.'}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                <span>Save drafts anytime</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <Upload className="w-3.5 h-3.5 text-blue-600" />
-                <span>Upload JD or Excel</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-600 bg-white px-2.5 py-1 rounded-md border border-gray-200">
-                <FileText className="w-3.5 h-3.5 text-purple-600" />
-                <span>Multiple positions supported</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Saved Drafts Panel */}
-      {showDraftsPanel && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Archive className="w-5 h-5 text-blue-600" />
-              Saved Drafts
-            </h3>
-            <button
-              onClick={() => setShowDraftsPanel(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {savedDrafts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Archive className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-sm">No saved drafts found.</p>
-              <p className="text-xs mt-1">Save your progress using the "Save (Draft)" button to see drafts here.</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {savedDrafts.map((draft) => (
-                <div
-                  key={draft.draftId}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Building2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <p className="font-medium text-gray-900 truncate">
-                        {draft.jobTitle || draft.company || 'Untitled Draft'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-500 ml-6">
-                      {draft.company && (
-                        <span className="flex items-center gap-1">
-                          <Building2 className="w-3 h-3" />
-                          {draft.company}
-                        </span>
-                      )}
-                      {draft.createdAt && (
-                        <span>
-                          Saved: {new Date(draft.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <button
-                      onClick={() => loadDraft(draft)}
-                      className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
-                    >
-                      Load
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this draft?')) {
-                          deleteDraft(draft.draftId);
-                        }
-                      }}
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                      title="Delete draft"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* THREE CREATION METHOD OPTIONS - ALWAYS VISIBLE */}
+      {/* Creation method tabs + Saved Drafts */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-center">
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
           <div className="bg-gray-50 rounded-lg p-1 inline-flex gap-2 border border-gray-200">
             <button
               onClick={() => setCreationMethod('manual')}
@@ -1764,8 +1672,151 @@ export default function CreateJob({ onCreated }) {
               Upload Excel
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              loadDrafts();
+              setDraftSearchQuery('');
+              setShowDraftsModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md border transition-all duration-200 text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200"
+          >
+            <Archive className="w-4 h-4" />
+            Saved Drafts ({savedDrafts.length})
+          </button>
         </div>
       </div>
+
+      {showDraftsModal && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="absolute inset-0"
+            onClick={() => {
+              setShowDraftsModal(false);
+              setDraftSearchQuery('');
+            }}
+            aria-hidden
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Saved drafts"
+            className="relative w-full max-w-4xl h-[min(520px,85vh)] flex flex-col rounded-2xl bg-white shadow-xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <Archive className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-slate-900">Saved Drafts</h3>
+                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  {savedDrafts.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDraftsModal(false);
+                  setDraftSearchQuery('');
+                }}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-3 border-b border-slate-100 shrink-0">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={draftSearchQuery}
+                  onChange={(e) => setDraftSearchQuery(e.target.value)}
+                  placeholder="Search by job title or company..."
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+              {savedDrafts.length === 0 ? (
+                <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center text-slate-500">
+                  <Archive className="w-12 h-12 mb-3 text-slate-300" />
+                  <p className="text-sm font-medium">No saved drafts found.</p>
+                  <p className="text-xs mt-1">Use &quot;Save (Draft)&quot; while creating a job to save progress here.</p>
+                </div>
+              ) : filteredDrafts.length === 0 ? (
+                <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center text-slate-500">
+                  <Search className="w-10 h-10 mb-3 text-slate-300" />
+                  <p className="text-sm font-medium">No drafts match your search.</p>
+                  <p className="text-xs mt-1">Try a different job title or company name.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredDrafts.map((draft) => (
+                    <div
+                      key={draft.draftId}
+                      className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
+                          <p className="font-medium text-slate-900 truncate">
+                            {draft.jobTitle || draft.company || 'Untitled Draft'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 ml-6">
+                          {draft.company && (
+                            <span className="flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {draft.company}
+                            </span>
+                          )}
+                          {draft.createdAt && (
+                            <span>
+                              Saved: {new Date(draft.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => loadDraft(draft)}
+                          className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
+                        >
+                          Load
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this draft?')) {
+                              deleteDraft(draft.draftId);
+                            }
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete draft"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* JD UPLOAD FORM */}
       {creationMethod === 'uploadJD' && (

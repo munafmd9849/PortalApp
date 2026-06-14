@@ -67,6 +67,7 @@ export async function uploadToCloudinary(file, options = {}) {
       public_id,
       transformation,
       resource_type = 'auto', // 'auto' detects automatically
+      format,
     } = options;
 
     // Validate configuration
@@ -80,6 +81,7 @@ export async function uploadToCloudinary(file, options = {}) {
       folder: folder || undefined,
       public_id: public_id || undefined,
       resource_type: resource_type,
+      format: format || undefined,
       overwrite: false, // Never overwrite existing files
     };
 

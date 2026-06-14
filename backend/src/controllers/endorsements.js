@@ -1165,6 +1165,108 @@ export async function getStudentEndorsements(req, res) {
   }
 }
 
+function safeParseJson(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return [];
+  }
+}
+
+function adminScopeMatchesStudent(admin, student) {
+  const schools = safeParseJson(admin.allowedSchools);
+  const centers = safeParseJson(admin.allowedCenters);
+  const batches = safeParseJson(admin.allowedBatches);
+
+  if (schools.length && !schools.includes('*') && student.school && !schools.includes(student.school)) {
+    return false;
+  }
+  if (centers.length && !centers.includes('*') && student.center && !centers.includes(student.center)) {
+    return false;
+  }
+  if (batches.length && !batches.includes('*') && student.batch && !batches.includes(student.batch)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * List teachers/faculty available for endorsement requests (scoped to student).
+ * GET /api/endorsements/teachers
+ */
+export async function getEndorsementTeachers(req, res) {
+  try {
+    const userId = req.userId;
+    const student = await prisma.student.findUnique({
+      where: { userId },
+      select: { id: true, school: true, center: true, batch: true },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const [admins, endorserRows] = await Promise.all([
+      prisma.admin.findMany({
+        where: { user: { status: 'ACTIVE' } },
+        include: { user: { select: { email: true, displayName: true } } },
+      }),
+      prisma.endorsement.findMany({
+        where: {
+          consent: true,
+          ...(student.school ? { student: { school: student.school } } : {}),
+        },
+        select: {
+          endorserName: true,
+          endorserEmail: true,
+          endorserRole: true,
+          organization: true,
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+    ]);
+
+    const teacherMap = new Map();
+
+    admins
+      .filter((admin) => adminScopeMatchesStudent(admin, student))
+      .forEach((admin) => {
+        const email = admin.user.email?.trim().toLowerCase();
+        if (!email) return;
+        teacherMap.set(email, {
+          id: admin.id,
+          name: admin.name || admin.user.displayName || email,
+          email,
+          role: admin.role || 'Faculty',
+          organization: student.school || null,
+        });
+      });
+
+    endorserRows.forEach((row) => {
+      const email = row.endorserEmail?.trim().toLowerCase();
+      if (!email || teacherMap.has(email)) return;
+      teacherMap.set(email, {
+        id: email,
+        name: row.endorserName || email,
+        email,
+        role: row.endorserRole || 'Faculty',
+        organization: row.organization || student.school || null,
+      });
+    });
+
+    const teachers = Array.from(teacherMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+
+    res.json({ teachers });
+  } catch (error) {
+    logger.error('Get endorsement teachers error:', error);
+    res.status(500).json({ error: 'Failed to load teachers' });
+  }
+}
+
 /**
  * Delete endorsement request (cancel before it's used)
  * DELETE /api/endorsements/request/:tokenId
