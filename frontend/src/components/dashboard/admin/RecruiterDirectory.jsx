@@ -51,29 +51,33 @@ export default function RecruiterDirectory() {
   });
 
   // Hooks
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const toast = useToast();
 
-  // Real-time subscription to recruiter directory
+  // Real-time subscription to recruiter directory (admin / super-admin only)
   useEffect(() => {
-    console.log('📡 Setting up real-time recruiter directory subscription');
+    const userRole = (role || user?.role || '').toUpperCase();
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      setRecruiters([]);
+      setLoading(false);
+      return undefined;
+    }
+
     setLoading(true);
 
     const unsubscribe = subscribeRecruiterDirectory(
       (recruitersData) => {
-        console.log('📊 Received recruiter directory update:', recruitersData.length, 'recruiters');
         setRecruiters(recruitersData);
         setError(null);
         setLoading(false);
       },
-      { limit: 100 } // Optional: limit for performance
+      { limit: 100, role: userRole }
     );
 
     return () => {
-      console.log('📡 Cleaning up recruiter directory subscription');
       unsubscribe();
     };
-  }, []);
+  }, [role, user?.role]);
 
   // Enhanced filtering with debounced search
   const [searchTerm, setSearchTerm] = useState('');

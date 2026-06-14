@@ -1104,7 +1104,7 @@ export const api = {
   }),
 
   // Recruiters (Admin)
-  getRecruiterDirectory: () => apiRequest('/recruiters/directory'),
+  getRecruiterDirectory: () => apiRequest('/recruiters/directory', { silent: true }),
   getRecruiterJobs: (email) => apiRequest(`/recruiters/${encodeURIComponent(email)}/jobs`),
   blockUnblockRecruiter: (recruiterId, data) => apiRequest(`/recruiters/${recruiterId}/block`, {
     method: 'PATCH',
